@@ -1166,6 +1166,8 @@ Index('uq_recent_client_visits_user_clinic_client', RecentClientVisit.user_id, R
 Index('ix_prescription_search_client', PrescriptionSearchIndex.client_id)
 Index('ix_prescription_search_clinic_eye_values', PrescriptionSearchIndex.clinic_id, PrescriptionSearchIndex.eye, PrescriptionSearchIndex.sph, PrescriptionSearchIndex.cyl, PrescriptionSearchIndex.ax)
 Index('ix_prescription_search_source', PrescriptionSearchIndex.source_type, PrescriptionSearchIndex.source_id)
+Index('ix_prescription_search_exam_id', PrescriptionSearchIndex.exam_id)
+Index('ix_prescription_search_layout_instance_id', PrescriptionSearchIndex.layout_instance_id)
 
 # Indexes for referrals table
 Index('ix_referrals_clinic_id', Referral.clinic_id)

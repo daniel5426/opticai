@@ -241,7 +241,7 @@
 }
 
 :root {
-  --sidebar: hsl(199, 100%, 87%);
+  --sidebar: hsl(240 4.8% 95.9%);
   --sidebar-foreground: hsl(0, 0%, 0%);
   --sidebar-primary: hsl(240 5.9% 10%);
   --sidebar-primary-foreground: hsl(0 0% 98%);

@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { X } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -23,7 +25,7 @@ import {
 import { useUser } from "@/contexts/UserContext";
 import { apiClient } from "@/lib/api-client";
 import { ORDER_STATUS_OPTIONS } from "@/lib/order-status";
-import { CatalogVariantPicker } from "@/components/inventory/CatalogVariantPicker";
+import { FrameCatalogCombobox } from "@/components/inventory/FrameCatalogCombobox";
 import {
   CatalogVariant,
   FulfillmentSource,
@@ -243,6 +245,10 @@ export default function RegularOrderTab({
   const [lensMergeError, setLensMergeError] = useState("");
   const [companyClinics, setCompanyClinics] = useState<Clinic[]>([]);
   const [isLoadingCompanyClinics, setIsLoadingCompanyClinics] = useState(false);
+  const [frameCatalogVariants, setFrameCatalogVariants] = useState<
+    CatalogVariant[]
+  >([]);
+  const [isLoadingFrameCatalog, setIsLoadingFrameCatalog] = useState(false);
   const { currentUser, currentClinic } = useUser();
   const activeLens = lensFrameTab?.lens || ({ order_id: 0 } as OrderLens);
   const activeFrame = lensFrameTab?.frame || ({ order_id: 0 } as Frame);
@@ -292,6 +298,37 @@ export default function RegularOrderTab({
       isMounted = false;
     };
   }, [effectiveCompanyId]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const clinicId = currentClinic?.id;
+    if (!clinicId) {
+      setFrameCatalogVariants([]);
+      setIsLoadingFrameCatalog(false);
+      return;
+    }
+
+    setIsLoadingFrameCatalog(true);
+    void apiClient
+      .getInventoryVariants(clinicId, {
+        category: "frame",
+        stockableOnly: true,
+      })
+      .then((response) => {
+        if (isMounted) setFrameCatalogVariants(response.data?.items || []);
+      })
+      .catch((error) => {
+        if (isMounted) setFrameCatalogVariants([]);
+        console.error("Failed to load frame catalog", error);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingFrameCatalog(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentClinic?.id]);
 
   useEffect(() => {
     setLensLayoutMode("auto");
@@ -549,7 +586,10 @@ export default function RegularOrderTab({
             </Card>
           </div>
 
-          <div className="relative h-full lg:col-span-3" data-clinical-nav-card="true">
+          <div
+            className="relative h-full lg:col-span-3"
+            data-clinical-nav-card="true"
+          >
             {isEditing && (
               <ExamToolbox
                 isEditing={isEditing}
@@ -631,10 +671,38 @@ export default function RegularOrderTab({
                 <Card className="pt-4">
                   <CardHeader className="px-6 pt-0 pb-3">
                     <div className="flex items-start justify-between gap-3">
-                      <div>
+                      <div className="flex min-w-0 items-center gap-2">
                         <CardTitle className={sectionTitleClass}>
                           פרטי מסגרת
                         </CardTitle>
+                        {selectedFrameInventory?.variant ? (
+                          <Badge
+                            variant="outline"
+                            className="max-w-64 gap-1.5 font-normal"
+                          >
+                            <span className="truncate">
+                              {selectedFrameInventory.variant.display_name}
+                            </span>
+                            <span className="text-muted-foreground shrink-0">
+                              {selectedFrameInventory.fulfillment_source ===
+                              "inventory"
+                                ? `${selectedFrameInventory.variant.balance?.available || 0} זמין`
+                                : "הזמנה מספק"}
+                            </span>
+                            {isEditing &&
+                            selectedFrameInventory.lifecycle_state !==
+                              "consumed" ? (
+                              <button
+                                type="button"
+                                className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring -me-1 rounded-sm p-0.5 focus-visible:ring-2 focus-visible:outline-none"
+                                onClick={onFrameInventoryClear}
+                                aria-label="בטל בחירת מוצר מהקטלוג"
+                              >
+                                <X aria-hidden="true" className="size-3" />
+                              </button>
+                            ) : null}
+                          </Badge>
+                        ) : null}
                       </div>
                       <button
                         type="button"
@@ -648,59 +716,74 @@ export default function RegularOrderTab({
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    {currentClinic?.id ? (
-                      <CatalogVariantPicker
-                        category="frame"
-                        clinicId={currentClinic.id}
-                        selected={selectedFrameInventory?.variant}
-                        selectedSource={selectedFrameInventory?.fulfillment_source}
-                        disabled={
-                          !isEditing ||
-                          selectedFrameInventory?.lifecycle_state === "consumed"
-                        }
-                        title="בחירת מסגרת מהקטלוג"
-                        onSelect={onFrameInventorySelect}
-                        onClear={onFrameInventoryClear}
-                      />
-                    ) : null}
                     <div className="grid gap-3 md:grid-cols-4">
                       <div>
                         <Label className={labelClass}>שם ספק</Label>
-                        <LookupSelect
+                        <FrameCatalogCombobox
+                          field="supplier"
                           value={activeFrame.supplier || ""}
+                          values={activeFrame}
+                          variants={frameCatalogVariants}
+                          loadingCatalog={isLoadingFrameCatalog}
                           onChange={(value) =>
                             onFrameFieldChange("supplier", value)
                           }
                           lookupType="supplier"
+                          lookupLabel="ספקים"
                           placeholder="בחר או הקלד ספק..."
-                          disabled={!isEditing}
+                          disabled={
+                            !isEditing ||
+                            selectedFrameInventory?.lifecycle_state ===
+                              "consumed"
+                          }
                           className={`${fieldClass} text-right`}
+                          onSelectProduct={onFrameInventorySelect}
                         />
                       </div>
                       <div>
                         <Label className={labelClass}>מותג</Label>
-                        <LookupSelect
+                        <FrameCatalogCombobox
+                          field="manufacturer"
                           value={activeFrame.manufacturer || ""}
+                          values={activeFrame}
+                          variants={frameCatalogVariants}
+                          loadingCatalog={isLoadingFrameCatalog}
                           onChange={(value) =>
                             onFrameFieldChange("manufacturer", value)
                           }
                           lookupType="manufacturer"
+                          lookupLabel="מותגים"
                           placeholder="בחר או הקלד מותג..."
-                          disabled={!isEditing}
+                          disabled={
+                            !isEditing ||
+                            selectedFrameInventory?.lifecycle_state ===
+                              "consumed"
+                          }
                           className={`${fieldClass} text-right`}
+                          onSelectProduct={onFrameInventorySelect}
                         />
                       </div>
                       <div>
                         <Label className={labelClass}>דגם</Label>
-                        <LookupSelect
+                        <FrameCatalogCombobox
+                          field="model"
                           value={activeFrame.model || ""}
+                          values={activeFrame}
+                          variants={frameCatalogVariants}
+                          loadingCatalog={isLoadingFrameCatalog}
                           onChange={(value) =>
                             onFrameFieldChange("model", value)
                           }
                           lookupType="frameModel"
+                          lookupLabel="דגמי מסגרות"
                           placeholder="בחר או הקלד דגם מסגרת..."
-                          disabled={!isEditing}
+                          disabled={
+                            !isEditing ||
+                            selectedFrameInventory?.lifecycle_state ===
+                              "consumed"
+                          }
                           className={`${fieldClass} text-right`}
+                          onSelectProduct={onFrameInventorySelect}
                         />
                       </div>
                       <div>
@@ -721,15 +804,25 @@ export default function RegularOrderTab({
                     <div className="grid gap-3 md:grid-cols-4">
                       <div>
                         <Label className={labelClass}>צבע</Label>
-                        <LookupSelect
+                        <FrameCatalogCombobox
+                          field="color"
                           value={activeFrame.color || ""}
+                          values={activeFrame}
+                          variants={frameCatalogVariants}
+                          loadingCatalog={isLoadingFrameCatalog}
                           onChange={(value) =>
                             onFrameFieldChange("color", value)
                           }
                           lookupType="color"
+                          lookupLabel="צבעים"
                           placeholder="בחר או הקלד צבע..."
-                          disabled={!isEditing}
+                          disabled={
+                            !isEditing ||
+                            selectedFrameInventory?.lifecycle_state ===
+                              "consumed"
+                          }
                           className={`${fieldClass} text-right`}
+                          onSelectProduct={onFrameInventorySelect}
                         />
                       </div>
                       <div>

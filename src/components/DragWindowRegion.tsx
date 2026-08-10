@@ -94,10 +94,10 @@ export default function DragWindowRegion({ title }: DragWindowRegionProps) {
   );
 
   return (
-    <div className="bg-secondary border-sidebar-border">
+    <div className="bg-sidebar border-sidebar-border">
       <div
         dir="ltr"
-        className="bg-secondary relative flex h-8 w-screen items-center"
+        className="bg-sidebar relative flex h-8 w-screen items-center"
         style={
           {
             paddingLeft: "env(titlebar-area-x, 0px)",
@@ -108,7 +108,7 @@ export default function DragWindowRegion({ title }: DragWindowRegionProps) {
         }
       >
         {controlsSide === "right" && <BrandMark />}
-        <div className="draglayer bg-secondary flex flex-1 items-center gap-2 px-1">
+        <div className="draglayer bg-sidebar flex flex-1 items-center gap-2 px-1">
           {title && (
             <div className="text-sidebar-foreground/70 flex items-center px-2 text-[16px] font-medium whitespace-nowrap select-none">
               {title}

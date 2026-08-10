@@ -20,49 +20,49 @@ export type ColorTheme =
 
 const COLOR_THEMES: Record<ColorTheme, {
   primary: string;
-  secondary: string;
+  sidebar: string;
   muted: string;
   accent: string;
 }> = {
   blue: {
     primary: "#2256aa",
-    secondary: "#cce9ff",
-    muted: "#f7fafc",
-    accent: "#e6f2ff",
+    sidebar: "#cce9ff",
+    muted: "#f1f5f9",
+    accent: "#f1f5f9",
   },
   neutral: {
     primary: "#3f3f46",
-    secondary: "#f4f4f5",
+    sidebar: "#f4f4f5",
     muted: "#fafafa",
     accent: "#f4f4f5",
   },
   forest: {
     primary: "#386451",
-    secondary: "#e7f2eb",
+    sidebar: "#e7f2eb",
     muted: "#f8fbf9",
     accent: "#e7f2eb",
   },
   bronze: {
     primary: "#87613f",
-    secondary: "#f7eee4",
+    sidebar: "#f7eee4",
     muted: "#fdfaf7",
     accent: "#f7eee4",
   },
   plum: {
     primary: "#65516f",
-    secondary: "#f1e9f4",
+    sidebar: "#f1e9f4",
     muted: "#fbf9fc",
     accent: "#f1e9f4",
   },
   monochrome: {
     primary: "#0a0a0a",
-    secondary: "#f5f5f5",
+    sidebar: "#f5f5f5",
     muted: "#fafafa",
     accent: "#f5f5f5",
   },
   openai: {
     primary: "#0f766e",
-    secondary: "#e7f5f2",
+    sidebar: "#e7f5f2",
     muted: "#f7fcfa",
     accent: "#e7f5f2",
   },
@@ -137,7 +137,7 @@ function applyColorThemeValues(theme: ColorTheme): void {
   const root = document.documentElement;
 
   if (root.classList.contains("dark")) {
-    ["--primary", "--secondary", "--muted", "--accent"].forEach((token) =>
+    ["--primary", "--muted", "--accent", "--sidebar"].forEach((token) =>
       root.style.removeProperty(token),
     );
     return;
@@ -145,7 +145,7 @@ function applyColorThemeValues(theme: ColorTheme): void {
 
   const colors = COLOR_THEMES[theme];
   root.style.setProperty("--primary", hexToHsl(colors.primary));
-  root.style.setProperty("--secondary", hexToHsl(colors.secondary));
+  root.style.setProperty("--sidebar", `hsl(${hexToHsl(colors.sidebar)})`);
   root.style.setProperty("--muted", hexToHsl(colors.muted));
   root.style.setProperty("--accent", hexToHsl(colors.accent));
 }

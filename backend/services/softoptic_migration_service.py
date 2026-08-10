@@ -378,6 +378,16 @@ def _ids_by_model(links: Iterable[MigrationSourceLink]) -> dict[str, list[int]]:
     return result
 
 
+def _delete_ids_in_chunks(db: Session, model: Any, column: Any, ids: Iterable[int]) -> int:
+    unique_ids = sorted(set(ids))
+    deleted = 0
+    for offset in range(0, len(unique_ids), SOFTOPTIC_DELETE_CHUNK_SIZE):
+        chunk = unique_ids[offset:offset + SOFTOPTIC_DELETE_CHUNK_SIZE]
+        deleted += db.query(model).filter(column.in_(chunk)).delete(synchronize_session=False)
+        db.flush()
+    return deleted
+
+
 def cleanup_previous_softoptic_import(db: Session, clinic_id: int, storage: Optional[FileStorageService]) -> dict[str, int]:
     links = _existing_softoptic_links(db, clinic_id)
     ids_by_model = _ids_by_model(links)
@@ -420,9 +430,9 @@ def cleanup_previous_softoptic_import(db: Session, clinic_id: int, storage: Opti
     if billing_filters:
         billing_ids = [row[0] for row in billing_query.filter(or_(*billing_filters)).all()]
     if billing_ids:
-        deleted["BillingPayment"] = db.query(BillingPayment).filter(BillingPayment.billing_id.in_(billing_ids)).delete(synchronize_session=False)
-        deleted["OrderLineItem"] = db.query(OrderLineItem).filter(OrderLineItem.billings_id.in_(billing_ids)).delete(synchronize_session=False)
-        deleted["Billing"] = db.query(Billing).filter(Billing.id.in_(billing_ids)).delete(synchronize_session=False)
+        deleted["BillingPayment"] = _delete_ids_in_chunks(db, BillingPayment, BillingPayment.billing_id, billing_ids)
+        deleted["OrderLineItem"] = _delete_ids_in_chunks(db, OrderLineItem, OrderLineItem.billings_id, billing_ids)
+        deleted["Billing"] = _delete_ids_in_chunks(db, Billing, Billing.id, billing_ids)
 
     for target_model, model in [
         ("ExamLayoutInstance", ExamLayoutInstance),
@@ -453,7 +463,7 @@ def cleanup_previous_softoptic_import(db: Session, clinic_id: int, storage: Opti
     ]:
         ids = ids_by_model.get(target_model, [])
         if ids:
-            deleted[target_model] = db.query(model).filter(model.id.in_(ids)).delete(synchronize_session=False)
+            deleted[target_model] = _delete_ids_in_chunks(db, model, model.id, ids)
 
     if links:
         deleted["MigrationSourceLink"] = (
@@ -480,17 +490,24 @@ PARTIAL_CLINICAL_TARGET_MODELS = {
 
 def cleanup_partial_softoptic_clinical_import(db: Session, job: SoftOpticMigrationJob) -> dict[str, int]:
     """Remove only this job's uncheckpointed clinical rows before a retry."""
-    links = (
-        db.query(MigrationSourceLink)
+    link_rows = (
+        db.query(
+            MigrationSourceLink.id,
+            MigrationSourceLink.target_model,
+            MigrationSourceLink.target_id,
+        )
         .filter(MigrationSourceLink.source_system == SOFTOPTIC_SOURCE_SYSTEM)
         .filter(MigrationSourceLink.migration_job_id == job.id)
         .filter(MigrationSourceLink.target_model.in_(PARTIAL_CLINICAL_TARGET_MODELS))
         .all()
     )
-    if not links:
+    if not link_rows:
         return {}
 
-    ids_by_model = {model: sorted(set(ids)) for model, ids in _ids_by_model(links).items()}
+    ids_by_model: dict[str, list[int]] = {}
+    for _, target_model, target_id in link_rows:
+        ids_by_model.setdefault(target_model, []).append(target_id)
+    ids_by_model = {model: sorted(set(ids)) for model, ids in ids_by_model.items()}
     deleted: dict[str, int] = {}
     exam_ids = ids_by_model.get("OpticalExam", [])
     order_ids = ids_by_model.get("Order", [])
@@ -519,12 +536,12 @@ def cleanup_partial_softoptic_clinical_import(db: Session, job: SoftOpticMigrati
         billing_filters.append(Billing.contact_lens_id.in_(contact_order_ids))
     billing_ids = [row[0] for row in db.query(Billing.id).filter(or_(*billing_filters)).all()] if billing_filters else []
     if billing_ids:
-        deleted["BillingPayment"] = db.query(BillingPayment).filter(BillingPayment.billing_id.in_(billing_ids)).delete(synchronize_session=False)
-        deleted["OrderLineItem"] = db.query(OrderLineItem).filter(OrderLineItem.billings_id.in_(billing_ids)).delete(synchronize_session=False)
-        deleted["Billing"] = db.query(Billing).filter(Billing.id.in_(billing_ids)).delete(synchronize_session=False)
+        deleted["BillingPayment"] = _delete_ids_in_chunks(db, BillingPayment, BillingPayment.billing_id, billing_ids)
+        deleted["OrderLineItem"] = _delete_ids_in_chunks(db, OrderLineItem, OrderLineItem.billings_id, billing_ids)
+        deleted["Billing"] = _delete_ids_in_chunks(db, Billing, Billing.id, billing_ids)
 
     if exam_ids:
-        deleted["ExamLayoutInstance"] = db.query(ExamLayoutInstance).filter(ExamLayoutInstance.exam_id.in_(exam_ids)).delete(synchronize_session=False)
+        deleted["ExamLayoutInstance"] = _delete_ids_in_chunks(db, ExamLayoutInstance, ExamLayoutInstance.exam_id, exam_ids)
 
     for target_model, model in [
         ("OpticalExam", OpticalExam),
@@ -534,14 +551,13 @@ def cleanup_partial_softoptic_clinical_import(db: Session, job: SoftOpticMigrati
     ]:
         ids = ids_by_model.get(target_model, [])
         if ids:
-            deleted[target_model] = db.query(model).filter(model.id.in_(ids)).delete(synchronize_session=False)
+            deleted[target_model] = _delete_ids_in_chunks(db, model, model.id, ids)
 
-    deleted["MigrationSourceLink"] = (
-        db.query(MigrationSourceLink)
-        .filter(MigrationSourceLink.source_system == SOFTOPTIC_SOURCE_SYSTEM)
-        .filter(MigrationSourceLink.migration_job_id == job.id)
-        .filter(MigrationSourceLink.target_model.in_(PARTIAL_CLINICAL_TARGET_MODELS))
-        .delete(synchronize_session=False)
+    deleted["MigrationSourceLink"] = _delete_ids_in_chunks(
+        db,
+        MigrationSourceLink,
+        MigrationSourceLink.id,
+        [link_id for link_id, _, _ in link_rows],
     )
     return {name: count for name, count in deleted.items() if count}
 
