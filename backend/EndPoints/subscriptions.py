@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 import logging
 import uuid
 
@@ -50,7 +50,28 @@ def _stripe():
 
 
 def _dt(timestamp) -> datetime | None:
-    return datetime.utcfromtimestamp(timestamp) if timestamp else None
+    return datetime.fromtimestamp(timestamp, UTC).replace(tzinfo=None) if timestamp else None
+
+
+def _subscription_period(subscription: dict, field: str) -> datetime | None:
+    """Read billing periods from both legacy and current Stripe shapes."""
+    timestamp = subscription.get(field)
+    if not timestamp:
+        items = ((subscription.get("items") or {}).get("data") or [])
+        timestamp = items[0].get(field) if items else None
+    return _dt(timestamp)
+
+
+def _invoice_subscription_id(invoice: dict) -> str | None:
+    """Stripe 2025+ moved the subscription reference under invoice.parent."""
+    subscription = invoice.get("subscription")
+    if isinstance(subscription, dict):
+        return subscription.get("id")
+    if subscription:
+        return subscription
+    details = ((invoice.get("parent") or {}).get("subscription_details") or {})
+    subscription = details.get("subscription")
+    return subscription.get("id") if isinstance(subscription, dict) else subscription
 
 
 @router.get("/me")
@@ -265,8 +286,8 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                         subscription.staff_limit = plan.staff_limit
                     subscription.trial_starts_at = _dt(obj.get("trial_start"))
                     subscription.trial_ends_at = _dt(obj.get("trial_end"))
-                    subscription.current_period_starts_at = _dt(obj.get("current_period_start"))
-                    subscription.current_period_ends_at = _dt(obj.get("current_period_end"))
+                    subscription.current_period_starts_at = _subscription_period(obj, "current_period_start")
+                    subscription.current_period_ends_at = _subscription_period(obj, "current_period_end")
                     subscription.cancel_at_period_end = bool(obj.get("cancel_at_period_end"))
                     if subscription.status == "trialing" and not subscription.trial_consumed_at:
                         subscription.trial_consumed_at = event_created
@@ -278,7 +299,9 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                         welcome_email = owner.email if owner else None
                         welcome_trial_end = subscription.trial_ends_at
         elif event_type in {"invoice.paid", "invoice.payment_failed"}:
-            subscription = db.query(Subscription).filter(Subscription.stripe_subscription_id == obj.get("subscription")).first()
+            subscription = db.query(Subscription).filter(
+                Subscription.stripe_subscription_id == _invoice_subscription_id(obj)
+            ).first()
             event_created = _dt(event.get("created")) or utcnow()
             is_newer = bool(subscription and (not subscription.stripe_event_created_at or event_created >= subscription.stripe_event_created_at))
             if subscription and is_newer and event_type == "invoice.paid" and subscription.status not in {"trialing", "pending_checkout"}:

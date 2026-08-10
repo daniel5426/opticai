@@ -741,3 +741,51 @@ def test_contact_order_migrates_type_aliases_price_rows_and_installments(tmp_pat
         assert line_item.sku == "8"
         assert line_item.description == "מצמנהנצתיטוא"
         assert line_item.price == 221.0
+
+
+def test_contact_order_without_billing_data_does_not_require_price_trace(tmp_path):
+    with (tmp_path / "optic_contact_presc.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=["code", "account_code", "branch_code", "presc_date"],
+        )
+        writer.writeheader()
+        writer.writerow(
+            {
+                "code": "no-billing",
+                "account_code": "101",
+                "branch_code": "A",
+                "presc_date": "2026-06-03",
+            }
+        )
+
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base.metadata.create_all(bind=engine)
+
+    with SessionLocal() as db:
+        company = Company(name="A", owner_full_name="Owner A")
+        db.add(company)
+        db.flush()
+        clinic = Clinic(company_id=company.id, name="Selected", unique_id="selected")
+        db.add(clinic)
+        db.flush()
+        user = User(company_id=company.id, clinic_id=clinic.id, username="admin", role_level=4, is_active=True)
+        client = Client(company_id=company.id, clinic_id=clinic.id, first_name="A")
+        db.add_all([user, client])
+        db.commit()
+
+        migration.migrate_contact_lens_orders(
+            db,
+            str(tmp_path),
+            {"101": client.id},
+            {None: clinic.id, "": clinic.id, "A": clinic.id},
+            user.id,
+        )
+
+        assert db.query(ContactLensOrder).count() == 1
+        assert db.query(Billing).count() == 0

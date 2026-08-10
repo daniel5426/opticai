@@ -338,7 +338,6 @@ def migrate_clients_and_families(
         if not last_name:
             continue
         priority = 1
-        source_price_rows_to_trace: List[Tuple[Dict[str, Any], int]] = []
         try:
             if str(r.get("account_code")).strip() == head:
                 priority = 0
@@ -776,6 +775,7 @@ def migrate_contact_lens_orders(
             continue
         clinic_id = resolve_migration_clinic_id(branch_to_clinic, r.get("branch_code"))
         order_date = parse_date(r.get("presc_date"))
+        source_price_rows_to_trace: List[Tuple[Dict[str, Any], int]] = []
 
         supply_branch = r.get("supply_branch")
         supply_in_clinic_id = resolve_migration_clinic_id(branch_to_clinic, supply_branch)

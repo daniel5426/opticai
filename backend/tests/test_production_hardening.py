@@ -62,12 +62,19 @@ def test_non_public_api_routes_require_auth():
         "/api/v1/users/username/",
         "/api/v1/whatsapp/webhook",
     )
+    allowed_public_routes = {
+        ("GET", "/api/v1/plans"),
+        # Stripe authenticates this endpoint with its signed raw request body.
+        ("POST", "/api/v1/subscriptions/webhooks/stripe"),
+    }
 
     missing = []
     for route in main.app.routes:
         if not isinstance(route, APIRoute) or not route.path.startswith("/api/v1"):
             continue
         if route.path.startswith(allowed_public_prefixes):
+            continue
+        if any((method, route.path) in allowed_public_routes for method in route.methods or set()):
             continue
         if not any(dep.call is get_current_user for dep in route.dependant.dependencies):
             methods = ",".join(sorted(route.methods or []))

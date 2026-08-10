@@ -1,10 +1,11 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from database import Base
+from EndPoints.subscriptions import _invoice_subscription_id, _subscription_period
 from models import Clinic, Company, Subscription, User
 from services.plan_catalog import plan_catalog, require_plan
 from services.subscription_service import access_mode, apply_stripe_status, create_pending_subscription, usage, validate_plan_change
@@ -82,3 +83,14 @@ def test_past_due_becomes_read_only_after_grace():
     subscription = Subscription(id="s", company_id=1, plan_code="essential", status="past_due", grace_ends_at=now + timedelta(days=1))
     assert access_mode(subscription, now) == "full"
     assert access_mode(subscription, now + timedelta(days=8)) == "read_only"
+
+
+def test_current_stripe_billing_shapes_are_supported():
+    period = 1_800_000_000
+    assert _subscription_period(
+        {"items": {"data": [{"current_period_end": period}]}},
+        "current_period_end",
+    ) == datetime.fromtimestamp(period, UTC).replace(tzinfo=None)
+    assert _invoice_subscription_id(
+        {"parent": {"subscription_details": {"subscription": "sub_current"}}}
+    ) == "sub_current"
