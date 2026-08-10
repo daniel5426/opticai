@@ -152,6 +152,10 @@ export function FrameCatalogCombobox({
   const [query, setQuery] = useState("");
   const { data, loading, createItem, isCreating } = useLookupData(lookupType);
 
+  const openAfterFocus = () => {
+    window.setTimeout(() => setOpen(true), 0);
+  };
+
   const options = useMemo(
     () =>
       combinedFrameFieldOptions(
@@ -204,7 +208,7 @@ export function FrameCatalogCombobox({
               setQuery(event.target.value);
               setOpen(true);
             }}
-            onFocus={() => setOpen(true)}
+            onFocus={openAfterFocus}
             placeholder={placeholder}
             disabled={disabled}
             autoComplete="off"

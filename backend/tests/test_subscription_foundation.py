@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from database import Base
-from EndPoints.subscriptions import _invoice_subscription_id, _subscription_period
+from EndPoints.subscriptions import _invoice_subscription_id, _stripe_event_dict, _subscription_period
 from models import Clinic, Company, Subscription, User
 from services.plan_catalog import plan_catalog, require_plan
 from services.subscription_service import access_mode, apply_stripe_status, create_pending_subscription, usage, validate_plan_change
@@ -90,7 +90,15 @@ def test_current_stripe_billing_shapes_are_supported():
     assert _subscription_period(
         {"items": {"data": [{"current_period_end": period}]}},
         "current_period_end",
-    ) == datetime.fromtimestamp(period, UTC).replace(tzinfo=None)
+    ) == datetime.fromtimestamp(period, UTC)
     assert _invoice_subscription_id(
         {"parent": {"subscription_details": {"subscription": "sub_current"}}}
     ) == "sub_current"
+
+
+def test_stripe_sdk_event_objects_are_normalized_to_dicts():
+    class StripeEvent:
+        def to_dict(self):
+            return {"id": "evt_test", "data": {"object": {"metadata": {}}}}
+
+    assert _stripe_event_dict(StripeEvent())["data"]["object"]["metadata"] == {}

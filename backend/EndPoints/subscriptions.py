@@ -50,7 +50,7 @@ def _stripe():
 
 
 def _dt(timestamp) -> datetime | None:
-    return datetime.fromtimestamp(timestamp, UTC).replace(tzinfo=None) if timestamp else None
+    return datetime.fromtimestamp(timestamp, UTC) if timestamp else None
 
 
 def _subscription_period(subscription: dict, field: str) -> datetime | None:
@@ -72,6 +72,15 @@ def _invoice_subscription_id(invoice: dict) -> str | None:
     details = ((invoice.get("parent") or {}).get("subscription_details") or {})
     subscription = details.get("subscription")
     return subscription.get("id") if isinstance(subscription, dict) else subscription
+
+
+def _stripe_event_dict(event):
+    """Normalize Stripe SDK event objects to the mapping used by this module."""
+    if hasattr(event, "to_dict_recursive"):
+        return event.to_dict_recursive()
+    if hasattr(event, "to_dict"):
+        return event.to_dict()
+    return event
 
 
 @router.get("/me")
@@ -238,19 +247,32 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     except Exception as exc:
         raise HTTPException(status_code=400, detail="Invalid Stripe signature") from exc
 
+    # Newer Stripe Python SDKs return a StripeObject here.  Convert it once so
+    # the webhook projection can keep using the mapping contract supported by
+    # older SDK versions as well.
+    event = _stripe_event_dict(event)
+
     event_id = event["id"]
-    if db.query(BillingWebhookEvent).filter(BillingWebhookEvent.stripe_event_id == event_id).first():
+    existing_record = db.query(BillingWebhookEvent).filter(BillingWebhookEvent.stripe_event_id == event_id).first()
+    if existing_record and existing_record.processing_state == "processed":
         return {"received": True, "duplicate": True}
-    record = BillingWebhookEvent(
-        id=str(uuid.uuid4()), stripe_event_id=event_id, event_type=event["type"],
-        processing_state="processing", stripe_created_at=_dt(event.get("created")),
-    )
-    db.add(record)
-    try:
-        db.flush()
-    except IntegrityError:
-        db.rollback()
-        return {"received": True, "duplicate": True}
+    if existing_record:
+        # A transient processing failure must be retryable when Stripe
+        # redelivers the same event.
+        record = existing_record
+        record.processing_state = "processing"
+        record.error_text = None
+    else:
+        record = BillingWebhookEvent(
+            id=str(uuid.uuid4()), stripe_event_id=event_id, event_type=event["type"],
+            processing_state="processing", stripe_created_at=_dt(event.get("created")),
+        )
+        db.add(record)
+        try:
+            db.flush()
+        except IntegrityError:
+            db.rollback()
+            return {"received": True, "duplicate": True}
 
     try:
         obj = event["data"]["object"]
