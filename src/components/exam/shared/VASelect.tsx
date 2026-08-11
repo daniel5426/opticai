@@ -100,6 +100,24 @@ function formatVANumber(value: number): string {
   return rounded.toFixed(2).replace(/\.?0+$/, "")
 }
 
+/**
+ * Older SoftOptic imports stored meter acuity as a bare denominator, such as
+ * `9+2` for `6/9+2`. Treat those values as meter VA before conversion.
+ */
+export function normalizeLegacyBareMeterVA(value: string): string {
+  if (!value) return ""
+
+  const { base, modifier } = splitVAModifier(value)
+  if (!/^\d+(?:\.\d+)?$/.test(base)) return value
+
+  const denominator = Number(base)
+  if (!Number.isFinite(denominator) || denominator < 3 || denominator > 190) {
+    return value
+  }
+
+  return `6/${formatVANumber(denominator)}${modifier}`
+}
+
 export function displayMeterVAForDistance(value: string, testDistance: number): string {
   if (!value) return ""
 
@@ -138,12 +156,13 @@ export function buildMeterVAOptionsForDistance(canonicalOptions: readonly string
 
 export function convertVA(value: string, targetMode: "meter" | "decimal", testDistance = 6): string {
   if (!value) return "";
-  const { base, modifier } = splitVAModifier(value);
+  const normalizedValue = normalizeLegacyBareMeterVA(value);
+  const { base, modifier } = splitVAModifier(normalizedValue);
   const meterValue = parseMeterVA(base);
 
   if (targetMode === "meter" && meterValue) {
     return displayMeterVAForDistance(
-      canonicalizeMeterVAForDistance(value),
+      canonicalizeMeterVAForDistance(normalizedValue),
       testDistance,
     );
   }

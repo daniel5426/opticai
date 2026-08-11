@@ -35,6 +35,7 @@ interface TableFiltersBarProps {
   searchPlaceholder?: string;
   searchAriaLabel?: string;
   filters?: TableFiltersBarSelect[];
+  inlineControls?: React.ReactNode;
   navigation?: React.ReactNode;
   actions?: React.ReactNode;
   onReset?: () => void;
@@ -49,6 +50,7 @@ export function TableFiltersBar({
   searchPlaceholder,
   searchAriaLabel,
   filters = [],
+  inlineControls,
   navigation,
   actions,
   onReset,
@@ -72,7 +74,7 @@ export function TableFiltersBar({
     direction === "ltr"
       ? "order-1 flex min-w-0 flex-1 flex-wrap items-center justify-start gap-2"
       : cn(
-          "order-1 flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2",
+          "order-1 flex min-w-0 flex-1 flex-row-reverse flex-wrap items-center justify-start gap-2",
           compact ? "md:order-2" : "xl:order-2",
         );
 
@@ -98,7 +100,7 @@ export function TableFiltersBar({
         ) : null}
 
         <div
-          dir={direction}
+          dir="ltr"
           className={controlsOrder}
         >
           {onSearchChange ? (
@@ -107,14 +109,14 @@ export function TableFiltersBar({
             >
               <Search
                 aria-hidden="true"
-                className="text-muted-foreground pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2"
+                className="text-muted-foreground pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
               />
               <Input
                 aria-label={searchAriaLabel || resolvedSearchPlaceholder}
                 placeholder={resolvedSearchPlaceholder}
                 value={searchValue}
                 onChange={(event) => onSearchChange(event.target.value)}
-                className="border-border/80 bg-card h-9 rounded-lg pe-9 shadow-none"
+                className="border-border/80 bg-card h-9 rounded-lg ps-9 shadow-none"
                 dir={direction}
               />
             </div>
@@ -159,6 +161,8 @@ export function TableFiltersBar({
               </SelectContent>
             </Select>
           ))}
+
+          {inlineControls ? <div dir={direction}>{inlineControls}</div> : null}
 
         </div>
       </div>

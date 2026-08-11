@@ -32,6 +32,14 @@ def test_numeric_parsing_distinguishes_general_and_optical_values():
     assert migration.parse_optical_float("'Plano'") == 0.0
 
 
+def test_visual_acuity_normalizes_softoptic_bare_meter_denominators():
+    assert migration.parse_visual_acuity("9+2") == "6/9+2"
+    assert migration.parse_visual_acuity("7.5+2") == "6/7.5+2"
+    assert migration.parse_visual_acuity("24") == "6/24"
+    assert migration.parse_visual_acuity("1.0+2") == "1.0+2"
+    assert migration.parse_visual_acuity("Ambli") == "Ambli"
+
+
 def test_read_csv_no_limit_by_default(tmp_path, monkeypatch):
     csv_path = tmp_path / "sample.csv"
     with csv_path.open("w", newline="", encoding="utf-8") as handle:
@@ -314,6 +322,32 @@ def test_old_refraction_tabs_use_legacy_type_not_source_or_lens():
     assert first["r_glasses_type"] == "רחוק"
     assert first["legacy_glasses_type"] == "מרחק"
     assert second["l_glasses_type"] == "קרוב"
+
+
+def test_old_refraction_tabs_use_extension_only_for_extension_fields():
+    regular = migration.build_old_refraction_tabs({
+        "old1_type": "מרחק", "old1_r_sph": "0100", "old1_r_prish": "2",
+    })
+    assert "old-refraction-old-refraction-1-1" in regular
+    assert not any(key.startswith("old-refraction-extension-") for key in regular)
+
+    extended = migration.build_old_refraction_tabs({
+        "old1_type": "קרוב", "old1_r_sph": "0100", "old1_r_prish": "2",
+        "old1_r_prisv": "3", "old1_r_basev": "UP", "old1_r_pd": "31",
+    })
+    key = "old-refraction-extension-old-refraction-extension-1-1"
+    assert key in extended
+    assert not any(
+        item.startswith("old-refraction-old-refraction-1-")
+        for item in extended
+    )
+    assert extended[key]["r_pr_h"] == 2.0
+    assert extended[key]["r_pr_v"] == 3.0
+    assert extended[key]["r_base_v"] == "UP"
+    assert extended[key]["r_pd_far"] == 31.0
+    assert extended["__ui"]["tabsByCard"]["old-refraction-extension:old-refraction-extension-1"] == [
+        {"id": "1", "index": 0, "type": "קרוב"},
+    ]
 
 
 def test_keratometer_sources_detect_mm_and_diopters():

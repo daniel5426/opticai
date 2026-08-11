@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -73,5 +73,35 @@ describe("inventory catalog combobox interaction", () => {
 
     expect(await screen.findByText("Biofinity")).toBeInTheDocument();
     expect(screen.queryByText("Proclear")).not.toBeInTheDocument();
+  });
+
+  it("mounts its dropdown within a supplied dialog boundary", async () => {
+    const user = userEvent.setup();
+    const portalContainer = document.createElement("div");
+    document.body.append(portalContainer);
+
+    render(
+      <InventoryCatalogCombobox
+        lookupType="contactLensModel"
+        lookupLabel="דגמי עדשות מגע"
+        value=""
+        placeholder="דגם"
+        catalogOptions={[]}
+        suggestions={[variant(1, "Biofinity")]}
+        portalContainer={portalContainer}
+        onChange={vi.fn()}
+        onSelectProduct={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByPlaceholderText("דגם"));
+
+    expect(
+      portalContainer.contains(
+        await within(portalContainer).findByText("Biofinity"),
+      ),
+    ).toBe(true);
+
+    portalContainer.remove();
   });
 });

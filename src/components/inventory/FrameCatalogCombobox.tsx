@@ -120,6 +120,7 @@ export function FrameCatalogCombobox({
   loadingCatalog,
   disabled,
   className = "",
+  portalContainer,
   onChange,
   onSelectProduct,
 }: {
@@ -133,6 +134,7 @@ export function FrameCatalogCombobox({
   loadingCatalog?: boolean;
   disabled?: boolean;
   className?: string;
+  portalContainer?: HTMLElement | null;
   onChange: (value: string) => void;
   onSelectProduct: (variant: CatalogVariant, source: FulfillmentSource) => void;
 }) {
@@ -156,6 +158,7 @@ export function FrameCatalogCombobox({
       loadingCatalog={loadingCatalog}
       disabled={disabled}
       className={className}
+      portalContainer={portalContainer}
       onChange={onChange}
       onSelectProduct={onSelectProduct}
     />

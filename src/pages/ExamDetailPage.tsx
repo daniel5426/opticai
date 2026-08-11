@@ -101,12 +101,12 @@ const buildFullDataLayoutDataFromExamData = (
   const registeredTypes = examComponentRegistry.getAllTypes();
 
   const resolveTabbedCardId = (
-    type: "cover-test" | "old-refraction",
+    type: "cover-test" | "old-refraction" | "old-refraction-extension",
     key: string,
     value: any,
   ) => {
     if (value?.card_id) return String(value.card_id);
-    if (key === type) return type;
+    if (key === type) return String(value?.card_instance_id || type);
 
     const suffix = key.slice(type.length + 1);
     const tabId = value?.card_instance_id;
@@ -131,6 +131,9 @@ const buildFullDataLayoutDataFromExamData = (
     } else if (key.startsWith("cover-test-")) {
       type = "cover-test";
       cardId = resolveTabbedCardId("cover-test", key, value);
+    } else if (key.startsWith("old-refraction-extension-")) {
+      type = "old-refraction-extension";
+      cardId = resolveTabbedCardId("old-refraction-extension", key, value);
     } else if (key.startsWith("old-refraction-")) {
       type = "old-refraction";
       cardId = resolveTabbedCardId("old-refraction", key, value);
@@ -140,7 +143,8 @@ const buildFullDataLayoutDataFromExamData = (
           type = registeredType;
           cardId =
             registeredType === "cover-test" ||
-            registeredType === "old-refraction"
+            registeredType === "old-refraction" ||
+            registeredType === "old-refraction-extension"
               ? (value as any)?.card_id || registeredType
               : (value as any)?.card_instance_id || registeredType;
           break;
@@ -469,6 +473,12 @@ export default function ExamDetailPage({
               } else if (type === "old-refraction") {
                 Object.keys(data).forEach((k) => {
                   if (k.startsWith(`old-refraction-${cardId}-`)) {
+                    formDataLocal[k] = (data as any)[k];
+                  }
+                });
+              } else if (type === "old-refraction-extension") {
+                Object.keys(data).forEach((k) => {
+                  if (k.startsWith(`old-refraction-extension-${cardId}-`)) {
                     formDataLocal[k] = (data as any)[k];
                   }
                 });

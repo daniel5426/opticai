@@ -336,8 +336,22 @@ def parse_int(value: Optional[str]) -> Optional[int]:
 
 
 def parse_visual_acuity(value: Optional[str]) -> Optional[Any]:
-    """Keep VA lossless; supported values are interpreted by the UI."""
-    return clean_legacy_text(value)
+    """Preserve VA text while normalizing SoftOptic's bare meter denominators."""
+    cleaned = clean_legacy_text(value)
+    if cleaned is None:
+        return None
+
+    # SoftOptic stores meter VA as a denominator without the displayed ``6/``
+    # prefix (for example ``9+2`` means ``6/9+2``).  Do not mistake these
+    # values for decimal VA in the shared UI.
+    match = re.fullmatch(r"(\d+(?:\.\d+)?)([+-]\d+)?", cleaned)
+    if not match:
+        return cleaned
+    denominator = float(match.group(1))
+    if not 3 <= denominator <= 190:
+        return cleaned
+    normalized_denominator = f"{denominator:g}"
+    return f"6/{normalized_denominator}{match.group(2) or ''}"
 
 
 def normalize_base_value(value: Optional[str]) -> Optional[str]:
@@ -871,11 +885,32 @@ OLD_REFRACTION_TYPE_ALIASES = {
 }
 
 
+def _has_extended_old_refraction_fields(expanded: Dict[str, Any]) -> bool:
+    """Whether one old-refraction set needs the Extension-only fields."""
+    field_suffixes = (
+        "r_prisv", "l_prisv", "r_basev", "l_basev",
+        "r_pd", "l_pd", "b_pd",
+        "r_far_pd", "l_far_pd", "b_far_pd",
+        "r_near_pd", "l_near_pd", "b_near_pd",
+    )
+    for index in range(1, 4):
+        for suffix in field_suffixes:
+            value = clean_legacy_text(expanded.get(f"old{index}_{suffix}"))
+            if value is not None and value not in {"0", "0.0", "0.00"}:
+                return True
+    return False
+
+
 def build_old_refraction_tabs(expanded: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     if not expanded:
         return {}
     result: Dict[str, Any] = {}
-    card_id = get_migrated_card_id("old-refraction")
+    component_type = (
+        "old-refraction-extension"
+        if _has_extended_old_refraction_fields(expanded)
+        else "old-refraction"
+    )
+    card_id = get_migrated_card_id(component_type)
     tabs = []
     for index in range(1, 4):
         prefix = f"old{index}"
@@ -888,10 +923,6 @@ def build_old_refraction_tabs(expanded: Optional[Dict[str, Any]]) -> Dict[str, A
             "l_cyl": parse_optical_value(expanded.get(f"{prefix}_l_cyl")),
             "r_ax": parse_int(expanded.get(f"{prefix}_r_ax")),
             "l_ax": parse_int(expanded.get(f"{prefix}_l_ax")),
-            "r_pris": parse_float(expanded.get(f"{prefix}_r_prish")),
-            "l_pris": parse_float(expanded.get(f"{prefix}_l_prish")),
-            "r_base": normalize_base_value(expanded.get(f"{prefix}_r_baseh")),
-            "l_base": normalize_base_value(expanded.get(f"{prefix}_l_baseh")),
             "r_va": parse_visual_acuity(expanded.get(f"{prefix}_r_va")),
             "l_va": parse_visual_acuity(expanded.get(f"{prefix}_l_va")),
             "r_ad": parse_optical_value(expanded.get(f"{prefix}_r_add")),
@@ -906,15 +937,38 @@ def build_old_refraction_tabs(expanded: Optional[Dict[str, Any]]) -> Dict[str, A
             "card_instance_id": str(index),
             "tab_index": index - 1,
         }
+        if component_type == "old-refraction-extension":
+            block.update({
+                "r_pr_h": parse_float(expanded.get(f"{prefix}_r_prish")),
+                "l_pr_h": parse_float(expanded.get(f"{prefix}_l_prish")),
+                "r_base_h": normalize_base_value(expanded.get(f"{prefix}_r_baseh")),
+                "l_base_h": normalize_base_value(expanded.get(f"{prefix}_l_baseh")),
+                "r_pr_v": parse_float(expanded.get(f"{prefix}_r_prisv")),
+                "l_pr_v": parse_float(expanded.get(f"{prefix}_l_prisv")),
+                "r_base_v": normalize_base_value(expanded.get(f"{prefix}_r_basev")),
+                "l_base_v": normalize_base_value(expanded.get(f"{prefix}_l_basev")),
+                "r_pd_far": parse_float(expanded.get(f"{prefix}_r_far_pd") or expanded.get(f"{prefix}_r_pd")),
+                "l_pd_far": parse_float(expanded.get(f"{prefix}_l_far_pd") or expanded.get(f"{prefix}_l_pd")),
+                "comb_pd_far": parse_float(expanded.get(f"{prefix}_b_far_pd") or expanded.get(f"{prefix}_b_pd")),
+                "r_pd_close": parse_float(expanded.get(f"{prefix}_r_near_pd")),
+                "l_pd_close": parse_float(expanded.get(f"{prefix}_l_near_pd")),
+                "comb_pd_close": parse_float(expanded.get(f"{prefix}_b_near_pd")),
+                "comb_j": normalize_j_value(expanded.get(f"{prefix}_b_j")),
+            })
+        else:
+            block.update({
+                "r_pris": parse_float(expanded.get(f"{prefix}_r_prish")),
+                "l_pris": parse_float(expanded.get(f"{prefix}_l_prish")),
+                "r_base": normalize_base_value(expanded.get(f"{prefix}_r_baseh")),
+                "l_base": normalize_base_value(expanded.get(f"{prefix}_l_baseh")),
+            })
         meaningful = any(v is not None for k, v in block.items() if k not in {"card_id", "card_instance_id", "tab_index"})
         if not meaningful:
             continue
-        result[f"old-refraction-{card_id}-{index}"] = block
+        result[f"{component_type}-{card_id}-{index}"] = block
         tabs.append({"id": str(index), "index": len(tabs), **({"type": glasses_type} if glasses_type else {})})
-        if "old-refraction" not in result:
-            result["old-refraction"] = block
     if tabs:
-        result["__ui"] = {"tabsByCard": {f"old-refraction:{card_id}": tabs}}
+        result["__ui"] = {"tabsByCard": {f"{component_type}:{card_id}": tabs}}
     return result
 
 
@@ -1489,7 +1543,6 @@ def build_exam_data_from_eye_tests(row: Dict[str, Any], expanded: Optional[Dict[
     data: Dict[str, Any] = {}
     builders: List[Tuple[str, Any]] = [
         ("old-ref", _build_old_ref_component),
-        ("old-refraction-extension", _build_old_refraction_extension_component),
         ("objective", _build_objective_component),
         ("subjective", _build_subjective_component),
         ("addition", _build_addition_component),

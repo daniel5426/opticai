@@ -5,6 +5,7 @@ import { CatalogVariant, FulfillmentSource } from "@/lib/inventory";
 
 export type ContactLensCatalogField =
   | "type"
+  | "manufacturer"
   | "model"
   | "supplier"
   | "material"
@@ -12,6 +13,7 @@ export type ContactLensCatalogField =
 
 export type ContactLensCatalogValues = {
   type?: string;
+  manufacturer?: string;
   model?: string;
   supplier?: string;
   material?: string;
@@ -42,6 +44,7 @@ export const contactLensCatalogValue = (
   field: ContactLensCatalogField,
 ) => {
   if (field === "type") return variant.product.product_type;
+  if (field === "manufacturer") return variant.product.brand;
   if (field === "model") return variant.product.model;
   if (field === "supplier") return variant.product.preferred_supplier;
   if (field === "material") return variant.product.material;
@@ -55,6 +58,7 @@ const matchesContactLensContext = (
 ) => {
   const textEntries: Array<[ContactLensCatalogField, unknown, unknown]> = [
     ["type", values.type, variant.product.product_type],
+    ["manufacturer", values.manufacturer, variant.product.brand],
     ["model", values.model, variant.product.model],
     ["supplier", values.supplier, variant.product.preferred_supplier],
     ["material", values.material, variant.product.material],
@@ -112,11 +116,15 @@ export function ContactLensCatalogCombobox({
   lookupType,
   lookupLabel,
   value,
+  placeholder,
   values,
   variants,
   loadingCatalog,
   disabled,
   className = "",
+  inputClassName = "h-8 bg-white text-xs",
+  center = true,
+  portalContainer,
   onChange,
   onSelectProduct,
 }: {
@@ -124,11 +132,15 @@ export function ContactLensCatalogCombobox({
   lookupType: string;
   lookupLabel: string;
   value: string;
+  placeholder?: string;
   values: ContactLensCatalogValues;
   variants: CatalogVariant[];
   loadingCatalog?: boolean;
   disabled?: boolean;
   className?: string;
+  inputClassName?: string;
+  center?: boolean;
+  portalContainer?: HTMLElement | null;
   onChange: (value: string) => void;
   onSelectProduct: (variant: CatalogVariant, source: FulfillmentSource) => void;
 }) {
@@ -146,13 +158,15 @@ export function ContactLensCatalogCombobox({
       lookupType={lookupType}
       lookupLabel={lookupLabel}
       value={value}
+      placeholder={placeholder}
       catalogOptions={catalogOptions}
       suggestions={suggestions}
       loadingCatalog={loadingCatalog}
       disabled={disabled}
       className={className}
-      inputClassName="h-8 bg-white text-xs"
-      center
+      inputClassName={inputClassName}
+      center={center}
+      portalContainer={portalContainer}
       onChange={onChange}
       onSelectProduct={onSelectProduct}
     />

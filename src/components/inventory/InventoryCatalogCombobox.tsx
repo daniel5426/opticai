@@ -80,6 +80,7 @@ export function InventoryCatalogCombobox({
   className = "",
   inputClassName = "",
   center = false,
+  portalContainer,
   onChange,
   onSelectProduct,
 }: {
@@ -94,6 +95,8 @@ export function InventoryCatalogCombobox({
   className?: string;
   inputClassName?: string;
   center?: boolean;
+  /** Keeps an open dropdown inside a dialog's scroll-lock boundary. */
+  portalContainer?: HTMLElement | null;
   onChange: (value: string) => void;
   onSelectProduct: (variant: CatalogVariant, source: FulfillmentSource) => void;
 }) {
@@ -193,7 +196,7 @@ export function InventoryCatalogCombobox({
         </div>
       </PopoverPrimitive.Anchor>
 
-      <PopoverPrimitive.Portal>
+      <PopoverPrimitive.Portal container={portalContainer}>
         <PopoverPrimitive.Content
           sideOffset={6}
           align="start"
@@ -203,7 +206,7 @@ export function InventoryCatalogCombobox({
           onOpenAutoFocus={(event) => event.preventDefault()}
         >
           <section
-            className="no-scrollbar max-h-[168px] shrink-0 overflow-y-auto p-1.5"
+            className="catalog-dropdown-scroll max-h-[168px] shrink-0 touch-pan-y overflow-y-auto overscroll-contain p-1.5"
             aria-label={lookupLabel}
           >
             {loading ? (
@@ -249,10 +252,10 @@ export function InventoryCatalogCombobox({
             ) : null}
           </section>
 
-          <div className="mx-3 border-t" />
+          <div className="border-border/50 mx-3 border-t" />
 
           <section
-            className="no-scrollbar max-h-[188px] shrink-0 overflow-y-auto p-1.5"
+            className="catalog-dropdown-scroll max-h-[188px] shrink-0 touch-pan-y overflow-y-auto overscroll-contain p-1.5"
             aria-label="הצעות מהקטלוג"
           >
             {loadingCatalog ? (

@@ -92,6 +92,59 @@ export interface DiscoveryCandidate {
   selected?: boolean;
 }
 
+export const UNASSIGNED_INVENTORY_SUPPLIER_KEY = "__unassigned__";
+
+export type InventorySupplierGroup = {
+  key: string;
+  label: string;
+  variants: CatalogVariant[];
+  isUnassigned: boolean;
+};
+
+export const inventorySupplierKey = (supplier?: string | null) => {
+  const normalized = supplier?.trim().toLocaleLowerCase();
+  return normalized || UNASSIGNED_INVENTORY_SUPPLIER_KEY;
+};
+
+export function groupInventoryVariantsBySupplier(
+  variants: CatalogVariant[],
+): InventorySupplierGroup[] {
+  const groups = new Map<string, InventorySupplierGroup>();
+
+  variants.forEach((variant) => {
+    const supplier = variant.product.preferred_supplier?.trim();
+    const key = inventorySupplierKey(supplier);
+    const existing = groups.get(key);
+    if (existing) {
+      existing.variants.push(variant);
+      return;
+    }
+    groups.set(key, {
+      key,
+      label: supplier || "ללא ספק",
+      variants: [variant],
+      isUnassigned: !supplier,
+    });
+  });
+
+  return [...groups.values()].sort((left, right) => {
+    if (left.isUnassigned) return 1;
+    if (right.isUnassigned) return -1;
+    return left.label.localeCompare(right.label, "he");
+  });
+}
+
+export function filterInventoryVariantsBySupplier(
+  variants: CatalogVariant[],
+  supplierKey?: string | null,
+) {
+  if (!supplierKey) return variants;
+  return variants.filter(
+    (variant) =>
+      inventorySupplierKey(variant.product.preferred_supplier) === supplierKey,
+  );
+}
+
 export const inventoryCategoryLabel = (category: InventoryCategory) =>
   category === "frame" ? "מסגרות" : "עדשות מגע";
 

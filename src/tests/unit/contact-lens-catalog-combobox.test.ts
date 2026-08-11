@@ -12,17 +12,19 @@ const contactLens = ({
   material,
   sph,
   bc,
+  brand = "CooperVision",
 }: {
   id: number;
   model: string;
   material: string;
   sph: number;
   bc: number;
+  brand?: string;
 }): CatalogVariant => ({
   id,
   company_id: 1,
   product_id: id,
-  display_name: `CooperVision ${model}`,
+  display_name: `${brand} ${model}`,
   attributes: { sph, bc, dia: 14.2, color: "Clear" },
   currency: "ILS",
   is_stockable: true,
@@ -30,7 +32,7 @@ const contactLens = ({
     id,
     company_id: 1,
     category: "contact_lens",
-    brand: "CooperVision",
+    brand,
     model,
     product_type: "Monthly",
     preferred_supplier: "Lens Supply",
@@ -59,6 +61,7 @@ const variants = [
     material: "Silicone",
     sph: -1.5,
     bc: 8.4,
+    brand: "Alcon",
   }),
 ];
 
@@ -81,6 +84,16 @@ describe("contact-lens catalog combobox", () => {
         "model",
       ),
     ).toEqual(["Biofinity"]);
+  });
+
+  it("uses manufacturer as shared catalog context", () => {
+    expect(
+      contactLensCatalogFieldOptions(
+        variants,
+        { manufacturer: "CooperVision" },
+        "model",
+      ),
+    ).toEqual(["Biofinity", "Proclear"]);
   });
 
   it("keeps suggestions available while the active field contains partial text", () => {

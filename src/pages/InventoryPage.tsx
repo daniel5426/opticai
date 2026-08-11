@@ -10,13 +10,16 @@ import {
   ArchiveRestore,
   ArrowDownToLine,
   ClipboardCheck,
+  History,
+  LayoutGrid,
   Loader2,
   MoreHorizontal,
   Pencil,
   Plus,
   ScanSearch,
-  SlidersHorizontal,
+  Table2,
   Upload,
+  X,
 } from "lucide-react";
 import {
   Bar,
@@ -40,6 +43,16 @@ import {
   AnalyticsTooltip,
   RankedMetricTable,
 } from "@/components/analytics";
+import {
+  ContactLensCatalogCombobox,
+  ContactLensCatalogField,
+  ContactLensCatalogValues,
+} from "@/components/inventory/ContactLensCatalogCombobox";
+import {
+  FrameCatalogCombobox,
+  FrameCatalogField,
+  FrameCatalogValues,
+} from "@/components/inventory/FrameCatalogCombobox";
 import { TableFiltersBar } from "@/components/table-filters-bar";
 import { TablePagination } from "@/components/table-pagination";
 import { Badge } from "@/components/ui/badge";
@@ -80,7 +93,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useUser } from "@/contexts/UserContext";
 import { useAnalyticsRange } from "@/hooks/useAnalyticsRange";
 import { apiClient } from "@/lib/api-client";
@@ -93,21 +111,29 @@ import {
   DiscoveryCandidate,
   InventoryCategory,
   InventoryMovement,
+  InventorySupplierGroup,
+  filterInventoryVariantsBySupplier,
+  groupInventoryVariantsBySupplier,
   inventoryCategoryLabel,
   inventoryVariantDescription,
 } from "@/lib/inventory";
 import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels";
 
-type InventoryTab = "stock" | "activity" | "insights";
+type InventoryTab = "stock" | "insights";
 type InventoryVisibility = "active" | "archived" | "all";
+type InventoryViewMode = "table" | "suppliers";
+type InventorySupplierSelection = Pick<InventorySupplierGroup, "key" | "label">;
 
 const INVENTORY_HEADER_TABS = [
   { value: "stock", label: "מלאי וקטלוג" },
-  { value: "activity", label: "תנועות" },
   { value: "insights", label: "תובנות אספקה" },
 ] as const;
 
 const INVENTORY_PAGE_SIZE = 25;
+const SUPPLIER_CARD_PAGE_SIZE = 12;
+
+const inventoryViewModeStorageKey = (userId: number) =>
+  `inventory-view-mode:${userId}`;
 
 const emptyCatalogForm = {
   category: "frame" as InventoryCategory,
@@ -134,6 +160,8 @@ const emptyCatalogForm = {
   barcode: "",
   default_cost: "",
   default_retail: "",
+  reorder_point: "",
+  target_quantity: "",
 };
 
 const currencyFormatter = new Intl.NumberFormat("he-IL", {
@@ -150,16 +178,6 @@ const dateFormatter = new Intl.DateTimeFormat("he-IL", {
   dateStyle: "short",
   timeStyle: "short",
 });
-
-const movementLabels: Record<string, string> = {
-  adjustment: "התאמה",
-  import: "ייבוא",
-  physical_count: "ספירה",
-  reserve: "שריון להזמנה",
-  reservation_change: "שינוי שריון",
-  release: "שחרור שריון",
-  consume: "מסירה ללקוח",
-};
 
 const riskLabels: Record<InventoryInsightItem["stockout_risk"], string> = {
   out_of_stock: "אזל",
@@ -196,101 +214,40 @@ function SummaryCard({
   );
 }
 
-function InventorySummaryStrip({
-  summary,
-  canViewCost,
-  actions,
-}: {
-  summary: Record<string, number>;
-  canViewCost: boolean;
-  actions: React.ReactNode;
-}) {
-  const items = [
-    {
-      key: "available",
-      label: "זמין למכירה",
-      value: summary.available || 0,
-    },
-    {
-      key: "reserved",
-      label: "משוריין להזמנות",
-      value: summary.reserved || 0,
-    },
-    {
-      key: "low-stock",
-      label: "מלאי נמוך",
-      value: summary.low_stock || 0,
-    },
-    {
-      key: "out-of-stock",
-      label: "אזל מהמלאי",
-      value: summary.out_of_stock || 0,
-    },
-    {
-      key: "variants",
-      label: "וריאנטים פעילים",
-      value: summary.variant_count || 0,
-    },
-    ...(canViewCost
-      ? [
-          {
-            key: "value",
-            label: "שווי מלאי בעלות",
-            value: currencyFormatter.format(summary.stock_cost || 0),
-          },
-        ]
-      : []),
-  ];
-
-  return (
-    <section
-      aria-label="סיכום מלאי"
-      className={`grid w-full shrink-0 grid-cols-2 gap-3 md:grid-cols-3 ${
-        canViewCost
-          ? "xl:grid-cols-[repeat(6,minmax(0,1fr))_minmax(0,0.667fr)]"
-          : "xl:grid-cols-[repeat(5,minmax(0,1fr))_minmax(0,0.667fr)]"
-      }`}
-    >
-      {items.map((item) => (
-        <div
-          key={item.key}
-          className="bg-card min-w-0 rounded-md border px-4 py-3.5"
-        >
-          <p className="text-muted-foreground truncate text-sm">{item.label}</p>
-          <p className="mt-1 truncate text-2xl font-semibold tracking-tight tabular-nums">
-            {item.value}
-          </p>
-        </div>
-      ))}
-      <div className="flex min-w-0 flex-col justify-center gap-2">
-        {actions}
-      </div>
-    </section>
-  );
-}
-
 function CatalogDialog({
   open,
   onOpenChange,
   clinicId,
   editing,
+  initialSupplier,
   canViewCost,
+  onSelectCatalogVariant,
   onSaved,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   clinicId: number;
   editing: CatalogVariant | null;
+  initialSupplier?: string | null;
   canViewCost: boolean;
+  onSelectCatalogVariant: (variant: CatalogVariant) => void;
   onSaved: () => void;
 }) {
   const [form, setForm] = useState({ ...emptyCatalogForm });
   const [saving, setSaving] = useState(false);
+  const [catalogVariants, setCatalogVariants] = useState<CatalogVariant[]>([]);
+  const [loadingCatalog, setLoadingCatalog] = useState(false);
+  const [dialogContent, setDialogContent] = useState<HTMLDivElement | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!open) return;
     if (!editing) {
-      setForm({ ...emptyCatalogForm });
+      setForm({
+        ...emptyCatalogForm,
+        preferred_supplier: initialSupplier || "",
+      });
       return;
     }
     const attributes = editing.attributes || {};
@@ -322,8 +279,33 @@ function CatalogDialog({
         editing.default_cost == null ? "" : String(editing.default_cost),
       default_retail:
         editing.default_retail == null ? "" : String(editing.default_retail),
+      reorder_point: String(editing.balance?.reorder_point ?? 0),
+      target_quantity: String(editing.balance?.target_quantity ?? 0),
     });
-  }, [editing, open]);
+  }, [editing, initialSupplier, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    setLoadingCatalog(true);
+    void apiClient
+      .getInventoryVariants(clinicId, {
+        category: form.category,
+        stockableOnly: true,
+      })
+      .then((response) => {
+        if (active) setCatalogVariants(response.data?.items || []);
+      })
+      .catch(() => {
+        if (active) setCatalogVariants([]);
+      })
+      .finally(() => {
+        if (active) setLoadingCatalog(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [clinicId, form.category, open]);
 
   const setField = (field: keyof typeof form, value: string) =>
     setForm((current) => ({ ...current, [field]: value }));
@@ -331,6 +313,14 @@ function CatalogDialog({
   const save = async () => {
     if (!form.brand.trim() || !form.model.trim()) {
       toast.error("יש למלא מותג ודגם");
+      return;
+    }
+    if (
+      editing &&
+      Number(form.target_quantity || 0) > 0 &&
+      Number(form.target_quantity || 0) < Number(form.reorder_point || 0)
+    ) {
+      toast.error("כמות היעד לא יכולה להיות נמוכה מנקודת ההזמנה מחדש");
       return;
     }
     setSaving(true);
@@ -382,6 +372,16 @@ function CatalogDialog({
           variant,
         });
         if (response.error) throw new Error(String(response.error));
+        const policyResponse = await apiClient.updateInventoryPolicy(
+          editing.id,
+          {
+            clinic_id: clinicId,
+            reorder_point: Number(form.reorder_point || 0),
+            target_quantity: Number(form.target_quantity || 0),
+            expected_version: editing.balance?.version ?? 1,
+          },
+        );
+        if (policyResponse.error) throw new Error(String(policyResponse.error));
       } else {
         const response = await apiClient.createCatalogEntry({
           clinic_id: clinicId,
@@ -413,9 +413,84 @@ function CatalogDialog({
     </div>
   );
 
+  const frameValues: FrameCatalogValues = {
+    supplier: form.preferred_supplier,
+    manufacturer: form.brand,
+    model: form.model,
+    color: form.color,
+    width: form.eye_size ? Number(form.eye_size) : undefined,
+  };
+  const contactLensValues: ContactLensCatalogValues = {
+    type: form.product_type,
+    manufacturer: form.brand,
+    model: form.model,
+    supplier: form.preferred_supplier,
+    material: form.material,
+    color: form.color,
+    sph: form.sph,
+    bc: form.bc,
+    diam: form.dia,
+    cyl: form.cyl,
+    ax: form.axis,
+    read_ad: form.add,
+  };
+  const frameCatalogField = (
+    fieldName: FrameCatalogField,
+    formField: keyof typeof form,
+    label: string,
+    lookupType: string,
+    lookupLabel: string,
+    placeholder: string,
+  ) => (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      <FrameCatalogCombobox
+        field={fieldName}
+        value={form[formField]}
+        values={frameValues}
+        variants={catalogVariants}
+        loadingCatalog={loadingCatalog}
+        lookupType={lookupType}
+        lookupLabel={lookupLabel}
+        placeholder={placeholder}
+        portalContainer={dialogContent}
+        onChange={(value) => setField(formField, value)}
+        onSelectProduct={(variant) => onSelectCatalogVariant(variant)}
+      />
+    </div>
+  );
+  const contactLensCatalogField = (
+    fieldName: ContactLensCatalogField,
+    formField: keyof typeof form,
+    label: string,
+    lookupType: string,
+    lookupLabel: string,
+    placeholder: string,
+  ) => (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      <ContactLensCatalogCombobox
+        field={fieldName}
+        value={form[formField]}
+        values={contactLensValues}
+        variants={catalogVariants}
+        loadingCatalog={loadingCatalog}
+        lookupType={lookupType}
+        lookupLabel={lookupLabel}
+        placeholder={placeholder}
+        inputClassName="h-9 text-sm"
+        center={false}
+        portalContainer={dialogContent}
+        onChange={(value) => setField(formField, value)}
+        onSelectProduct={(variant) => onSelectCatalogVariant(variant)}
+      />
+    </div>
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        ref={setDialogContent}
         className="max-h-[88vh] max-w-3xl overflow-y-auto text-right"
         dir="rtl"
       >
@@ -445,22 +520,101 @@ function CatalogDialog({
               </SelectContent>
             </Select>
           </div>
-          {field("brand", form.category === "frame" ? "מותג" : "יצרן")}
-          {field("model", "דגם")}
-          {field(
-            "product_type",
-            form.category === "frame" ? "סוג מסגרת" : "סוג עדשה",
+          {form.category === "frame" ? (
+            <>
+              {frameCatalogField(
+                "manufacturer",
+                "brand",
+                "מותג",
+                "manufacturer",
+                "מותגים",
+                "בחר או הקלד מותג...",
+              )}
+              {frameCatalogField(
+                "model",
+                "model",
+                "דגם",
+                "frameModel",
+                "דגמי מסגרות",
+                "בחר או הקלד דגם מסגרת...",
+              )}
+              {field("product_type", "סוג מסגרת")}
+              {field("material", "חומר")}
+              {frameCatalogField(
+                "supplier",
+                "preferred_supplier",
+                "ספק מועדף",
+                "supplier",
+                "ספקים",
+                "בחר או הקלד ספק...",
+              )}
+            </>
+          ) : (
+            <>
+              {contactLensCatalogField(
+                "manufacturer",
+                "brand",
+                "יצרן",
+                "manufacturer",
+                "יצרנים",
+                "בחר או הקלד יצרן...",
+              )}
+              {contactLensCatalogField(
+                "model",
+                "model",
+                "דגם",
+                "contactLensModel",
+                "דגמי עדשות מגע",
+                "בחר או הקלד דגם עדשה...",
+              )}
+              {contactLensCatalogField(
+                "type",
+                "product_type",
+                "סוג עדשה",
+                "contactLensType",
+                "סוגי עדשות",
+                "בחר או הקלד סוג עדשה...",
+              )}
+              {contactLensCatalogField(
+                "material",
+                "material",
+                "חומר",
+                "contactEyeMaterial",
+                "חומרים",
+                "בחר או הקלד חומר...",
+              )}
+              {contactLensCatalogField(
+                "supplier",
+                "preferred_supplier",
+                "ספק מועדף",
+                "supplier",
+                "ספקים",
+                "בחר או הקלד ספק...",
+              )}
+              {field("replacement_schedule", "תדירות החלפה")}
+            </>
           )}
-          {field("material", "חומר")}
-          {field("preferred_supplier", "ספק מועדף")}
-          {form.category === "contact_lens"
-            ? field("replacement_schedule", "תדירות החלפה")
-            : null}
         </div>
         <div className="border-t pt-4">
           <p className="mb-3 text-sm font-medium">פרטי וריאנט מדויק</p>
           <div className="grid gap-4 md:grid-cols-3">
-            {field("color", "צבע")}
+            {form.category === "frame"
+              ? frameCatalogField(
+                  "color",
+                  "color",
+                  "צבע",
+                  "color",
+                  "צבעים",
+                  "בחר או הקלד צבע...",
+                )
+              : contactLensCatalogField(
+                  "color",
+                  "color",
+                  "צבע",
+                  "color",
+                  "צבעים",
+                  "בחר או הקלד צבע...",
+                )}
             {form.category === "frame" ? (
               <>
                 {field("eye_size", "גודל עין", "number")}
@@ -488,131 +642,21 @@ function CatalogDialog({
             {field("default_retail", "מחיר מכירה מוצע", "number")}
           </div>
         </div>
+        {editing ? (
+          <div className="border-t pt-4">
+            <p className="mb-3 text-sm font-medium">מדיניות מלאי</p>
+            <div className="grid gap-4 md:grid-cols-2">
+              {field("reorder_point", "נקודת הזמנה מחדש", "number")}
+              {field("target_quantity", "כמות יעד", "number")}
+            </div>
+          </div>
+        ) : null}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             ביטול
           </Button>
           <Button onClick={save} disabled={saving}>
             {editing ? "שמור שינויים" : "הוסף פריט"}
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function AdjustDialog({
-  variant,
-  clinicId,
-  onOpenChange,
-  onSaved,
-}: {
-  variant: CatalogVariant | null;
-  clinicId: number;
-  onOpenChange: (open: boolean) => void;
-  onSaved: () => void;
-}) {
-  const [delta, setDelta] = useState("");
-  const [reason, setReason] = useState("");
-  const [reorderPoint, setReorderPoint] = useState("");
-  const [target, setTarget] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (!variant) return;
-    setDelta("");
-    setReason("");
-    setReorderPoint(String(variant.balance?.reorder_point || 0));
-    setTarget(String(variant.balance?.target_quantity || 0));
-  }, [variant]);
-
-  const save = async () => {
-    if (!variant) return;
-    if (!delta || Number(delta) === 0 || !reason.trim()) {
-      toast.error("יש להזין שינוי כמות וסיבה");
-      return;
-    }
-    setSaving(true);
-    try {
-      const adjusted = await apiClient.adjustInventoryBalance(variant.id, {
-        clinic_id: clinicId,
-        on_hand_delta: Number(delta),
-        reason,
-        expected_version: variant.balance?.id ? variant.balance.version : 1,
-        idempotency_key: "manual-" + Date.now() + "-" + variant.id,
-        reorder_point: Number(reorderPoint || 0),
-        target_quantity: Number(target || 0),
-      });
-      if (adjusted.error) throw new Error(String(adjusted.error));
-      toast.success("המלאי עודכן");
-      onOpenChange(false);
-      onSaved();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "עדכון המלאי נכשל");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Dialog open={Boolean(variant)} onOpenChange={onOpenChange}>
-      <DialogContent className="text-right" dir="rtl">
-        <DialogHeader>
-          <DialogTitle>התאמת מלאי</DialogTitle>
-          <DialogDescription>{variant?.display_name}</DialogDescription>
-        </DialogHeader>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label>שינוי כמות</Label>
-            <Input
-              type="number"
-              value={delta}
-              onChange={(event) => setDelta(event.target.value)}
-              dir="ltr"
-            />
-            <p className="text-muted-foreground text-xs">
-              חיובי להוספה, שלילי להסרה
-            </p>
-          </div>
-          <div className="space-y-1.5">
-            <Label>כמות זמינה כעת</Label>
-            <div className="bg-muted/40 flex h-9 items-center rounded-md border px-3 tabular-nums">
-              {variant?.balance?.available || 0}
-            </div>
-          </div>
-          <div className="col-span-2 space-y-1.5">
-            <Label>סיבת ההתאמה</Label>
-            <Textarea
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>נקודת הזמנה מחדש</Label>
-            <Input
-              type="number"
-              min={0}
-              value={reorderPoint}
-              onChange={(event) => setReorderPoint(event.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>כמות יעד</Label>
-            <Input
-              type="number"
-              min={0}
-              value={target}
-              onChange={(event) => setTarget(event.target.value)}
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            ביטול
-          </Button>
-          <Button onClick={save} disabled={saving}>
-            עדכן מלאי
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           </Button>
         </DialogFooter>
@@ -1191,8 +1235,6 @@ export default function InventoryPage() {
   const { currentClinic, currentUser } = useUser();
   const [activeTab, setActiveTab] = useState<InventoryTab>("stock");
   const [variants, setVariants] = useState<CatalogVariant[]>([]);
-  const [summary, setSummary] = useState<Record<string, number>>({});
-  const [movements, setMovements] = useState<InventoryMovement[]>([]);
   const { range: insightsRange, setRange: setInsightsRange } =
     useAnalyticsRange("90d");
   const [insights, setInsights] = useState<InventoryAnalyticsResponse | null>(
@@ -1204,16 +1246,26 @@ export default function InventoryPage() {
   const [category, setCategory] = useState<"all" | InventoryCategory>("all");
   const [visibility, setVisibility] = useState<InventoryVisibility>("active");
   const [page, setPage] = useState(1);
-  const [movementPage, setMovementPage] = useState(1);
+  const [supplierPage, setSupplierPage] = useState(1);
+  const [viewMode, setViewMode] = useState<InventoryViewMode>("table");
+  const [viewModeUserId, setViewModeUserId] = useState<number | null>(null);
+  const [selectedSupplier, setSelectedSupplier] =
+    useState<InventorySupplierSelection | null>(null);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [editing, setEditing] = useState<CatalogVariant | null>(null);
-  const [adjusting, setAdjusting] = useState<CatalogVariant | null>(null);
+  const [initialCatalogSupplier, setInitialCatalogSupplier] = useState<
+    string | null
+  >(null);
+  const [historyVariant, setHistoryVariant] = useState<CatalogVariant | null>(
+    null,
+  );
+  const [historyMovements, setHistoryMovements] = useState<InventoryMovement[]>(
+    [],
+  );
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [countOpen, setCountOpen] = useState(false);
   const [discoveryOpen, setDiscoveryOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [selectedMovementReason, setSelectedMovementReason] = useState<
-    string | null
-  >(null);
 
   const canWrite = isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.worker);
   const canViewCost = isRoleAtLeast(
@@ -1221,6 +1273,9 @@ export default function InventoryPage() {
     ROLE_LEVELS.manager,
   );
   const clinicId = currentClinic?.id;
+  const displayedViewMode: InventoryViewMode = selectedSupplier
+    ? "table"
+    : viewMode;
   const activeTabTitle =
     INVENTORY_HEADER_TABS.find((tab) => tab.value === activeTab)?.label ||
     "מלאי וקטלוג";
@@ -1242,25 +1297,55 @@ export default function InventoryPage() {
     [insights?.fulfillment_mix],
   );
 
+  useEffect(() => {
+    const userId = currentUser?.id;
+    if (!userId) {
+      setViewMode("table");
+      setViewModeUserId(null);
+      return;
+    }
+    try {
+      const stored = window.localStorage.getItem(
+        inventoryViewModeStorageKey(userId),
+      );
+      setViewMode(stored === "suppliers" ? "suppliers" : "table");
+    } catch {
+      setViewMode("table");
+    }
+    setViewModeUserId(userId);
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    const userId = currentUser?.id;
+    if (!userId || viewModeUserId !== userId) return;
+    try {
+      window.localStorage.setItem(
+        inventoryViewModeStorageKey(userId),
+        viewMode,
+      );
+    } catch {
+      // Local view preference is optional and must not affect inventory access.
+    }
+  }, [currentUser?.id, viewMode, viewModeUserId]);
+
+  useEffect(() => {
+    setSelectedSupplier(null);
+    setPage(1);
+    setSupplierPage(1);
+  }, [clinicId]);
+
   const load = useCallback(async () => {
     if (!clinicId) return;
     setLoading(true);
-    const [variantsResponse, summaryResponse, settingsResponse] =
-      await Promise.all([
-        apiClient.getInventoryVariants(clinicId, {
-          includeArchived: visibility !== "active",
-        }),
-        apiClient.getInventorySummary(clinicId),
-        apiClient.getInventorySettings(),
-      ]);
+    const [variantsResponse, settingsResponse] = await Promise.all([
+      apiClient.getInventoryVariants(clinicId, {
+        includeArchived: visibility !== "active",
+      }),
+      apiClient.getInventorySettings(),
+    ]);
     if (variantsResponse.data) setVariants(variantsResponse.data.items);
-    if (summaryResponse.data) setSummary(summaryResponse.data);
     if (settingsResponse.data?.should_offer_discovery && canWrite)
       setDiscoveryOpen(true);
-    if (activeTab === "activity") {
-      const response = await apiClient.getInventoryMovements(clinicId);
-      if (response.data) setMovements(response.data.items);
-    }
     if (activeTab === "insights") {
       setInsightsError(false);
       const response = await apiClient.getInventoryInsights(
@@ -1305,43 +1390,47 @@ export default function InventoryPage() {
     });
   }, [category, search, variants, visibility]);
 
+  const supplierGroups = useMemo(
+    () => groupInventoryVariantsBySupplier(filteredVariants),
+    [filteredVariants],
+  );
+
+  const tableFilteredVariants = useMemo(() => {
+    return filterInventoryVariantsBySupplier(
+      filteredVariants,
+      selectedSupplier?.key,
+    );
+  }, [filteredVariants, selectedSupplier]);
+
   useEffect(() => {
     setPage(1);
+    setSupplierPage(1);
   }, [category, search, visibility]);
 
   useEffect(() => {
     const totalPages = Math.max(
       1,
-      Math.ceil(filteredVariants.length / INVENTORY_PAGE_SIZE),
+      Math.ceil(tableFilteredVariants.length / INVENTORY_PAGE_SIZE),
     );
     if (page > totalPages) setPage(totalPages);
-  }, [filteredVariants.length, page]);
-
-  const paginatedVariants = useMemo(
-    () =>
-      filteredVariants.slice(
-        (page - 1) * INVENTORY_PAGE_SIZE,
-        page * INVENTORY_PAGE_SIZE,
-      ),
-    [filteredVariants, page],
-  );
-
-  const paginatedMovements = useMemo(
-    () =>
-      movements.slice(
-        (movementPage - 1) * INVENTORY_PAGE_SIZE,
-        movementPage * INVENTORY_PAGE_SIZE,
-      ),
-    [movementPage, movements],
-  );
+  }, [page, tableFilteredVariants.length]);
 
   useEffect(() => {
     const totalPages = Math.max(
       1,
-      Math.ceil(movements.length / INVENTORY_PAGE_SIZE),
+      Math.ceil(supplierGroups.length / SUPPLIER_CARD_PAGE_SIZE),
     );
-    if (movementPage > totalPages) setMovementPage(totalPages);
-  }, [movementPage, movements.length]);
+    if (supplierPage > totalPages) setSupplierPage(totalPages);
+  }, [supplierGroups.length, supplierPage]);
+
+  const paginatedVariants = useMemo(
+    () =>
+      tableFilteredVariants.slice(
+        (page - 1) * INVENTORY_PAGE_SIZE,
+        page * INVENTORY_PAGE_SIZE,
+      ),
+    [page, tableFilteredVariants],
+  );
 
   const exportCsv = async () => {
     if (!clinicId) return;
@@ -1410,6 +1499,55 @@ export default function InventoryPage() {
     void load();
   };
 
+  const selectSupplier = (supplier: InventorySupplierSelection) => {
+    setSelectedSupplier(supplier);
+    setPage(1);
+  };
+
+  const clearSelectedSupplier = () => {
+    setSelectedSupplier(null);
+    setViewMode("suppliers");
+    setSupplierPage(1);
+  };
+
+  const changeViewMode = (nextMode: string) => {
+    if (nextMode !== "table" && nextMode !== "suppliers") return;
+    setSelectedSupplier(null);
+    setViewMode(nextMode);
+    setPage(1);
+    setSupplierPage(1);
+  };
+
+  const openCatalogForSupplier = (supplier?: string | null) => {
+    setEditing(null);
+    setInitialCatalogSupplier(supplier || null);
+    setCatalogOpen(true);
+  };
+
+  const openHistory = async (variant: CatalogVariant) => {
+    setHistoryVariant(variant);
+    setHistoryMovements([]);
+    setHistoryLoading(true);
+    try {
+      const response = await apiClient.getInventoryMovements(
+        clinicId,
+        variant.id,
+      );
+      if (response.error) throw new Error(String(response.error));
+      setHistoryMovements(
+        (response.data?.items || []).filter(
+          (movement) => movement.on_hand_delta !== 0,
+        ),
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "טעינת היסטוריית המלאי נכשלה",
+      );
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
   if (!clinicId) {
     return (
       <>
@@ -1436,54 +1574,65 @@ export default function InventoryPage() {
         dir="rtl"
       >
         {activeTab === "stock" ? (
-          <InventorySummaryStrip
-            summary={summary}
-            canViewCost={canViewCost}
-            actions={
-              <>
-                {canWrite ? (
-                  <Button
-                    className="w-full"
-                    onClick={() => {
-                      setEditing(null);
-                      setCatalogOpen(true);
-                    }}
-                  >
-                    הוסף פריט
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                ) : null}
-                <DropdownMenu dir="rtl">
-                  <DropdownMenuTrigger asChild>
-                    <Button className="w-full" variant="outline">
-                      פעולות <MoreHorizontal className="h-4 w-4" />
+          <section
+            aria-label="פעולות מלאי"
+            className="flex h-9 shrink-0 items-center justify-between gap-3"
+          >
+            <h2 className="text-muted-foreground text-xl font-semibold tracking-tight">
+              ניהול מוצרים, ספקים ורמות מלאי
+            </h2>
+            <div className="flex items-center gap-2">
+              {canWrite ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      onClick={() => openCatalogForSupplier()}
+                      aria-label="הוסף פריט"
+                    >
+                      <Plus className="size-4" />
                     </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {canWrite ? (
-                      <>
-                        <DropdownMenuItem onClick={() => setCountOpen(true)}>
-                          ספירת מלאי <ClipboardCheck className="h-4 w-4" />
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => setDiscoveryOpen(true)}
-                        >
-                          גילוי מהזמנות <ScanSearch className="h-4 w-4" />
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setImportOpen(true)}>
-                          ייבוא CSV <Upload className="h-4 w-4" />
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                      </>
-                    ) : null}
-                    <DropdownMenuItem onClick={() => void exportCsv()}>
-                      ייצוא CSV <ArrowDownToLine className="h-4 w-4" />
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </>
-            }
-          />
+                  </TooltipTrigger>
+                  <TooltipContent>הוסף פריט</TooltipContent>
+                </Tooltip>
+              ) : null}
+              <DropdownMenu dir="rtl">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        aria-label="פעולות מלאי"
+                      >
+                        <MoreHorizontal className="size-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>פעולות מלאי</TooltipContent>
+                </Tooltip>
+                <DropdownMenuContent align="end">
+                  {canWrite ? (
+                    <>
+                      <DropdownMenuItem onClick={() => setCountOpen(true)}>
+                        ספירת מלאי <ClipboardCheck className="h-4 w-4" />
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setDiscoveryOpen(true)}>
+                        גילוי מהזמנות <ScanSearch className="h-4 w-4" />
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setImportOpen(true)}>
+                        ייבוא CSV <Upload className="h-4 w-4" />
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  ) : null}
+                  <DropdownMenuItem onClick={() => void exportCsv()}>
+                    ייצוא CSV <ArrowDownToLine className="h-4 w-4" />
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </section>
         ) : null}
 
         <Tabs
@@ -1530,99 +1679,84 @@ export default function InventoryPage() {
                   ],
                 },
               ]}
+              inlineControls={
+                <div className="flex items-center gap-2">
+                  <ToggleGroup
+                    type="single"
+                    value={displayedViewMode}
+                    onValueChange={changeViewMode}
+                    variant="outline"
+                    aria-label="תצוגת מלאי"
+                  >
+                    <ToggleGroupItem
+                      value="table"
+                      aria-label="תצוגת טבלה"
+                      title="תצוגת טבלה"
+                    >
+                      <Table2 aria-hidden="true" />
+                    </ToggleGroupItem>
+                    <ToggleGroupItem
+                      value="suppliers"
+                      aria-label="תצוגת ספקים"
+                      title="תצוגת ספקים"
+                    >
+                      <LayoutGrid aria-hidden="true" />
+                    </ToggleGroupItem>
+                  </ToggleGroup>
+                  {selectedSupplier ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="group/supplier-filter h-9 max-w-52 gap-1.5 px-3"
+                      onClick={clearSelectedSupplier}
+                      aria-label={`נקה סינון ספק: ${selectedSupplier.label}`}
+                      title="נקה סינון ספק וחזור לתצוגת ספקים"
+                    >
+                      <span className="truncate group-hover/supplier-filter:hidden group-focus-visible/supplier-filter:hidden">
+                        {selectedSupplier.label}
+                      </span>
+                      <X
+                        className="hidden group-hover/supplier-filter:block group-focus-visible/supplier-filter:block"
+                        aria-hidden="true"
+                      />
+                      <span className="sr-only">נקה סינון ספק</span>
+                    </Button>
+                  ) : null}
+                </div>
+              }
             />
-            <InventoryTable
-              variants={paginatedVariants}
-              total={filteredVariants.length}
-              page={page}
-              pageSize={INVENTORY_PAGE_SIZE}
-              onPageChange={setPage}
-              loading={loading}
-              canWrite={canWrite}
-              canViewCost={canViewCost}
-              onAdjust={setAdjusting}
-              onEdit={(variant) => {
-                setEditing(variant);
-                setCatalogOpen(true);
-              }}
-              onArchive={(variant) => void archive(variant)}
-            />
-          </TabsContent>
-
-          <TabsContent
-            value="activity"
-            className="flex min-h-0 flex-1 flex-col gap-2.5"
-          >
-            <div className="bg-card min-h-0 flex-1 rounded-md">
-              <Table
-                dir="rtl"
-                containerClassName="h-full min-h-0 overflow-auto overscroll-contain"
-                emptyState={
-                  !loading && !movements.length
-                    ? "עדיין אין תנועות מלאי."
-                    : undefined
-                }
-                showTrailingRowBorder
-              >
-                <TableHeader className="bg-card sticky top-0">
-                  <TableRow>
-                    <TableHead>תאריך</TableHead>
-                    <TableHead>פריט</TableHead>
-                    <TableHead>פעולה</TableHead>
-                    <TableHead>במלאי</TableHead>
-                    <TableHead>משוריין</TableHead>
-                    <TableHead className="w-[28rem] max-w-[28rem]">
-                      סיבה
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedMovements.map((movement) => (
-                    <TableRow key={movement.id}>
-                      <TableCell className="whitespace-nowrap">
-                        {dateFormatter.format(new Date(movement.created_at))}
-                      </TableCell>
-                      <TableCell>{movement.variant?.display_name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {movementLabels[movement.movement_type] ||
-                            movement.movement_type}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="tabular-nums" dir="ltr">
-                        {movement.on_hand_delta > 0 ? "+" : ""}
-                        {movement.on_hand_delta}
-                      </TableCell>
-                      <TableCell className="tabular-nums" dir="ltr">
-                        {movement.reserved_delta > 0 ? "+" : ""}
-                        {movement.reserved_delta}
-                      </TableCell>
-                      <TableCell className="w-[28rem] max-w-[28rem]">
-                        {movement.reason ? (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setSelectedMovementReason(movement.reason)
-                            }
-                            className="hover:text-foreground focus-visible:ring-ring block w-full max-w-[28rem] truncate rounded-sm text-right text-sm outline-none hover:underline focus-visible:ring-2"
-                            aria-label="הצג את סיבת התנועה המלאה"
-                          >
-                            {movement.reason}
-                          </button>
-                        ) : null}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            <TablePagination
-              page={movementPage}
-              pageSize={INVENTORY_PAGE_SIZE}
-              total={movements.length}
-              onPageChange={setMovementPage}
-              loading={loading}
-            />
+            {displayedViewMode === "table" ? (
+              <InventoryTable
+                variants={paginatedVariants}
+                total={tableFilteredVariants.length}
+                page={page}
+                pageSize={INVENTORY_PAGE_SIZE}
+                onPageChange={setPage}
+                loading={loading}
+                canWrite={canWrite}
+                canViewCost={canViewCost}
+                clinicId={clinicId}
+                onStockChanged={() => void load()}
+                onHistory={(variant) => void openHistory(variant)}
+                onEdit={(variant) => {
+                  setInitialCatalogSupplier(null);
+                  setEditing(variant);
+                  setCatalogOpen(true);
+                }}
+                onArchive={(variant) => void archive(variant)}
+              />
+            ) : (
+              <SupplierCards
+                groups={supplierGroups}
+                page={supplierPage}
+                pageSize={SUPPLIER_CARD_PAGE_SIZE}
+                onPageChange={setSupplierPage}
+                loading={loading}
+                canWrite={canWrite}
+                onSelect={selectSupplier}
+                onCreate={openCatalogForSupplier}
+              />
+            )}
           </TabsContent>
 
           <TabsContent
@@ -2012,28 +2146,55 @@ export default function InventoryPage() {
       </main>
 
       <Dialog
-        open={selectedMovementReason !== null}
+        open={Boolean(historyVariant)}
         onOpenChange={(open) => {
-          if (!open) setSelectedMovementReason(null);
+          if (!open) setHistoryVariant(null);
         }}
       >
-        <DialogContent className="max-w-xl text-right" dir="rtl">
+        <DialogContent className="max-w-lg text-right" dir="rtl">
           <DialogHeader>
-            <DialogTitle>סיבת התנועה</DialogTitle>
+            <DialogTitle>היסטוריית מלאי</DialogTitle>
             <DialogDescription>
-              הטקסט המלא שנשמר עבור תנועת המלאי.
+              {historyVariant?.display_name}
             </DialogDescription>
           </DialogHeader>
-          <div className="bg-muted/30 max-h-[55vh] overflow-y-auto rounded-md border p-4">
-            <p className="text-sm leading-6 break-words whitespace-pre-wrap">
-              {selectedMovementReason}
-            </p>
+          <div className="max-h-[55vh] overflow-y-auto rounded-md border">
+            {historyLoading ? (
+              <div className="flex h-28 items-center justify-center">
+                <Loader2 className="text-muted-foreground size-5 animate-spin" />
+              </div>
+            ) : historyMovements.length ? (
+              <div className="divide-y">
+                {historyMovements.map((movement) => (
+                  <div
+                    key={movement.id}
+                    className="flex items-center justify-between gap-4 px-4 py-3"
+                  >
+                    <span className="text-muted-foreground text-sm">
+                      {dateFormatter.format(new Date(movement.created_at))}
+                    </span>
+                    <span
+                      className={`font-medium tabular-nums ${
+                        movement.on_hand_delta > 0
+                          ? "text-emerald-700 dark:text-emerald-400"
+                          : "text-destructive"
+                      }`}
+                      dir="ltr"
+                    >
+                      {movement.on_hand_delta > 0 ? "+" : ""}
+                      {movement.on_hand_delta}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-muted-foreground px-4 py-10 text-center text-sm">
+                אין עדיין הוספות או הפחתות מלאי.
+              </p>
+            )}
           </div>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setSelectedMovementReason(null)}
-            >
+            <Button variant="outline" onClick={() => setHistoryVariant(null)}>
               סגור
             </Button>
           </DialogFooter>
@@ -2045,19 +2206,18 @@ export default function InventoryPage() {
         onOpenChange={setCatalogOpen}
         clinicId={clinicId}
         editing={editing}
+        initialSupplier={initialCatalogSupplier}
         canViewCost={canViewCost}
-        onSaved={() => void load()}
-      />
-      <AdjustDialog
-        variant={adjusting}
-        clinicId={clinicId}
-        onOpenChange={(open) => !open && setAdjusting(null)}
+        onSelectCatalogVariant={(variant) => {
+          setInitialCatalogSupplier(null);
+          setEditing(variant);
+        }}
         onSaved={() => void load()}
       />
       <CountDialog
         open={countOpen}
         onOpenChange={setCountOpen}
-        variants={filteredVariants.filter(
+        variants={tableFilteredVariants.filter(
           (variant) => variant.is_stockable && !variant.archived_at,
         )}
         clinicId={clinicId}
@@ -2081,6 +2241,260 @@ export default function InventoryPage() {
   );
 }
 
+function SupplierCardStats({ supplier }: { supplier: InventorySupplierGroup }) {
+  const frameCount = supplier.variants.filter(
+    (variant) => variant.product.category === "frame",
+  ).length;
+  const contactLensCount = supplier.variants.length - frameCount;
+  const available = supplier.variants.reduce(
+    (total, variant) => total + (variant.balance?.available || 0),
+    0,
+  );
+  const categories = [
+    frameCount ? `מסגרות ${frameCount}` : null,
+    contactLensCount ? `עדשות ${contactLensCount}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <span className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+      <span>{categories}</span>
+      <span aria-label={`זמין למכירה: ${available}`}>
+        זמין{" "}
+        <span dir="ltr" className="tabular-nums">
+          {integerFormatter.format(available)}
+        </span>
+      </span>
+    </span>
+  );
+}
+
+export function SupplierCards({
+  groups,
+  page,
+  pageSize,
+  onPageChange,
+  loading,
+  canWrite,
+  onSelect,
+  onCreate,
+}: {
+  groups: InventorySupplierGroup[];
+  page: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+  loading: boolean;
+  canWrite: boolean;
+  onSelect: (supplier: InventorySupplierSelection) => void;
+  onCreate: (supplier: string) => void;
+}) {
+  const paginatedGroups = groups.slice((page - 1) * pageSize, page * pageSize);
+
+  return (
+    <div dir="rtl" className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
+        {loading ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div
+                key={index}
+                className="bg-card min-h-28 rounded-md border p-3.5"
+              >
+                <Skeleton className="h-5 w-2/3" />
+                <Skeleton className="mt-4 h-4 w-2/3" />
+              </div>
+            ))}
+          </div>
+        ) : paginatedGroups.length ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
+            {paginatedGroups.map((supplier) => (
+              <article
+                key={supplier.key}
+                className="bg-card hover:border-primary/45 flex min-h-28 rounded-md border p-3.5 transition-colors"
+              >
+                <button
+                  type="button"
+                  onClick={() =>
+                    onSelect({ key: supplier.key, label: supplier.label })
+                  }
+                  className="focus-visible:ring-ring flex min-w-0 flex-1 flex-col justify-between rounded-sm text-start outline-none focus-visible:ring-2"
+                  aria-label={`הצג פריטים של ${supplier.label}`}
+                >
+                  <span
+                    className="truncate text-base font-semibold"
+                    title={supplier.label}
+                  >
+                    {supplier.label}
+                  </span>
+                  <SupplierCardStats supplier={supplier} />
+                </button>
+                {canWrite && !supplier.isUnassigned ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-muted-foreground hover:text-foreground -ms-1 -mt-1"
+                        onClick={() => onCreate(supplier.label)}
+                        aria-label={`הוסף פריט עבור ${supplier.label}`}
+                      >
+                        <Plus aria-hidden="true" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>הוסף פריט לספק</TooltipContent>
+                  </Tooltip>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="text-muted-foreground flex min-h-52 items-center justify-center rounded-md border border-dashed px-6 text-center text-sm">
+            אין ספקים התואמים לסינון הנוכחי.
+          </div>
+        )}
+      </div>
+      <TablePagination
+        page={page}
+        pageSize={pageSize}
+        total={groups.length}
+        onPageChange={onPageChange}
+        loading={loading}
+      />
+    </div>
+  );
+}
+
+function StockAdjustmentDropdown({
+  variant,
+  clinicId,
+  onSaved,
+}: {
+  variant: CatalogVariant;
+  clinicId: number;
+  onSaved: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"add" | "remove">("add");
+  const [quantity, setQuantity] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (nextOpen) {
+      setMode("add");
+      setQuantity("");
+    }
+  };
+
+  const save = async () => {
+    const amount = Number(quantity);
+    if (!Number.isInteger(amount) || amount <= 0) {
+      toast.error("יש להזין כמות שלמה הגדולה מאפס");
+      return;
+    }
+    setSaving(true);
+    try {
+      const response = await apiClient.adjustInventoryBalance(variant.id, {
+        clinic_id: clinicId,
+        on_hand_delta: mode === "add" ? amount : -amount,
+        reason: "עדכון מלאי ידני",
+        expected_version: variant.balance?.version ?? 1,
+        idempotency_key: `manual-${Date.now()}-${variant.id}`,
+      });
+      if (response.error) throw new Error(String(response.error));
+      toast.success(mode === "add" ? "המלאי נוסף" : "המלאי הופחת");
+      setOpen(false);
+      onSaved();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "עדכון המלאי נכשל");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <DropdownMenu dir="rtl" open={open} onOpenChange={handleOpenChange}>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="cursor-pointer"
+          aria-label={`עדכון מלאי עבור ${variant.display_name}`}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <Badge variant="outline" className="hover:bg-accent/70 tabular-nums">
+            {variant.balance?.on_hand || 0}
+          </Badge>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        className="w-80 p-3"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="bg-muted/30 mb-3 rounded-md border px-3 py-2 text-sm">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-muted-foreground">במלאי / משוריין</span>
+            <span className="font-medium tabular-nums" dir="ltr">
+              {variant.balance?.on_hand || 0} / {variant.balance?.reserved || 0}
+            </span>
+          </div>
+          <div className="mt-1 flex items-center justify-between gap-3 border-t pt-1">
+            <span className="text-muted-foreground">זמין</span>
+            <span className="font-medium tabular-nums">
+              {variant.balance?.available || 0}
+            </span>
+          </div>
+        </div>
+        <div className="border-t pt-3">
+          <div className="text-muted-foreground mb-2 text-xs font-medium">
+            עדכון מלאי
+          </div>
+          <ToggleGroup
+            type="single"
+            value={mode}
+            onValueChange={(value) => {
+              if (value === "add" || value === "remove") setMode(value);
+            }}
+            variant="outline"
+            className="mb-3 grid grid-cols-2"
+            aria-label="סוג עדכון מלאי"
+          >
+            <ToggleGroupItem value="add">הוספה</ToggleGroupItem>
+            <ToggleGroupItem value="remove">הפחתה</ToggleGroupItem>
+          </ToggleGroup>
+          <div>
+            <div className="text-muted-foreground mb-1 text-xs">כמות</div>
+            <Input
+              type="number"
+              min={1}
+              step={1}
+              value={quantity}
+              onChange={(event) => setQuantity(event.target.value)}
+              className="h-9"
+              dir="ltr"
+              onKeyDown={(event) => {
+                if (event.key === "Enter") void save();
+              }}
+            />
+          </div>
+          <div className="mt-3 flex justify-start">
+            <Button size="sm" onClick={() => void save()} disabled={saving}>
+              {saving
+                ? "שומר..."
+                : mode === "add"
+                  ? "הוסף למלאי"
+                  : "הפחת מהמלאי"}
+              {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+            </Button>
+          </div>
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function InventoryTable({
   variants,
   total,
@@ -2090,7 +2504,9 @@ function InventoryTable({
   loading,
   canWrite,
   canViewCost,
-  onAdjust,
+  clinicId,
+  onStockChanged,
+  onHistory,
   onEdit,
   onArchive,
 }: {
@@ -2102,7 +2518,9 @@ function InventoryTable({
   loading: boolean;
   canWrite: boolean;
   canViewCost: boolean;
-  onAdjust: (variant: CatalogVariant) => void;
+  clinicId: number;
+  onStockChanged: () => void;
+  onHistory: (variant: CatalogVariant) => void;
   onEdit: (variant: CatalogVariant) => void;
   onArchive: (variant: CatalogVariant) => void;
 }) {
@@ -2190,21 +2608,31 @@ function InventoryTable({
                         {variant.barcode || ""}
                       </p>
                     </TableCell>
-                    <TableCell className="tabular-nums">
-                      {canWrite &&
-                      variant.is_stockable &&
-                      !variant.archived_at ? (
-                        <button
+                    <TableCell className="group/stock tabular-nums">
+                      <div className="flex items-center gap-1">
+                        {canWrite &&
+                        variant.is_stockable &&
+                        !variant.archived_at ? (
+                          <StockAdjustmentDropdown
+                            variant={variant}
+                            clinicId={clinicId}
+                            onSaved={onStockChanged}
+                          />
+                        ) : (
+                          <span>{variant.balance?.on_hand || 0}</span>
+                        )}
+                        <Button
                           type="button"
-                          onClick={() => onAdjust(variant)}
-                          className="hover:bg-muted focus-visible:ring-ring -m-1 rounded-md px-2 py-1 tabular-nums transition-colors outline-none focus-visible:ring-2"
-                          aria-label={`עדכון מלאי עבור ${variant.display_name}`}
+                          variant="ghost"
+                          size="icon"
+                          className="text-muted-foreground size-7 opacity-0 transition-opacity group-hover/stock:opacity-100 focus-visible:opacity-100"
+                          onClick={() => onHistory(variant)}
+                          aria-label={`היסטוריית מלאי עבור ${variant.display_name}`}
+                          title="היסטוריית מלאי"
                         >
-                          {variant.balance?.on_hand || 0}
-                        </button>
-                      ) : (
-                        variant.balance?.on_hand || 0
-                      )}
+                          <History className="size-3.5" />
+                        </Button>
+                      </div>
                     </TableCell>
                     <TableCell className="tabular-nums">
                       {variant.balance?.reserved || 0}
@@ -2235,21 +2663,6 @@ function InventoryTable({
                     <TableCell className="whitespace-nowrap">
                       {canWrite ? (
                         <div className="flex items-center gap-0.5">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="text-muted-foreground size-8"
-                            disabled={
-                              !variant.is_stockable ||
-                              Boolean(variant.archived_at)
-                            }
-                            onClick={() => onAdjust(variant)}
-                            aria-label={`התאם מלאי עבור ${variant.display_name}`}
-                            title="התאם מלאי"
-                          >
-                            <SlidersHorizontal className="size-4" />
-                          </Button>
                           <Button
                             type="button"
                             variant="ghost"

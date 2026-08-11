@@ -82,6 +82,7 @@ export function ContactLensDetailsTab({
 
   const lookupLabels: Record<ContactLensCatalogField, string> = {
     type: "סוגי עדשות",
+    manufacturer: "יצרנים",
     model: "דגמי עדשות מגע",
     supplier: "ספקים",
     material: "חומרים",

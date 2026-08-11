@@ -4,6 +4,7 @@ import {
   canonicalizeMeterVAForDistance,
   convertVA,
   displayMeterVAForDistance,
+  normalizeLegacyBareMeterVA,
   normalizeVATestDistance,
 } from "@/components/exam/shared/VASelect";
 import { sortVAOptions } from "@/components/exam/data/exam-constants";
@@ -42,6 +43,13 @@ describe("VA test distance conversion", () => {
 
   test("preserves VA modifiers during display conversion", () => {
     expect(convertVA("6/12-2", "meter", 4)).toBe("4/8-2");
+  });
+
+  test("renders legacy SoftOptic bare meter denominators as meter VA", () => {
+    expect(normalizeLegacyBareMeterVA("9+2")).toBe("6/9+2");
+    expect(convertVA("9+2", "meter")).toBe("6/9+2");
+    expect(convertVA("9+2", "decimal")).toBe("1.0+2");
+    expect(convertVA("7.5+2", "meter")).toBe("6/7.5+2");
   });
 
   test("falls back to 6m for invalid settings", () => {
