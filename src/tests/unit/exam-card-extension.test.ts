@@ -62,12 +62,15 @@ describe("exam card extension contract", () => {
     expect(getColumnCount("cover-test-v2", "detail")).toBe(8);
     expect(getColumnCount("keratometer", "detail")).toBe(4);
     expect(getColumnCount("keratometer-contact-lens", "detail")).toBe(7);
+    expect(getColumnCount("contact-lens-exam", "detail")).toBe(11);
     expect(getColumnCount("maddox-rod", "detail")).toBe(6);
     expect(getColumnCount("retinoscop", "detail")).toBe(7);
     expect(computeCardMinGridCols("keratometer")).toBe(8);
     expect(computeCardMinGridCols("keratometer-contact-lens")).toBe(11);
+    expect(computeCardMinGridCols("contact-lens-exam")).toBe(17);
     expect(computeCardMinGridCols("maddox-rod")).toBe(9);
     expect(computeCardMinGridCols("retinoscop")).toBe(11);
     expect(componentHasMiddleRow("retinoscop")).toBe(true);
+    expect(componentHasMiddleRow("contact-lens-exam")).toBe(true);
   });
 });

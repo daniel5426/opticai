@@ -107,6 +107,7 @@ const componentsWithMiddleRow: CardItem["type"][] = [
   "anamnesis",
   "over-refraction",
   "old-contact-lenses",
+  "contact-lens-exam",
 ];
 const componentsDontHaveMiddleRow: CardItem["type"][] = [
   "objective",
@@ -119,7 +120,6 @@ const componentsDontHaveMiddleRow: CardItem["type"][] = [
   "schirmer-test",
   "contact-lens-diameters",
   "contact-lens-details",
-  "contact-lens-exam",
   "keratometer-contact-lens",
   "fusion-range",
   "maddox-rod",
@@ -530,7 +530,7 @@ export const getColumnCount = (
     case "keratometer-contact-lens":
       return 7;
     case "contact-lens-exam":
-      return 7;
+      return 11;
     case "old-contact-lenses":
       return 13;
     case "over-refraction":
