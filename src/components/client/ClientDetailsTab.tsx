@@ -570,19 +570,6 @@ export function ClientDetailsTab({
                 />
               </div>
               <div className="space-y-2">
-                <ModernLabel>טלפון נוסף</ModernLabel>
-                <Input
-                  type="tel"
-                  name="additional_phone"
-                  value={formData.additional_phone || ''}
-                  onChange={handleInputChange}
-                  disabled={!showEditableFields}
-                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
-                  placeholder={showEditableFields ? "הכנס טלפון נוסף" : ""}
-                />
-              </div>
-
-              <div className="space-y-2">
                 <ModernLabel>אימייל</ModernLabel>
                 <Input
                   type="email"

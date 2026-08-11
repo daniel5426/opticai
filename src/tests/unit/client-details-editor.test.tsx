@@ -63,6 +63,7 @@ describe("client details editor helpers", () => {
         first_name: " דנה ",
         last_name: " כהן ",
         email: " dana@example.com ",
+        additional_phone: "03-5555555",
         gender: "female",
         health_fund: "כללית",
         status: "רגיל",
@@ -81,6 +82,7 @@ describe("client details editor helpers", () => {
       first_name: "דניאל",
       last_name: "כהן",
       email: "dana@example.com",
+      additional_phone: "03-5555555",
       gender: "זכר",
       health_fund: "כללית",
       status: "מושלם זהב",
@@ -150,7 +152,7 @@ describe("ClientDetailsTab select display", () => {
     })
   })
 
-  test("keeps additional phone and address number in independent inputs", () => {
+  test("keeps the address number input while hiding the additional phone input", () => {
     render(
       <ClientDetailsTab
         draft={{ id: 1, additional_phone: "03-5555555", address_number: "12/4" } as Client}
@@ -161,8 +163,8 @@ describe("ClientDetailsTab select display", () => {
         onSave={vi.fn()}
       />
     )
-    expect(screen.getByDisplayValue("03-5555555")).toHaveAttribute("name", "additional_phone")
     expect(screen.getByDisplayValue("12/4")).toHaveAttribute("name", "address_number")
+    expect(screen.queryByDisplayValue("03-5555555")).not.toBeInTheDocument()
   })
 
   test("selecting a family emits a numeric family_id for new-client drafts", async () => {
