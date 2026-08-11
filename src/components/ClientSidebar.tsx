@@ -106,6 +106,23 @@ function extractAiPartCache(client: any): Record<string, string | null> {
   }, {})
 }
 
+export function mergeAiPartCache(
+  previous: Record<string, string | null>,
+  updates: Record<string, string | null>,
+) {
+  let changed = false
+  const next = { ...previous }
+
+  for (const [part, value] of Object.entries(updates)) {
+    if (previous[part] !== value) {
+      next[part] = value
+      changed = true
+    }
+  }
+
+  return changed ? next : previous
+}
+
 function AIInformationSection({
   currentPart,
   aiInfo,
@@ -216,6 +233,9 @@ export function ClientSidebar() {
     const saved = localStorage.getItem('client-sidebar-ai-block-open')
     return saved !== null ? JSON.parse(saved) : true
   })
+  const updateAiPartCache = useCallback((updates: Record<string, string | null>) => {
+    setAiPartCache(previous => mergeAiPartCache(previous, updates))
+  }, [])
   
   // Get search params, but handle potential errors
   let searchParams: any = null
@@ -237,7 +257,7 @@ export function ClientSidebar() {
 
   useEffect(() => {
     requestSeqRef.current += 1
-    setAiPartCache({})
+    setAiPartCache(previous => Object.keys(previous).length === 0 ? previous : {})
     setAiInfo(null)
     setIsGenerating(false)
     setIsLoading(false)
@@ -295,7 +315,7 @@ export function ClientSidebar() {
         if (aiUpdatedDate && clientUpdatedDate && new Date(aiUpdatedDate) >= new Date(clientUpdatedDate)) {
           if (mySeq !== requestSeqRef.current) return
           setAiInfo(aiPartState)
-          setAiPartCache(prev => ({ ...prev, ...extractAiPartCache(client) }))
+          updateAiPartCache(extractAiPartCache(client))
           setIsLoading(false)
           setHasAiLoadedOnce(true)
           return
@@ -330,7 +350,7 @@ export function ClientSidebar() {
         } else {
           setAiInfo(null)
         }
-        setAiPartCache(prev => ({ ...prev, ...nextCache }))
+        updateAiPartCache(nextCache)
       }
       
       setIsGenerating(false)
@@ -342,7 +362,7 @@ export function ClientSidebar() {
       setIsGenerating(false)
       setIsLoading(false)
     }
-  }, [currentClient?.id, currentPart, isOpen, isAiBlockOpen, checkIfAiStatesNeedUpdate])
+  }, [currentClient?.id, currentPart, isOpen, isAiBlockOpen, checkIfAiStatesNeedUpdate, updateAiPartCache])
 
   // Separate effect for loading AI info - only when sidebar is open, AI block is open, and part or client changes
   useEffect(() => {
@@ -356,7 +376,7 @@ export function ClientSidebar() {
         const snapshot = (currentClient as any)[`ai_${currentPart}_state`]
         if (snapshot) {
           setAiInfo(snapshot as string)
-          setAiPartCache(prev => ({ ...prev, ...extractAiPartCache(currentClient) }))
+          updateAiPartCache(extractAiPartCache(currentClient))
           setIsLoading(false)
           setHasAiLoadedOnce(true)
         }
@@ -369,7 +389,7 @@ export function ClientSidebar() {
       }
       setIsLoading(false)
     }
-  }, [currentPart, currentClient?.id, isOpen, isAiBlockOpen, loadAiInfo, aiPartCache])
+  }, [currentPart, currentClient?.id, isOpen, isAiBlockOpen, loadAiInfo, aiPartCache, updateAiPartCache])
 
   // Polling effect to detect data changes and trigger immediate loading
   useEffect(() => {
