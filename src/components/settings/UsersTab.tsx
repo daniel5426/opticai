@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { IconPlus, IconEdit, IconTrash } from "@tabler/icons-react"
 import { User } from "@/lib/db/schema-interface"
 import { getRoleBadgeVariant, getRoleLabel } from "@/lib/role-levels"
+import { useAppLocale } from "@/localization/use-app-locale"
 
 interface UsersTabProps {
   users: User[]
@@ -24,24 +25,27 @@ export function UsersTab({
   onEditUser, 
   onDeleteUser 
 }: UsersTabProps) {
+  const { direction } = useAppLocale()
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir={direction}>
       <Card className="">
         <CardHeader>
-          <div className="flex justify-between">
-            <Button 
-              onClick={onCreateUser} 
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 text-start">
+              <CardTitle className="text-start">ניהול משתמשים</CardTitle>
+              <p className="text-muted-foreground mt-1 text-sm text-start">
+                הוסף, ערוך ומחק משתמשים במערכת
+              </p>
+            </div>
+            <Button
+              onClick={onCreateUser}
               size="icon"
-              className="mr-4 bg-default text-default-foreground hover:bg-accent/90"
+              className="shrink-0 bg-default text-default-foreground hover:bg-accent/90"
               title="הוסף משתמש חדש"
             >
               <IconPlus className="h-4 w-4" />
             </Button>
-            <div></div>
-            <div className="text-right">
-              <CardTitle className="text-right">ניהול משתמשים</CardTitle>
-              <p className="text-sm text-muted-foreground text-right">הוסף, ערוך ומחק משתמשים במערכת</p>
-            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -57,10 +61,10 @@ export function UsersTab({
                 </div>
               ) : (
                 users.map((user) => (
-                  <div key={user.id} className={`flex items-center justify-between p-4 border rounded-lg ${
+                  <div key={user.id} className={`flex flex-row-reverse items-start justify-between gap-4 rounded-lg border p-4 ${
                     user.id === currentUser?.id ? 'border-primary/50 border-2' : ''
                   }`}>
-                    <div className="flex items-center gap-2">
+                    <div className="flex shrink-0 items-center gap-2">
                       {user.id !== currentUser?.id && (
                         <Button 
                           variant="outline" 
@@ -80,20 +84,20 @@ export function UsersTab({
                         <IconEdit className="h-4 w-4" />
                       </Button>
                     </div>
-                    <div className="text-right flex-1">
-                      <div className="flex items-center gap-2 justify-end">
+                    <div className="min-w-0 flex-1 text-start">
+                      <div className="flex items-center gap-2 text-start">
+                        <h3 className="min-w-0 truncate font-medium">{user.username}</h3>
                         <Badge variant={getRoleBadgeVariant(user.role_level)}>
                           {getRoleLabel(user.role_level)}
                         </Badge>
-                        <h3 className="font-medium">{user.username}</h3>
                       </div>
-                      <div className="text-sm text-muted-foreground mt-1">
+                      <div className="text-muted-foreground mt-1 break-words text-sm">
                         {user.email && <span>אימייל: {user.email}</span>}
                         {user.email && user.phone && <span> • </span>}
                         {user.phone && <span>טלפון: {user.phone}</span>}
                         {!user.email && !user.phone && <span>אין פרטי יצירת קשר</span>}
                       </div>
-                      <div className="text-xs text-muted-foreground mt-1">
+                      <div className="text-muted-foreground mt-1 text-xs">
                         {user.has_password ? 'מוגן בסיסמה' : 'ללא סיסמה'}
                       </div>
                     </div>
@@ -107,4 +111,3 @@ export function UsersTab({
     </div>
   )
 }
-

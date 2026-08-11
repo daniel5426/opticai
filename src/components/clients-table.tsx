@@ -416,13 +416,21 @@ export function ClientsTable({
                     </TableCell>
                   )}
                   <TableCell className="font-medium" data-no-localize>{client.id}</TableCell>
-                  <TableCell className="max-w-[12rem] overflow-hidden text-start" data-no-localize>
-                    <bdi className="block truncate text-start" dir="auto">
+                  <TableCell
+                    className="max-w-[12rem] overflow-hidden"
+                    data-no-localize
+                    style={{ textAlign: direction === "ltr" ? "left" : "start" }}
+                  >
+                    <bdi className="block truncate" dir="auto">
                       {getListCellText(client.first_name)}
                     </bdi>
                   </TableCell>
-                  <TableCell className="max-w-[12rem] overflow-hidden text-start" data-no-localize>
-                    <bdi className="block truncate text-start" dir="auto">
+                  <TableCell
+                    className="max-w-[12rem] overflow-hidden"
+                    data-no-localize
+                    style={{ textAlign: direction === "ltr" ? "left" : "start" }}
+                  >
+                    <bdi className="block truncate" dir="auto">
                       {getListCellText(client.last_name)}
                     </bdi>
                   </TableCell>

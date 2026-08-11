@@ -8,6 +8,7 @@ import { CustomModal } from '@/components/ui/custom-modal'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
+import { useAppLocale } from '@/localization/use-app-locale'
 
 interface LookupItem {
   id?: number
@@ -37,6 +38,7 @@ export function LookupTableManager({
   onUpdate,
   onDelete
 }: LookupTableManagerProps) {
+  const { direction } = useAppLocale()
   const [showModal, setShowModal] = useState(false)
   const [editingItem, setEditingItem] = useState<LookupItem | null>(null)
   const [formData, setFormData] = useState({ name: '' })
@@ -106,9 +108,17 @@ export function LookupTableManager({
 
   return (
     <>
-      <Card className="shadow-md border-none">
+      <Card className="shadow-md border-none" dir={direction}>
         <CardHeader>
-          <div className="flex justify-between items-center">
+          <div className="flex items-center justify-between">
+            <div className="text-start">
+              <CardTitle className="text-start">{displayName}</CardTitle>
+              <div className="flex h-5 items-center gap-2">
+                <p className="text-start text-sm text-muted-foreground">
+                  {items.length} פריטים
+                </p>
+              </div>
+            </div>
             <Button 
               onClick={openCreateModal}
               size="icon"
@@ -117,15 +127,6 @@ export function LookupTableManager({
             >
               <IconPlus className="h-4 w-4" />
             </Button>
-            <div className="text-right">
-              <CardTitle className="text-right">{displayName}</CardTitle>
-              <div className="flex items-center justify-end gap-2 h-5">
-                
-                  <p className="text-sm text-muted-foreground text-right">
-                    {items.length} פריטים
-                  </p>
-              </div>
-            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -145,8 +146,11 @@ export function LookupTableManager({
                   </TableRow>
                 ) : (
                   items.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>
+                    <TableRow key={item.id} dir={direction}>
+                      <TableCell className="text-start font-medium">
+                        {item.name}
+                      </TableCell>
+                      <TableCell className="w-px">
                         <div className="flex gap-2">
                           <Button
                             variant="outline"
@@ -166,9 +170,6 @@ export function LookupTableManager({
                           </Button>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {item.name}
-                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -184,9 +185,9 @@ export function LookupTableManager({
         title={editingItem ? `ערוך ${displayName.slice(0, -1)}` : `הוסף ${displayName.slice(0, -1)} חדש`}
         className="max-w-md"
       >
-        <div className="space-y-4" dir="rtl">
+        <div className="space-y-4" dir={direction}>
           <div className="space-y-2">
-            <Label htmlFor="name" className="text-right block">
+            <Label htmlFor="name" className="block text-start">
               שם *
             </Label>
             <Input
@@ -194,8 +195,8 @@ export function LookupTableManager({
               value={formData.name}
               onChange={(e) => setFormData({ name: e.target.value })}
               placeholder="הזן שם"
-              className="text-right"
-              dir="rtl"
+              className="text-start"
+              dir={direction}
             />
           </div>
 

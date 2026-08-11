@@ -1020,7 +1020,7 @@ export default function SettingsPage() {
         {/* Fixed Header */}
         <div className="shrink-0 bg-transparent pt-5 pb-2">
           <div className="mx-auto flex max-w-4xl items-start justify-between">
-            <div className="space-y-2 text-right">
+            <div className="space-y-2 text-start">
               <h1 className="text-2xl font-bold">{t("clinicSettings")}</h1>
               <p className="text-muted-foreground">
                 {t("clinicSettingsDescription")}
@@ -1082,8 +1082,12 @@ export default function SettingsPage() {
               defaultValue="personal-profile"
               className="flex h-full"
               orientation="vertical"
+              dir={direction}
             >
-              <div className="flex h-full gap-6 p-6">
+              <div
+                className="flex h-full flex-row-reverse gap-6 p-6"
+                dir={direction}
+              >
                 {/* Scrollable Content Area */}
                 <div
                   className="flex-1 overflow-y-auto pr-2 pb-8"
@@ -1205,7 +1209,10 @@ export default function SettingsPage() {
 
                 {/* Fixed vertical settings navigation */}
                 <div className="shrink-0">
-                  <TabsList className="flex h-fit w-48 flex-col p-1">
+                  <TabsList
+                    className="flex h-fit w-48 flex-col p-1"
+                    dir={direction}
+                  >
                     <TabsTrigger
                       value="profile"
                       className="w-full justify-start text-start"

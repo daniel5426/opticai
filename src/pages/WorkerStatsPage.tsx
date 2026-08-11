@@ -21,6 +21,8 @@ import { apiClient } from "@/lib/api-client";
 import { User, WorkShift } from "@/lib/db/schema-interface";
 import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels";
 import { useUser } from "@/contexts/UserContext";
+import { useAppLocale } from "@/localization/use-app-locale";
+import { useTranslation } from "react-i18next";
 
 type WorkerStats = {
   totalShifts: number;
@@ -93,6 +95,8 @@ const getMonthlyStats = async (
 };
 
 export default function WorkerStatsPage() {
+  const { direction, locale } = useAppLocale();
+  const { t } = useTranslation();
   const { currentUser } = useUser();
   const queryClient = useQueryClient();
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
@@ -161,6 +165,7 @@ export default function WorkerStatsPage() {
 
   const dayShifts = dayShiftsQuery.data || [];
   const userStats = monthlyStatsQuery.data || emptyWorkerStats;
+  const dateLocale = locale === "fr" ? "fr-FR" : locale === "en" ? "en-US" : "he-IL";
 
   const invalidateSelectedWorkerData = async () => {
     await Promise.all([
@@ -211,18 +216,18 @@ export default function WorkerStatsPage() {
         <div
           className="bg-muted/30 h-full overflow-auto"
           style={{ scrollbarWidth: "none" }}
-          dir="ltr"
+          dir={direction}
         >
-          <div className="mx-auto max-w-6xl space-y-6 p-6 pb-20" dir="ltr">
+          <div className="mx-auto max-w-6xl space-y-6 p-6 pb-20" dir={direction}>
             {/* Header */}
-            <div className="mb-8 space-y-2 text-right">
+            <div className="mb-8 space-y-2 text-start">
               <h1 className="text-xl font-bold">יומן נוכחות</h1>
               <p className="text-muted-foreground">
                 צפה בנתוני נוכחות ומשמרות של העובדים
               </p>
             </div>
 
-            <div className="flex gap-6" dir="ltr">
+            <div className="flex flex-row-reverse gap-6" dir={direction}>
               <div className="flex-1 space-y-6">
                 <Card className="border-none shadow-md">
                   <CardHeader>
@@ -232,7 +237,7 @@ export default function WorkerStatsPage() {
                         <Skeleton className="h-8 w-24" />
                       </div>
                       <div className="flex items-center gap-3">
-                        <div className="text-right">
+                        <div className="text-start">
                           <Skeleton className="ml-auto h-6 w-24" />
                           <Skeleton className="mt-2 ml-auto h-4 w-56" />
                         </div>
@@ -255,7 +260,7 @@ export default function WorkerStatsPage() {
                       <div className="flex items-center">
                         <Skeleton className="h-8 w-36" />
                       </div>
-                      <div className="text-right">
+                      <div className="text-start">
                         <Skeleton className="ml-auto h-5 w-28" />
                         <Skeleton className="mt-2 ml-auto h-4 w-56" />
                       </div>
@@ -362,11 +367,11 @@ export default function WorkerStatsPage() {
       <div
         className="bg-muted/30 h-full overflow-auto"
         style={{ scrollbarWidth: "none" }}
-        dir="rtl"
+        dir={direction}
       >
         <div className="mx-auto max-w-6xl space-y-6 p-6 pb-20">
           {/* Header */}
-          <div className="mb-8 space-y-2 text-right">
+          <div className="mb-8 space-y-2 text-start">
             <h1 className="text-xl font-bold">יומן נוכחות</h1>
             <p className="text-muted-foreground">
               צפה בנתוני נוכחות ומשמרות של העובדים
@@ -388,8 +393,9 @@ export default function WorkerStatsPage() {
               onValueChange={(value) => setSelectedUserId(Number(value))}
               className="w-full"
               orientation="vertical"
+              dir={direction}
             >
-              <div className="flex gap-6">
+              <div className="flex flex-row-reverse gap-6" dir={direction}>
                 {/* Content on the Left */}
                 <div className="flex-1">
                   {users.map((user) => (
@@ -401,8 +407,12 @@ export default function WorkerStatsPage() {
                       {/* User Stats Overview */}
                       <Card className="">
                         <CardHeader>
-                          <div className="flex items-center justify-between">
-                            <div className="mb-6 flex items-center justify-end gap-4">
+                          <div
+                            className={`flex items-center justify-between gap-4 ${
+                              direction === "ltr" ? "flex-row-reverse" : ""
+                            }`}
+                          >
+                            <div className="flex items-center gap-4">
                               <div className="flex items-center gap-2">
                                 <select
                                   value={selectedYear}
@@ -435,7 +445,7 @@ export default function WorkerStatsPage() {
                                       {new Date(
                                         2024,
                                         month - 1,
-                                      ).toLocaleDateString("he-IL", {
+                                      ).toLocaleDateString(dateLocale, {
                                         month: "long",
                                       })}
                                     </option>
@@ -443,8 +453,12 @@ export default function WorkerStatsPage() {
                                 </select>
                               </div>
                             </div>
-                            <div className="flex items-center gap-3">
-                              <div className="text-right">
+                            <div
+                              className={`flex items-center gap-3 ${
+                                direction === "ltr" ? "flex-row-reverse" : ""
+                              }`}
+                            >
+                              <div className="text-start">
                                 <CardTitle>
                                   {user.full_name || user.username}
                                 </CardTitle>
@@ -453,7 +467,7 @@ export default function WorkerStatsPage() {
                                   {new Date(
                                     selectedYear,
                                     selectedMonth - 1,
-                                  ).toLocaleDateString("he-IL", {
+                                  ).toLocaleDateString(dateLocale, {
                                     month: "long",
                                     year: "numeric",
                                   })}
@@ -522,8 +536,12 @@ export default function WorkerStatsPage() {
                       {/* Day View */}
                       <Card className="">
                         <CardHeader>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center">
+                          <div
+                            className={`flex items-start justify-between gap-4 ${
+                              direction === "ltr" ? "flex-row-reverse" : ""
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
                               {isRoleAtLeast(
                                 currentUser?.role_level,
                                 ROLE_LEVELS.manager,
@@ -538,8 +556,20 @@ export default function WorkerStatsPage() {
                                   הוספת משמרת
                                 </Button>
                               )}
+                              <div className="flex items-center gap-2">
+                                <DateInput
+                                  name="selected_date"
+                                  value={selectedDate}
+                                  onChange={(e) => setSelectedDate(e.target.value)}
+                                  className="w-auto text-center"
+                                  dir="ltr"
+                                />
+                                <Label className="text-sm font-medium">
+                                  :תאריך
+                                </Label>
+                              </div>
                             </div>
-                            <div className="text-right">
+                            <div className="text-start">
                               <CardTitle>צפייה לפי יום</CardTitle>
                               <p className="text-muted-foreground text-sm">
                                 בחר תאריך לצפייה בשעות הגעה ויציאה
@@ -548,18 +578,6 @@ export default function WorkerStatsPage() {
                           </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                          <div className="flex items-center justify-end gap-4">
-                            <DateInput
-                              name="selected_date"
-                              value={selectedDate}
-                              onChange={(e) => setSelectedDate(e.target.value)}
-                              className="w-auto text-center"
-                            />
-                            <Label className="text-sm font-medium">
-                              :תאריך
-                            </Label>
-                          </div>
-
                           {dayShifts.length === 0 ? (
                             <div className="text-muted-foreground py-12 text-center">
                               <IconClock className="mx-auto mb-4 h-12 w-12 opacity-50" />
@@ -659,23 +677,24 @@ export default function WorkerStatsPage() {
                 <TabsList
                   className="no-scrollbar dark:bg-card/50 flex h-fit max-h-[70vh] w-48 shrink-0 flex-col items-stretch justify-start overflow-y-auto bg-cyan-800/10 p-1"
                   style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                  dir={direction}
                 >
                   {users.map((user) => (
                     <TabsTrigger
                       key={user.id}
                       value={user.id!.toString()}
-                      className="w-full justify-end text-right"
+                      className="w-full justify-start text-start whitespace-nowrap"
                       onClick={() => setSelectedUserId(user.id!)}
                     >
-                      <div className="w-full text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <span className="text-muted-foreground text-sm">
-                            {isRoleAtLeast(user.role_level, ROLE_LEVELS.manager)
-                              ? "(מנהל)"
-                              : "(עובד)"}
-                          </span>
-                          <span className="font-medium">
+                      <div className="w-full min-w-0 text-start">
+                        <div className="flex items-center justify-start gap-2">
+                          <span className="min-w-0 truncate font-medium">
                             {user.full_name || user.username}
+                          </span>
+                          <span className="text-muted-foreground shrink-0 text-xs">
+                            {isRoleAtLeast(user.role_level, ROLE_LEVELS.manager)
+                              ? t("attendanceRoleAdmin")
+                              : t("attendanceRoleStaff")}
                           </span>
                         </div>
                       </div>

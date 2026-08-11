@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { Settings } from "@/lib/db/schema-interface"
 import { getEmailProviderConfig } from "@/lib/email/email-providers"
+import { useAppLocale } from "@/localization/use-app-locale"
 
 interface EmailTabProps {
   localSettings: Settings
@@ -16,20 +17,22 @@ interface EmailTabProps {
 }
 
 export function EmailTab({ localSettings, onInputChange, onTestConnection }: EmailTabProps) {
+  const { direction } = useAppLocale()
+
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="space-y-6" dir={direction}>
       <Card className="">
         <CardHeader>
-          <CardTitle className="text-right">הגדרות שרת אימייל</CardTitle>
-          <p className="text-sm text-muted-foreground text-right">הגדר את פרטי שרת האימייל לשליחת תזכורות ללקוחות</p>
+          <CardTitle className="text-start">הגדרות שרת אימייל</CardTitle>
+          <p className="text-start text-sm text-muted-foreground">הגדר את פרטי שרת האימייל לשליחת תזכורות ללקוחות</p>
         </CardHeader>
-        <CardContent className="space-y-6" dir="rtl">
+        <CardContent className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="email_provider" className="text-sm font-medium text-right block">
               ספק אימייל
             </Label>
             <Select
-              dir="rtl"
+              dir={direction}
               value={localSettings.email_provider || "gmail"}
               onValueChange={(value) => {
                 onInputChange('email_provider', value);
@@ -43,10 +46,10 @@ export function EmailTab({ localSettings, onInputChange, onTestConnection }: Ema
                 }
               }}
             >
-              <SelectTrigger className="text-right h-9" dir="rtl">
+              <SelectTrigger className="h-9 text-start" dir={direction}>
                 <SelectValue placeholder="בחר ספק אימייל" />
               </SelectTrigger>
-              <SelectContent dir="rtl">
+              <SelectContent dir={direction}>
                 <SelectItem value="gmail">Gmail</SelectItem>
                 <SelectItem value="outlook">Outlook / Hotmail</SelectItem>
                 <SelectItem value="yahoo">Yahoo Mail</SelectItem>
@@ -137,15 +140,15 @@ export function EmailTab({ localSettings, onInputChange, onTestConnection }: Ema
 
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-right block mb-2">אבטחה</Label>
-                    <div className="flex items-center justify-between rounded-lg h-9 px-3 border bg-background">
+                    <div className="flex h-9 items-center justify-between rounded-lg border bg-background px-3">
+                      <Label htmlFor="email_smtp_secure" className="cursor-pointer text-sm">
+                        SSL/TLS
+                      </Label>
                       <Switch
                         id="email_smtp_secure"
                         checked={localSettings.email_smtp_secure || false}
                         onCheckedChange={(checked) => onInputChange('email_smtp_secure', checked)}
                       />
-                      <Label htmlFor="email_smtp_secure" className="text-sm cursor-pointer">
-                        SSL/TLS
-                      </Label>
                     </div>
                   </div>
                 </div>
@@ -180,5 +183,4 @@ export function EmailTab({ localSettings, onInputChange, onTestConnection }: Ema
     </div>
   )
 }
-
 

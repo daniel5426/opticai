@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Settings } from "@/lib/db/schema-interface"
+import { useAppLocale } from "@/localization/use-app-locale"
 
 interface NotificationsTabProps {
   localSettings: Settings
@@ -12,36 +13,38 @@ interface NotificationsTabProps {
 }
 
 export function NotificationsTab({ localSettings, onInputChange }: NotificationsTabProps) {
+  const { direction } = useAppLocale()
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir={direction}>
         <Card className="">
         <CardHeader>
-          <CardTitle className="text-right">התראות אימייל</CardTitle>
-          <p className="text-sm text-muted-foreground text-right">הגדרות שליחת הזכרות ללקוחות</p>
+          <CardTitle className="text-start">התראות אימייל</CardTitle>
+          <p className="text-start text-sm text-muted-foreground">הגדרות שליחת הזכרות ללקוחות</p>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between p-3 rounded-lg shadow-sm bg-muted/20">
+            <div className="text-start">
+              <Label htmlFor="send_email_reminder" className="font-medium">הזכרות באימייל</Label>
+              <p className="text-sm text-muted-foreground">שלח הזכרה ללקוחות לפני התור</p>
+            </div>
             <Switch
               id="send_email_reminder"
               checked={localSettings.send_email_before_appointment || false}
               onCheckedChange={(checked) => onInputChange('send_email_before_appointment', checked)}
             />
-            <div className="text-right">
-              <Label htmlFor="send_email_reminder" dir="rtl" className="font-medium text-right">הזכרות באימייל</Label>
-              <p className="text-sm text-muted-foreground">שלח הזכרה ללקוחות לפני התור</p>
-            </div>
           </div>
           
           {localSettings.send_email_before_appointment && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg shadow-sm">
                 <div className="space-y-2">
-                  <Label htmlFor="email_days_before" className="text-right block">כמה ימים מראש</Label>
+                  <Label htmlFor="email_days_before" className="block text-start">כמה ימים מראש</Label>
                   <Select
                     value={String(localSettings.email_days_before || 1)}
                     onValueChange={(value) => onInputChange('email_days_before', Number(value))}
                   >
-                    <SelectTrigger className="text-right" dir="rtl">
+                    <SelectTrigger className="text-start" dir={direction}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -51,7 +54,7 @@ export function NotificationsTab({ localSettings, onInputChange }: Notifications
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="email_time" className="text-right block">שעת שליחה</Label>
+                  <Label htmlFor="email_time" className="block text-start">שעת שליחה</Label>
                   <Input
                     id="email_time"
                     type="time"
@@ -63,8 +66,8 @@ export function NotificationsTab({ localSettings, onInputChange }: Notifications
               </div>
               
               <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2 text-right">הגדרת אימייל</h4>
-                <p className="text-xs text-blue-700 dark:text-blue-300 text-right" dir="rtl">
+                <h4 className="mb-2 text-start text-sm font-medium text-blue-800 dark:text-blue-200">הגדרת אימייל</h4>
+                <p className="text-start text-xs text-blue-700 dark:text-blue-300">
                   הגדר את פרטי שרת האימייל בלשונית ההגדרות למטה כדי לשלוח תזכורות ללקוחות.
                 </p>
               </div>
@@ -75,5 +78,4 @@ export function NotificationsTab({ localSettings, onInputChange }: Notifications
     </div>
   )
 }
-
 

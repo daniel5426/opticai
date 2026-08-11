@@ -1581,8 +1581,8 @@ export const legacyStaticCopy = {
     "fr": "invitations"
   },
   "הזמנות וחיובים": {
-    "en": "Orders and charges",
-    "fr": "Ordonnances et frais"
+    "en": "Orders and billing",
+    "fr": "Commandes et facturation"
   },
   "הזמנות ללא בדיקה תואמת": {
     "en": "Orders without matching check",
@@ -2705,8 +2705,8 @@ export const legacyStaticCopy = {
     "fr": "Positif à ajouter, négatif à supprimer"
   },
   "חיובים": {
-    "en": "charges",
-    "fr": "accusations"
+    "en": "Billing",
+    "fr": "Facturation"
   },
   "חיטוי": {
     "en": "disinfection",

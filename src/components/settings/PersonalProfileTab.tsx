@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getSafeHexColor } from "@/components/ui/color-input"
 import { cn } from "@/lib/utils"
+import { useAppLocale } from "@/localization/use-app-locale"
 
 const PRESET_COLORS = [
   '#2563eb', // כחול
@@ -53,6 +54,7 @@ export function PersonalProfileTab({
   onSyncGoogleCalendar,
   onToggleGoogleAutoSync
 }: PersonalProfileTabProps) {
+  const { direction } = useAppLocale()
   const [openSystemVacation, setOpenSystemVacation] = useState(false)
   const [openAddedVacation, setOpenAddedVacation] = useState(false)
   const [systemVacationRange, setSystemVacationRange] = useState<DateRange | undefined>(undefined)
@@ -147,8 +149,8 @@ export function PersonalProfileTab({
   }
 
   return (
-    <div className="space-y-6">
-      <Card className="" dir="rtl">
+    <div className="space-y-6" dir={direction}>
+      <Card className="">
         <CardHeader>
           <CardTitle className="text-right">פרטים אישיים</CardTitle>
           <p className="text-sm text-muted-foreground text-right">תמונת פרופיל ופרטי יצירת קשר</p>
@@ -395,8 +397,8 @@ export function PersonalProfileTab({
               </p>
             </div>
 
-            <div className="flex flex-col gap-2 items-end border-t pt-4">
-              <div className="flex items-center justify-end gap-2">
+            <div className="flex flex-col items-start gap-2 border-t pt-4">
+              <div className="flex items-center justify-start gap-2">
                 <Label htmlFor="sync-subjective" className="text-right text-sm font-medium cursor-pointer">
                   חבר אוטומטית בין בדיקה סובייקטיבית למרשם סופי
                 </Label>
@@ -411,8 +413,8 @@ export function PersonalProfileTab({
               </p>
             </div>
 
-            <div className="flex flex-col gap-2 items-end border-t pt-4">
-              <div className="flex items-center justify-end gap-2">
+            <div className="flex flex-col items-start gap-2 border-t pt-4">
+              <div className="flex items-center justify-start gap-2">
                 <Label htmlFor="import-order-to-old-refraction" className="text-right text-sm font-medium cursor-pointer">
                   ייבא אוטומטית נתוני הזמנה אחרונה למרשם ישן
                 </Label>
@@ -427,8 +429,8 @@ export function PersonalProfileTab({
               </p>
             </div>
 
-            <div className="flex flex-col gap-2 items-end border-t pt-4">
-              <div className="flex items-center justify-end gap-2">
+            <div className="flex flex-col items-start gap-2 border-t pt-4">
+              <div className="flex items-center justify-start gap-2">
                 <Label htmlFor="clinical-auto-advance" className="text-right text-sm font-medium cursor-pointer">
                   מעבר אוטומטי בשדות בדיקה
                 </Label>

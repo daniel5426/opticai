@@ -6,8 +6,10 @@ import { getAllExamLayouts } from "@/lib/db/exam-layouts-db"
 import { ExamLayout } from "@/lib/db/schema-interface"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
 import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch } from "@/lib/list-page-search"
+import { useAppLocale } from "@/localization/use-app-locale"
 
 export default function ExamLayoutsPage() {
+  const { direction } = useAppLocale()
   const search = useSearch({ from: "/exam-layouts" })
   const navigate = useNavigate()
   const [layouts, setLayouts] = useState<ExamLayout[]>([])
@@ -96,9 +98,9 @@ export default function ExamLayoutsPage() {
         parentTitle="הגדרות"
         parentLink="/settings"
       />
-      <div className="flex flex-col flex-1 p-4 lg:pt-4 lg:p-6 mb-10" dir="rtl">
+      <div className="mb-10 flex flex-1 flex-col p-4 lg:p-6 lg:pt-4" dir={direction}>
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold">ניהול פריסות בדיקה</h2>
+          <h2 className="text-start text-xl font-semibold">ניהול פריסות בדיקה</h2>
         </div>
         
         <ExamLayoutsTable

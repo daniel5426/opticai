@@ -2,6 +2,7 @@ import React from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { LookupTableManager } from "@/components/LookupTableManager"
 import { lookupTables } from "@/lib/db/lookup-db"
+import { useAppLocale } from "@/localization/use-app-locale"
 
 interface FieldDataTabProps {
   clinicId?: number
@@ -20,13 +21,15 @@ export function FieldDataTab({
   onSelectTable, 
   onRefresh 
 }: FieldDataTabProps) {
+  const { direction } = useAppLocale()
+
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div className="space-y-6" dir={direction}>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="h-fit max-h-[900px]">
           <CardHeader>
-            <CardTitle className="text-right">בחר טבלת נתונים</CardTitle>
-            <p className="text-sm text-muted-foreground text-right">
+            <CardTitle className="text-start">בחר טבלת נתונים</CardTitle>
+            <p className="text-start text-sm text-muted-foreground">
               בחר טבלה לעריכה וניהול הנתונים
             </p>
           </CardHeader>
@@ -35,7 +38,7 @@ export function FieldDataTab({
               {Object.entries(lookupTables).map(([key, table]) => (
                 <div
                   key={key}
-                  className={`px-3 rounded text-sm cursor-pointer text-right transition-colors flex items-center justify-end gap-2 ${
+                  className={`flex items-center justify-start gap-2 rounded px-3 text-start text-sm transition-colors cursor-pointer ${
                     currentLookupTable === key 
                       ? 'bg-primary text-primary-foreground' 
                       : 'hover:bg-muted/50'

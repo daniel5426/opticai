@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { IconDownload, IconRefresh, IconCheck, IconAlertCircle, IconInfoCircle } from '@tabler/icons-react';
 import { Progress } from '@/components/ui/progress';
+import { useAppLocale } from '@/localization/use-app-locale';
 
 interface DownloadState {
   isDownloading: boolean;
@@ -16,6 +17,7 @@ interface DownloadState {
 }
 
 export function AboutTab() {
+  const { direction, locale } = useAppLocale();
   const isWindows = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('windows');
   const [currentVersion, setCurrentVersion] = useState<string>('');
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
@@ -254,36 +256,19 @@ export function AboutTab() {
   };
 
   return (
-    <Card className="">
+    <Card className="" dir={direction}>
       <CardHeader>
-        <CardTitle className="text-right flex items-center gap-2 justify-end">
+        <CardTitle className="flex items-center gap-2 text-start">
           <IconInfoCircle className="h-5 w-5" />
           אודות האפליקציה
         </CardTitle>
-        <p className="text-sm text-muted-foreground text-right">מידע על הגרסה הנוכחית ועדכונים זמינים</p>
+        <p className="text-start text-sm text-muted-foreground">מידע על הגרסה הנוכחית ועדכונים זמינים</p>
       </CardHeader>
       <CardContent>
         <div className="space-y-6">
           {/* Current Version Section */}
           <div className="flex items-center justify-between p-4 bg-secondary/20 rounded-lg border">
-            <div className="flex items-center gap-3">
-              {!updateAvailable ? (
-                <div className="flex items-center text-green-600 dark:text-green-400">
-                  <IconCheck className="h-5 w-5" />
-                </div>
-              ) : (
-                <div className="flex items-center text-blue-600 dark:text-blue-400">
-                  <IconAlertCircle className="h-5 w-5" />
-                </div>
-              )}
-              <div className="text-left">
-                <div className="text-sm text-muted-foreground">
-                  {!updateAvailable ? 'מעודכן' : 'עדכון זמין'}
-                </div>
-              </div>
-            </div>
-            
-            <div className="text-right">
+            <div className="text-start">
               <div className="font-semibold text-lg">Prysm</div>
               <div className="text-sm text-muted-foreground">
                 גרסה נוכחית: <span className="font-mono">{currentVersion || 'טוען...'}</span>
@@ -294,11 +279,28 @@ export function AboutTab() {
                 </div>
               )}
             </div>
+            <div className="flex items-center gap-3">
+              {!updateAvailable ? (
+                <div className="flex items-center text-green-600 dark:text-green-400">
+                  <IconCheck className="h-5 w-5" />
+                </div>
+              ) : (
+                <div className="flex items-center text-blue-600 dark:text-blue-400">
+                  <IconAlertCircle className="h-5 w-5" />
+                </div>
+              )}
+              <div className="text-start">
+                <div className="text-sm text-muted-foreground">
+                  {!updateAvailable ? 'מעודכן' : 'עדכון זמין'}
+                </div>
+              </div>
+            </div>
+            
           </div>
 
           {updateAvailable && latestVersion && (
             <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-              <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-3 text-right flex items-center gap-2 justify-end">
+              <h4 className="mb-3 flex items-center gap-2 text-start text-sm font-medium text-blue-800 dark:text-blue-200">
                 <IconAlertCircle className="h-4 w-4" />
                 {downloadState.isDownloaded
                   ? 'עדכון מוכן להתקנה'
@@ -306,7 +308,7 @@ export function AboutTab() {
                     ? 'מוריד עדכון...'
                     : 'עדכון חדש זמין'}
               </h4>
-              <div className="text-sm text-blue-700 dark:text-blue-300 text-right mb-4" dir="rtl">
+              <div className="mb-4 text-start text-sm text-blue-700 dark:text-blue-300">
                 {downloadState.isDownloaded
                   ? `גרסה ${downloadState.version || latestVersion} הורדה בהצלחה ומוכנה להתקנה.`
                   : downloadState.isDownloading
@@ -331,7 +333,7 @@ export function AboutTab() {
                 </div>
               )}
               
-              <div className="flex gap-3 justify-end">
+              <div className="flex gap-3 justify-start">
                 {downloadState.isDownloaded ? (
                   <Button
                     onClick={handleInstallUpdate}
@@ -376,7 +378,7 @@ export function AboutTab() {
           )}
 
           {isWindows && updateError && (
-            <div className="p-4 border rounded-lg text-right" dir="rtl">
+            <div className="rounded-lg border p-4 text-start">
               <div className="text-sm font-medium text-destructive mb-2">עדכון אוטומטי נכשל</div>
               <div className="text-xs text-muted-foreground mb-3 break-words">{updateError}</div>
               <Button
@@ -393,6 +395,17 @@ export function AboutTab() {
 
           {/* Check for Updates Section */}
           <div className="flex items-center justify-between p-4 border rounded-lg">
+            <div className="text-start">
+              <div className="text-sm font-medium">בדיקת עדכונים</div>
+              {lastChecked && (
+                <div className="text-xs text-muted-foreground">
+                  נבדק לאחרונה: {lastChecked.toLocaleTimeString(locale === 'fr' ? 'fr-FR' : locale === 'en' ? 'en-US' : 'he-IL', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </div>
+              )}
+            </div>
             <Button
               onClick={() => checkForUpdates(true)}
               disabled={checking}
@@ -413,24 +426,13 @@ export function AboutTab() {
               )}
             </Button>
             
-            <div className="text-right">
-              <div className="text-sm font-medium">בדיקת עדכונים</div>
-              {lastChecked && (
-                <div className="text-xs text-muted-foreground">
-                  נבדק לאחרונה: {lastChecked.toLocaleTimeString('he-IL', { 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                  })}
-                </div>
-              )}
-            </div>
           </div>
 
 
           {/* App Information */}
           <div className="p-4 bg-muted/50 rounded-lg">
-            <h4 className="text-sm font-medium mb-3 text-right">פרטי האפליקציה</h4>
-            <div className="space-y-2 text-sm text-muted-foreground" dir="rtl">
+            <h4 className="mb-3 text-start text-sm font-medium">פרטי האפליקציה</h4>
+            <div className="space-y-2 text-sm text-muted-foreground">
               <div className="flex justify-between">
               <span>גרסה:</span>
 
@@ -452,7 +454,7 @@ export function AboutTab() {
           </div>
 
           {/* Release Notes Link */}
-          <div className="p-4 border rounded-lg text-center" dir="rtl">
+          <div className="rounded-lg border p-4 text-center">
             <div className="text-sm text-muted-foreground mb-2">
               רוצה לראות מה חדש?
             </div>
