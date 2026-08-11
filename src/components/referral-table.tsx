@@ -27,7 +27,8 @@ interface ReferralTableProps {
   pagination?: {
     page: number
     pageSize: number
-    total: number
+    total: number | null
+    hasMore?: boolean
     setPage: (p: number) => void
   }
   searchQuery?: string
@@ -509,6 +510,7 @@ export function ReferralTable({
           page={pagination.page}
           pageSize={pagination.pageSize}
           total={pagination.total}
+          hasMore={pagination.hasMore}
           onPageChange={pagination.setPage}
           loading={loading}
         />

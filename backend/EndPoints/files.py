@@ -302,6 +302,8 @@ def get_files_paginated(
     order: Optional[str] = Query("upload_date_desc", description="Sort order: upload_date_desc|upload_date_asc|id_desc|id_asc"),
     search: Optional[str] = Query(None, description="Search by file name/type/uploader/client name/notes"),
     file_category: Optional[str] = Query(None, description="Filter by file category"),
+    include_total: bool = Query(True, description="Include the exact total count"),
+    count_only: bool = Query(False, description="Return only the exact total count"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -346,14 +348,16 @@ def get_files_paginated(
     else:
         base = base.order_by(order_column.desc().nulls_last(), FileModel.id.desc())
 
-    total = base.count()
-    rows = base.offset(offset).limit(limit).all()
+    total = base.count() if include_total or count_only else None
+    if count_only:
+        return {"items": [], "total": total or 0, "has_more": False}
+    rows = base.offset(offset).limit(limit + 1).all()
     items = []
-    for row in rows:
+    for row in rows[:limit]:
         f = row[0]
         setattr(f, "client_full_name", row[1])
         items.append(f)
-    return {"items": items, "total": total}
+    return {"items": items, "total": total, "has_more": len(rows) > limit}
 
 
 @router.get("/", response_model=List[FileSchema])

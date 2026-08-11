@@ -37,7 +37,8 @@ interface UsersTableProps {
   pagination?: {
     page: number
     pageSize: number
-    total: number
+    total: number | null
+    hasMore?: boolean
     setPage: (p: number) => void
   }
   companyId?: number
@@ -410,6 +411,7 @@ export function UsersTable({
           page={pagination.page}
           pageSize={pagination.pageSize}
           total={pagination.total}
+          hasMore={pagination.hasMore}
           onPageChange={pagination.setPage}
           loading={loading}
         />

@@ -32,7 +32,8 @@ interface ClientsTableProps {
   pagination?: {
     page: number
     pageSize: number
-    total: number
+    total: number | null
+    hasMore?: boolean
     setPage: (p: number) => void
   }
   genderFilter?: string
@@ -439,6 +440,7 @@ export function ClientsTable({
           page={pagination.page}
           pageSize={pagination.pageSize}
           total={pagination.total}
+          hasMore={pagination.hasMore}
           onPageChange={pagination.setPage}
           loading={loading}
         />

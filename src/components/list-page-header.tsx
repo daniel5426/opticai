@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { cn } from "@/utils/tailwind";
+import { useAppLocale } from "@/localization/use-app-locale";
 
 interface ListPageHeaderProps {
   title: string;
@@ -17,13 +18,15 @@ export function ListPageHeader({
   className,
   titleClassName,
 }: ListPageHeaderProps) {
+  const { direction } = useAppLocale();
+
   return (
     <header
       className={cn(
         "mb-5 flex shrink-0 flex-wrap items-start justify-between gap-4",
         className,
       )}
-      dir="rtl"
+      dir={direction}
     >
       <div>
         <h1 className={cn("text-xl font-semibold", titleClassName)}>{title}</h1>

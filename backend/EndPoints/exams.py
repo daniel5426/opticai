@@ -28,6 +28,8 @@ def get_enriched_exams(
     order: Optional[str] = Query("exam_date_desc", description="Sort order: exam_date_desc|exam_date_asc"),
     search: Optional[str] = Query(None, description="Search by client name, username, test name, or clinic"),
     test_name: Optional[str] = Query(None, description="Filter by exact test name"),
+    include_total: bool = Query(True, description="Include the exact total count"),
+    count_only: bool = Query(False, description="Return only the exact total count"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -62,7 +64,9 @@ def get_enriched_exams(
         base_query = base_query.filter(search_condition)
 
     # Count total before pagination
-    total = base_query.count()
+    total = base_query.count() if include_total or count_only else None
+    if count_only:
+        return {"items": [], "total": total or 0, "has_more": False}
 
     order_columns = {
         "exam_date": OpticalExam.exam_date,
@@ -79,10 +83,10 @@ def get_enriched_exams(
         base_query = base_query.order_by(order_column.desc().nulls_last(), OpticalExam.id.desc())
 
     # Pagination
-    rows = base_query.offset(offset).limit(limit).all()
+    rows = base_query.offset(offset).limit(limit + 1).all()
 
     items = []
-    for exam, username, full_name, client_first_name, client_last_name in rows:
+    for exam, username, full_name, client_first_name, client_last_name in rows[:limit]:
         items.append({
             "id": exam.id,
             "client_id": exam.client_id,
@@ -98,7 +102,7 @@ def get_enriched_exams(
             "clientName": f"{client_first_name or ''} {client_last_name or ''}".strip()
         })
 
-    return { "items": items, "total": total }
+    return { "items": items, "total": total, "has_more": len(rows) > limit }
 
 @router.get("/", response_model=List[OpticalExamSchema])
 def get_exams(

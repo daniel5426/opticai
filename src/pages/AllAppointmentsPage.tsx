@@ -16,6 +16,7 @@ import {
   sortToOrder,
   sortToSearch,
 } from "@/lib/table-sorting";
+import { deferPaginationTotal } from "@/lib/deferred-pagination";
 
 export default function AllAppointmentsPage() {
   const { currentClinic } = useUser();
@@ -24,7 +25,8 @@ export default function AllAppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [pageSize] = useState(25);
-  const [total, setTotal] = useState(0);
+  const [total, setTotal] = useState<number | null>(null);
+  const [hasMore, setHasMore] = useState(false);
   const [searchInput, setSearchInput] = useState(search.q);
   const { startSearchRequest, updateLatestSearch } =
     useLatestTableSearchRequest(searchInput);
@@ -85,25 +87,33 @@ export default function AllAppointmentsPage() {
     const canCommit = startSearchRequest(search.q);
     try {
       setLoading(true);
+      setTotal(null);
       const offset = (search.page - 1) * pageSize;
-      const { items, total } = await getPaginatedAppointments(
+      const paginationOptions = {
+        limit: pageSize,
+        offset,
+        order: sortToOrder(activeSort, "date_desc"),
+        q: search.q || undefined,
+        dateScope:
+          search.dateScope !== ALL_FILTER_VALUE
+            ? search.dateScope
+            : undefined,
+        examName:
+          search.examName !== ALL_FILTER_VALUE ? search.examName : undefined,
+        includeTotal: false,
+      };
+      const { items, hasMore: nextHasMore } = await getPaginatedAppointments(
         currentClinic?.id,
-        {
-          limit: pageSize,
-          offset,
-          order: sortToOrder(activeSort, "date_desc"),
-          q: search.q || undefined,
-          dateScope:
-            search.dateScope !== ALL_FILTER_VALUE
-              ? search.dateScope
-              : undefined,
-          examName:
-            search.examName !== ALL_FILTER_VALUE ? search.examName : undefined,
-        },
+        paginationOptions,
       );
       if (!canCommit()) return;
       setAppointments(items);
-      setTotal(total);
+      setHasMore(nextHasMore);
+      deferPaginationTotal(
+        () => getPaginatedAppointments(currentClinic?.id, { ...paginationOptions, countOnly: true }),
+        canCommit,
+        setTotal,
+      );
     } catch (error) {
       console.error("Error loading data:", error);
     } finally {
@@ -153,7 +163,7 @@ export default function AllAppointmentsPage() {
         search: buildSearchState({ page: search.page - 1 }),
       });
     } else {
-      setTotal((prev) => prev - 1);
+      setTotal((prev) => (prev === null ? null : Math.max(0, prev - 1)));
     }
   };
 
@@ -209,6 +219,7 @@ export default function AllAppointmentsPage() {
             page: search.page,
             pageSize,
             total,
+            hasMore,
             setPage: (page) =>
               navigate({
                 to: "/appointments",

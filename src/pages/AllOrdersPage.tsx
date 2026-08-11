@@ -10,6 +10,7 @@ import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch, useLatestTableSearchRequest
 import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
 import { useUsersQuery } from "@/hooks/client/useClientTabQueries"
 import { onBillingPaymentsChanged } from "@/lib/billing-events"
+import { deferPaginationTotal } from "@/lib/deferred-pagination"
 
 export default function AllOrdersPage() {
   const { currentClinic } = useUser()
@@ -18,7 +19,8 @@ export default function AllOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [pageSize] = useState(25)
-  const [total, setTotal] = useState(0)
+  const [total, setTotal] = useState<number | null>(null)
+  const [hasMore, setHasMore] = useState(false)
   const [searchInput, setSearchInput] = useState(search.q)
   const { startSearchRequest, updateLatestSearch } = useLatestTableSearchRequest(searchInput)
   const usersQuery = useUsersQuery(currentClinic?.id)
@@ -83,18 +85,26 @@ export default function AllOrdersPage() {
     const canCommit = startSearchRequest(search.q)
     try {
       setLoading(true)
+      setTotal(null)
       const offset = (search.page - 1) * pageSize
-      const { items, total } = await getPaginatedOrders(currentClinic?.id, {
+      const paginationOptions = {
         limit: pageSize,
         offset,
         order: sortToOrder(activeSort, "date_desc"),
         q: search.q || undefined,
         kind: search.kind !== ALL_FILTER_VALUE ? search.kind : undefined,
-        status: search.status !== ALL_FILTER_VALUE ? search.status : undefined
-      })
+        status: search.status !== ALL_FILTER_VALUE ? search.status : undefined,
+        includeTotal: false
+      }
+      const { items, hasMore: nextHasMore } = await getPaginatedOrders(currentClinic?.id, paginationOptions)
       if (!canCommit()) return
       setOrders(items)
-      setTotal(total)
+      setHasMore(nextHasMore)
+      deferPaginationTotal(
+        () => getPaginatedOrders(currentClinic?.id, { ...paginationOptions, countOnly: true }),
+        canCommit,
+        setTotal
+      )
     } catch (error) {
       console.error("Error loading data:", error)
     } finally {
@@ -125,7 +135,7 @@ export default function AllOrdersPage() {
         search: buildSearchState({ page: search.page - 1 })
       })
     } else {
-      setTotal((prev) => prev - 1)
+      setTotal((prev) => (prev === null ? null : Math.max(0, prev - 1)))
     }
   }
 
@@ -213,6 +223,7 @@ export default function AllOrdersPage() {
             page: search.page,
             pageSize,
             total,
+            hasMore,
             setPage: (page) =>
               navigate({
                 to: "/orders",

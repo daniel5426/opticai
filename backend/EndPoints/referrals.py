@@ -26,6 +26,8 @@ def get_referrals_paginated(
     search: Optional[str] = Query(None, description="Search by type/recipient/urgency_level/client name"),
     urgency_level: Optional[str] = Query(None, description="Filter by urgency level"),
     referral_type: Optional[str] = Query(None, alias="type", description="Filter by referral type"),
+    include_total: bool = Query(True, description="Include the exact total count"),
+    count_only: bool = Query(False, description="Return only the exact total count"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -69,15 +71,17 @@ def get_referrals_paginated(
         base = base.order_by(order_column.asc().nulls_last(), Referral.id.asc())
     else:
         base = base.order_by(order_column.desc().nulls_last(), Referral.id.desc())
-    total = base.count()
-    rows = base.offset(offset).limit(limit).all()
+    total = base.count() if include_total or count_only else None
+    if count_only:
+        return {"items": [], "total": total or 0, "has_more": False}
+    rows = base.offset(offset).limit(limit + 1).all()
     items = []
-    for row in rows:
+    for row in rows[:limit]:
         ref = row[0]
         setattr(ref, 'client_full_name', row[1])
         setattr(ref, 'examiner_name', row[2])
         items.append(ref)
-    return {"items": items, "total": total}
+    return {"items": items, "total": total, "has_more": len(rows) > limit}
 
 @router.post("/", response_model=ReferralSchema)
 def create_referral(

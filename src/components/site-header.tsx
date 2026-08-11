@@ -18,6 +18,8 @@ import { User, Phone, IdCard, Calendar, Hash } from "lucide-react";
 import { Client } from "@/lib/db/schema-interface";
 import { useClientSidebar } from "@/contexts/ClientSidebarContext";
 import { useNavigationGuard } from "@/contexts/NavigationGuardContext";
+import { useAppLocale } from "@/localization/use-app-locale";
+import { useTranslation } from "react-i18next";
 
 interface SiteHeaderProps {
   title: string;
@@ -39,16 +41,6 @@ interface SiteHeaderProps {
   };
 }
 
-const CLIENT_HEADER_TABS = [
-  { value: "details", label: "פרטים אישיים" },
-  { value: "medical", label: "גליון רפואי" },
-  { value: "exams", label: "בדיקות" },
-  { value: "orders", label: "הזמנות" },
-  { value: "referrals", label: "הפניות" },
-  { value: "appointments", label: "תורים" },
-  { value: "files", label: "מסמכים" },
-] as const;
-
 function calculateAge(dateOfBirth: string | undefined): number | null {
   if (!dateOfBirth) return null;
 
@@ -68,10 +60,12 @@ function calculateAge(dateOfBirth: string | undefined): number | null {
 }
 
 function ClientTooltip({ client }: { client: Client }) {
+  const { direction } = useAppLocale();
+  const { t } = useTranslation();
   const age = calculateAge(client.date_of_birth);
 
   return (
-    <div className="space-y-3 p-1" dir="rtl">
+    <div className="space-y-3 p-1" dir={direction}>
       <div className="flex items-center gap-2 text-sm">
         <User className="text-muted-foreground h-4 w-4" />
         <span className="font-medium">{client.gender || "לא צוין"}</span>
@@ -80,7 +74,7 @@ function ClientTooltip({ client }: { client: Client }) {
       {age && (
         <div className="flex items-center gap-2 text-sm">
           <Calendar className="text-muted-foreground h-4 w-4" />
-          <span>גיל {age}</span>
+          <span>{t("age", { count: age })}</span>
         </div>
       )}
 
@@ -129,6 +123,17 @@ export function SiteHeader({
   hasUnsavedChanges,
   tabs,
 }: SiteHeaderProps) {
+  const { direction } = useAppLocale();
+  const { t } = useTranslation();
+  const clientHeaderTabs = [
+    { value: "details", label: t("clientDetails") },
+    { value: "medical", label: t("medicalRecord") },
+    { value: "exams", label: t("exams") },
+    { value: "orders", label: t("orders") },
+    { value: "referrals", label: t("referrals") },
+    { value: "appointments", label: t("appointments") },
+    { value: "files", label: t("files") },
+  ];
   const { currentClient, toggleSidebar } = useClientSidebar();
   const displayName = currentClient
     ? `${currentClient.first_name} ${currentClient.last_name}`.trim()
@@ -201,7 +206,7 @@ export function SiteHeader({
   const headerContent = (
     <header
       className="flex h-(--header-height) shrink-0 items-center gap-2 border-b-[1px] transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)"
-      dir="rtl"
+      dir={direction}
       style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
     >
       <div
@@ -306,7 +311,7 @@ export function SiteHeader({
                           <div className="space-y-2">
                             <div
                               className="mb-3 flex items-center justify-between border-b pb-2 text-base font-semibold"
-                              dir="rtl"
+                              dir={direction}
                             >
                               {displayName}
                               <span className="text-muted-foreground flex items-center gap-1 text-sm">
@@ -364,9 +369,13 @@ export function SiteHeader({
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
         >
           {tabs && (
-            <Tabs value={tabs.activeTab} onValueChange={tabs.onTabChange}>
+            <Tabs
+              value={tabs.activeTab}
+              onValueChange={tabs.onTabChange}
+              dir={direction}
+            >
               <TabsList className="bg-transparent">
-                {(tabs.items || CLIENT_HEADER_TABS).map((tab) => (
+                {(tabs.items || clientHeaderTabs).map((tab) => (
                   <TabsTrigger
                     key={tab.value}
                     className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground flex-none whitespace-nowrap data-[state=inactive]:bg-transparent"

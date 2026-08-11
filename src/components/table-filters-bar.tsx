@@ -11,6 +11,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/utils/tailwind";
+import { useAppLocale } from "@/localization/use-app-locale";
+import { useTranslation } from "react-i18next";
 
 type FilterOption = {
   value: string;
@@ -44,7 +46,7 @@ interface TableFiltersBarProps {
 export function TableFiltersBar({
   searchValue = "",
   onSearchChange,
-  searchPlaceholder = "חיפוש…",
+  searchPlaceholder,
   searchAriaLabel,
   filters = [],
   navigation,
@@ -54,7 +56,25 @@ export function TableFiltersBar({
   className,
   compact = false,
 }: TableFiltersBarProps) {
+  const { direction } = useAppLocale();
+  const { t } = useTranslation();
+  const resolvedSearchPlaceholder = searchPlaceholder ?? `${t("search")}…`;
   const hasLeftContent = Boolean(navigation || actions);
+  const orderedFilters = direction === "rtl" ? [...filters].reverse() : filters;
+  const navigationOrder =
+    direction === "ltr"
+      ? "order-2 flex shrink-0 flex-wrap items-center justify-end gap-2"
+      : cn(
+          "order-2 flex shrink-0 flex-wrap items-center justify-end gap-2",
+          compact ? "md:order-1" : "xl:order-1",
+        );
+  const controlsOrder =
+    direction === "ltr"
+      ? "order-1 flex min-w-0 flex-1 flex-wrap items-center justify-start gap-2"
+      : cn(
+          "order-1 flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2",
+          compact ? "md:order-2" : "xl:order-2",
+        );
 
   return (
     <div className={cn("w-full", className)}>
@@ -69,11 +89,8 @@ export function TableFiltersBar({
       >
         {hasLeftContent ? (
           <div
-            dir="rtl"
-            className={cn(
-              "order-2 flex shrink-0 flex-wrap items-center justify-end gap-2",
-              compact ? "md:order-1" : "xl:order-1",
-            )}
+            dir={direction}
+            className={navigationOrder}
           >
             {navigation}
             {actions}
@@ -81,12 +98,28 @@ export function TableFiltersBar({
         ) : null}
 
         <div
-          dir="ltr"
-          className={cn(
-            "order-1 flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2",
-            compact ? "md:order-2" : "xl:order-2",
-          )}
+          dir={direction}
+          className={controlsOrder}
         >
+          {onSearchChange ? (
+            <div
+              className="relative min-w-[220px] flex-1 md:max-w-[320px]"
+            >
+              <Search
+                aria-hidden="true"
+                className="text-muted-foreground pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2"
+              />
+              <Input
+                aria-label={searchAriaLabel || resolvedSearchPlaceholder}
+                placeholder={resolvedSearchPlaceholder}
+                value={searchValue}
+                onChange={(event) => onSearchChange(event.target.value)}
+                className="border-border/80 bg-card h-9 rounded-lg pe-9 shadow-none"
+                dir={direction}
+              />
+            </div>
+          ) : null}
+
           {onReset && hasActiveFilters ? (
             <Button
               type="button"
@@ -94,19 +127,19 @@ export function TableFiltersBar({
               size="sm"
               onClick={onReset}
               className="h-9 rounded-xl px-3"
-              dir="rtl"
+              dir={direction}
             >
-              נקה
+              {t("clear")}
               <X className="h-4 w-4" aria-hidden="true" />
             </Button>
           ) : null}
 
-          {[...filters].reverse().map((filter) => (
+          {orderedFilters.map((filter) => (
             <Select
               key={filter.key}
               value={filter.value}
               onValueChange={filter.onChange}
-              dir="rtl"
+              dir={direction}
             >
               <SelectTrigger
                 aria-label={filter.ariaLabel || filter.placeholder}
@@ -127,25 +160,6 @@ export function TableFiltersBar({
             </Select>
           ))}
 
-          {onSearchChange ? (
-            <div
-              dir="rtl"
-              className="relative min-w-[220px] flex-1 md:max-w-[320px]"
-            >
-              <Search
-                aria-hidden="true"
-                className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2"
-              />
-              <Input
-                aria-label={searchAriaLabel || searchPlaceholder}
-                placeholder={searchPlaceholder}
-                value={searchValue}
-                onChange={(event) => onSearchChange(event.target.value)}
-                className="border-border/80 bg-card h-9 rounded-lg pr-9 shadow-none"
-                dir="rtl"
-              />
-            </div>
-          ) : null}
         </div>
       </div>
     </div>

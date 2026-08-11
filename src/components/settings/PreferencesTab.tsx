@@ -14,6 +14,9 @@ import {
 } from "@/components/ui/select";
 import { IconLayoutGrid } from "@tabler/icons-react";
 import { Settings } from "@/lib/db/schema-interface";
+import { useTranslation } from "react-i18next";
+import { setAppLanguage } from "@/helpers/language_helpers";
+import { getActiveLocale, normalizeLocale } from "@/localization/locale";
 
 interface PreferencesTabProps {
   localSettings: Settings;
@@ -27,8 +30,40 @@ export function PreferencesTab({
   localSettings,
   onInputChange,
 }: PreferencesTabProps) {
+  const { i18n, t } = useTranslation();
+  const locale =
+    normalizeLocale(i18n.resolvedLanguage ?? i18n.language) ??
+    getActiveLocale();
+
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-start">{t("language")}</CardTitle>
+          <p className="text-muted-foreground text-sm">
+            {t("languageDescription")}
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="max-w-sm space-y-2">
+            <Label htmlFor="application-language">{t("language")}</Label>
+            <Select
+              value={locale}
+              onValueChange={(value) => setAppLanguage(value, i18n)}
+            >
+              <SelectTrigger id="application-language">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="he">🇮🇱 {t("hebrew")}</SelectItem>
+                <SelectItem value="en">🇺🇸 {t("english")}</SelectItem>
+                <SelectItem value="fr">🇫🇷 {t("french")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card className="">
         <CardContent>
           <div className="flex items-center justify-between">
@@ -115,7 +150,10 @@ export function PreferencesTab({
           </p>
         </CardHeader>
         <CardContent>
-          <div className="flex w-full flex-col items-start gap-2 text-right" dir="rtl">
+          <div
+            className="flex w-full flex-col items-start gap-2 text-right"
+            dir="rtl"
+          >
             <Label htmlFor="va_test_distance" className="block text-right">
               מרחק בדיקת VA
             </Label>

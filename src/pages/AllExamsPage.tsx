@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
 import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch, useLatestTableSearchRequest } from "@/lib/list-page-search"
 import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
+import { deferPaginationTotal } from "@/lib/deferred-pagination"
 
 export default function AllExamsPage() {
   const { currentClinic } = useUser()
@@ -18,7 +19,8 @@ export default function AllExamsPage() {
   const [exams, setExams] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [pageSize] = useState(25)
-  const [total, setTotal] = useState(0)
+  const [total, setTotal] = useState<number | null>(null)
+  const [hasMore, setHasMore] = useState(false)
   const [searchInput, setSearchInput] = useState(search.q)
   const { startSearchRequest, updateLatestSearch } = useLatestTableSearchRequest(searchInput)
   const activeSort = React.useMemo(
@@ -79,17 +81,25 @@ export default function AllExamsPage() {
     const canCommit = startSearchRequest(search.q)
     try {
       setLoading(true)
+      setTotal(null)
       const offset = (search.page - 1) * pageSize
-      const { items, total } = await getPaginatedEnrichedExams("exam", currentClinic?.id, {
+      const paginationOptions = {
         limit: pageSize,
         offset,
         order: sortToOrder(activeSort, "exam_date_desc"),
         q: search.q || undefined,
-        testName: search.testName !== ALL_FILTER_VALUE ? search.testName : undefined
-      })
+        testName: search.testName !== ALL_FILTER_VALUE ? search.testName : undefined,
+        includeTotal: false
+      }
+      const { items, hasMore: nextHasMore } = await getPaginatedEnrichedExams("exam", currentClinic?.id, paginationOptions)
       if (!canCommit()) return
       setExams(items)
-      setTotal(total)
+      setHasMore(nextHasMore)
+      deferPaginationTotal(
+        () => getPaginatedEnrichedExams("exam", currentClinic?.id, { ...paginationOptions, countOnly: true }),
+        canCommit,
+        setTotal
+      )
     } catch (error) {
       console.error("Error loading data:", error)
     } finally {
@@ -108,7 +118,7 @@ export default function AllExamsPage() {
   const handleExamDeleted = (deletedExamId: number) => {
     setExams((prevExams) => {
       const updated = prevExams.filter((exam) => exam.id !== deletedExamId)
-      const newTotal = Math.max(0, total - 1)
+      const newTotal = total === null ? null : Math.max(0, total - 1)
       setTotal(newTotal)
       if (updated.length === 0 && search.page > 1) {
         navigate({
@@ -156,6 +166,7 @@ export default function AllExamsPage() {
             page: search.page,
             pageSize,
             total,
+            hasMore,
             setPage: (page) =>
               navigate({
                 to: "/exams",

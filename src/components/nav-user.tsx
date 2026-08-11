@@ -263,7 +263,7 @@ export function NavUser({
               sideOffset={4}
             >
               <DropdownMenuLabel className="p-0 font-normal">
-                <div className="flex items-center gap-2 px-1 py-1.5 text-right text-sm" dir="rtl">
+                <div className="flex items-center gap-2 px-1 py-1.5 text-start text-sm" dir={direction}>
                 <Avatar className="h-8 w-8 rounded-lg">
                         {currentUser.profile_picture ? (
                           <AvatarImage src={currentUser.profile_picture} alt={displayName} />
@@ -293,17 +293,17 @@ export function NavUser({
                 <div className="px-1 py-2 space-y-2">
                   {activeShift ? (
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm" dir="rtl">
+                      <div className="flex items-center justify-between text-sm" dir={direction}>
                         <div className="flex items-center">
                           <span className="font-mono">{currentTime.toLocaleTimeString('he-IL')}</span>
                           <div className="w-2"></div>
                           <IconClock className="h-4 w-4" />
                         </div>
                       </div>
-                      <div className="text-xs text-green-600 text-right" dir="ltr">
+                      <div className="text-xs text-green-600 text-start" dir={direction}>
                         משמרת פעילה מ-{activeShift.start_time}
                       </div>
-                      <div className="flex gap-1 justify-end" dir="ltr">
+                      <div className="flex gap-1 justify-end" dir={direction}>
                         <button
                           onClick={handleCancelShift}
                           className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-700"
@@ -323,7 +323,7 @@ export function NavUser({
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-between text-sm" dir="rtl">
+                    <div className="flex items-center justify-between text-sm" dir={direction}>
                       <div className="flex items-center">
                         <span className="font-mono">{currentTime.toLocaleTimeString('he-IL')}</span>
                         <div className="w-2"></div>
@@ -333,7 +333,7 @@ export function NavUser({
                         onClick={handleStartShift}
                         disabled={isStartingShift}
                         className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-green-100 hover:bg-green-200 text-green-700 disabled:opacity-50"
-                        dir="ltr"
+                        dir={direction}
                       >
                         {isStartingShift ? (
                           <>
@@ -381,13 +381,13 @@ export function NavUser({
               <DropdownMenuGroup>
                 <DropdownMenuItem 
                   className="flex justify-between items-center" 
-                  dir="rtl"
+                  dir={direction}
                   onClick={openProfileModal}
                 >
                   <span>פרופיל אישי</span>
                   <IconUserCircle className="mr-2" />
                 </DropdownMenuItem>
-                <DropdownMenuItem className="flex justify-between items-center" dir="rtl" asChild>
+                <DropdownMenuItem className="flex justify-between items-center" dir={direction} asChild>
                   <GuardedRouterLink to="/settings">
                     <span>הגדרות</span>
                     <IconSettings className="mr-2" />
@@ -401,7 +401,7 @@ export function NavUser({
                     <DropdownMenuItem
                       className="flex justify-between items-center"
                       onClick={handleLogoutUser}
-                      dir="rtl"
+                      dir={direction}
                     >
                       <span>התנתקות משתמש</span>
                       <IconLogout className="mr-2" />
@@ -409,7 +409,7 @@ export function NavUser({
                     <DropdownMenuItem
                       className="flex justify-between items-center text-red-600 hover:text-red-700"
                       onClick={handleLogoutClinic}
-                      dir="rtl"
+                      dir={direction}
                     >
                       <span>התנתקות מרפאה</span>
                       <IconLogout className="mr-2" />
@@ -419,7 +419,7 @@ export function NavUser({
                   <DropdownMenuItem
                     className="flex justify-between items-center text-red-600 hover:text-red-700"
                     onClick={handleLogoutClinic}
-                    dir="rtl"
+                    dir={direction}
                   >
                     <span>התנתקות</span>
                     <IconLogout className="mr-2" />
@@ -440,7 +440,7 @@ export function NavUser({
           subtitle="מידע אישי ופרטי התחברות"
           className="max-w-xs"
         >
-          <div className="space-y-4 pb-4" dir="rtl">
+          <div className="space-y-4 pb-4" dir={direction}>
             <div className="flex items-center gap-4 rounded-lg">
               <Avatar className="h-16 w-16 rounded-lg">
                 {currentUser.profile_picture ? (
@@ -450,7 +450,7 @@ export function NavUser({
                   {userInitials}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex-1 text-right">
+              <div className="flex-1 text-start">
                  <h3 className="font-semibold text-lg">{displayName}</h3>
                 <Badge variant={getRoleBadgeVariant(currentUser.role_level)} className="mt-1">
                   {roleName}

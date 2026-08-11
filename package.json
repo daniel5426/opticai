@@ -28,6 +28,8 @@
     "lint": "eslint .",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
+    "i18n:generate": "node scripts/generate-legacy-copy-catalog.mjs",
+    "i18n:audit": "node scripts/generate-legacy-copy-catalog.mjs --check",
     "test": "vitest run",
     "test:watch": "vitest watch",
     "test:unit": "vitest",

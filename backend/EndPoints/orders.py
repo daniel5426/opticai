@@ -62,6 +62,8 @@ def get_orders_paginated(
     search: Optional[str] = Query(None, description="Search by type/examiner/client name/VA/PD/date"),
     kind: Optional[str] = Query(None, description="Filter by kind: all|regular|contact"),
     status: Optional[str] = Query(None, description="Filter by order status"),
+    include_total: bool = Query(True, description="Include the exact total count"),
+    count_only: bool = Query(False, description="Return only the exact total count"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -103,6 +105,199 @@ def get_orders_paginated(
         
     if status and status != "all":
         cl_filters.append(ContactLensOrder.order_status == status)
+
+    normalized_kind = (kind or "all").strip().lower()
+
+    # Counts do not need billing data. Keeping it out of this query avoids
+    # multiplying work for every historical billing row.
+    orders_count_from = Order.__table__
+    contact_count_from = ContactLensOrder.__table__
+    if order_search_condition is not None:
+        orders_count_from = (
+            orders_count_from
+            .outerjoin(User.__table__, Order.user_id == User.id)
+            .outerjoin(Client.__table__, Order.client_id == Client.id)
+        )
+    if contact_search_condition is not None:
+        contact_count_from = (
+            contact_count_from
+            .outerjoin(User.__table__, ContactLensOrder.user_id == User.id)
+            .outerjoin(Client.__table__, ContactLensOrder.client_id == Client.id)
+        )
+
+    def get_total() -> int:
+        total = 0
+        if normalized_kind != "contact":
+            total += db.execute(
+                select(func.count(Order.id)).select_from(orders_count_from).where(*order_filters)
+            ).scalar() or 0
+        if normalized_kind != "regular":
+            total += db.execute(
+                select(func.count(ContactLensOrder.id)).select_from(contact_count_from).where(*cl_filters)
+            ).scalar() or 0
+        return int(total)
+
+    if count_only:
+        return {"items": [], "total": get_total(), "has_more": False}
+
+    order_key, _, order_direction = (order or "date_desc").rpartition("_")
+    # The overwhelmingly common list view is date-desc. First choose a small,
+    # correctly ordered candidate set from each source table, then join only
+    # those rows to client/user/billing data. The old path joined and sorted
+    # every order before applying the page limit.
+    if (
+        db.get_bind().dialect.name == "postgresql"
+        and order_key in {"date", "order_date"}
+        and order_direction != "asc"
+    ):
+        candidate_limit = offset + limit + 1
+        candidate_queries = []
+
+        if normalized_kind != "contact":
+            regular_candidates = (
+                select(
+                    Order.id.label("id"),
+                    Order.order_date.label("order_date"),
+                    literal(False).label("__contact"),
+                )
+                .select_from(orders_count_from)
+                .where(*order_filters)
+                .order_by(Order.order_date.desc().nulls_last(), Order.id.desc())
+                .limit(candidate_limit)
+            )
+            candidate_queries.append(regular_candidates)
+
+        if normalized_kind != "regular":
+            contact_candidates = (
+                select(
+                    ContactLensOrder.id.label("id"),
+                    ContactLensOrder.order_date.label("order_date"),
+                    literal(True).label("__contact"),
+                )
+                .select_from(contact_count_from)
+                .where(*cl_filters)
+                .order_by(ContactLensOrder.order_date.desc().nulls_last(), ContactLensOrder.id.desc())
+                .limit(candidate_limit)
+            )
+            candidate_queries.append(contact_candidates)
+
+        candidates = (
+            candidate_queries[0].subquery("order_candidates")
+            if len(candidate_queries) == 1
+            else union_all(*candidate_queries).subquery("order_candidates")
+        )
+        selected = (
+            select(candidates.c.id, candidates.c.order_date, candidates.c["__contact"])
+            .order_by(candidates.c.order_date.desc().nulls_last(), candidates.c.id.desc())
+            .offset(offset)
+            .limit(limit + 1)
+            .cte("selected_orders")
+        )
+
+        regular_billing_id = (
+            select(Billing.id)
+            .where(Billing.order_id == Order.id)
+            .order_by(Billing.id.desc())
+            .limit(1)
+            .scalar_subquery()
+        )
+        regular_billing_total = (
+            select(Billing.total_after_discount)
+            .where(Billing.order_id == Order.id)
+            .order_by(Billing.id.desc())
+            .limit(1)
+            .scalar_subquery()
+        )
+        regular_billing_prepayment = (
+            select(Billing.prepayment_amount)
+            .where(Billing.order_id == Order.id)
+            .order_by(Billing.id.desc())
+            .limit(1)
+            .scalar_subquery()
+        )
+        contact_billing_id = (
+            select(Billing.id)
+            .where(Billing.contact_lens_id == ContactLensOrder.id)
+            .order_by(Billing.id.desc())
+            .limit(1)
+            .scalar_subquery()
+        )
+        contact_billing_total = (
+            select(Billing.total_after_discount)
+            .where(Billing.contact_lens_id == ContactLensOrder.id)
+            .order_by(Billing.id.desc())
+            .limit(1)
+            .scalar_subquery()
+        )
+        contact_billing_prepayment = (
+            select(Billing.prepayment_amount)
+            .where(Billing.contact_lens_id == ContactLensOrder.id)
+            .order_by(Billing.id.desc())
+            .limit(1)
+            .scalar_subquery()
+        )
+
+        regular_rows = (
+            select(
+                Order.id.label("id"),
+                Order.client_id.label("client_id"),
+                Order.clinic_id.label("clinic_id"),
+                Order.order_date.label("order_date"),
+                Order.type.label("type"),
+                Order.user_id.label("user_id"),
+                func.json_extract_path_text(Order.order_data, "details", "order_status").label("order_status"),
+                literal(None).label("comb_va"),
+                literal(None).label("comb_pd"),
+                literal(False).label("__contact"),
+                func.coalesce(User.full_name, User.username).label("username"),
+                spaced_concat(Client.first_name, Client.last_name).label("clientName"),
+                regular_billing_id.label("billing_id"),
+                regular_billing_total.label("billing_total_after_discount"),
+                regular_billing_prepayment.label("billing_prepayment_amount"),
+            )
+            .select_from(
+                selected.join(Order.__table__, selected.c.id == Order.id)
+                .outerjoin(User.__table__, Order.user_id == User.id)
+                .outerjoin(Client.__table__, Order.client_id == Client.id)
+            )
+            .where(selected.c["__contact"].is_(False))
+        )
+        contact_rows = (
+            select(
+                ContactLensOrder.id.label("id"),
+                ContactLensOrder.client_id.label("client_id"),
+                ContactLensOrder.clinic_id.label("clinic_id"),
+                ContactLensOrder.order_date.label("order_date"),
+                ContactLensOrder.type.label("type"),
+                ContactLensOrder.user_id.label("user_id"),
+                ContactLensOrder.order_status.label("order_status"),
+                literal(None).label("comb_va"),
+                literal(None).label("comb_pd"),
+                literal(True).label("__contact"),
+                func.coalesce(User.full_name, User.username).label("username"),
+                spaced_concat(Client.first_name, Client.last_name).label("clientName"),
+                contact_billing_id.label("billing_id"),
+                contact_billing_total.label("billing_total_after_discount"),
+                contact_billing_prepayment.label("billing_prepayment_amount"),
+            )
+            .select_from(
+                selected.join(ContactLensOrder.__table__, selected.c.id == ContactLensOrder.id)
+                .outerjoin(User.__table__, ContactLensOrder.user_id == User.id)
+                .outerjoin(Client.__table__, ContactLensOrder.client_id == Client.id)
+            )
+            .where(selected.c["__contact"].is_(True))
+        )
+        detailed = union_all(regular_rows, contact_rows).subquery("paged_orders")
+        rows = db.execute(
+            select(detailed)
+            .order_by(detailed.c.order_date.desc().nulls_last(), detailed.c.id.desc())
+        ).mappings().all()
+        has_more = len(rows) > limit
+        return {
+            "items": [dict(row) for row in rows[:limit]],
+            "total": get_total() if include_total else None,
+            "has_more": has_more,
+        }
 
     orders_from = (
         Order.__table__
@@ -156,16 +351,12 @@ def get_orders_paginated(
     if cl_filters:
         cl_select = cl_select.where(*cl_filters)
 
-    normalized_kind = (kind or "all").strip().lower()
     if normalized_kind == "regular":
         merged_subq = orders_select.subquery()
     elif normalized_kind == "contact":
         merged_subq = cl_select.subquery()
     else:
         merged_subq = union_all(orders_select, cl_select).subquery()
-
-    # Total count
-    total = db.execute(select(func.count()).select_from(merged_subq)).scalar() or 0
 
     order_columns = {
         "date": merged_subq.c.order_date,
@@ -178,7 +369,6 @@ def get_orders_paginated(
         "payment_status": merged_subq.c.billing_prepayment_amount,
         "status": merged_subq.c.order_status,
     }
-    order_key, _, order_direction = (order or "date_desc").rpartition("_")
     order_column = order_columns.get(order_key, merged_subq.c.order_date)
     if order_direction == "asc":
         order_by_clause = order_column.asc().nulls_last()
@@ -187,11 +377,15 @@ def get_orders_paginated(
         order_by_clause = order_column.desc().nulls_last()
         tie_breaker = merged_subq.c.id.desc()
 
-    stmt = select(merged_subq).order_by(order_by_clause, tie_breaker).offset(offset).limit(limit)
+    stmt = select(merged_subq).order_by(order_by_clause, tie_breaker).offset(offset).limit(limit + 1)
     rows = db.execute(stmt).mappings().all()
-    items = [dict(r) for r in rows]
+    items = [dict(r) for r in rows[:limit]]
 
-    return {"items": items, "total": int(total)}
+    return {
+        "items": items,
+        "total": get_total() if include_total else None,
+        "has_more": len(rows) > limit,
+    }
 
 @router.post("/", response_model=OrderSchema)
 def create_order(

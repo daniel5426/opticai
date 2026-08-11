@@ -59,19 +59,23 @@ export async function getAllFiles(clinicId?: number): Promise<File[]> {
 
 export async function getPaginatedFiles(
   clinicId?: number,
-  options?: { limit?: number; offset?: number; order?: string; q?: string; fileCategory?: string }
-): Promise<{ items: File[]; total: number }> {
+  options?: { limit?: number; offset?: number; order?: string; q?: string; fileCategory?: string; includeTotal?: boolean; countOnly?: boolean }
+): Promise<{ items: File[]; total: number | null; hasMore: boolean }> {
   try {
     const effectiveOptions = options ?? { limit: 25, offset: 0, order: 'upload_date_desc' as const };
     const response = await apiClient.getFilesPaginated(clinicId, effectiveOptions);
     if (response.error) {
       console.error('Error getting paginated files:', response.error);
-      return { items: [], total: 0 };
+      return { items: [], total: null, hasMore: false };
     }
-    return response.data || { items: [], total: 0 };
+    return {
+      items: response.data?.items || [],
+      total: response.data?.total ?? null,
+      hasMore: response.data?.has_more ?? false,
+    };
   } catch (error) {
     console.error('Error getting paginated files:', error);
-    return { items: [], total: 0 };
+    return { items: [], total: null, hasMore: false };
   }
 }
 

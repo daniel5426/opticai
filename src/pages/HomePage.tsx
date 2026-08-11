@@ -79,8 +79,12 @@ import { useDragAndResize } from "./HomePage/useDragAndResize";
 import { useSettings } from "@/hooks/useSettings";
 import { apiClient } from "@/lib/api-client";
 import { CalendarHoliday, holidaysByDate } from "@/lib/clinic-holidays";
+import { useTranslation } from "react-i18next";
+import { useAppLocale } from "@/localization/use-app-locale";
 
 export default function HomePage() {
+  const { t } = useTranslation();
+  const { direction } = useAppLocale();
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [view, setView] = useState<CalendarView>("week");
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -1026,10 +1030,10 @@ export default function HomePage() {
   if (loading) {
     return (
       <>
-        <SiteHeader title={"לוח זמנים"} />
+        <SiteHeader title={t("schedule")} />
         <div
           className="bg-muted/50 flex flex-1 flex-col gap-6"
-          dir="rtl"
+          dir={direction}
           style={{ scrollbarWidth: "none" }}
         >
           <div className="flex items-center justify-between p-6 pb-5">
@@ -1099,11 +1103,11 @@ export default function HomePage() {
 
   return (
     <>
-      <SiteHeader title={"לוח זמנים"} />
+      <SiteHeader title={t("schedule")} />
       <div
         ref={calendarMoveScopeRef}
         className="bg-muted/50 flex flex-1 flex-col"
-        dir="rtl"
+        dir={direction}
         style={{ scrollbarWidth: "none" }}
       >
         {/* Calendar Header */}

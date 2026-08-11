@@ -7,6 +7,8 @@ import {
   isVirtualFullDataTabId,
 } from "@/pages/exam-detail/utils";
 import { CustomModal } from "@/components/ui/custom-modal";
+import { useAppLocale } from "@/localization/use-app-locale";
+import { useTranslation } from "react-i18next";
 
 interface ExamLayoutTabsProps {
   layoutTabs: LayoutTab[];
@@ -31,6 +33,8 @@ export function ExamLayoutTabs({
   isRegeneratingFullData = false,
   onRemoveTab,
 }: ExamLayoutTabsProps) {
+  const { direction } = useAppLocale();
+  const { t } = useTranslation();
   const visibleTabs = layoutTabs.filter(isPersistableLayoutTab);
   const activeTab = visibleTabs.find((t) => t.isActive);
   const isFullDataActive = isVirtualFullDataTabId(activeInstanceId);
@@ -125,7 +129,7 @@ export function ExamLayoutTabs({
               </Tabs>
             ) : null}
           </div>
-          <div className="ml-2 flex items-end gap-2" dir="rtl">
+          <div className="ml-2 flex items-end gap-2" dir={direction}>
             {showDeleteButton ? (
               <button
                 type="button"
@@ -133,8 +137,8 @@ export function ExamLayoutTabs({
                   if (activeTab) setTabPendingDelete(activeTab);
                 }}
                 className="bg-card flex h-[34px] w-[34px] items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
-                aria-label="מחק לשונית"
-                title="מחק לשונית"
+                aria-label={t("deleteLayoutTab")}
+                title={t("deleteLayoutTab")}
               >
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -143,8 +147,8 @@ export function ExamLayoutTabs({
               type="button"
               onClick={handleFullDataClick}
               style={folderTab(isFullDataActive)}
-              aria-label="כל הנתונים"
-              title="כל הנתונים"
+              aria-label={t("allData")}
+              title={t("allData")}
               disabled={!handleFullDataClick || isRegeneratingFullData}
             >
               <Combine
@@ -156,7 +160,7 @@ export function ExamLayoutTabs({
                   color: "hsl(var(--primary))",
                 }}
               />
-              <span>כל הנתונים</span>
+              <span>{t("allData")}</span>
             </button>
           </div>
         </div>
@@ -166,10 +170,12 @@ export function ExamLayoutTabs({
         isOpen={Boolean(tabPendingDelete)}
         onClose={() => setTabPendingDelete(null)}
         onConfirm={confirmDelete}
-        confirmText="מחק לשונית"
-        cancelText="ביטול"
-        title="מחיקת לשונית פריסה"
-        description={`פעולה זו תמחק את הלשונית "${tabPendingDelete?.name || ""}" ואת כל הנתונים שנשמרו בה.`}
+        confirmText={t("delete")}
+        cancelText={t("cancel")}
+        title={t("deleteLayoutTab")}
+        description={t("deleteLayoutTabDescription", {
+          name: tabPendingDelete?.name || "",
+        })}
         showCloseButton={false}
       />
     </>

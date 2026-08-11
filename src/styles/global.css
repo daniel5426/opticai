@@ -224,10 +224,28 @@
     -webkit-app-region: no-drag;
   }
   .examcard {
-    @apply !shadow-none !border;
+    @apply !border !shadow-none;
   }
+
   button {
     @apply cursor-pointer;
+  }
+}
+
+@layer utilities {
+  /*
+   * The legacy renderer has Hebrew-first component boundaries and physical
+   * `text-right` utilities. This must live in the utilities layer so it wins
+   * over those legacy utilities when English or French is selected. Deliberate
+   * clinical `dir="ltr"` fields remain untouched.
+   */
+  :root[dir="ltr"] [dir="rtl"] {
+    direction: ltr;
+  }
+
+  :root[dir="ltr"] .text-right {
+    direction: ltr;
+    text-align: start;
   }
 }
 

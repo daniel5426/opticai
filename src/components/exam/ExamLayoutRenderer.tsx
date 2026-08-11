@@ -144,17 +144,14 @@ export function ExamLayoutRenderer({
     [layoutItems, visibleLaneSet],
   );
 
-  const layoutRows = useMemo(
-    () => {
-      const sortedItems = sortGridItems(layoutItems);
-      return lanes.map((lane) =>
-        sortedItems
-          .filter((item) => item.y === lane)
-          .map(({ x, y, w, ...card }) => card),
-      );
-    },
-    [lanes, layoutItems],
-  );
+  const layoutRows = useMemo(() => {
+    const sortedItems = sortGridItems(layoutItems);
+    return lanes.map((lane) =>
+      sortedItems
+        .filter((item) => item.y === lane)
+        .map(({ x, y, w, ...card }) => card),
+    );
+  }, [lanes, layoutItems]);
 
   const detailPropsWithLayoutRows = useMemo(
     () => ({
@@ -228,6 +225,7 @@ export function ExamLayoutRenderer({
   return (
     <div
       data-clinical-nav-scope="true"
+      dir="ltr"
       className="no-scrollbar"
       style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
     >

@@ -78,20 +78,20 @@ export async function getAllEnrichedExams(type?: string, clinicId?: number, opti
 export async function getPaginatedEnrichedExams(
   type?: string,
   clinicId?: number,
-  options?: { limit?: number; offset?: number; order?: string; q?: string; testName?: string }
-): Promise<{ items: any[]; total: number }> {
+  options?: { limit?: number; offset?: number; order?: string; q?: string; testName?: string; includeTotal?: boolean; countOnly?: boolean }
+): Promise<{ items: any[]; total: number | null; hasMore: boolean }> {
   try {
     const effectiveOptions = options ?? { limit: 25, offset: 0, order: 'exam_date_desc' as const };
     const response = await apiClient.getEnrichedExams(type, clinicId, effectiveOptions);
     if (response.error) {
       console.error('Error getting enriched exams (paginated):', response.error);
-      return { items: [], total: 0 };
+      return { items: [], total: null, hasMore: false };
     }
-    const payload = response.data as { items: any[]; total: number } | undefined;
-    return { items: payload?.items || [], total: payload?.total || 0 };
+    const payload = response.data as { items: any[]; total: number | null; has_more: boolean } | undefined;
+    return { items: payload?.items || [], total: payload?.total ?? null, hasMore: payload?.has_more ?? false };
   } catch (error) {
     console.error('Error getting enriched exams (paginated):', error);
-    return { items: [], total: 0 };
+    return { items: [], total: null, hasMore: false };
   }
 }
 

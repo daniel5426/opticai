@@ -123,19 +123,23 @@ export async function getAllOrders(clinicId?: number): Promise<Order[]> {
 
 export async function getPaginatedOrders(
   clinicId?: number,
-  options?: { limit?: number; offset?: number; order?: string; q?: string; kind?: string; status?: string }
-): Promise<{ items: Order[]; total: number }> {
+  options?: { limit?: number; offset?: number; order?: string; q?: string; kind?: string; status?: string; includeTotal?: boolean; countOnly?: boolean }
+): Promise<{ items: Order[]; total: number | null; hasMore: boolean }> {
   try {
     const effectiveOptions = options ?? { limit: 25, offset: 0, order: 'date_desc' as const };
     const response = await apiClient.getOrdersPaginated(clinicId, effectiveOptions);
     if (response.error) {
       console.error('Error getting paginated orders:', response.error);
-      return { items: [], total: 0 };
+      return { items: [], total: null, hasMore: false };
     }
-    return response.data || { items: [], total: 0 };
+    return {
+      items: response.data?.items || [],
+      total: response.data?.total ?? null,
+      hasMore: response.data?.has_more ?? false,
+    };
   } catch (error) {
     console.error('Error getting paginated orders:', error);
-    return { items: [], total: 0 };
+    return { items: [], total: null, hasMore: false };
   }
 }
 

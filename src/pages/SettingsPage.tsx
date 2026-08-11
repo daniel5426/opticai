@@ -1,33 +1,44 @@
-import React, { useCallback, useMemo, useRef, useState, useEffect } from "react"
-import { SiteHeader } from "@/components/site-header"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { toast } from "sonner"
-import { Settings, User, Clinic } from "@/lib/db/schema-interface"
-import { getUsersByClinic, updateUser, deleteUser } from "@/lib/db/users-db"
-import { applyCompanyThemeColors, cacheCompanyThemeColors } from "@/helpers/theme_helpers"
-import { lookupTables } from "@/lib/db/lookup-db"
-import { UserModal } from "@/components/UserModal"
-import { useSettings } from "@/hooks/useSettings"
-import { useUser } from "@/contexts/UserContext"
-import { apiClient } from "@/lib/api-client"
-import { ProfileTab } from "@/components/settings/ProfileTab"
-import { PreferencesTab } from "@/components/settings/PreferencesTab"
-import { NotificationsTab } from "@/components/settings/NotificationsTab"
-import { EmailTab } from "@/components/settings/EmailTab"
-import { DateRange } from "react-day-picker"
-import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels"
-import { useQueryClient } from "@tanstack/react-query"
+import React, {
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  useEffect,
+} from "react";
+import { SiteHeader } from "@/components/site-header";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
+import { Settings, User, Clinic } from "@/lib/db/schema-interface";
+import { getUsersByClinic, updateUser, deleteUser } from "@/lib/db/users-db";
+import {
+  applyCompanyThemeColors,
+  cacheCompanyThemeColors,
+} from "@/helpers/theme_helpers";
+import { lookupTables } from "@/lib/db/lookup-db";
+import { UserModal } from "@/components/UserModal";
+import { useSettings } from "@/hooks/useSettings";
+import { useUser } from "@/contexts/UserContext";
+import { apiClient } from "@/lib/api-client";
+import { ProfileTab } from "@/components/settings/ProfileTab";
+import { PreferencesTab } from "@/components/settings/PreferencesTab";
+import { NotificationsTab } from "@/components/settings/NotificationsTab";
+import { EmailTab } from "@/components/settings/EmailTab";
+import { DateRange } from "react-day-picker";
+import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels";
+import { useQueryClient } from "@tanstack/react-query";
 
-import { UsersTab } from "@/components/settings/UsersTab"
-import { FieldDataTab } from "@/components/settings/FieldDataTab"
-import { PersonalProfileTab } from "@/components/settings/PersonalProfileTab"
-import { AboutTab } from "@/components/settings/AboutTab"
-import { MigrationTab } from "@/components/settings/MigrationTab"
-import { ClinicHolidaysTab } from "@/components/settings/ClinicHolidaysTab"
-import { ClinicDataPruneTab } from "@/components/settings/ClinicDataPruneTab"
-import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
-import { useUnsavedChanges } from "@/hooks/shared/useUnsavedChanges"
+import { UsersTab } from "@/components/settings/UsersTab";
+import { FieldDataTab } from "@/components/settings/FieldDataTab";
+import { PersonalProfileTab } from "@/components/settings/PersonalProfileTab";
+import { AboutTab } from "@/components/settings/AboutTab";
+import { MigrationTab } from "@/components/settings/MigrationTab";
+import { ClinicHolidaysTab } from "@/components/settings/ClinicHolidaysTab";
+import { ClinicDataPruneTab } from "@/components/settings/ClinicDataPruneTab";
+import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog";
+import { useUnsavedChanges } from "@/hooks/shared/useUnsavedChanges";
+import { useAppLocale } from "@/localization/use-app-locale";
+import { useTranslation } from "react-i18next";
 
 const SETTINGS_SNAPSHOT_FIELDS: (keyof Settings)[] = [
   "id",
@@ -53,7 +64,7 @@ const SETTINGS_SNAPSHOT_FIELDS: (keyof Settings)[] = [
   "email_username",
   "email_password",
   "email_from_name",
-]
+];
 
 const CLINIC_SNAPSHOT_FIELDS: (keyof Clinic)[] = [
   "id",
@@ -70,7 +81,7 @@ const CLINIC_SNAPSHOT_FIELDS: (keyof Clinic)[] = [
   "license_number",
   "has_entry_pin",
   "entry_pin",
-]
+];
 
 const PROFILE_SNAPSHOT_FIELDS: (keyof User)[] = [
   "full_name",
@@ -87,7 +98,7 @@ const PROFILE_SNAPSHOT_FIELDS: (keyof User)[] = [
   "sync_subjective_to_final_subjective",
   "import_order_to_old_refraction_default",
   "clinical_auto_advance_enabled",
-]
+];
 
 function pickSnapshotFields<T extends object>(
   source: Partial<T>,
@@ -95,10 +106,10 @@ function pickSnapshotFields<T extends object>(
 ): Partial<T> {
   return fields.reduce<Partial<T>>((acc, field) => {
     if (field in source) {
-      acc[field] = source[field]
+      acc[field] = source[field];
     }
-    return acc
-  }, {})
+    return acc;
+  }, {});
 }
 
 function createSettingsUnsavedSnapshot(
@@ -106,170 +117,195 @@ function createSettingsUnsavedSnapshot(
   localClinic: Partial<Clinic>,
   personalProfile: Partial<User>,
 ) {
-  const clinicSnapshot = pickSnapshotFields(localClinic, CLINIC_SNAPSHOT_FIELDS)
-  clinicSnapshot.remove_entry_pin = localClinic.remove_entry_pin ? true : undefined
+  const clinicSnapshot = pickSnapshotFields(
+    localClinic,
+    CLINIC_SNAPSHOT_FIELDS,
+  );
+  clinicSnapshot.remove_entry_pin = localClinic.remove_entry_pin
+    ? true
+    : undefined;
 
   return sortSettingsValue({
     settings: pickSnapshotFields(localSettings, SETTINGS_SNAPSHOT_FIELDS),
     clinic: clinicSnapshot,
-    personalProfile: pickSnapshotFields(personalProfile, PROFILE_SNAPSHOT_FIELDS),
-  })
+    personalProfile: pickSnapshotFields(
+      personalProfile,
+      PROFILE_SNAPSHOT_FIELDS,
+    ),
+  });
 }
 
 function sortSettingsValue(value: unknown): unknown {
   if (Array.isArray(value)) {
-    return value.map(sortSettingsValue).filter(item => item !== undefined)
+    return value.map(sortSettingsValue).filter((item) => item !== undefined);
   }
 
   if (value instanceof Date) {
-    return value.toISOString()
+    return value.toISOString();
   }
 
   if (value && typeof value === "object") {
     return Object.keys(value as Record<string, unknown>)
       .sort()
       .reduce<Record<string, unknown>>((acc, key) => {
-        const child = sortSettingsValue((value as Record<string, unknown>)[key])
-        if (child !== undefined) acc[key] = child
-        return acc
-      }, {})
+        const child = sortSettingsValue(
+          (value as Record<string, unknown>)[key],
+        );
+        if (child !== undefined) acc[key] = child;
+        return acc;
+      }, {});
   }
 
   if (typeof value === "string") {
-    const trimmed = value.trim()
-    return trimmed === "" ? undefined : trimmed
+    const trimmed = value.trim();
+    return trimmed === "" ? undefined : trimmed;
   }
 
-  return value
+  return value;
 }
 
 export default function SettingsPage() {
-  const { settings, updateSettings: updateBaseSettings } = useSettings()
-  const { currentUser, currentClinic, setCurrentUser } = useUser()
-  const queryClient = useQueryClient()
-  const isWindowsElectron = window.electronAPI?.platform === "win32"
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [saveSuccess, setSaveSuccess] = useState(false)
-  const [colorUpdateTimeout, setColorUpdateTimeout] = useState<NodeJS.Timeout | null>(null)
-  const [emailError, setEmailError] = useState<string | null>(null)
+  const { direction } = useAppLocale();
+  const { t } = useTranslation();
+  const { settings, updateSettings: updateBaseSettings } = useSettings();
+  const { currentUser, currentClinic, setCurrentUser } = useUser();
+  const queryClient = useQueryClient();
+  const isWindowsElectron = window.electronAPI?.platform === "win32";
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [colorUpdateTimeout, setColorUpdateTimeout] =
+    useState<NodeJS.Timeout | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   // User management state
-  const [users, setUsers] = useState<User[]>([])
-  const [usersLoading, setUsersLoading] = useState(false)
-  const [showUserModal, setShowUserModal] = useState(false)
-  const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [users, setUsers] = useState<User[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
 
   // Field data management state
-  const [currentLookupTable, setCurrentLookupTable] = useState<string | null>(null)
-  const [lookupData, setLookupData] = useState<{ [key: string]: any[] }>({})
-  const [loadingLookup, setLoadingLookup] = useState(false)
+  const [currentLookupTable, setCurrentLookupTable] = useState<string | null>(
+    null,
+  );
+  const [lookupData, setLookupData] = useState<{ [key: string]: any[] }>({});
+  const [loadingLookup, setLoadingLookup] = useState(false);
 
   const loadLookupData = async (tableName: string) => {
-    const tableKey = tableName as keyof typeof lookupTables
-    if (!lookupTables[tableKey] || !currentClinic?.id) return
+    const tableKey = tableName as keyof typeof lookupTables;
+    if (!lookupTables[tableKey] || !currentClinic?.id) return;
 
     try {
-      setLoadingLookup(true)
-      const data = await lookupTables[tableKey].getAll(currentClinic.id)
-      setLookupData(prev => ({ ...prev, [tableName]: data }))
+      setLoadingLookup(true);
+      const data = await lookupTables[tableKey].getAll(currentClinic.id);
+      setLookupData((prev) => ({ ...prev, [tableName]: data }));
     } catch (error) {
-      console.error(`Error loading ${tableName} data:`, error)
-      toast.error(`שגיאה בטעינת נתוני ${lookupTables[tableKey].displayName}`)
+      console.error(`Error loading ${tableName} data:`, error);
+      toast.error(`שגיאה בטעינת נתוני ${lookupTables[tableKey].displayName}`);
     } finally {
-      setLoadingLookup(false)
+      setLoadingLookup(false);
     }
-  }
+  };
 
   const refreshLookupData = () => {
     if (currentLookupTable) {
       if (currentClinic?.id) {
         void queryClient.invalidateQueries({
           queryKey: ["lookup", currentClinic.id, currentLookupTable],
-        })
+        });
       }
-      loadLookupData(currentLookupTable)
+      loadLookupData(currentLookupTable);
     }
-  }
+  };
 
   const selectLookupTable = (tableName: string) => {
-    setCurrentLookupTable(tableName)
+    setCurrentLookupTable(tableName);
     if (!lookupData[tableName]) {
-      loadLookupData(tableName)
+      loadLookupData(tableName);
     }
-  }
+  };
 
   useEffect(() => {
-    setLookupData({})
+    setLookupData({});
     if (currentLookupTable && currentClinic?.id) {
-      loadLookupData(currentLookupTable)
+      loadLookupData(currentLookupTable);
     }
-  }, [currentClinic?.id])
+  }, [currentClinic?.id]);
 
   const [localSettings, setLocalSettings] = useState<Settings>({
-    clinic_logo_path: '',
-    work_start_time: '08:00',
-    work_end_time: '18:00',
+    clinic_logo_path: "",
+    work_start_time: "08:00",
+    work_end_time: "18:00",
     appointment_duration: 30,
     send_email_before_appointment: false,
     email_days_before: 1,
-    email_time: '10:00',
+    email_time: "10:00",
     working_days: '["sunday","monday","tuesday","wednesday","thursday"]',
-    break_start_time: '',
-    break_end_time: '',
+    break_start_time: "",
+    break_end_time: "",
     max_appointments_per_day: 20,
-    va_test_distance: 6
-  })
+    va_test_distance: 6,
+  });
 
-  const [localClinic, setLocalClinic] = useState<Partial<Clinic>>({})
+  const [localClinic, setLocalClinic] = useState<Partial<Clinic>>({});
 
   // Personal profile state
   const [personalProfile, setPersonalProfile] = useState<Partial<User>>({
-    full_name: '',
-    email: '',
-    phone: '',
-    profile_picture: '',
-    primary_theme_color: '#3f3f46',
-    secondary_theme_color: '#f4f4f5',
-    theme_preference: 'system',//8b5cf6, 3b82f6
+    full_name: "",
+    email: "",
+    phone: "",
+    profile_picture: "",
+    primary_theme_color: "#3f3f46",
+    secondary_theme_color: "#f4f4f5",
+    theme_preference: "system", //8b5cf6, 3b82f6
     system_vacation_dates: [],
     added_vacation_dates: [],
-    va_format: 'meter',
-    cyl_format: 'minus',
+    va_format: "meter",
+    cyl_format: "minus",
     sync_subjective_to_final_subjective: false,
     import_order_to_old_refraction_default: false,
     clinical_auto_advance_enabled: true,
-  })
-  const [profileColorUpdateTimeout, setProfileColorUpdateTimeout] = useState<NodeJS.Timeout | null>(null)
+  });
+  const [profileColorUpdateTimeout, setProfileColorUpdateTimeout] =
+    useState<NodeJS.Timeout | null>(null);
 
   // Google Calendar state
-  const [googleCalendarLoading, setGoogleCalendarLoading] = useState(false)
-  const [googleCalendarSyncing, setGoogleCalendarSyncing] = useState(false)
-  const [settingsBaselineVersion, setSettingsBaselineVersion] = useState(0)
-  const [savedSettingsSnapshot, setSavedSettingsSnapshot] = useState<string | null>(null)
-  const dirtyVersionRef = useRef(0)
-  const [settingsDirtyVersion, setSettingsDirtyVersion] = useState(0)
-  const [savedSettingsDirtyVersion, setSavedSettingsDirtyVersion] = useState(0)
+  const [googleCalendarLoading, setGoogleCalendarLoading] = useState(false);
+  const [googleCalendarSyncing, setGoogleCalendarSyncing] = useState(false);
+  const [settingsBaselineVersion, setSettingsBaselineVersion] = useState(0);
+  const [savedSettingsSnapshot, setSavedSettingsSnapshot] = useState<
+    string | null
+  >(null);
+  const dirtyVersionRef = useRef(0);
+  const [settingsDirtyVersion, setSettingsDirtyVersion] = useState(0);
+  const [savedSettingsDirtyVersion, setSavedSettingsDirtyVersion] = useState(0);
 
   const currentSettingsSnapshot = useMemo(
-    () => JSON.stringify(createSettingsUnsavedSnapshot(localSettings, localClinic, personalProfile)),
+    () =>
+      JSON.stringify(
+        createSettingsUnsavedSnapshot(
+          localSettings,
+          localClinic,
+          personalProfile,
+        ),
+      ),
     [localSettings, localClinic, personalProfile],
-  )
+  );
 
   const hasSettingsUnsavedChanges =
     savedSettingsSnapshot !== null &&
     settingsDirtyVersion !== savedSettingsDirtyVersion &&
-    currentSettingsSnapshot !== savedSettingsSnapshot
+    currentSettingsSnapshot !== savedSettingsSnapshot;
 
   const markSettingsDirty = useCallback(() => {
-    dirtyVersionRef.current += 1
-    setSettingsDirtyVersion(dirtyVersionRef.current)
-  }, [])
+    dirtyVersionRef.current += 1;
+    setSettingsDirtyVersion(dirtyVersionRef.current);
+  }, []);
 
   const getSerializedState = useCallback(
     () => currentSettingsSnapshot,
     [currentSettingsSnapshot],
-  )
+  );
 
   const {
     showUnsavedDialog,
@@ -281,102 +317,114 @@ export default function SettingsPage() {
     getSerializedState,
     isEditing: hasSettingsUnsavedChanges,
     isNewMode: false,
-  })
+  });
 
   useEffect(() => {
-    let isActive = true
-    baselineInitializedRef.current = false
-    setLoading(true)
+    let isActive = true;
+    baselineInitializedRef.current = false;
+    setLoading(true);
 
     const loadSettings = async () => {
       try {
         if (settings) {
-          setLocalSettings(settings)
+          setLocalSettings(settings);
         }
       } catch (error) {
-        console.error('Error loading settings:', error)
-        toast.error('שגיאה בטעינת ההגדרות')
+        console.error("Error loading settings:", error);
+        toast.error("שגיאה בטעינת ההגדרות");
       }
-    }
+    };
     const loadClinic = async () => {
       try {
         if (currentClinic?.id) {
-          const resp = await apiClient.getClinic(currentClinic.id)
-          if (resp.data) setLocalClinic(resp.data as Clinic)
+          const resp = await apiClient.getClinic(currentClinic.id);
+          if (resp.data) setLocalClinic(resp.data as Clinic);
         }
       } catch (e) {
-        console.error('Error loading clinic:', e)
+        console.error("Error loading clinic:", e);
       }
-    }
+    };
 
     const loadUsers = async () => {
       try {
-        setUsersLoading(true)
+        setUsersLoading(true);
         if (currentClinic?.id) {
           // Other users can only see users in their clinic
-          const usersData = await getUsersByClinic(currentClinic.id)
-          setUsers(usersData)
+          const usersData = await getUsersByClinic(currentClinic.id);
+          setUsers(usersData);
         } else {
-          setUsers([])
+          setUsers([]);
         }
       } catch (error) {
-        console.error('Error loading users:', error)
-        toast.error('שגיאה בטעינת המשתמשים')
+        console.error("Error loading users:", error);
+        toast.error("שגיאה בטעינת המשתמשים");
       } finally {
-        setUsersLoading(false)
+        setUsersLoading(false);
       }
-    }
+    };
 
     const loadPersonalProfile = () => {
       if (currentUser) {
         setPersonalProfile({
-          full_name: currentUser.full_name || '',
-          email: currentUser.email || '',
-          phone: currentUser.phone || '',
-          profile_picture: currentUser.profile_picture || '',
-          primary_theme_color: currentUser.primary_theme_color || '#3f3f46',
-          secondary_theme_color: currentUser.secondary_theme_color || '#f4f4f5',
-          theme_preference: currentUser.theme_preference || 'system',
+          full_name: currentUser.full_name || "",
+          email: currentUser.email || "",
+          phone: currentUser.phone || "",
+          profile_picture: currentUser.profile_picture || "",
+          primary_theme_color: currentUser.primary_theme_color || "#3f3f46",
+          secondary_theme_color: currentUser.secondary_theme_color || "#f4f4f5",
+          theme_preference: currentUser.theme_preference || "system",
           system_vacation_dates: currentUser.system_vacation_dates || [],
           added_vacation_dates: currentUser.added_vacation_dates || [],
-          va_format: currentUser.va_format || 'meter',
-          cyl_format: currentUser.cyl_format || 'minus',
-          sync_subjective_to_final_subjective: currentUser.sync_subjective_to_final_subjective || false,
-          import_order_to_old_refraction_default: currentUser.import_order_to_old_refraction_default || false,
-          clinical_auto_advance_enabled: currentUser.clinical_auto_advance_enabled !== false,
-        })
+          va_format: currentUser.va_format || "meter",
+          cyl_format: currentUser.cyl_format || "minus",
+          sync_subjective_to_final_subjective:
+            currentUser.sync_subjective_to_final_subjective || false,
+          import_order_to_old_refraction_default:
+            currentUser.import_order_to_old_refraction_default || false,
+          clinical_auto_advance_enabled:
+            currentUser.clinical_auto_advance_enabled !== false,
+        });
       }
-    }
+    };
 
     const loadInitialData = async () => {
-      await Promise.all([loadSettings(), loadClinic()])
+      await Promise.all([loadSettings(), loadClinic()]);
       if (isActive) {
-        setSettingsBaselineVersion(prev => prev + 1)
-        setLoading(false)
+        setSettingsBaselineVersion((prev) => prev + 1);
+        setLoading(false);
       }
-    }
+    };
 
-    loadInitialData()
-    loadUsers()
-    loadPersonalProfile()
+    loadInitialData();
+    loadUsers();
+    loadPersonalProfile();
 
     return () => {
-      isActive = false
+      isActive = false;
       if (colorUpdateTimeout) {
-        clearTimeout(colorUpdateTimeout)
+        clearTimeout(colorUpdateTimeout);
       }
       if (profileColorUpdateTimeout) {
-        clearTimeout(profileColorUpdateTimeout)
+        clearTimeout(profileColorUpdateTimeout);
       }
-    }
-  }, [baselineInitializedRef, currentClinic?.id, settings, currentUser])
+    };
+  }, [baselineInitializedRef, currentClinic?.id, settings, currentUser]);
 
   useEffect(() => {
-    if (loading || settingsBaselineVersion === 0 || baselineInitializedRef.current) return
-    const baselineSnapshot = createSettingsUnsavedSnapshot(localSettings, localClinic, personalProfile)
-    setSavedSettingsSnapshot(JSON.stringify(baselineSnapshot))
-    setSavedSettingsDirtyVersion(dirtyVersionRef.current)
-    setBaseline(baselineSnapshot)
+    if (
+      loading ||
+      settingsBaselineVersion === 0 ||
+      baselineInitializedRef.current
+    )
+      return;
+    const baselineSnapshot = createSettingsUnsavedSnapshot(
+      localSettings,
+      localClinic,
+      personalProfile,
+    );
+    setSavedSettingsSnapshot(JSON.stringify(baselineSnapshot));
+    setSavedSettingsDirtyVersion(dirtyVersionRef.current);
+    setBaseline(baselineSnapshot);
   }, [
     baselineInitializedRef,
     loading,
@@ -385,48 +433,54 @@ export default function SettingsPage() {
     personalProfile,
     setBaseline,
     settingsBaselineVersion,
-  ])
+  ]);
 
-  const handleInputChange = (field: keyof Settings, value: string | number | boolean) => {
-    markSettingsDirty()
-    const newSettings = { ...localSettings, [field]: value }
-    setLocalSettings(newSettings)
-  }
+  const handleInputChange = (
+    field: keyof Settings,
+    value: string | number | boolean,
+  ) => {
+    markSettingsDirty();
+    const newSettings = { ...localSettings, [field]: value };
+    setLocalSettings(newSettings);
+  };
 
   const handleClinicChange = (field: keyof Clinic, value: any) => {
-    markSettingsDirty()
-    const updated = { ...localClinic, [field]: value }
-    setLocalClinic(updated)
-  }
+    markSettingsDirty();
+    const updated = { ...localClinic, [field]: value };
+    setLocalClinic(updated);
+  };
 
   const handlePersonalProfileChange = (field: keyof User, value: any) => {
-    markSettingsDirty()
-    const newProfile = { ...personalProfile, [field]: value }
-    setPersonalProfile(newProfile)
-    if (field === 'email' && emailError) {
-      setEmailError(null)
+    markSettingsDirty();
+    const newProfile = { ...personalProfile, [field]: value };
+    setPersonalProfile(newProfile);
+    if (field === "email" && emailError) {
+      setEmailError(null);
     }
 
     // Note: primary_theme_color is now only used for appointment coloring, not for app theme
     // App theme colors come from company settings
-  }
+  };
 
   const handleSave = async () => {
-    const saveDirtyVersion = dirtyVersionRef.current
+    const saveDirtyVersion = dirtyVersionRef.current;
 
     try {
-      setSaving(true)
-      setSaveSuccess(false)
-      setEmailError(null)
+      setSaving(true);
+      setSaveSuccess(false);
+      setEmailError(null);
 
       // Unified save API call
       const payload: any = {
         clinic_id: currentClinic?.id,
         settings_id: localSettings.id,
-      }
+      };
       // Map clinic fields to backend ClinicUpdate names
       if (currentClinic?.id) {
-        const entryPin = typeof localClinic.entry_pin === 'string' ? localClinic.entry_pin.trim() : ''
+        const entryPin =
+          typeof localClinic.entry_pin === "string"
+            ? localClinic.entry_pin.trim()
+            : "";
         payload.clinic = {
           clinic_position: localClinic.clinic_position || undefined,
           email: localClinic.email || undefined,
@@ -441,14 +495,14 @@ export default function SettingsPage() {
           license_number: localClinic.license_number || undefined,
           entry_pin: entryPin || undefined,
           remove_entry_pin: localClinic.remove_entry_pin || undefined,
-        }
+        };
       }
       payload.settings = {
         ...localSettings,
         clinic_id: localSettings.clinic_id || currentClinic?.id,
-      }
+      };
       if (currentUser?.id) {
-        payload.user_id = currentUser.id
+        payload.user_id = currentUser.id;
         payload.user = {
           full_name: personalProfile.full_name || currentUser.full_name,
           email: personalProfile.email,
@@ -461,175 +515,218 @@ export default function SettingsPage() {
           added_vacation_dates: personalProfile.added_vacation_dates,
           va_format: personalProfile.va_format,
           cyl_format: personalProfile.cyl_format,
-          sync_subjective_to_final_subjective: personalProfile.sync_subjective_to_final_subjective,
-          import_order_to_old_refraction_default: personalProfile.import_order_to_old_refraction_default,
-          clinical_auto_advance_enabled: personalProfile.clinical_auto_advance_enabled,
-        }
+          sync_subjective_to_final_subjective:
+            personalProfile.sync_subjective_to_final_subjective,
+          import_order_to_old_refraction_default:
+            personalProfile.import_order_to_old_refraction_default,
+          clinical_auto_advance_enabled:
+            personalProfile.clinical_auto_advance_enabled,
+        };
       }
 
-      const unifiedResp = await apiClient.saveAll(payload)
+      const unifiedResp = await apiClient.saveAll(payload);
       if (unifiedResp.error) {
-        if (String(unifiedResp.error).includes('EMAIL_ALREADY_REGISTERED')) {
-          setEmailError('האימייל הזה כבר נמצא בשימוש')
-          toast.error('האימייל הזה כבר נמצא בשימוש במערכת')
-          return
+        if (String(unifiedResp.error).includes("EMAIL_ALREADY_REGISTERED")) {
+          setEmailError("האימייל הזה כבר נמצא בשימוש");
+          toast.error("האימייל הזה כבר נמצא בשימוש במערכת");
+          return;
         }
-        toast.error('שגיאה בשמירת ההגדרות')
-        return
+        toast.error("שגיאה בשמירת ההגדרות");
+        return;
       }
-      const data = unifiedResp.data as any
-      let nextClinic = localClinic
-      let nextSettings = localSettings
-      let nextProfile = personalProfile
+      const data = unifiedResp.data as any;
+      let nextClinic = localClinic;
+      let nextSettings = localSettings;
+      let nextProfile = personalProfile;
 
       if (data?.clinic) {
-        nextClinic = { ...(data.clinic as Clinic), entry_pin: '', remove_entry_pin: false }
-        setLocalClinic(nextClinic)
+        nextClinic = {
+          ...(data.clinic as Clinic),
+          entry_pin: "",
+          remove_entry_pin: false,
+        };
+        setLocalClinic(nextClinic);
       }
       if (data?.settings) {
-        nextSettings = data.settings as Settings
-        setLocalSettings(nextSettings)
-        updateBaseSettings(nextSettings)
+        nextSettings = data.settings as Settings;
+        setLocalSettings(nextSettings);
+        updateBaseSettings(nextSettings);
       }
       if (data?.user) {
-        const updatedUser = data.user as User
+        const updatedUser = data.user as User;
 
         const normalizeDates = (v: any): string[] => {
-          if (Array.isArray(v)) return v as string[]
-          if (typeof v === 'string') {
+          if (Array.isArray(v)) return v as string[];
+          if (typeof v === "string") {
             try {
-              const parsed = JSON.parse(v)
-              return Array.isArray(parsed) ? (parsed as string[]) : []
+              const parsed = JSON.parse(v);
+              return Array.isArray(parsed) ? (parsed as string[]) : [];
             } catch {
-              return []
+              return [];
             }
           }
-          return []
-        }
+          return [];
+        };
 
         const newProfile = {
-          full_name: updatedUser.full_name ?? personalProfile.full_name ?? '',
-          email: updatedUser.email ?? personalProfile.email ?? '',
-          phone: updatedUser.phone ?? personalProfile.phone ?? '',
-          profile_picture: updatedUser.profile_picture ?? personalProfile.profile_picture ?? '',
-          primary_theme_color: updatedUser.primary_theme_color ?? personalProfile.primary_theme_color ?? '#3f3f46',
-          secondary_theme_color: updatedUser.secondary_theme_color ?? personalProfile.secondary_theme_color ?? '#f4f4f5',
-          theme_preference: updatedUser.theme_preference ?? personalProfile.theme_preference ?? 'system',
-          system_vacation_dates: updatedUser.system_vacation_dates !== undefined && updatedUser.system_vacation_dates !== null
-            ? normalizeDates(updatedUser.system_vacation_dates)
-            : (personalProfile.system_vacation_dates as string[] || []),
-          added_vacation_dates: updatedUser.added_vacation_dates !== undefined && updatedUser.added_vacation_dates !== null
-            ? normalizeDates(updatedUser.added_vacation_dates)
-            : (personalProfile.added_vacation_dates as string[] || []),
-          va_format: updatedUser.va_format ?? personalProfile.va_format ?? 'meter',
-          cyl_format: updatedUser.cyl_format ?? personalProfile.cyl_format ?? 'minus',
-          sync_subjective_to_final_subjective: updatedUser.sync_subjective_to_final_subjective ?? personalProfile.sync_subjective_to_final_subjective ?? false,
-          import_order_to_old_refraction_default: updatedUser.import_order_to_old_refraction_default ?? personalProfile.import_order_to_old_refraction_default ?? false,
-          clinical_auto_advance_enabled: updatedUser.clinical_auto_advance_enabled ?? personalProfile.clinical_auto_advance_enabled ?? true,
-        }
+          full_name: updatedUser.full_name ?? personalProfile.full_name ?? "",
+          email: updatedUser.email ?? personalProfile.email ?? "",
+          phone: updatedUser.phone ?? personalProfile.phone ?? "",
+          profile_picture:
+            updatedUser.profile_picture ??
+            personalProfile.profile_picture ??
+            "",
+          primary_theme_color:
+            updatedUser.primary_theme_color ??
+            personalProfile.primary_theme_color ??
+            "#3f3f46",
+          secondary_theme_color:
+            updatedUser.secondary_theme_color ??
+            personalProfile.secondary_theme_color ??
+            "#f4f4f5",
+          theme_preference:
+            updatedUser.theme_preference ??
+            personalProfile.theme_preference ??
+            "system",
+          system_vacation_dates:
+            updatedUser.system_vacation_dates !== undefined &&
+            updatedUser.system_vacation_dates !== null
+              ? normalizeDates(updatedUser.system_vacation_dates)
+              : (personalProfile.system_vacation_dates as string[]) || [],
+          added_vacation_dates:
+            updatedUser.added_vacation_dates !== undefined &&
+            updatedUser.added_vacation_dates !== null
+              ? normalizeDates(updatedUser.added_vacation_dates)
+              : (personalProfile.added_vacation_dates as string[]) || [],
+          va_format:
+            updatedUser.va_format ?? personalProfile.va_format ?? "meter",
+          cyl_format:
+            updatedUser.cyl_format ?? personalProfile.cyl_format ?? "minus",
+          sync_subjective_to_final_subjective:
+            updatedUser.sync_subjective_to_final_subjective ??
+            personalProfile.sync_subjective_to_final_subjective ??
+            false,
+          import_order_to_old_refraction_default:
+            updatedUser.import_order_to_old_refraction_default ??
+            personalProfile.import_order_to_old_refraction_default ??
+            false,
+          clinical_auto_advance_enabled:
+            updatedUser.clinical_auto_advance_enabled ??
+            personalProfile.clinical_auto_advance_enabled ??
+            true,
+        };
 
-        nextProfile = newProfile
-        setPersonalProfile(newProfile)
+        nextProfile = newProfile;
+        setPersonalProfile(newProfile);
 
-        await setCurrentUser(updatedUser, true)
+        await setCurrentUser(updatedUser, true);
         // Reflect changes immediately in users list (if present)
-        setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u))
+        setUsers((prev) =>
+          prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)),
+        );
       }
-      setSaveSuccess(true)
+      setSaveSuccess(true);
       setTimeout(() => {
-        setSaveSuccess(false)
-      }, 2000)
-      const savedSnapshot = createSettingsUnsavedSnapshot(nextSettings, nextClinic, nextProfile)
-      setSavedSettingsSnapshot(JSON.stringify(savedSnapshot))
+        setSaveSuccess(false);
+      }, 2000);
+      const savedSnapshot = createSettingsUnsavedSnapshot(
+        nextSettings,
+        nextClinic,
+        nextProfile,
+      );
+      setSavedSettingsSnapshot(JSON.stringify(savedSnapshot));
       if (dirtyVersionRef.current === saveDirtyVersion) {
-        setSavedSettingsDirtyVersion(saveDirtyVersion)
+        setSavedSettingsDirtyVersion(saveDirtyVersion);
       }
-      setBaseline(savedSnapshot)
-      toast.success('כל ההגדרות נשמרו בהצלחה')
+      setBaseline(savedSnapshot);
+      toast.success("כל ההגדרות נשמרו בהצלחה");
     } catch (error) {
-      console.error('Error saving settings:', error)
-      toast.error('שגיאה בשמירת ההגדרות')
+      console.error("Error saving settings:", error);
+      toast.error("שגיאה בשמירת ההגדרות");
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
-
-
+  };
 
   // Image upload handled via ImageInput component
 
   // User management handlers
   const openCreateUserModal = () => {
-    setEditingUser(null)
-    setShowUserModal(true)
-  }
+    setEditingUser(null);
+    setShowUserModal(true);
+  };
 
   const openEditUserModal = (user: User) => {
-    if (!isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo) && user.id !== currentUser?.id) {
-      toast.error('אין לך הרשאה לערוך משתמש זה')
-      return
+    if (
+      !isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo) &&
+      user.id !== currentUser?.id
+    ) {
+      toast.error("אין לך הרשאה לערוך משתמש זה");
+      return;
     }
 
-    setEditingUser(user)
-    setShowUserModal(true)
-  }
+    setEditingUser(user);
+    setShowUserModal(true);
+  };
 
   const handleUserDelete = async (userId: number) => {
     if (!isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo)) {
-      toast.error('אין לך הרשאה למחוק משתמשים')
-      return
+      toast.error("אין לך הרשאה למחוק משתמשים");
+      return;
     }
 
     if (userId === currentUser?.id) {
-      toast.error('לא ניתן למחוק את המשתמש הנוכחי')
-      return
+      toast.error("לא ניתן למחוק את המשתמש הנוכחי");
+      return;
     }
 
-    if (window.confirm('האם אתה בטוח שברצונך למחוק את המשתמש?')) {
+    if (window.confirm("האם אתה בטוח שברצונך למחוק את המשתמש?")) {
       try {
-        const success = await deleteUser(userId)
+        const success = await deleteUser(userId);
         if (success) {
-          setUsers(prev => prev.filter(u => u.id !== userId))
-          toast.success('המשתמש נמחק בהצלחה')
+          setUsers((prev) => prev.filter((u) => u.id !== userId));
+          toast.success("המשתמש נמחק בהצלחה");
         } else {
-          toast.error('שגיאה במחיקת המשתמש')
+          toast.error("שגיאה במחיקת המשתמש");
         }
       } catch (error) {
-        console.error('Error deleting user:', error)
-        toast.error('שגיאה במחיקת המשתמש')
+        console.error("Error deleting user:", error);
+        toast.error("שגיאה במחיקת המשתמש");
       }
     }
-  }
+  };
 
   const handleTestEmailConnection = async () => {
     try {
-      toast.info('בודק חיבור אימייל...')
-      const result = await window.electronAPI.emailTestConnection(currentClinic?.id)
+      toast.info("בודק חיבור אימייל...");
+      const result = await window.electronAPI.emailTestConnection(
+        currentClinic?.id,
+      );
       if (result) {
-        toast.success('חיבור האימייל תקין!')
+        toast.success("חיבור האימייל תקין!");
       } else {
-        toast.error('שגיאה בחיבור האימייל. בדוק את ההגדרות.')
+        toast.error("שגיאה בחיבור האימייל. בדוק את ההגדרות.");
       }
     } catch (error) {
-      console.error('Error testing email connection:', error)
-      toast.error('שגיאה בבדיקת חיבור האימייל')
+      console.error("Error testing email connection:", error);
+      toast.error("שגיאה בבדיקת חיבור האימייל");
     }
-  }
+  };
 
   // Google Calendar handlers
   const handleConnectGoogleAccount = async () => {
-    if (!currentUser?.id) return
+    if (!currentUser?.id) return;
 
     try {
-      setGoogleCalendarLoading(true)
-      toast.info('מתחבר לחשבון Google...')
+      setGoogleCalendarLoading(true);
+      toast.info("מתחבר לחשבון Google...");
 
       // Use real Google OAuth flow
-      const result = await window.electronAPI.googleOAuthAuthenticate()
+      const result = await window.electronAPI.googleOAuthAuthenticate();
 
       if (result.success === false) {
-        toast.error(`שגיאה בחיבור לחשבון Google: ${result.error}`)
-        return
+        toast.error(`שגיאה בחיבור לחשבון Google: ${result.error}`);
+        return;
       }
 
       if (result.tokens && result.userInfo) {
@@ -639,36 +736,36 @@ export default function SettingsPage() {
           google_account_connected: true,
           google_account_email: result.userInfo.email,
           google_access_token: result.tokens.access_token,
-          google_refresh_token: result.tokens.refresh_token
-        })
+          google_refresh_token: result.tokens.refresh_token,
+        });
 
         if (updatedUser) {
-          await setCurrentUser(updatedUser, true) // Skip navigation when just updating Google account
-          setPersonalProfile(prev => ({
+          await setCurrentUser(updatedUser, true); // Skip navigation when just updating Google account
+          setPersonalProfile((prev) => ({
             ...prev,
             google_account_connected: true,
-            google_account_email: result.userInfo?.email
-          }))
-          toast.success('חשבון Google חובר בהצלחה!')
+            google_account_email: result.userInfo?.email,
+          }));
+          toast.success("חשבון Google חובר בהצלחה!");
         } else {
-          toast.error('שגיאה בשמירת פרטי חשבון Google')
+          toast.error("שגיאה בשמירת פרטי חשבון Google");
         }
       } else {
-        toast.error('לא התקבלו נתוני הרשאה מ-Google')
+        toast.error("לא התקבלו נתוני הרשאה מ-Google");
       }
     } catch (error) {
-      console.error('Error connecting Google account:', error)
-      toast.error('שגיאה בחיבור חשבון Google')
+      console.error("Error connecting Google account:", error);
+      toast.error("שגיאה בחיבור חשבון Google");
     } finally {
-      setGoogleCalendarLoading(false)
+      setGoogleCalendarLoading(false);
     }
-  }
+  };
 
   const handleDisconnectGoogleAccount = async () => {
-    if (!currentUser?.id) return
+    if (!currentUser?.id) return;
 
     try {
-      setGoogleCalendarLoading(true)
+      setGoogleCalendarLoading(true);
 
       // Update user to remove Google account info
       const updatedUser = await updateUser({
@@ -676,107 +773,119 @@ export default function SettingsPage() {
         google_account_connected: false,
         google_account_email: undefined,
         google_access_token: undefined,
-        google_refresh_token: undefined
-      })
+        google_refresh_token: undefined,
+      });
 
       if (updatedUser) {
-        await setCurrentUser(updatedUser, true) // Skip navigation when just updating Google account
-        setPersonalProfile(prev => ({
+        await setCurrentUser(updatedUser, true); // Skip navigation when just updating Google account
+        setPersonalProfile((prev) => ({
           ...prev,
           google_account_connected: false,
-          google_account_email: undefined
-        }))
-        toast.success('חשבון Google נותק בהצלחה!')
+          google_account_email: undefined,
+        }));
+        toast.success("חשבון Google נותק בהצלחה!");
       } else {
-        toast.error('שגיאה בניתוק חשבון Google')
+        toast.error("שגיאה בניתוק חשבון Google");
       }
     } catch (error) {
-      console.error('Error disconnecting Google account:', error)
-      toast.error('שגיאה בניתוק חשבון Google')
+      console.error("Error disconnecting Google account:", error);
+      toast.error("שגיאה בניתוק חשבון Google");
     } finally {
-      setGoogleCalendarLoading(false)
+      setGoogleCalendarLoading(false);
     }
-  }
+  };
 
   const handleSyncGoogleCalendar = async () => {
-    if (!currentUser?.id || !currentUser.google_account_connected) return
+    if (!currentUser?.id || !currentUser.google_account_connected) return;
 
     try {
-      setGoogleCalendarSyncing(true)
-      toast.info('מסנכרן תורים עם Google Calendar...')
+      setGoogleCalendarSyncing(true);
+      toast.info("מסנכרן תורים עם Google Calendar...");
 
-      const storedTokensResponse = await apiClient.getGoogleTokens(currentUser.id)
+      const storedTokensResponse = await apiClient.getGoogleTokens(
+        currentUser.id,
+      );
       let tokens = {
         access_token: storedTokensResponse.data?.access_token,
         refresh_token: storedTokensResponse.data?.refresh_token,
-        scope: 'https://www.googleapis.com/auth/calendar',
-        token_type: 'Bearer',
-        expiry_date: Date.now() + 3600000 // 1 hour from now
-      }
+        scope: "https://www.googleapis.com/auth/calendar",
+        token_type: "Bearer",
+        expiry_date: Date.now() + 3600000, // 1 hour from now
+      };
 
       if (!tokens.access_token || !tokens.refresh_token) {
-        console.log('Google tokens not found in database, requesting Google OAuth...')
+        console.log(
+          "Google tokens not found in database, requesting Google OAuth...",
+        );
         try {
-          const result = await window.electronAPI.googleOAuthAuthenticate()
+          const result = await window.electronAPI.googleOAuthAuthenticate();
           if (result.success === false || !result.tokens) {
-            toast.error(`שגיאה בחיבור לחשבון Google: ${result.error}`)
-            return
+            toast.error(`שגיאה בחיבור לחשבון Google: ${result.error}`);
+            return;
           }
           const updatedUser = await updateUser({
             ...currentUser,
             google_account_connected: true,
             google_account_email: result.userInfo?.email,
             google_access_token: result.tokens.access_token,
-            google_refresh_token: result.tokens.refresh_token
-          })
+            google_refresh_token: result.tokens.refresh_token,
+          });
           if (updatedUser) {
-            await setCurrentUser(updatedUser, true)
+            await setCurrentUser(updatedUser, true);
             tokens = {
               access_token: result.tokens.access_token,
               refresh_token: result.tokens.refresh_token,
-              scope: 'https://www.googleapis.com/auth/calendar',
-              token_type: 'Bearer',
-              expiry_date: result.tokens.expiry_date || Date.now() + 3600000
-            }
+              scope: "https://www.googleapis.com/auth/calendar",
+              token_type: "Bearer",
+              expiry_date: result.tokens.expiry_date || Date.now() + 3600000,
+            };
           } else {
-            toast.error('שגיאה בעדכון אסימוני Google')
-            return
+            toast.error("שגיאה בעדכון אסימוני Google");
+            return;
           }
         } catch (authError) {
-          console.error('Could not get Google tokens:', authError)
-          toast.error('שגיאה בקבלת אסימוני Google')
-          return
+          console.error("Could not get Google tokens:", authError);
+          toast.error("שגיאה בקבלת אסימוני Google");
+          return;
         }
       }
 
       // Validate token format - Google OAuth tokens should start with 'ya29.' or similar
-      const isLikelyGoogleToken = tokens.access_token && (
-        tokens.access_token.startsWith('ya29.') ||
-        tokens.access_token.startsWith('1/') ||
-        !tokens.access_token.includes('.') // JWT tokens contain dots
-      )
+      const isLikelyGoogleToken =
+        tokens.access_token &&
+        (tokens.access_token.startsWith("ya29.") ||
+          tokens.access_token.startsWith("1/") ||
+          !tokens.access_token.includes(".")); // JWT tokens contain dots
 
-      console.log('🔍 Calendar Sync Debug - Final Tokens Being Used:', {
+      console.log("🔍 Calendar Sync Debug - Final Tokens Being Used:", {
         has_access_token: !!tokens.access_token,
         has_refresh_token: !!tokens.refresh_token,
-        access_token_preview: tokens.access_token ? tokens.access_token.substring(0, 30) + '...' : 'null',
+        access_token_preview: tokens.access_token
+          ? tokens.access_token.substring(0, 30) + "..."
+          : "null",
         token_type: tokens.token_type,
         scope: tokens.scope,
         likely_google_token: isLikelyGoogleToken,
-        token_format: tokens.access_token ? (tokens.access_token.includes('.') ? 'JWT-like' : 'OAuth-like') : 'none'
-      })
+        token_format: tokens.access_token
+          ? tokens.access_token.includes(".")
+            ? "JWT-like"
+            : "OAuth-like"
+          : "none",
+      });
 
       if (!isLikelyGoogleToken && tokens.access_token) {
-        console.log('⚠️ Warning: Token does not appear to be a Google OAuth token - using manual Google OAuth flow')
-        toast.info('נדרשת הרשאה ליומן Google - מתחיל תהליך הרשאה...')
+        console.log(
+          "⚠️ Warning: Token does not appear to be a Google OAuth token - using manual Google OAuth flow",
+        );
+        toast.info("נדרשת הרשאה ליומן Google - מתחיל תהליך הרשאה...");
 
         // Calendar sync requires Google OAuth tokens, so reconnect when stored tokens are missing or malformed.
         try {
-          const result = await window.electronAPI.googleOAuthAuthenticate()
+          const result = await window.electronAPI.googleOAuthAuthenticate();
 
           if (result.success === false) {
-            toast.error(`שגיאה בחיבור לחשבון Google: ${result.error}`)
-            return
+            toast.error(`שגיאה בחיבור לחשבון Google: ${result.error}`);
+            return;
           }
 
           if (result.tokens && result.userInfo) {
@@ -784,127 +893,144 @@ export default function SettingsPage() {
             const updatedUser = await updateUser({
               ...currentUser,
               google_access_token: result.tokens.access_token,
-              google_refresh_token: result.tokens.refresh_token
-            })
+              google_refresh_token: result.tokens.refresh_token,
+            });
 
             if (updatedUser) {
-              await setCurrentUser(updatedUser, true) // Skip navigation when just updating tokens
+              await setCurrentUser(updatedUser, true); // Skip navigation when just updating tokens
 
               // Use the new proper Google tokens
               tokens = {
                 access_token: result.tokens.access_token,
                 refresh_token: result.tokens.refresh_token,
-                scope: 'https://www.googleapis.com/auth/calendar',
-                token_type: 'Bearer',
-                expiry_date: result.tokens.expiry_date || Date.now() + 3600000
-              }
+                scope: "https://www.googleapis.com/auth/calendar",
+                token_type: "Bearer",
+                expiry_date: result.tokens.expiry_date || Date.now() + 3600000,
+              };
 
-              console.log('✅ Updated to use proper Google OAuth tokens for calendar access')
-              toast.success('הרשאות Google Calendar עודכנו בהצלחה!')
+              console.log(
+                "✅ Updated to use proper Google OAuth tokens for calendar access",
+              );
+              toast.success("הרשאות Google Calendar עודכנו בהצלחה!");
             } else {
-              toast.error('שגיאה בעדכון אסימוני Google')
-              return
+              toast.error("שגיאה בעדכון אסימוני Google");
+              return;
             }
           } else {
-            toast.error('לא התקבלו נתוני הרשאה מ-Google')
-            return
+            toast.error("לא התקבלו נתוני הרשאה מ-Google");
+            return;
           }
         } catch (error) {
-          console.error('Error with manual Google OAuth:', error)
-          toast.error('שגיאה בתהליך הרשאה Google')
-          return
+          console.error("Error with manual Google OAuth:", error);
+          toast.error("שגיאה בתהליך הרשאה Google");
+          return;
         }
       }
 
       // Get user's appointments from database
-      const appointmentsResponse = await apiClient.getAppointmentsByUser(currentUser.id)
-      const appointments = appointmentsResponse.data || []
+      const appointmentsResponse = await apiClient.getAppointmentsByUser(
+        currentUser.id,
+      );
+      const appointments = appointmentsResponse.data || [];
 
       // Prepare appointments with client data for sync
       const appointmentsWithClients = await Promise.all(
         appointments.map(async (appointment: any) => {
-          const clientResponse = await apiClient.getClientById(appointment.client_id)
-          const client = clientResponse.data
-          return { appointment, client }
-        })
-      )
+          const clientResponse = await apiClient.getClientById(
+            appointment.client_id,
+          );
+          const client = clientResponse.data;
+          return { appointment, client };
+        }),
+      );
 
       // Sync appointments to Google Calendar
-      const syncResult = await window.electronAPI.googleCalendarSyncAppointments(tokens, appointmentsWithClients)
+      const syncResult =
+        await window.electronAPI.googleCalendarSyncAppointments(
+          tokens,
+          appointmentsWithClients,
+        );
 
       if (syncResult.success > 0) {
-        toast.success(`${syncResult.success} תורים סונכרנו בהצלחה עם Google Calendar!`)
+        toast.success(
+          `${syncResult.success} תורים סונכרנו בהצלחה עם Google Calendar!`,
+        );
 
         if (syncResult.failed > 0) {
-          toast.warning(`${syncResult.failed} תורים לא הצליחו להיסנכרן`)
+          toast.warning(`${syncResult.failed} תורים לא הצליחו להיסנכרן`);
         }
       } else {
-        toast.error('לא הצליח לסנכרן תורים עם Google Calendar')
+        toast.error("לא הצליח לסנכרן תורים עם Google Calendar");
       }
     } catch (error) {
-      console.error('Error syncing Google Calendar:', error)
-      toast.error('שגיאה בסנכרון עם Google Calendar')
+      console.error("Error syncing Google Calendar:", error);
+      toast.error("שגיאה בסנכרון עם Google Calendar");
     } finally {
-      setGoogleCalendarSyncing(false)
+      setGoogleCalendarSyncing(false);
     }
-  }
+  };
 
   const handleToggleGoogleAutoSync = async (enabled: boolean) => {
-    if (!currentUser?.id) return
+    if (!currentUser?.id) return;
     try {
-      setGoogleCalendarLoading(true)
+      setGoogleCalendarLoading(true);
       const updatedUser = await updateUser({
         ...currentUser,
-        google_calendar_sync_enabled: enabled
-      })
+        google_calendar_sync_enabled: enabled,
+      });
       if (updatedUser) {
-        await setCurrentUser(updatedUser, true)
-        setPersonalProfile(prev => ({
+        await setCurrentUser(updatedUser, true);
+        setPersonalProfile((prev) => ({
           ...prev,
-          google_calendar_sync_enabled: enabled
-        }))
+          google_calendar_sync_enabled: enabled,
+        }));
         if (enabled) {
-          await handleSyncGoogleCalendar()
+          await handleSyncGoogleCalendar();
         }
-        const msg = enabled ? 'סנכרון אוטומטי הופעל' : 'סנכרון אוטומטי כובה'
+        const msg = enabled ? "סנכרון אוטומטי הופעל" : "סנכרון אוטומטי כובה";
         // eslint-disable-next-line no-console
-        console.log(msg)
+        console.log(msg);
       }
     } catch (e) {
       // eslint-disable-next-line no-console
-      console.error('Error toggling Google auto sync:', e)
+      console.error("Error toggling Google auto sync:", e);
     } finally {
-      setGoogleCalendarLoading(false)
+      setGoogleCalendarLoading(false);
     }
-  }
+  };
 
   if (loading) {
     return (
       <>
-        <SiteHeader title="הגדרות" />
-        <div className="flex flex-col items-center justify-center h-full" dir="rtl">
-          <div className="text-lg">טוען הגדרות...</div>
+        <SiteHeader title={t("settingsTitle")} />
+        <div
+          className="flex h-full flex-col items-center justify-center"
+          dir={direction}
+        >
+          <div className="text-lg">{t("loadingSettings")}</div>
         </div>
       </>
-    )
+    );
   }
 
   return (
     <>
-      <SiteHeader title="הגדרות" />
-      <div className="h-[calc(100vh-4rem)] flex flex-col" dir="rtl">
+      <SiteHeader title={t("settingsTitle")} />
+      <div className="flex h-[calc(100vh-4rem)] flex-col" dir={direction}>
         {/* Fixed Header */}
         <div className="shrink-0 bg-transparent pt-5 pb-2">
-          <div className="max-w-4xl mx-auto flex justify-between items-start">
-            <div className="text-right space-y-2">
-              <h1 className="text-2xl font-bold">הגדרות המרפאה</h1>
-              <p className="text-muted-foreground">נהל את פרטי המרפאה והגדרות המערכת</p>
+          <div className="mx-auto flex max-w-4xl items-start justify-between">
+            <div className="space-y-2 text-right">
+              <h1 className="text-2xl font-bold">{t("clinicSettings")}</h1>
+              <p className="text-muted-foreground">
+                {t("clinicSettingsDescription")}
+              </p>
             </div>
             <div className="flex items-center gap-3 pt-6 pl-1">
               {hasSettingsUnsavedChanges && !saving && (
-                <div className="flex items-center gap-1.5 text-xs font-medium text-amber-600 animate-fade-in">
+                <div className="animate-fade-in flex items-center gap-1.5 text-xs font-medium text-amber-600">
                   <span className="h-2 w-2 rounded-full bg-amber-500" />
-                  <span>שינויים שלא נשמרו</span>
+                  <span>{t("unsavedChanges")}</span>
                 </div>
               )}
 
@@ -912,22 +1038,26 @@ export default function SettingsPage() {
                 onClick={handleSave}
                 disabled={saving}
                 size="lg"
-                className="px-8 shadow-md w-[140px] h-10 relative"
+                className="relative h-10 w-[140px] px-8 shadow-md"
               >
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className={`transition-opacity duration-150 ${saving ? 'opacity-0' : 'opacity-100'}`}>
-                    <span>שמור הכל</span>
+                  <div
+                    className={`transition-opacity duration-150 ${saving ? "opacity-0" : "opacity-100"}`}
+                  >
+                    <span>{t("saveAll")}</span>
                   </div>
-                  <div className={`absolute transition-opacity duration-150 ${saving ? 'opacity-100' : 'opacity-0'}`}>
-                    <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                  <div
+                    className={`absolute transition-opacity duration-150 ${saving ? "opacity-100" : "opacity-0"}`}
+                  >
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent"></div>
                   </div>
                 </div>
               </Button>
 
               {saveSuccess && (
-                <div className="flex items-center text-green-600 animate-fade-in">
+                <div className="animate-fade-in flex items-center text-green-600">
                   <svg
-                    className="w-5 h-5"
+                    className="h-5 w-5"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -947,33 +1077,40 @@ export default function SettingsPage() {
 
         {/* Main Content with Tabs */}
         <div className="flex-1 overflow-hidden">
-          <div className="max-w-[950px] mx-auto h-full">
-            <Tabs defaultValue="personal-profile" className="h-full flex" orientation="vertical">
+          <div className="mx-auto h-full max-w-[950px]">
+            <Tabs
+              defaultValue="personal-profile"
+              className="flex h-full"
+              orientation="vertical"
+            >
               <div className="flex h-full gap-6 p-6">
                 {/* Scrollable Content Area */}
-                <div className="flex-1 overflow-y-auto pr-2 pb-8" style={{ scrollbarWidth: 'none' }}>
-                  <TabsContent value="profile" className="space-y-6 mt-0">
+                <div
+                  className="flex-1 overflow-y-auto pr-2 pb-8"
+                  style={{ scrollbarWidth: "none" }}
+                >
+                  <TabsContent value="profile" className="mt-0 space-y-6">
                     <ProfileTab
                       localClinic={localClinic}
                       onClinicChange={handleClinicChange}
                     />
                   </TabsContent>
 
-                  <TabsContent value="preferences" className="space-y-6 mt-0">
+                  <TabsContent value="preferences" className="mt-0 space-y-6">
                     <PreferencesTab
                       localSettings={localSettings}
                       onInputChange={handleInputChange}
                     />
                   </TabsContent>
 
-                  <TabsContent value="notifications" className="space-y-6 mt-0">
+                  <TabsContent value="notifications" className="mt-0 space-y-6">
                     <NotificationsTab
                       localSettings={localSettings}
                       onInputChange={handleInputChange}
                     />
                   </TabsContent>
 
-                  <TabsContent value="email" className="space-y-6 mt-0">
+                  <TabsContent value="email" className="mt-0 space-y-6">
                     <EmailTab
                       localSettings={localSettings}
                       onInputChange={handleInputChange}
@@ -981,7 +1118,7 @@ export default function SettingsPage() {
                     />
                   </TabsContent>
 
-                  <TabsContent value="users" className="space-y-6 mt-0">
+                  <TabsContent value="users" className="mt-0 space-y-6">
                     <UsersTab
                       users={users}
                       currentUser={currentUser}
@@ -992,36 +1129,54 @@ export default function SettingsPage() {
                     />
                   </TabsContent>
 
-                  {isWindowsElectron && isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && (
-                    <TabsContent value="migration" className="space-y-6 mt-0">
-                      <MigrationTab clinicId={currentClinic?.id} />
-                    </TabsContent>
-                  )}
+                  {isWindowsElectron &&
+                    isRoleAtLeast(
+                      currentUser?.role_level,
+                      ROLE_LEVELS.manager,
+                    ) && (
+                      <TabsContent value="migration" className="mt-0 space-y-6">
+                        <MigrationTab clinicId={currentClinic?.id} />
+                      </TabsContent>
+                    )}
 
-                  {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && (
-                    <TabsContent value="clinic-holidays" className="space-y-6 mt-0">
+                  {isRoleAtLeast(
+                    currentUser?.role_level,
+                    ROLE_LEVELS.manager,
+                  ) && (
+                    <TabsContent
+                      value="clinic-holidays"
+                      className="mt-0 space-y-6"
+                    >
                       <ClinicHolidaysTab clinicId={currentClinic?.id} />
                     </TabsContent>
                   )}
 
                   {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo) && (
-                    <TabsContent value="danger-zone" className="space-y-6 mt-0">
-                      <ClinicDataPruneTab clinicId={currentClinic?.id} clinicName={currentClinic?.name || currentClinic?.clinic_name} />
+                    <TabsContent value="danger-zone" className="mt-0 space-y-6">
+                      <ClinicDataPruneTab
+                        clinicId={currentClinic?.id}
+                        clinicName={
+                          currentClinic?.name || currentClinic?.clinic_name
+                        }
+                      />
                     </TabsContent>
                   )}
 
-	                  <TabsContent value="field-data" className="space-y-6 mt-0">
-	                    <FieldDataTab
-	                      clinicId={currentClinic?.id}
-	                      currentLookupTable={currentLookupTable}
-	                      lookupData={lookupData}
+                  <TabsContent value="field-data" className="mt-0 space-y-6">
+                    <FieldDataTab
+                      clinicId={currentClinic?.id}
+                      currentLookupTable={currentLookupTable}
+                      lookupData={lookupData}
                       isLoading={loadingLookup}
                       onSelectTable={selectLookupTable}
                       onRefresh={refreshLookupData}
                     />
                   </TabsContent>
 
-                  <TabsContent value="personal-profile" className="space-y-6 mt-0">
+                  <TabsContent
+                    value="personal-profile"
+                    className="mt-0 space-y-6"
+                  >
                     <PersonalProfileTab
                       personalProfile={personalProfile}
                       currentUser={currentUser}
@@ -1030,8 +1185,11 @@ export default function SettingsPage() {
                       googleCalendarSyncing={googleCalendarSyncing}
                       onProfileChange={handlePersonalProfileChange}
                       onProfilePictureRemove={() => {
-                        markSettingsDirty()
-                        setPersonalProfile(prev => ({ ...prev, profile_picture: '' }))
+                        markSettingsDirty();
+                        setPersonalProfile((prev) => ({
+                          ...prev,
+                          profile_picture: "",
+                        }));
                       }}
                       onConnectGoogle={handleConnectGoogleAccount}
                       onDisconnectGoogle={handleDisconnectGoogleAccount}
@@ -1040,33 +1198,101 @@ export default function SettingsPage() {
                     />
                   </TabsContent>
 
-                  <TabsContent value="about" className="space-y-6 mt-0">
+                  <TabsContent value="about" className="mt-0 space-y-6">
                     <AboutTab />
                   </TabsContent>
                 </div>
 
-                {/* Fixed Vertical TabsList on the Right */}
+                {/* Fixed vertical settings navigation */}
                 <div className="shrink-0">
-                  <TabsList className="flex flex-col h-fit w-48 p-1">
-                    <TabsTrigger value="profile" className="w-full justify-end text-right">פרופיל המרפאה</TabsTrigger>
-                    <TabsTrigger value="preferences" className="w-full justify-end text-right">הגדרות המרפאה</TabsTrigger>
-                    <TabsTrigger value="notifications" className="w-full justify-end text-right">התראות</TabsTrigger>
-                    <TabsTrigger value="email" className="w-full justify-end text-right">הגדרות אימייל</TabsTrigger>
-                    <TabsTrigger value="personal-profile" className="w-full justify-end text-right">פרופיל אישי</TabsTrigger>
-                    {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && (
-                      <TabsTrigger value="users" className="w-full justify-end text-right">ניהול משתמשים</TabsTrigger>
+                  <TabsList className="flex h-fit w-48 flex-col p-1">
+                    <TabsTrigger
+                      value="profile"
+                      className="w-full justify-start text-start"
+                    >
+                      {t("clinicProfile")}
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="preferences"
+                      className="w-full justify-start text-start"
+                    >
+                      {t("clinicSettings")}
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="notifications"
+                      className="w-full justify-start text-start"
+                    >
+                      {t("notifications")}
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="email"
+                      className="w-full justify-start text-start"
+                    >
+                      {t("emailSettings")}
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="personal-profile"
+                      className="w-full justify-start text-start"
+                    >
+                      {t("personalProfile")}
+                    </TabsTrigger>
+                    {isRoleAtLeast(
+                      currentUser?.role_level,
+                      ROLE_LEVELS.manager,
+                    ) && (
+                      <TabsTrigger
+                        value="users"
+                        className="w-full justify-start text-start"
+                      >
+                        {t("userManagement")}
+                      </TabsTrigger>
                     )}
-                    {isWindowsElectron && isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && (
-                      <TabsTrigger value="migration" className="w-full justify-end text-right">העברת נתונים</TabsTrigger>
+                    {isWindowsElectron &&
+                      isRoleAtLeast(
+                        currentUser?.role_level,
+                        ROLE_LEVELS.manager,
+                      ) && (
+                        <TabsTrigger
+                          value="migration"
+                          className="w-full justify-start text-start"
+                        >
+                          {t("dataMigration")}
+                        </TabsTrigger>
+                      )}
+                    {isRoleAtLeast(
+                      currentUser?.role_level,
+                      ROLE_LEVELS.manager,
+                    ) && (
+                      <TabsTrigger
+                        value="clinic-holidays"
+                        className="w-full justify-start text-start"
+                      >
+                        {t("holidays")}
+                      </TabsTrigger>
                     )}
-                    {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && (
-                      <TabsTrigger value="clinic-holidays" className="w-full justify-end text-right">חגים</TabsTrigger>
+                    <TabsTrigger
+                      value="field-data"
+                      className="w-full justify-start text-start"
+                    >
+                      {t("fieldData")}
+                    </TabsTrigger>
+                    {isRoleAtLeast(
+                      currentUser?.role_level,
+                      ROLE_LEVELS.ceo,
+                    ) && (
+                      <TabsTrigger
+                        value="danger-zone"
+                        className="text-destructive w-full justify-start text-start"
+                      >
+                        {t("dangerZone")}
+                      </TabsTrigger>
                     )}
-                    <TabsTrigger value="field-data" className="w-full justify-end text-right">ניהול נתוני שדות</TabsTrigger>
-                    {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo) && (
-                      <TabsTrigger value="danger-zone" className="w-full justify-end text-right text-destructive">אזור מסוכן</TabsTrigger>
-                    )}
-                    <TabsTrigger value="about" className="w-full justify-end text-right">אודות האפליקציה</TabsTrigger>
+                    <TabsTrigger
+                      value="about"
+                      className="w-full justify-start text-start"
+                    >
+                      {t("aboutApp")}
+                    </TabsTrigger>
                   </TabsList>
                 </div>
               </div>
@@ -1082,10 +1308,12 @@ export default function SettingsPage() {
         currentUser={currentUser}
         defaultClinicId={currentClinic?.id}
         onUserSaved={(newUser) => {
-          setUsers(prev => [...prev, newUser])
+          setUsers((prev) => [...prev, newUser]);
         }}
         onUserUpdated={(updatedUser) => {
-          setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u))
+          setUsers((prev) =>
+            prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)),
+          );
         }}
       />
       <UnsavedChangesDialog
@@ -1094,5 +1322,5 @@ export default function SettingsPage() {
         onCancel={handleUnsavedCancel}
       />
     </>
-  )
-} 
+  );
+}

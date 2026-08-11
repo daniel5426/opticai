@@ -21,6 +21,7 @@ import { cn } from "@/utils/tailwind";
 import { apiClient } from "@/lib/api-client";
 import { authService } from "@/lib/auth/AuthService";
 import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels";
+import { useAppLocale } from "@/localization/use-app-locale";
 
 interface ClinicDropdownProps {
   currentClinic?: Clinic | null;
@@ -43,6 +44,7 @@ export function ClinicDropdown({
   const { runGuard, hasGuard } = useNavigationGuard();
   const navigate = useNavigate();
   const location = useLocation();
+  const { direction } = useAppLocale();
 
   const isInControlCenter = location.pathname.startsWith("/control-center");
 
@@ -155,7 +157,7 @@ export function ClinicDropdown({
   }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu dir={direction}>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
@@ -176,7 +178,7 @@ export function ClinicDropdown({
         sideOffset={4}
       >
         <DropdownMenuItem
-          dir="rtl"
+          dir={direction}
           onSelect={handleControlCenterClick}
           className={cn(
             "flex cursor-pointer items-center gap-2",
@@ -195,7 +197,7 @@ export function ClinicDropdown({
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              dir="rtl"
+              dir={direction}
               className="bg-muted/50 flex cursor-pointer items-center gap-2"
               disabled
             >
@@ -215,7 +217,7 @@ export function ClinicDropdown({
               <>
                 <DropdownMenuSeparator />
                 {loading ? (
-                  <DropdownMenuItem dir="rtl" disabled>
+                  <DropdownMenuItem dir={direction} disabled>
                     <span>טוען מרפאות...</span>
                   </DropdownMenuItem>
                 ) : (
@@ -223,7 +225,7 @@ export function ClinicDropdown({
                     <DropdownMenuItem
                       key={clinic.id}
                       onSelect={() => handleClinicSelect(clinic)}
-                      dir="rtl"
+                      dir={direction}
                       className="flex cursor-pointer items-center gap-2"
                     >
                       <IconBuilding className="h-4 w-4" />

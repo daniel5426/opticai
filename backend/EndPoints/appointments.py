@@ -77,6 +77,8 @@ def get_appointments_paginated(
     search: Optional[str] = Query(None, description="Search by date/time/exam_name/note or client name"),
     date_scope: Optional[str] = Query(None, description="Filter by date scope: all|today|upcoming|past"),
     exam_name: Optional[str] = Query(None, description="Filter by exact exam name"),
+    include_total: bool = Query(True, description="Include the exact total count"),
+    count_only: bool = Query(False, description="Return only the exact total count"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -129,16 +131,18 @@ def get_appointments_paginated(
     else:
         base = base.order_by(order_column.desc().nulls_last(), Appointment.id.desc())
     
-    total = base.count()
-    rows = base.offset(offset).limit(limit).all()
+    total = base.count() if include_total or count_only else None
+    if count_only:
+        return {"items": [], "total": total or 0, "has_more": False}
+    rows = base.offset(offset).limit(limit + 1).all()
     # rows are tuples (Appointment, client_full_name, examiner_name)
     items = []
-    for row in rows:
+    for row in rows[:limit]:
         appt = row[0]
         setattr(appt, 'client_full_name', row[1])
         setattr(appt, 'examiner_name', row[2])
         items.append(appt)
-    return {"items": items, "total": total}
+    return {"items": items, "total": total, "has_more": len(rows) > limit}
 
 @router.get("/{appointment_id}", response_model=AppointmentSchema)
 def get_appointment(

@@ -285,3 +285,31 @@ def test_users_paginated_matches_all_terms():
         no_match = client.get("/api/v1/users/paginated", params={"search": "Alice Missing"})
         assert no_match.status_code == 200
         assert no_match.json()["total"] == 0
+
+
+def test_paginated_lists_can_defer_the_exact_total():
+    SessionLocal = _session_factory()
+    with SessionLocal() as db:
+        ids = _seed(db)
+
+    endpoints = [
+        "/api/v1/clients/paginated",
+        "/api/v1/orders/paginated",
+        "/api/v1/exams/enriched",
+        "/api/v1/appointments/paginated",
+        "/api/v1/files/paginated",
+        "/api/v1/referrals/paginated",
+        "/api/v1/users/paginated",
+    ]
+    with _client(SessionLocal, ids["current_user_id"]) as client:
+        for path in endpoints:
+            params = {"clinic_id": ids["clinic_id"], "include_total": "false"}
+            page = client.get(path, params=params)
+            assert page.status_code == 200, path
+            assert page.json()["total"] is None, path
+            assert "has_more" in page.json(), path
+
+            count = client.get(path, params={**params, "count_only": "true"})
+            assert count.status_code == 200, path
+            assert count.json()["total"] >= 1, path
+            assert count.json()["items"] == [], path

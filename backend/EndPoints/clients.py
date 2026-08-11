@@ -33,6 +33,8 @@ def get_clients_paginated(
     order: Optional[str] = Query("id_desc", description="Sort order: id_desc|id_asc"),
     search: Optional[str] = Query(None, description="Search by name/phone/email"),
     gender: Optional[str] = Query(None, description="Filter by gender"),
+    include_total: bool = Query(True, description="Include the exact total count"),
+    count_only: bool = Query(False, description="Return only the exact total count"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -75,7 +77,9 @@ def get_clients_paginated(
     if search_condition is not None:
         base = base.filter(search_condition)
 
-    total = base.count()
+    total = base.count() if include_total or count_only else None
+    if count_only:
+        return {"items": [], "total": total or 0, "has_more": False}
 
     order_columns = {
         "id": Client.id,
@@ -94,7 +98,7 @@ def get_clients_paginated(
     else:
         base = base.order_by(order_column.desc().nulls_last(), Client.id.desc())
 
-    rows = base.offset(offset).limit(limit).all()
+    rows = base.offset(offset).limit(limit + 1).all()
     items = [
         {
             "id": r[0],
@@ -108,9 +112,9 @@ def get_clients_paginated(
             "family_id": r[8],
             "family_role": r[9],
         }
-        for r in rows
+        for r in rows[:limit]
     ]
-    return { "items": items, "total": total }
+    return { "items": items, "total": total, "has_more": len(rows) > limit }
 
 @router.post("/", response_model=ClientSchema)
 def create_client(

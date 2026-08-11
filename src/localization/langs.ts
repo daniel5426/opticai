@@ -11,4 +11,9 @@ export default [
     nativeName: "עברית",
     prefix: "🇮🇱",
   },
+  {
+    key: "fr",
+    nativeName: "Français",
+    prefix: "🇫🇷",
+  },
 ] satisfies Language[];

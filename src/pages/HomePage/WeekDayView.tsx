@@ -1,6 +1,8 @@
 import React from "react";
 import { format, isToday, isSameDay, getHours, getMinutes } from "date-fns";
-import { he } from "date-fns/locale";
+import { getDateLocale } from "@/localization/date-locale";
+import { useAppLocale } from "@/localization/use-app-locale";
+import { useTranslation } from "react-i18next";
 import {
   Tooltip,
   TooltipContent,
@@ -141,6 +143,9 @@ export function WeekDayView({
   calendarRef,
   suppressClickRef,
 }: WeekDayViewProps) {
+  const { locale } = useAppLocale();
+  const { t } = useTranslation();
+  const dateLocale = getDateLocale(locale);
   const calendarHeight = (totalWorkMinutes / 60) * 95;
   const handleMoveModeColumnClick = (
     event: React.MouseEvent<HTMLDivElement>,
@@ -196,7 +201,7 @@ export function WeekDayView({
                   isToday(date) ? "bg-primary/10 text-primary" : ""
                 } ${dateIndex < visibleDates.length - 1 ? "border-l" : ""} ${dateIndex === visibleDates.length - 1 ? "rounded-tr-md" : ""}`}
               >
-                {format(date, "EEE d/M", { locale: he })}
+                {format(date, "EEE d/M", { locale: dateLocale })}
                 {vacation && (
                   <TooltipProvider>
                     <Tooltip>
@@ -204,7 +209,7 @@ export function WeekDayView({
                         <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500" />
                       </TooltipTrigger>
                       <TooltipContent side="top" align="end">
-                        יום חופש
+                        {t("vacationDay")}
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -505,7 +510,9 @@ export function WeekDayView({
                             <AppointmentCardContent
                               height={block.height}
                               timeRange={displayedTimeRange}
-                              startTime={formatAppointmentTime(displayedStartTime)}
+                              startTime={formatAppointmentTime(
+                                displayedStartTime,
+                              )}
                               client={client}
                               examName={block.exam_name}
                             />

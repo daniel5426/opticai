@@ -187,6 +187,8 @@ def get_users_paginated(
     search: Optional[str] = Query(None, description="Search by name/email/phone/username"),
     clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
     role_level: Optional[int] = Query(None, description="Filter by role level"),
+    include_total: bool = Query(True, description="Include the exact total count"),
+    count_only: bool = Query(False, description="Return only the exact total count"),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user)
 ):
@@ -229,10 +231,12 @@ def get_users_paginated(
     else:
         base = base.order_by(order_column.desc().nulls_last(), User.id.desc())
     
-    total = base.count()
-    items = base.offset(offset).limit(limit).all()
+    total = base.count() if include_total or count_only else None
+    if count_only:
+        return {"items": [], "total": total or 0, "has_more": False}
+    rows = base.offset(offset).limit(limit + 1).all()
     
-    return {"items": items, "total": total}
+    return {"items": rows[:limit], "total": total, "has_more": len(rows) > limit}
 
 @router.get("/", response_model=List[UserSchema])
 def get_users(

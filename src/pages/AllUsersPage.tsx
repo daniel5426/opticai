@@ -11,6 +11,7 @@ import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
 import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch, useLatestTableSearchRequest } from "@/lib/list-page-search"
 import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
+import { deferPaginationTotal } from "@/lib/deferred-pagination"
 
 interface UserWithClinic extends User {
   clinic_name?: string
@@ -23,7 +24,8 @@ export default function AllUsersPage() {
   const [users, setUsers] = useState<UserWithClinic[]>([])
   const [loading, setLoading] = useState(true)
   const [pageSize] = useState(25)
-  const [total, setTotal] = useState(0)
+  const [total, setTotal] = useState<number | null>(null)
+  const [hasMore, setHasMore] = useState(false)
   const [isUserModalOpen, setIsUserModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<UserWithClinic | null>(null)
   const [searchInput, setSearchInput] = useState(search.q)
@@ -82,18 +84,26 @@ export default function AllUsersPage() {
     const canCommit = startSearchRequest(search.q)
     try {
       setLoading(true)
+      setTotal(null)
       const offset = (search.page - 1) * pageSize
-      const { items, total } = await getPaginatedUsers({
+      const paginationOptions = {
         limit: pageSize,
         offset,
         order: sortToOrder(activeSort, "id_desc"),
         q: search.q || undefined,
         roleLevel: search.role !== ALL_FILTER_VALUE ? Number(search.role) : undefined,
-        clinic_id: search.clinicScope === "current" && currentClinic?.id ? currentClinic.id : undefined
-      })
+        clinic_id: search.clinicScope === "current" && currentClinic?.id ? currentClinic.id : undefined,
+        includeTotal: false
+      }
+      const { items, hasMore: nextHasMore } = await getPaginatedUsers(paginationOptions)
       if (!canCommit()) return
       setUsers(items as UserWithClinic[])
-      setTotal(total)
+      setHasMore(nextHasMore)
+      deferPaginationTotal(
+        () => getPaginatedUsers({ ...paginationOptions, countOnly: true }),
+        canCommit,
+        setTotal
+      )
     } catch (error) {
       console.error("Error loading users:", error)
     } finally {
@@ -125,7 +135,7 @@ export default function AllUsersPage() {
       })
       return
     }
-    setTotal((prevTotal) => prevTotal - 1)
+    setTotal((prevTotal) => (prevTotal === null ? null : Math.max(0, prevTotal - 1)))
   }
 
   const handleUserDeleteFailed = () => {
@@ -222,8 +232,9 @@ export default function AllUsersPage() {
               hideNewButton={false}
               pagination={{
                 page: search.page,
-                pageSize,
-                total,
+            pageSize,
+            total,
+            hasMore,
                 setPage: (page) =>
                   navigate({
                     to: "/users",

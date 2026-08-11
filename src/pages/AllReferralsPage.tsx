@@ -8,6 +8,7 @@ import { useUser } from "@/contexts/UserContext"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
 import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch, useLatestTableSearchRequest } from "@/lib/list-page-search"
 import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
+import { deferPaginationTotal } from "@/lib/deferred-pagination"
 
 export default function AllReferralsPage() {
   const { currentClinic } = useUser()
@@ -16,7 +17,8 @@ export default function AllReferralsPage() {
   const [referrals, setReferrals] = useState<Referral[]>([])
   const [loading, setLoading] = useState(true)
   const [pageSize] = useState(25)
-  const [total, setTotal] = useState(0)
+  const [total, setTotal] = useState<number | null>(null)
+  const [hasMore, setHasMore] = useState(false)
   const [searchInput, setSearchInput] = useState(search.q)
   const { startSearchRequest, updateLatestSearch } = useLatestTableSearchRequest(searchInput)
   const activeSort = React.useMemo(
@@ -76,18 +78,26 @@ export default function AllReferralsPage() {
     const canCommit = startSearchRequest(search.q)
     try {
       setLoading(true)
+      setTotal(null)
       const offset = (search.page - 1) * pageSize
-      const { items, total } = await getPaginatedReferrals(currentClinic?.id, {
+      const paginationOptions = {
         limit: pageSize,
         offset,
         order: sortToOrder(activeSort, "date_desc"),
         q: search.q || undefined,
         urgencyLevel: search.urgency !== ALL_FILTER_VALUE ? search.urgency : undefined,
-        referralType: search.referralType !== ALL_FILTER_VALUE ? search.referralType : undefined
-      })
+        referralType: search.referralType !== ALL_FILTER_VALUE ? search.referralType : undefined,
+        includeTotal: false
+      }
+      const { items, hasMore: nextHasMore } = await getPaginatedReferrals(currentClinic?.id, paginationOptions)
       if (!canCommit()) return
       setReferrals(items)
-      setTotal(total)
+      setHasMore(nextHasMore)
+      deferPaginationTotal(
+        () => getPaginatedReferrals(currentClinic?.id, { ...paginationOptions, countOnly: true }),
+        canCommit,
+        setTotal
+      )
     } catch (error) {
       console.error("Error loading data:", error)
     } finally {
@@ -121,7 +131,7 @@ export default function AllReferralsPage() {
         search: buildSearchState({ page: search.page - 1 })
       })
     } else {
-      setTotal((prev) => prev - 1)
+      setTotal((prev) => (prev === null ? null : Math.max(0, prev - 1)))
     }
   }
 
@@ -168,6 +178,7 @@ export default function AllReferralsPage() {
             page: search.page,
             pageSize,
             total,
+            hasMore,
             setPage: (page) =>
               navigate({
                 to: "/referrals",

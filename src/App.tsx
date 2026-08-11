@@ -1,5 +1,8 @@
 import React, { useEffect, Suspense, ReactNode } from "react";
-import { syncThemeWithLocal, applyUserThemeFromStorage } from "./helpers/theme_helpers";
+import {
+  syncThemeWithLocal,
+  applyUserThemeFromStorage,
+} from "./helpers/theme_helpers";
 import { useTranslation } from "react-i18next";
 import "./localization/i18n";
 import { updateAppLanguage } from "./helpers/language_helpers";
@@ -7,6 +10,7 @@ import { router } from "@/routes/router";
 import { RouterProvider } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { authService } from "@/lib/auth/AuthService";
+import { LegacyCopyLocalizer } from "@/localization/legacy-copy-localizer";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -42,7 +46,11 @@ class ErrorBoundary extends React.Component<{
           <p>{this.props.description}</p>
           <button
             onClick={() => window.location.reload()}
-            style={{ padding: "8px 16px", marginTop: "16px", cursor: "pointer" }}
+            style={{
+              padding: "8px 16px",
+              marginTop: "16px",
+              cursor: "pointer",
+            }}
           >
             {this.props.refreshLabel}
           </button>
@@ -55,7 +63,14 @@ class ErrorBoundary extends React.Component<{
 
 // Loading component
 const Loading = ({ label }: { label: string }) => (
-  <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>
+  <div
+    style={{
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      height: "100vh",
+    }}
+  >
     {label}
   </div>
 );
@@ -71,11 +86,14 @@ export default function App() {
     updateAppLanguage(i18n);
 
     // Listen for Google OAuth codes from other tabs (system browser redirect)
-    const channel = new BroadcastChannel('google-oauth-channel');
+    const channel = new BroadcastChannel("google-oauth-channel");
     channel.onmessage = (event) => {
-      if (event.data.type === 'GOOGLE_AUTH_CODE' && event.data.code) {
-        console.log('[App] Received Google OAuth code via BroadcastChannel');
-        if (window.electronAPI && (window.electronAPI as any).googleOAuthCodeReceived) {
+      if (event.data.type === "GOOGLE_AUTH_CODE" && event.data.code) {
+        console.log("[App] Received Google OAuth code via BroadcastChannel");
+        if (
+          window.electronAPI &&
+          (window.electronAPI as any).googleOAuthCodeReceived
+        ) {
           (window.electronAPI as any).googleOAuthCodeReceived(event.data.code);
         }
       }
@@ -101,6 +119,7 @@ export default function App() {
       refreshLabel={t("refresh")}
     >
       <QueryClientProvider client={queryClient}>
+        <LegacyCopyLocalizer />
         <Suspense fallback={<Loading label={t("loading")} />}>
           <RouterProvider router={router} />
         </Suspense>

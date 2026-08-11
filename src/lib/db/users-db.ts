@@ -26,19 +26,25 @@ export async function getPaginatedUsers(
     q?: string
     roleLevel?: number
     clinic_id?: number
+    includeTotal?: boolean
+    countOnly?: boolean
   }
-): Promise<{ items: User[]; total: number }> {
+): Promise<{ items: User[]; total: number | null; hasMore: boolean }> {
   try {
     const effectiveOptions = options ?? { limit: 25, offset: 0, order: 'id_desc' as const };
     const response = await apiClient.getUsersPaginated(effectiveOptions);
     if (response.error) {
       console.error('Error getting paginated users:', response.error);
-      return { items: [], total: 0 };
+      return { items: [], total: null, hasMore: false };
     }
-    return response.data || { items: [], total: 0 };
+    return {
+      items: response.data?.items || [],
+      total: response.data?.total ?? null,
+      hasMore: response.data?.has_more ?? false,
+    };
   } catch (error) {
     console.error('Error getting paginated users:', error);
-    return { items: [], total: 0 };
+    return { items: [], total: null, hasMore: false };
   }
 }
 

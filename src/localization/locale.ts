@@ -1,4 +1,4 @@
-export const supportedLocales = ["he", "en"] as const;
+export const supportedLocales = ["he", "en", "fr"] as const;
 
 export type AppLocale = (typeof supportedLocales)[number];
 
@@ -11,18 +11,22 @@ const languageLocalStorageKey = "lang";
 const localeCookieName = "prysm_locale";
 const unprefixedPaths = new Set(["/auth/callback", "/oauth/callback"]);
 
-export function isAppLocale(value: string | null | undefined): value is AppLocale {
+export function isAppLocale(
+  value: string | null | undefined,
+): value is AppLocale {
   return !!value && (supportedLocales as readonly string[]).includes(value);
 }
 
-export function normalizeLocale(value: string | null | undefined): AppLocale | null {
+export function normalizeLocale(
+  value: string | null | undefined,
+): AppLocale | null {
   if (!value) return null;
   const base = value.toLowerCase().split("-")[0];
   return isAppLocale(base) ? base : null;
 }
 
 export function getLocaleFromPath(pathname: string): AppLocale | null {
-  const match = pathname.match(/^\/(he|en)(?:\/|$)/);
+  const match = pathname.match(/^\/(he|en|fr)(?:\/|$)/);
   return match ? (match[1] as AppLocale) : null;
 }
 
@@ -40,16 +44,21 @@ export function isUnprefixedPath(pathname: string): boolean {
 export function getStoredLocale(): AppLocale | null {
   if (typeof window === "undefined") return null;
   try {
-    return normalizeLocale(window.localStorage.getItem(languageLocalStorageKey));
+    return normalizeLocale(
+      window.localStorage.getItem(languageLocalStorageKey),
+    );
   } catch {
     return null;
   }
 }
 
 export function detectPreferredLocale(): AppLocale {
-  if (!localeRoutingEnabled) return defaultLocale;
   const stored = getStoredLocale();
   if (stored) return stored;
+
+  // The Electron app is intentionally user-selected from Settings. Keep the
+  // public browser companion Hebrew-only until its separate rollout.
+  if (!localeRoutingEnabled && !isElectronRenderer()) return defaultLocale;
 
   if (typeof navigator !== "undefined") {
     for (const language of navigator.languages ?? [navigator.language]) {
@@ -62,12 +71,16 @@ export function detectPreferredLocale(): AppLocale {
 }
 
 export function getActiveLocale(): AppLocale {
-  if (!localeRoutingEnabled) return defaultLocale;
+  if (!localeRoutingEnabled && !isElectronRenderer()) return defaultLocale;
   if (typeof window !== "undefined") {
     const pathLocale = getLocaleFromPath(window.location.pathname);
     if (pathLocale) return pathLocale;
   }
   return detectPreferredLocale();
+}
+
+function isElectronRenderer(): boolean {
+  return typeof window !== "undefined" && Boolean(window.electronAPI);
 }
 
 export function getDirection(locale: AppLocale): "rtl" | "ltr" {

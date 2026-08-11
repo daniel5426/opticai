@@ -31,6 +31,7 @@ import { getAllExamLayouts } from "@/lib/db/exam-layouts-db";
 import { createFile } from "@/lib/db/files-db";
 import { getAllUsers } from "@/lib/db/users-db";
 import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels";
+import { useAppLocale } from "@/localization/use-app-locale";
 import {
   Appointment,
   Client,
@@ -145,6 +146,7 @@ export function SidebarQuickActions({
   const location = useLocation();
   const { currentClinic, currentUser } = useUser();
   const { settings } = useSettings();
+  const { direction } = useAppLocale();
   const appointmentDuration = settings?.appointment_duration || 30;
   const canWriteInventory = isRoleAtLeast(
     currentUser?.role_level,
@@ -547,11 +549,11 @@ export function SidebarQuickActions({
       }
       if (action === "appointment") {
         return (
-          <DropdownMenu dir="rtl">
+          <DropdownMenu dir={direction}>
             <DropdownMenuTrigger asChild>
               <QuickActionButton action={action} />
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="left" align="start" sideOffset={8}>
+            <DropdownMenuContent side={direction === "rtl" ? "left" : "right"} align="start" sideOffset={8}>
               <DropdownMenuItem
                 onClick={() => {
                   resetAppointmentDrafts();
@@ -579,13 +581,13 @@ export function SidebarQuickActions({
       if (action === "exam") {
         return (
           <DropdownMenu
-            dir="rtl"
+            dir={direction}
             onOpenChange={(open) => open && void loadExamLayouts()}
           >
             <DropdownMenuTrigger asChild>
               <QuickActionButton action={action} />
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="left" align="start" sideOffset={8}>
+            <DropdownMenuContent side={direction === "rtl" ? "left" : "right"} align="start" sideOffset={8}>
               {isExamLayoutsLoading ? (
                 <DropdownMenuItem disabled>
                   טוען סוגי בדיקות...
@@ -614,11 +616,11 @@ export function SidebarQuickActions({
       }
       if (action === "order") {
         return (
-          <DropdownMenu dir="rtl">
+          <DropdownMenu dir={direction}>
             <DropdownMenuTrigger asChild>
               <QuickActionButton action={action} />
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="left" align="start" sideOffset={8}>
+            <DropdownMenuContent side={direction === "rtl" ? "left" : "right"} align="start" sideOffset={8}>
               <DropdownMenuItem
                 onClick={() => {
                   setSelectedOrderType("regular");
@@ -641,11 +643,11 @@ export function SidebarQuickActions({
       }
       if (action === "inventory") {
         return (
-          <DropdownMenu dir="rtl">
+          <DropdownMenu dir={direction}>
             <DropdownMenuTrigger asChild>
               <QuickActionButton action={action} />
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="left" align="start" sideOffset={8}>
+            <DropdownMenuContent side={direction === "rtl" ? "left" : "right"} align="start" sideOffset={8}>
               {canWriteInventory ? (
                 <>
                   <DropdownMenuItem
@@ -679,6 +681,7 @@ export function SidebarQuickActions({
     },
     [
       canWriteInventory,
+      direction,
       examLayouts,
       isExamLayoutsLoading,
       loadExamLayouts,
@@ -727,7 +730,7 @@ export function SidebarQuickActions({
         }
         className="w-md"
       >
-        <div className="grid gap-4" dir="rtl">
+        <div className="grid gap-4" dir={direction}>
           {selectedAppointmentClient ? (
             <div className="rounded-md bg-gray-50 p-3 dark:bg-gray-800">
               <div className="text-sm font-medium">פרטי לקוח:</div>
@@ -761,7 +764,7 @@ export function SidebarQuickActions({
             idPrefix="sidebar-existing-appointment"
           />
         </div>
-        <div className="mt-4 flex justify-start gap-2" dir="rtl">
+        <div className="mt-4 flex justify-start gap-2" dir={direction}>
           <Button
             variant="outline"
             onClick={() => {

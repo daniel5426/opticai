@@ -69,8 +69,10 @@ export function ExamPreviewModal({
   const [activeOldRefractionTabs, setActiveOldRefractionTabs] = useState<
     Record<string, string>
   >({});
-  const [activeOldRefractionExtensionTabs, setActiveOldRefractionExtensionTabs] =
-    useState<Record<string, string>>({});
+  const [
+    activeOldRefractionExtensionTabs,
+    setActiveOldRefractionExtensionTabs,
+  ] = useState<Record<string, string>>({});
   const [activeCoverTestTabs, setActiveCoverTestTabs] = useState<
     Record<string, number>
   >({});
@@ -324,7 +326,7 @@ export function ExamPreviewModal({
           <p className="text-muted-foreground">טוען נתונים...</p>
         </div>
       ) : (
-        <div className="space-y-6 pb-6" dir="rtl">
+        <div className="space-y-6 pb-6" dir="ltr">
           {/* Cards Container */}
           <div className="mt-4 overflow-x-hidden">
             {cardRows.length > 0 ? (
@@ -419,9 +421,5 @@ function buildOldRefractionExtensionTabs(
   cardRows: CardRow[],
   examFormData: Record<string, any>,
 ): Record<string, string[]> {
-  return buildTabsByCard(
-    cardRows,
-    examFormData,
-    "old-refraction-extension",
-  );
+  return buildTabsByCard(cardRows, examFormData, "old-refraction-extension");
 }
