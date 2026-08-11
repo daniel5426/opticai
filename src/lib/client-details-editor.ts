@@ -1,4 +1,5 @@
 import { Client } from "@/lib/db/schema-interface"
+import type { AppLocale } from "@/localization/locale"
 
 export const CLIENT_HEALTH_FUNDS: Record<string, string[]> = {
   "כללית": ["רגיל", "מושלם זהב", "מושלם פלטינום"],
@@ -15,6 +16,12 @@ const GENDER_VALUE_MAP: Record<string, string> = {
   female: "נקבה",
   f: "נקבה",
   other: "אחר",
+}
+
+const CLIENT_GENDER_LABELS: Record<string, Record<AppLocale, string>> = {
+  "זכר": { he: "זכר", en: "male", fr: "homme" },
+  "נקבה": { he: "נקבה", en: "female", fr: "femme" },
+  "אחר": { he: "אחר", en: "other", fr: "autre" },
 }
 
 const HEALTH_FUND_VALUE_MAP: Record<string, string> = {
@@ -35,6 +42,12 @@ export function getClientStatusOptions(healthFund?: string | null) {
 
 export function normalizeGender(value?: string | null) {
   return normalizeOptionValue(value, GENDER_VALUE_MAP, CLIENT_GENDER_OPTIONS)
+}
+
+/** Presents a persisted Hebrew gender value in the active interface locale. */
+export function getClientGenderLabel(value: string | null | undefined, locale: AppLocale) {
+  const normalized = normalizeGender(value)
+  return CLIENT_GENDER_LABELS[normalized]?.[locale] || normalized
 }
 
 export function normalizeHealthFund(value?: string | null) {

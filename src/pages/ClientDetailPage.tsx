@@ -24,8 +24,10 @@ import { useUnsavedChanges } from "@/hooks/shared/useUnsavedChanges"
 import { serializeClientDraftForUnsavedChanges } from "@/lib/client-details-editor"
 import { ClientTabName, prefetchClientTab } from "@/hooks/client/useClientTabQueries"
 import { apiClient } from "@/lib/api-client"
+import { useAppLocale } from "@/localization/use-app-locale"
 
 export default function ClientDetailPage() {
+  const { direction } = useAppLocale()
   const { clientId } = useParams({ from: "/clients/$clientId" })
   const clientIdNum = Number(clientId)
 
@@ -162,7 +164,7 @@ export default function ClientDetailPage() {
         }}
       />
       <ClientSpaceLayout>
-        <div className="flex h-full min-h-0 flex-1 flex-col p-2 lg:p-5" dir="rtl" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <div className="flex h-full min-h-0 flex-1 flex-col p-2 lg:p-5" dir={direction} style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           <Tabs
             value={activeTab}
             className="w-full min-h-0 flex-1"
@@ -170,7 +172,7 @@ export default function ClientDetailPage() {
           >
             <TabsContent value="details" className="min-h-0 overflow-y-auto">
               {hasDetailsError ? (
-                <div className="bg-card examcard rounded-lg p-6 text-start" dir="rtl">
+                <div className="bg-card examcard rounded-lg p-6 text-start" dir={direction}>
                   <p>לא הצלחנו לטעון את פרטי הלקוח</p>
                   <Button
                     className="mt-4"

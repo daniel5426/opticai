@@ -23,6 +23,7 @@ import {
   CLIENT_HEALTH_FUNDS,
   getClientStatusOptions,
 } from "@/lib/client-details-editor"
+import { useAppLocale } from "@/localization/use-app-locale"
 
 
 // Custom label component
@@ -62,6 +63,7 @@ export function ClientDetailsTab({
   onCancelEdit,
   onSave,
 }: ClientDetailsTabProps) {
+  const { direction } = useAppLocale()
   const isNewMode = mode === 'new'
   const showEditableFields = isEditing || isNewMode
   const { currentClinic } = useUser()
@@ -221,24 +223,24 @@ export function ClientDetailsTab({
 
   if (isLoading) {
     return (
-      <div className="no-scrollbar space-y-6" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-        <div className="flex justify-between items-center mb-4">
+      <div className="no-scrollbar space-y-6" dir={direction} style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold">פרטים אישיים</h2>
           <Button
             type="button"
             variant={isEditing ? "outline" : "default"}
           >
             {isEditing ? "שמור שינויים" : "ערוך פרטים"}
           </Button>
-          <h2 className="text-xl font-semibold">פרטים אישיים</h2>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="bg-card rounded-lg shadow-md p-6">
-            <div className="flex items-center gap-3 mb-10" dir="rtl">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" dir={direction}>
+          <div className={`bg-card rounded-lg p-6 shadow-md ${direction === "ltr" ? "lg:order-3" : ""}`} dir={direction}>
+            <div className="flex items-center gap-3 mb-10" dir={direction}>
               <Skeleton className="h-7 w-7 rounded-lg" />
               <Skeleton className="h-5 w-32" />
             </div>
-            <div className="grid grid-cols-2 @[900px]:grid-cols-2 gap-4" dir="rtl">
+            <div className="grid grid-cols-2 @[900px]:grid-cols-2 gap-4" dir={direction}>
               {Array.from({ length: 8 }).map((_, i) => (
                 <div className="space-y-2" key={`contact-skel-${i}`}>
                   <Skeleton className="h-3 w-16" />
@@ -248,12 +250,12 @@ export function ClientDetailsTab({
             </div>
           </div>
 
-          <div className="bg-card rounded-lg shadow-md p-6">
-            <div className="flex items-center gap-3 mb-10" dir="rtl">
+          <div className={`bg-card rounded-lg p-6 shadow-md ${direction === "ltr" ? "lg:order-2" : ""}`} dir={direction}>
+            <div className="flex items-center gap-3 mb-10" dir={direction}>
               <Skeleton className="h-7 w-7 rounded-lg" />
               <Skeleton className="h-5 w-40" />
             </div>
-            <div className="grid grid-cols-2 @[900px]:grid-cols-2 gap-4" dir="rtl">
+            <div className="grid grid-cols-2 @[900px]:grid-cols-2 gap-4" dir={direction}>
               {Array.from({ length: 7 }).map((_, i) => (
                 <div className="space-y-2" key={`membership-skel-${i}`}>
                   <Skeleton className="h-3 w-20" />
@@ -263,12 +265,12 @@ export function ClientDetailsTab({
             </div>
           </div>
 
-          <div className="bg-card rounded-lg shadow-md p-6">
-            <div className="flex items-center gap-3 mb-10" dir="rtl">
+          <div className={`bg-card rounded-lg p-6 shadow-md ${direction === "ltr" ? "lg:order-1" : ""}`} dir={direction}>
+            <div className="flex items-center gap-3 mb-10" dir={direction}>
               <Skeleton className="h-7 w-7 rounded-lg" />
               <Skeleton className="h-5 w-28" />
             </div>
-            <div className="grid grid-cols-2 @[900px]:grid-cols-2 gap-4" dir="rtl">
+            <div className="grid grid-cols-2 @[900px]:grid-cols-2 gap-4" dir={direction}>
               {Array.from({ length: 8 }).map((_, i) => (
                 <div className="space-y-2" key={`personal-skel-${i}`}>
                   <Skeleton className="h-3 w-16" />
@@ -279,8 +281,8 @@ export function ClientDetailsTab({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-23 gap-6 items-start">
-          <div className="lg:col-span-10 bg-card rounded-lg shadow-md p-5 pb-14" dir="rtl">
+        <div className="grid grid-cols-1 lg:grid-cols-23 gap-6 items-start" dir={direction}>
+          <div className={`lg:col-span-10 bg-card rounded-lg p-5 pb-14 shadow-md ${direction === "ltr" ? "lg:order-3" : ""}`} dir={direction}>
             <div className="flex items-center gap-3 mb-4 justify-between">
               <div className="flex items-center gap-3">
                 <Skeleton className="h-6 w-6 rounded-lg" />
@@ -295,7 +297,7 @@ export function ClientDetailsTab({
             </div>
           </div>
 
-          <div className="lg:col-span-9 bg-card rounded-lg shadow-md p-6" dir="rtl">
+          <div className={`lg:col-span-9 bg-card rounded-lg p-6 shadow-md ${direction === "ltr" ? "lg:order-2" : ""}`} dir={direction}>
             <div className="flex items-center gap-3 mb-4">
               <Skeleton className="h-6 w-6 rounded-lg" />
               <Skeleton className="h-4 w-16" />
@@ -303,13 +305,13 @@ export function ClientDetailsTab({
             <Skeleton className="h-[84px] w-full" />
           </div>
 
-          <div className="lg:col-span-4 bg-transparent rounded-lg flex justify-center items-center">
+          <div className={`lg:col-span-4 bg-transparent rounded-lg flex justify-center items-center ${direction === "ltr" ? "lg:order-1" : ""}`}>
             <div className="flex justify-center items-center">
               <div className="relative">
                 <div className="w-full h-full shadow-md rounded-lg bg-card overflow-hidden">
                   <Skeleton className="w-44 h-44 rounded-lg" />
                 </div>
-                <Skeleton className="absolute bottom-0 right-0 h-6 w-6 rounded-full" />
+                <Skeleton className="absolute bottom-0 end-0 h-6 w-6 rounded-full" />
               </div>
             </div>
           </div>
@@ -319,9 +321,10 @@ export function ClientDetailsTab({
   }
 
   return (
-    <form ref={formRef} className="no-scrollbar" style={{ containerType: 'inline-size', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+    <form ref={formRef} className="no-scrollbar" dir={direction} style={{ containerType: 'inline-size', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
       {mode === 'view' && onStartEdit && onSave && (
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold">פרטים אישיים</h2>
           <div className="flex gap-2">
             <ImportedSourceDataDialog recordType="client" recordId={draft.id} />
             {isEditing && onCancelEdit && (
@@ -343,14 +346,13 @@ export function ClientDetailsTab({
               {isEditing ? "שמור שינויים" : "ערוך פרטים"}
             </Button>
           </div>
-          <h2 className="text-xl font-semibold">פרטים אישיים</h2>
         </div>
       )}
       <div className="space-y-6">
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="bg-card rounded-lg examcard p-6">
-            <div className="flex items-center gap-3 mb-6" dir="rtl">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" dir={direction}>
+          <div className={`bg-card rounded-lg examcard p-6 ${direction === "ltr" ? "lg:order-3" : ""}`} dir={direction}>
+            <div className="flex items-center gap-3 mb-6" dir={direction}>
               <div className="p-2 bg-muted rounded-lg">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
                   <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
@@ -359,7 +361,7 @@ export function ClientDetailsTab({
               </div>
               <h3 className="text-lg font-semibold">פרטי חברות ושירות</h3>
             </div>
-            <div className="grid grid-cols-1 @[900px]:grid-cols-2 gap-4" dir="rtl">
+            <div className="grid grid-cols-1 @[900px]:grid-cols-2 gap-4" dir={direction}>
               <div className="space-y-2">
                 <ModernLabel>תאריך פתיחת תיק</ModernLabel>
                 <DateInput
@@ -444,10 +446,10 @@ export function ClientDetailsTab({
                       value={formData.blocked_checks ? 'true' : 'false'}
                       onValueChange={(value) => handleSelectChange(value === 'true' ? true : false, 'blocked_checks')}
                     >
-                      <SelectTrigger dir="rtl" disabled={!showEditableFields}>
+                      <SelectTrigger dir={direction} disabled={!showEditableFields}>
                         <SelectValue placeholder="בחר" />
                       </SelectTrigger>
-                      <SelectContent dir="rtl">
+                      <SelectContent dir={direction}>
                         <SelectItem value="true">כן</SelectItem>
                         <SelectItem value="false">לא</SelectItem>
                       </SelectContent>
@@ -460,10 +462,10 @@ export function ClientDetailsTab({
                       value={formData.blocked_credit ? 'true' : 'false'}
                       onValueChange={(value) => handleSelectChange(value === 'true' ? true : false, 'blocked_credit')}
                     >
-                      <SelectTrigger dir="rtl" disabled={!showEditableFields}>
+                      <SelectTrigger dir={direction} disabled={!showEditableFields}>
                         <SelectValue placeholder="בחר" />
                       </SelectTrigger>
-                      <SelectContent dir="rtl">
+                      <SelectContent dir={direction}>
                         <SelectItem value="true">כן</SelectItem>
                         <SelectItem value="false">לא</SelectItem>
                       </SelectContent>
@@ -474,8 +476,8 @@ export function ClientDetailsTab({
             </div>
           </div>
 
-          <div className="bg-card rounded-lg examcard p-6">
-            <div className="flex items-center gap-3 mb-6" dir="rtl">
+          <div className={`bg-card rounded-lg examcard p-6 ${direction === "ltr" ? "lg:order-2" : ""}`} dir={direction}>
+            <div className="flex items-center gap-3 mb-6" dir={direction}>
               <div className="p-2 bg-muted rounded-lg">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
                   <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
@@ -483,7 +485,7 @@ export function ClientDetailsTab({
               </div>
               <h3 className="text-lg font-semibold">פרטי התקשרות</h3>
             </div>
-            <div className="grid grid-cols-1 @[900px]:grid-cols-2 gap-4" dir="rtl">
+            <div className="grid grid-cols-1 @[900px]:grid-cols-2 gap-4" dir={direction}>
               <div className="space-y-2">
                 <ModernLabel>עיר</ModernLabel>
                 <CityLookupInput
@@ -492,7 +494,7 @@ export function ClientDetailsTab({
                   placeholder={showEditableFields ? "בחר או הקלד..." : ''}
                   className="h-9"
                   disabled={!showEditableFields}
-                  dir="rtl"
+                  dir={direction}
                 />
               </div>
               <div className="space-y-2">
@@ -595,8 +597,8 @@ export function ClientDetailsTab({
             </div>
           </div>
 
-          <div className="bg-card rounded-lg examcard p-6">
-            <div className="flex items-center gap-3 mb-6" dir="rtl">
+          <div className={`bg-card rounded-lg examcard p-6 ${direction === "ltr" ? "lg:order-1" : ""}`} dir={direction}>
+            <div className="flex items-center gap-3 mb-6" dir={direction}>
               <div className="p-2 bg-muted rounded-lg">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -605,11 +607,11 @@ export function ClientDetailsTab({
               </div>
               <h3 className="text-lg font-semibold">פרטים אישיים</h3>
             </div>
-            <div className="grid grid-cols-1 @[900px]:grid-cols-2 gap-4" dir="rtl">
+            <div className="grid grid-cols-1 @[900px]:grid-cols-2 gap-4" dir={direction}>
               <div className="space-y-2">
                 <ModernLabel>
                   שם פרטי
-                  {isNewMode && <span className="text-red-500 mr-1">*</span>}
+                  {isNewMode && <span className="text-red-500 ms-1">*</span>}
                 </ModernLabel>
                 <Input
                   type="text"
@@ -626,7 +628,7 @@ export function ClientDetailsTab({
               <div className="space-y-2">
                 <ModernLabel>
                   שם משפחה
-                  {isNewMode && <span className="text-red-500 mr-1">*</span>}
+                  {isNewMode && <span className="text-red-500 ms-1">*</span>}
                 </ModernLabel>
                 <Input
                   type="text"
@@ -641,7 +643,7 @@ export function ClientDetailsTab({
               </div>
               <div className="space-y-2">
                 <ModernLabel>מגדר</ModernLabel>
-                <Select dir="rtl"
+                <Select dir={direction}
                   disabled={!showEditableFields}
                   value={formData.gender || ''}
                   onValueChange={(value) => handleSelectChange(value, 'gender')}
@@ -668,7 +670,7 @@ export function ClientDetailsTab({
                   placeholder={showEditableFields ? "הכנס תעודת זהות" : ""}
                 />
               </div>
-              <div className="text-right space-y-2" dir="rtl">
+              <div className="text-start space-y-2" dir={direction}>
                 <ModernLabel>תאריך לידה</ModernLabel>
                 <DateInput
                   name="date_of_birth"
@@ -679,7 +681,7 @@ export function ClientDetailsTab({
               </div>
               <div className="space-y-2">
                 <ModernLabel>קופת חולים</ModernLabel>
-                <Select dir="rtl"
+                <Select dir={direction}
                   disabled={!showEditableFields}
                   value={healthFundValue}
                   onValueChange={(value) => handleSelectChange(value, 'health_fund')}
@@ -708,7 +710,7 @@ export function ClientDetailsTab({
               </div>
               <div className="space-y-2">
                 <ModernLabel>סטטוס</ModernLabel>
-                <Select dir="rtl"
+                <Select dir={direction}
                   disabled={!showEditableFields || !healthFundValue}
                   value={statusValue}
                   onValueChange={(value) => handleSelectChange(value, 'status')}
@@ -730,8 +732,8 @@ export function ClientDetailsTab({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-23 gap-6 items-start">
-          <div className="lg:col-span-10 bg-card rounded-lg examcard p-5" dir="rtl">
+        <div className="grid grid-cols-1 lg:grid-cols-23 gap-6 items-start" dir={direction}>
+          <div className={`lg:col-span-10 bg-card rounded-lg examcard p-5 ${direction === "ltr" ? "lg:order-3" : ""}`} dir={direction}>
             <div className="flex items-center gap-3 mb-4 justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-muted rounded-lg">
@@ -771,10 +773,10 @@ export function ClientDetailsTab({
                           aria-expanded={isFamilySelectOpen}
                           className="w-full justify-between h-9 text-sm font-normal shadow-none"
                           disabled={!showEditableFields}
-                          dir="rtl"
+                          dir={direction}
                         >
                           {getSelectedFamilyName()}
-                          <ChevronDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          <ChevronDownIcon className="ms-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-[min(92vw,36rem)] p-0 shadow-none" align="start">
@@ -786,33 +788,33 @@ export function ClientDetailsTab({
                             className=""
                           />
                         </div>
-                        <div className="grid grid-cols-[minmax(7rem,1fr)_minmax(10rem,1.35fr)_2rem] gap-3 border-y bg-muted/40 px-3 py-1.5 pr-8 text-xs font-medium text-muted-foreground" dir="rtl">
-                          <span className="border-l border-border pl-3">שם משפחה</span>
+                        <div className="grid grid-cols-[minmax(7rem,1fr)_minmax(10rem,1.35fr)_2rem] gap-3 border-y bg-muted/40 px-3 py-1.5 pe-8 text-xs font-medium text-muted-foreground" dir={direction}>
+                          <span className="border-e border-border ps-3">שם משפחה</span>
                           <span>בן משפחה</span>
                           <span aria-hidden="true" />
                         </div>
                         <div className="max-h-60 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
-                          <div dir="rtl"
-                            className="relative flex cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm hover:bg-accent hover:text-accent-foreground"
+                          <div dir={direction}
+                            className="relative flex cursor-default items-center gap-2 rounded-sm py-1.5 pe-8 ps-2 text-sm hover:bg-accent hover:text-accent-foreground"
                             onClick={() => handleFamilyChange('none')}
                           >
                             {!formData.family_id && (
-                              <CheckIcon className="absolute right-2 h-4 w-4" />
+                              <CheckIcon className="absolute end-2 h-4 w-4" />
                             )}
                             ללא משפחה
                           </div>
                           {families.map(family => (
                             <div
-                              dir="rtl"
+                              dir={direction}
                               key={family.id}
-                              className="text-right rtl relative flex cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm hover:bg-accent hover:text-accent-foreground"
+                              className="relative flex cursor-default items-center gap-2 rounded-sm py-1.5 pe-8 ps-2 text-start text-sm hover:bg-accent hover:text-accent-foreground"
                               onClick={() => handleFamilyChange(family.id!.toString())}
                             >
                               {formData.family_id === family.id && (
-                                <CheckIcon className="absolute right-2 h-4 w-4" />
+                                <CheckIcon className="absolute end-2 h-4 w-4" />
                               )}
                               <div className="grid w-full grid-cols-[minmax(7rem,1fr)_minmax(10rem,1.35fr)_2rem] items-center gap-3">
-                                <span className="truncate border-l border-border/70 pl-3 font-medium">
+                                <span className="truncate border-e border-border/70 ps-3 font-medium">
                                   {family.name}
                                 </span>
                                 <span className="truncate text-muted-foreground">
@@ -838,8 +840,8 @@ export function ClientDetailsTab({
                                   <TooltipContent
                                     side="left"
                                     align="center"
-                                    className="max-w-72 border bg-popover px-3 py-2 text-right text-popover-foreground shadow-lg"
-                                    dir="rtl"
+                                    className="max-w-72 border bg-popover px-3 py-2 text-start text-popover-foreground shadow-lg"
+                                    dir={direction}
                                   >
                                     {getFamilyMembersForDisplay(family).length > 0 ? (
                                       <div className="space-y-1">
@@ -881,10 +883,10 @@ export function ClientDetailsTab({
                       value={formData.family_role || ''}
                       onValueChange={handleRoleChange}
                     >
-                      <SelectTrigger dir="rtl" disabled={!showEditableFields}>
+                      <SelectTrigger dir={direction} disabled={!showEditableFields}>
                         <SelectValue placeholder="בחר תפקיד" />
                       </SelectTrigger>
-                      <SelectContent dir="rtl">
+                      <SelectContent dir={direction}>
                         <SelectItem value="אב">אב</SelectItem>
                         <SelectItem value="אם">אם</SelectItem>
                         <SelectItem value="ילד">ילד</SelectItem>
@@ -913,10 +915,10 @@ export function ClientDetailsTab({
                         value={newFamilyRole}
                         onValueChange={setNewFamilyRole}
                       >
-                        <SelectTrigger dir="rtl">
+                        <SelectTrigger dir={direction}>
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent dir="rtl">
+                        <SelectContent dir={direction}>
                           <SelectItem value="אב">אב</SelectItem>
                           <SelectItem value="אם">אם</SelectItem>
                           <SelectItem value="ילד">ילד</SelectItem>
@@ -959,7 +961,7 @@ export function ClientDetailsTab({
           </div>
 
 
-          <div className="lg:col-span-9">
+          <div className={`lg:col-span-9 ${direction === "ltr" ? "lg:order-2" : ""}`}>
             <NotesCard
               title="הערות"
               value={formData.notes || ''}
@@ -972,7 +974,7 @@ export function ClientDetailsTab({
             />
           </div>
 
-          <div className="lg:col-span-4 bg-transparent rounded-lg flex justify-center items-center ">
+          <div className={`lg:col-span-4 bg-transparent rounded-lg flex justify-center items-center ${direction === "ltr" ? "lg:order-1" : ""}`}>
 
             <div className="flex justify-center items-center">
               <div className="relative">
@@ -997,7 +999,7 @@ export function ClientDetailsTab({
                 </div>
                 {showEditableFields && (
                   <>
-                    <label className="absolute bottom-0 right-0 w-6 h-6 bg-primary rounded-full cursor-pointer flex items-center justify-center">
+                    <label className="absolute bottom-0 end-0 w-6 h-6 bg-primary rounded-full cursor-pointer flex items-center justify-center">
                       <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary-foreground">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                         <polyline points="17,8 12,3 7,8"></polyline>
@@ -1024,7 +1026,7 @@ export function ClientDetailsTab({
                       <button
                         type="button"
                         onClick={() => handleSelectChange('', 'profile_picture')}
-                        className="absolute bottom-0 left-0 w-6 h-6 bg-destructive rounded-full cursor-pointer flex items-center justify-center hover:bg-destructive/90 transition-colors"
+                        className="absolute bottom-0 start-0 w-6 h-6 bg-destructive rounded-full cursor-pointer flex items-center justify-center hover:bg-destructive/90 transition-colors"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-destructive-foreground">
                           <path d="M3 6h18"></path>

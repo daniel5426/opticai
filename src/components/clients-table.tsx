@@ -16,6 +16,7 @@ import { SortableTableHead } from "@/components/sortable-table-head"
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
 import { DateSearchHelper } from "@/lib/date-search-helper"
 import { useAppLocale } from "@/localization/use-app-locale"
+import { getClientGenderLabel } from "@/lib/client-details-editor"
 
 const LIST_CELL_TEXT_LIMIT = 160
 
@@ -80,7 +81,7 @@ export function ClientsTable({
   onToggleMergeClient,
   fillHeight = false
 }: ClientsTableProps) {
-  const { direction } = useAppLocale()
+  const { direction, locale } = useAppLocale()
   const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
   const [selectedGender, setSelectedGender] = React.useState<string>("all")
   const [localSort, setLocalSort] = React.useState<SortState | undefined>()
@@ -254,12 +255,12 @@ export function ClientsTable({
         >
           <TableHeader className="bg-card sticky top-0">
             <TableRow>
-              {mergeMode && <TableHead className="bg-card sticky top-0 z-20 w-[44px] !p-0 text-right"></TableHead>}
+              {mergeMode && <TableHead className="bg-card sticky top-0 z-20 w-[44px] !p-0 text-start"></TableHead>}
               <SortableTableHead
                 sortKey="id"
                 sort={activeSort}
                 onSortChange={handleSortChange}
-                className="bg-card sticky top-0 z-20 text-right"
+                className="bg-card sticky top-0 z-20 text-start"
               >
                 מס' לקוח
               </SortableTableHead>
@@ -267,7 +268,7 @@ export function ClientsTable({
                 sortKey="first_name"
                 sort={activeSort}
                 onSortChange={handleSortChange}
-                className="bg-card sticky top-0 z-20 text-right"
+                className="bg-card sticky top-0 z-20 text-start"
               >
                 שם פרטי
               </SortableTableHead>
@@ -275,7 +276,7 @@ export function ClientsTable({
                 sortKey="last_name"
                 sort={activeSort}
                 onSortChange={handleSortChange}
-                className="bg-card sticky top-0 z-20 text-right"
+                className="bg-card sticky top-0 z-20 text-start"
               >
                 שם משפחה
               </SortableTableHead>
@@ -284,7 +285,7 @@ export function ClientsTable({
                   sortKey="gender"
                   sort={activeSort}
                   onSortChange={handleSortChange}
-                  className="bg-card sticky top-0 z-20 text-right"
+                  className="bg-card sticky top-0 z-20 text-start"
                 >
                   מגדר
                 </SortableTableHead>
@@ -293,7 +294,7 @@ export function ClientsTable({
                 sortKey="national_id"
                 sort={activeSort}
                 onSortChange={handleSortChange}
-                className="bg-card sticky top-0 z-20 text-right"
+                className="bg-card sticky top-0 z-20 text-start"
               >
                 ת.ז.
               </SortableTableHead>
@@ -302,7 +303,7 @@ export function ClientsTable({
                   sortKey="phone_mobile"
                   sort={activeSort}
                   onSortChange={handleSortChange}
-                  className="bg-card sticky top-0 z-20 text-right"
+                  className="bg-card sticky top-0 z-20 text-start"
                 >
                   נייד
                 </SortableTableHead>
@@ -312,7 +313,7 @@ export function ClientsTable({
                   sortKey="email"
                   sort={activeSort}
                   onSortChange={handleSortChange}
-                  className="bg-card sticky top-0 z-20 text-right"
+                  className="bg-card sticky top-0 z-20 text-start"
                 >
                   אימייל
                 </SortableTableHead>
@@ -322,12 +323,12 @@ export function ClientsTable({
                   sortKey="family_role"
                   sort={activeSort}
                   onSortChange={handleSortChange}
-                  className="bg-card sticky top-0 z-20 text-right"
+                  className="bg-card sticky top-0 z-20 text-start"
                 >
                   תפקיד במשפחה
                 </SortableTableHead>
               )}
-              <TableHead className="bg-card sticky top-0 z-20 w-[50px] text-right"></TableHead>
+              <TableHead className="bg-card sticky top-0 z-20 w-[50px] text-start"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -340,7 +341,7 @@ export function ClientsTable({
                       <button
                         key={`selected-${client.id}`}
                         type="button"
-                        className="bg-background hover:bg-accent inline-flex max-w-[240px] items-center gap-2 rounded-md border px-2 py-1 text-right"
+                        className="bg-background hover:bg-accent inline-flex max-w-[240px] items-center gap-2 rounded-md border px-2 py-1 text-start"
                         onClick={() => onToggleMergeClient?.(client)}
                       >
                         <Checkbox checked={true} className="pointer-events-none h-3.5 w-3.5" />
@@ -415,17 +416,17 @@ export function ClientsTable({
                     </TableCell>
                   )}
                   <TableCell className="font-medium" data-no-localize>{client.id}</TableCell>
-                  <TableCell className="max-w-[12rem] overflow-hidden" data-no-localize>
-                    <bdi className="block truncate" dir="auto">
+                  <TableCell className="max-w-[12rem] overflow-hidden text-start" data-no-localize>
+                    <bdi className="block truncate text-start" dir="auto">
                       {getListCellText(client.first_name)}
                     </bdi>
                   </TableCell>
-                  <TableCell className="max-w-[12rem] overflow-hidden" data-no-localize>
-                    <bdi className="block truncate" dir="auto">
+                  <TableCell className="max-w-[12rem] overflow-hidden text-start" data-no-localize>
+                    <bdi className="block truncate text-start" dir="auto">
                       {getListCellText(client.last_name)}
                     </bdi>
                   </TableCell>
-                  {!compactMode && <TableCell data-no-localize>{client.gender || ""}</TableCell>}
+                  {!compactMode && <TableCell data-no-localize>{getClientGenderLabel(client.gender, locale)}</TableCell>}
                   <TableCell data-no-localize>{client.national_id || ""}</TableCell>
                   {!compactMode && <TableCell data-no-localize>{client.phone_mobile || ""}</TableCell>}
                   {!compactMode && <TableCell data-no-localize>{client.email || ""}</TableCell>}

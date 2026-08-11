@@ -22,6 +22,7 @@ import {
   upsertQueryItemById,
   useClientMedicalLogsQuery,
 } from "@/hooks/client/useClientTabQueries";
+import { useAppLocale } from "@/localization/use-app-locale";
 
 type MedicalRecord = MedicalLog & {
   isEditing?: boolean;
@@ -31,19 +32,19 @@ interface ClientMedicalRecordTabProps {
   enabled?: boolean;
 }
 
-const MedicalRecordsSkeleton = () => (
-  <div className="relative mr-6" dir="rtl">
+const MedicalRecordsSkeleton = ({ direction }: { direction: "rtl" | "ltr" }) => (
+  <div className="relative ms-6" dir={direction}>
     <div className="space-y-8">
       {[0, 1, 2].map((item) => (
         <div key={item} className="relative">
           {item < 2 && (
-            <div className="bg-primary/10 absolute top-6 right-3 h-[calc(100%+2rem-6px)] w-0.5" />
+            <div className="bg-primary/10 absolute top-6 start-3 h-[calc(100%+2rem-6px)] w-0.5" />
           )}
           <div className="relative h-6">
-            <Skeleton className="absolute top-1/2 right-0 h-6 w-6 -translate-y-1/2 rounded-full" />
-            <Skeleton className="absolute top-1/2 right-10 h-4 w-36 -translate-y-1/2" />
+            <Skeleton className="absolute top-1/2 start-0 h-6 w-6 -translate-y-1/2 rounded-full" />
+            <Skeleton className="absolute top-1/2 start-10 h-4 w-36 -translate-y-1/2" />
           </div>
-          <div className="mt-4 mr-14 space-y-2">
+          <div className="mt-4 ms-14 space-y-2">
             <Skeleton className="h-4 w-full max-w-3xl" />
             <Skeleton className="h-4 w-4/5 max-w-2xl" />
             <Skeleton className="h-4 w-3/5 max-w-xl" />
@@ -57,6 +58,7 @@ const MedicalRecordsSkeleton = () => (
 export const ClientMedicalRecordTab = ({
   enabled = true,
 }: ClientMedicalRecordTabProps) => {
+  const { direction, locale } = useAppLocale();
   const { clientId } = useParams({ from: "/clients/$clientId" });
   const clientIdNum = Number(clientId);
   const queryClient = useQueryClient();
@@ -249,36 +251,39 @@ export const ClientMedicalRecordTab = ({
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return new Intl.DateTimeFormat("he-IL", {
+    return new Intl.DateTimeFormat(
+      locale === "he" ? "he-IL" : locale === "fr" ? "fr-FR" : "en-US",
+      {
       year: "numeric",
       month: "long",
       day: "numeric",
-    }).format(date);
+      },
+    ).format(date);
   };
 
   return (
-    <div className="flex w-full flex-col">
+    <div className="flex w-full flex-col" dir={direction}>
       <div className="mb-6 flex items-center justify-between">
-        <Button onClick={addNewRecord} dir="rtl">
-          רשומה חדשה
-          <Plus className="mr-2 h-4 w-4" />
-        </Button>
         <h2 className="text-xl font-semibold">גליון רפואי</h2>
+        <Button onClick={addNewRecord} dir={direction}>
+          רשומה חדשה
+          <Plus className="ms-2 h-4 w-4" />
+        </Button>
       </div>
 
       {medicalLogsQuery.isLoading ? (
-        <MedicalRecordsSkeleton />
+        <MedicalRecordsSkeleton direction={direction} />
       ) : records.length === 0 ? (
-        <div className="text-muted-foreground py-10 text-center" dir="rtl">
+        <div className="text-muted-foreground py-10 text-center" dir={direction}>
           אין רשומות רפואיות להצגה. לחץ על "הוספת רשומה חדשה" כדי להתחיל.
         </div>
       ) : (
-        <div className="relative mr-6">
+        <div className="relative ms-6">
           <div className="space-y-8">
             {records.map((record, index) => (
               <div key={record.id ?? `new-${index}`} className="relative">
                 {index < records.length - 1 && (
-                  <div className="bg-primary/30 absolute top-6 right-3 h-[calc(100%+2rem-6px)] w-0.5" />
+                  <div className="bg-primary/30 absolute top-6 start-3 h-[calc(100%+2rem-6px)] w-0.5" />
                 )}
 
                 <div
@@ -286,12 +291,12 @@ export const ClientMedicalRecordTab = ({
                     record.isEditing ? "relative h-10" : "relative h-6"
                   }
                 >
-                  <div className="bg-primary absolute top-1/2 right-3 z-10 -mr-3 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full">
+                  <div className="bg-primary absolute top-1/2 start-3 z-10 -ms-3 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full">
                     <div className="bg-background h-2 w-2 rounded-full" />
                   </div>
 
-                  <div className="absolute top-1/2 right-10 flex -translate-y-1/2 items-center">
-                    <div className="mr-3">
+                  <div className="absolute top-1/2 start-10 flex -translate-y-1/2 items-center">
+                    <div className="ms-3">
                       {record.isEditing && record.id !== undefined ? (
                         <DateInput
                           name={`medical-log-date-${record.id}`}
@@ -313,7 +318,7 @@ export const ClientMedicalRecordTab = ({
                       )}
                     </div>
 
-                    <div className="mr-1 flex gap-1">
+                    <div className="ms-1 flex gap-1">
                       {record.isEditing ? (
                         <Button
                           size="sm"
@@ -351,7 +356,7 @@ export const ClientMedicalRecordTab = ({
                   </div>
                 </div>
 
-                <Card className="mr-14 border-none bg-transparent shadow-none">
+                <Card className="ms-14 border-none bg-transparent shadow-none">
                   <CardContent className="border-none">
                     {record.isEditing ? (
                       <Textarea
@@ -362,10 +367,10 @@ export const ClientMedicalRecordTab = ({
                         }
                         placeholder="הזן את תוכן הרשומה הרפואית..."
                         className="min-h-[100px] resize-none"
-                        dir="rtl"
+                        dir={direction}
                       />
                     ) : (
-                      <div className="text-sm whitespace-pre-wrap" dir="rtl">
+                      <div className="text-sm whitespace-pre-wrap" dir={direction}>
                         {record.log || "אין תוכן"}
                       </div>
                     )}

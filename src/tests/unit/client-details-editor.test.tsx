@@ -6,6 +6,7 @@ import { ClientDetailsTab } from "@/components/client/ClientDetailsTab"
 import { Client } from "@/lib/db/schema-interface"
 import {
   buildClientUpdatePayload,
+  getClientGenderLabel,
   normalizeClientForDraft,
   serializeClientDraftForUnsavedChanges,
   shouldClearStatusForHealthFund,
@@ -47,6 +48,12 @@ describe("client details editor helpers", () => {
     expect(draft.gender).toBe("נקבה")
     expect(draft.health_fund).toBe("מכבי")
     expect(draft.status).toBe("זהב")
+  })
+
+  test("presents persisted gender values in the active locale", () => {
+    expect(getClientGenderLabel("נקבה", "he")).toBe("נקבה")
+    expect(getClientGenderLabel("female", "en")).toBe("female")
+    expect(getClientGenderLabel("m", "fr")).toBe("homme")
   })
 
   test("builds a cleaned full update payload from server data and draft edits", () => {
