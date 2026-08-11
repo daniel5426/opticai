@@ -106,6 +106,15 @@ export default function ClientsMergePage() {
     void loadClients()
   }, [clinicId, loadClients])
 
+  const handleClientDeleted = (clientId: number) => {
+    setClients((previous) => previous.filter((client) => client.id !== clientId))
+    if (clients.length === 1 && search.page > 1) {
+      void navigate({ to: "/clients/merge", search: buildSearchState({ page: search.page - 1 }) })
+      return
+    }
+    setTotal((previous) => (previous === null ? null : Math.max(0, previous - 1)))
+  }
+
   const toggleClient = (client: Client) => {
     if (!client.id) return
     setSelectedClients((previous) => {
@@ -149,6 +158,7 @@ export default function ClientsMergePage() {
       <div className="flex h-full min-h-0 flex-1 flex-col p-4 lg:p-6" dir="rtl" style={{ scrollbarWidth: "none" }}>
         <ClientsTable
           data={clients}
+          onClientDeleted={handleClientDeleted}
           onClientDeleteFailed={loadClients}
           searchQuery={searchInput}
           onSearchChange={(value) => {
