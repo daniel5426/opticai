@@ -28,7 +28,7 @@ import { SiteHeader } from "@/components/site-header";
 import { Progress } from "@/components/ui/progress";
 import { useAnalyticsRange } from "@/hooks/useAnalyticsRange";
 import { apiClient } from "@/lib/api-client";
-import type { CompanyAnalyticsResponse } from "@/lib/analytics";
+import type { AnalyticsRange, CompanyAnalyticsResponse } from "@/lib/analytics";
 import type { Company, User } from "@/lib/db/schema-interface";
 
 const currencyFormatter = new Intl.NumberFormat("he-IL", {
@@ -44,6 +44,12 @@ const ORDER_MIX_COLORS = [
   "hsl(var(--chart-4))",
   "hsl(var(--chart-5))",
 ];
+const ANALYTICS_CACHE_TTL_MS = 60_000;
+const analyticsCache = new Map<string, { data: CompanyAnalyticsResponse; expiresAt: number }>();
+
+function analyticsCacheKey(companyId: number, range: AnalyticsRange) {
+  return [companyId, range.startDate, range.endDate, range.bucket].join(":");
+}
 
 function parseStored<T>(value: string | null): T | null {
   if (!value || value === "undefined") return null;
@@ -85,6 +91,15 @@ export default function ControlCenterDashboardPage() {
 
   React.useEffect(() => {
     if (!company?.id) return;
+    const cacheKey = analyticsCacheKey(company.id, range);
+    const cached = analyticsCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      setData(cached.data);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -94,6 +109,10 @@ export default function ControlCenterDashboardPage() {
         setError(String(response.error || "טעינת הנתונים נכשלה"));
         setData(null);
       } else {
+        analyticsCache.set(cacheKey, {
+          data: response.data,
+          expiresAt: Date.now() + ANALYTICS_CACHE_TTL_MS,
+        });
         setData(response.data);
       }
       setLoading(false);
