@@ -2,6 +2,8 @@
 import { Client } from "./schema-interface";
 import { apiClient } from '../api-client';
 
+const CLIENT_REQUEST_TIMEOUT_MS = 10_000;
+
 export async function getAllClients(clinicId?: number): Promise<Client[]> {
   try {
     const response = await apiClient.getClients(clinicId);
@@ -18,26 +20,31 @@ export async function getAllClients(clinicId?: number): Promise<Client[]> {
 
 export async function getPaginatedClients(
   clinicId?: number,
-  options?: { limit?: number; offset?: number; order?: string; q?: string; gender?: string }
-): Promise<{ items: Client[]; total: number }> {
+  options?: { limit?: number; offset?: number; order?: string; q?: string; gender?: string; includeTotal?: boolean; countOnly?: boolean }
+): Promise<{ items: Client[]; total: number | null; hasMore: boolean }> {
   try {
     const effective = options ?? { limit: 25, offset: 0, order: 'id_desc' as const };
     const response = await apiClient.getClientsPaginated(clinicId, effective);
     if (response.error) {
       console.error('Error getting clients (paginated):', response.error);
-      return { items: [], total: 0 };
+      return { items: [], total: null, hasMore: false };
     }
-    const payload = response.data as { items: Client[]; total: number } | undefined;
-    return { items: payload?.items || [], total: payload?.total || 0 };
+    const payload = response.data;
+    return { items: payload?.items || [], total: payload?.total ?? null, hasMore: payload?.has_more ?? false };
   } catch (error) {
     console.error('Error getting clients (paginated):', error);
-    return { items: [], total: 0 };
+    return { items: [], total: null, hasMore: false };
   }
 }
 
 export async function getClientById(id: number): Promise<Client | undefined> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(
+    () => controller.abort(),
+    CLIENT_REQUEST_TIMEOUT_MS,
+  );
   try {
-    const response = await apiClient.getClient(id);
+    const response = await apiClient.getClient(id, { signal: controller.signal });
     if (response.error) {
       console.error('Error getting client:', response.error);
       return undefined;
@@ -46,6 +53,8 @@ export async function getClientById(id: number): Promise<Client | undefined> {
   } catch (error) {
     console.error('Error getting client:', error);
     return undefined;
+  } finally {
+    window.clearTimeout(timeoutId);
   }
 }
 

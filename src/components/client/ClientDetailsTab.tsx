@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { getAllFamilies, getFamilyById, createFamily } from "@/lib/db/family-db"
+import { getPaginatedFamilies, getFamilyById, createFamily } from "@/lib/db/family-db"
 import { useUser } from "@/contexts/UserContext"
 import { SaveIcon, XIcon, ChevronDownIcon, CheckIcon, ChevronsUpDownIcon } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -83,18 +83,20 @@ export function ClientDetailsTab({
   }
 
   const [families, setFamilies] = React.useState<Family[]>([])
-  const [filteredFamilies, setFilteredFamilies] = React.useState<Family[]>([])
+  const [isFamiliesLoading, setIsFamiliesLoading] = React.useState(false)
   const [familySearchTerm, setFamilySearchTerm] = React.useState('')
   const [isFamilySelectOpen, setIsFamilySelectOpen] = React.useState(false)
   const [selectedFamily, setSelectedFamily] = React.useState<Family | null>(null)
-  const [familyMembersById, setFamilyMembersById] = React.useState<Record<number, FamilyMember[]>>({})
   const [openFamilyTooltipId, setOpenFamilyTooltipId] = React.useState<number | null>(null)
   const [isCreatingFamily, setIsCreatingFamily] = React.useState(false)
   const [newFamilyName, setNewFamilyName] = React.useState('')
   const [newFamilyRole, setNewFamilyRole] = React.useState('אחר')
+  const familyRequestId = React.useRef(0)
 
   React.useEffect(() => {
-    loadFamilies()
+    setFamilies([])
+    setFamilySearchTerm('')
+    setOpenFamilyTooltipId(null)
   }, [currentClinic?.id])
 
   React.useEffect(() => {
@@ -106,16 +108,32 @@ export function ClientDetailsTab({
   }, [formData.family_id])
 
   React.useEffect(() => {
-    if (familySearchTerm.trim() === '') {
-      setFilteredFamilies(families)
-    } else {
-      const filtered = families.filter(family =>
-        family.name.toLowerCase().includes(familySearchTerm.toLowerCase()) ||
-        getFamilyMemberNames(family).toLowerCase().includes(familySearchTerm.toLowerCase())
-      )
-      setFilteredFamilies(filtered)
+    if (!isFamilySelectOpen || !currentClinic?.id) {
+      return
     }
-  }, [families, familySearchTerm, familyMembersById])
+
+    const requestId = ++familyRequestId.current
+    setIsFamiliesLoading(true)
+    const timeoutId = window.setTimeout(() => {
+      void getPaginatedFamilies(currentClinic.id, {
+        limit: 25,
+        offset: 0,
+        order: 'name_asc',
+        search: familySearchTerm.trim() || undefined,
+        includeTotal: false,
+      }).then(({ items }) => {
+        if (requestId === familyRequestId.current) {
+          setFamilies(items)
+          setIsFamiliesLoading(false)
+        }
+      })
+    }, familySearchTerm ? 250 : 0)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+      familyRequestId.current += 1
+    }
+  }, [currentClinic?.id, familySearchTerm, isFamilySelectOpen])
 
   React.useEffect(() => {
     if (isNewMode && !formData.file_creation_date) {
@@ -123,28 +141,6 @@ export function ClientDetailsTab({
       handleSelectChange(today, 'file_creation_date')
     }
   }, [isNewMode, formData.file_creation_date])
-
-  const loadFamilies = async () => {
-    if (!currentClinic?.id) {
-      setFamilies([])
-      setFamilyMembersById({})
-      return
-    }
-
-    try {
-      const familiesData = await getAllFamilies(currentClinic.id)
-      setFamilies(familiesData)
-      setFamilyMembersById(
-        Object.fromEntries(
-          familiesData
-            .filter(family => family.id)
-            .map(family => [family.id!, family.clients || []])
-        )
-      )
-    } catch (error) {
-      console.error('Error loading families:', error)
-    }
-  }
 
   const loadSelectedFamily = async (familyId: number) => {
     try {
@@ -161,7 +157,6 @@ export function ClientDetailsTab({
     const optimisticFamily = { id: -Date.now(), name: newFamilyName.trim(), clinic_id: currentClinic?.id } as Family
     const prevFamilies = families
     setFamilies(prev => [...prev, optimisticFamily])
-    setFamilyMembersById(prev => ({ ...prev, [optimisticFamily.id as number]: [] }))
     setSelectedFamily(optimisticFamily)
     handleSelectChange(optimisticFamily.id as number, 'family_id')
     handleSelectChange(newFamilyRole, 'family_role')
@@ -175,11 +170,6 @@ export function ClientDetailsTab({
       })
       if (!created || !created.id) throw new Error('createFamily failed')
       setFamilies(curr => curr.map(f => (f.id === optimisticFamily.id ? created : f)))
-      setFamilyMembersById(prev => {
-        const next = { ...prev, [created.id!]: prev[optimisticFamily.id as number] || [] }
-        delete next[optimisticFamily.id as number]
-        return next
-      })
       setSelectedFamily(created)
       handleSelectChange(created.id, 'family_id')
     } catch (e) {
@@ -216,16 +206,11 @@ export function ClientDetailsTab({
   }
 
   const getFamilyMembersForDisplay = (family: Family) => {
-    if (!family.id) return family.clients || []
-    return familyMembersById[family.id] || family.clients || []
+    return family.clients || []
   }
 
   const getClientDisplayName = (client: FamilyMember) => {
     return [client.first_name, client.last_name].filter(Boolean).join(' ').trim() || 'ללא שם'
-  }
-
-  const getFamilyMemberNames = (family: Family) => {
-    return getFamilyMembersForDisplay(family).map(getClientDisplayName).join(', ')
   }
 
   const getFamilyMemberPreview = (family: Family) => {
@@ -816,7 +801,7 @@ export function ClientDetailsTab({
                             )}
                             ללא משפחה
                           </div>
-                          {filteredFamilies.map(family => (
+                          {families.map(family => (
                             <div
                               dir="rtl"
                               key={family.id}
@@ -872,9 +857,14 @@ export function ClientDetailsTab({
                               </div>
                             </div>
                           ))}
-                          {filteredFamilies.length === 0 && familySearchTerm && (
+                          {isFamiliesLoading && (
                             <div className="py-2 px-4 text-sm text-muted-foreground text-center">
-                              לא נמצאו משפחות
+                              טוען משפחות...
+                            </div>
+                          )}
+                          {!isFamiliesLoading && families.length === 0 && (
+                            <div className="py-2 px-4 text-sm text-muted-foreground text-center">
+                              {familySearchTerm ? 'לא נמצאו משפחות' : 'אין משפחות להצגה'}
                             </div>
                           )}
                         </div>

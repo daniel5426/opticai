@@ -26,6 +26,8 @@ def get_families_paginated(
     offset: int = Query(0, ge=0, description="Items to skip"),
     order: Optional[str] = Query("created_desc", description="Sort order: created_desc|created_asc|name_asc|name_desc|id_desc|id_asc"),
     search: Optional[str] = Query(None, description="Search by family name"),
+    include_total: bool = Query(True, description="Include the exact total count"),
+    count_only: bool = Query(False, description="Return only the exact total count"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -47,7 +49,9 @@ def get_families_paginated(
     if search_condition is not None:
         count_q = count_q.filter(search_condition)
 
-    total = count_q.scalar() or 0
+    total = (count_q.scalar() or 0) if include_total or count_only else None
+    if count_only:
+        return {"items": [], "total": total or 0, "has_more": False}
 
     base = db.query(
         Family.id,
@@ -84,8 +88,9 @@ def get_families_paginated(
     else:
         base = base.order_by(order_column.desc().nulls_last(), Family.id.desc())
 
-    rows = base.offset(offset).limit(limit).all()
-    family_ids = [r[0] for r in rows]
+    rows = base.offset(offset).limit(limit + 1).all()
+    page_rows = rows[:limit]
+    family_ids = [r[0] for r in page_rows]
 
     clients_by_family: dict[int, list] = {}
     if family_ids:
@@ -110,7 +115,7 @@ def get_families_paginated(
             })
 
     items = []
-    for r in rows:
+    for r in page_rows:
         fid = r[0]
         clients = clients_by_family.get(fid, [])
         items.append({
@@ -124,7 +129,7 @@ def get_families_paginated(
             "company_id": r[6],
         })
 
-    return {"items": items, "total": total}
+    return {"items": items, "total": total, "has_more": len(rows) > limit}
 
 @router.post("/", response_model=FamilySchema)
 def create_family(

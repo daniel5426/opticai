@@ -25,6 +25,7 @@ export function useClientDetailsEditor(clientId: number) {
       return normalizeClientForDraft(client)
     },
     enabled: Number.isFinite(clientId) && clientId > 0,
+    retry: false,
   })
 
   const serverClient = clientQuery.data || null

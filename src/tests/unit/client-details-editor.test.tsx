@@ -11,12 +11,20 @@ import {
   shouldClearStatusForHealthFund,
 } from "@/lib/client-details-editor"
 
+const { getPaginatedFamiliesMock } = vi.hoisted(() => ({
+  getPaginatedFamiliesMock: vi.fn(() => Promise.resolve({
+    items: [{
+      id: 42,
+      name: "כהן",
+      clients: [{ id: 7, first_name: "דנה", last_name: "כהן" }],
+    }],
+    total: null,
+    hasMore: false,
+  })),
+}))
+
 vi.mock("@/lib/db/family-db", () => ({
-  getAllFamilies: vi.fn(() => Promise.resolve([{
-    id: 42,
-    name: "כהן",
-    clients: [{ id: 7, first_name: "דנה", last_name: "כהן" }],
-  }])),
+  getPaginatedFamilies: getPaginatedFamiliesMock,
   getFamilyById: vi.fn(() => Promise.resolve(null)),
   createFamily: vi.fn(),
   addClientToFamily: vi.fn(),
@@ -94,6 +102,19 @@ describe("client details editor helpers", () => {
 })
 
 describe("ClientDetailsTab select display", () => {
+  test("does not load family records until the picker is opened", () => {
+    render(
+      <ClientDetailsTab
+        draft={{ id: 1 } as Client}
+        isEditing={false}
+        formRef={{ current: null }}
+        onFieldChange={vi.fn()}
+      />
+    )
+
+    expect(getPaginatedFamiliesMock).not.toHaveBeenCalled()
+  })
+
   test("renders loaded gender, health fund, and status from the controlled draft", async () => {
     const draft = {
       id: 1,
@@ -152,6 +173,10 @@ describe("ClientDetailsTab select display", () => {
 
     await userEvent.click(screen.getByRole("combobox", { name: "משפחה" }))
     expect(await screen.findByText("דנה כהן")).toBeInTheDocument()
+    expect(getPaginatedFamiliesMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ limit: 25, includeTotal: false })
+    )
     await userEvent.click(await screen.findByText("כהן"))
 
     expect(onFieldChange).toHaveBeenCalledWith("family_id", 42)

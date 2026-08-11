@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react"
 import { useParams, useSearch } from "@tanstack/react-router"
 import { useQueryClient } from "@tanstack/react-query"
 import { SiteHeader } from "@/components/site-header"
+import { Button } from "@/components/ui/button"
 import { Client } from "@/lib/db/schema-interface"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { toast } from "sonner"
@@ -61,7 +62,8 @@ export default function ClientDetailPage() {
   const editor = useClientDetailsEditor(clientIdNum)
   const [activeTab, setActiveTab] = useState(initialTab)
   const formRef = useRef<HTMLFormElement>(null)
-  const isDetailsLoading = editor.isLoading || !editor.draftClient
+  const isDetailsLoading = editor.isLoading
+  const hasDetailsError = editor.isError || (!editor.isLoading && !editor.draftClient)
 
   const getSerializedState = useCallback(
     () => serializeClientDraftForUnsavedChanges(editor.draftClient),
@@ -167,9 +169,16 @@ export default function ClientDetailPage() {
             onValueChange={handleTabChange}
           >
             <TabsContent value="details" className="min-h-0 overflow-y-auto">
-              {editor.isError ? (
-                <div className="bg-card rounded-lg examcard p-6 text-right" dir="rtl">
-                  לא הצלחנו לטעון את פרטי הלקוח
+              {hasDetailsError ? (
+                <div className="bg-card examcard rounded-lg p-6 text-start" dir="rtl">
+                  <p>לא הצלחנו לטעון את פרטי הלקוח</p>
+                  <Button
+                    className="mt-4"
+                    variant="outline"
+                    onClick={() => void editor.refetchClient()}
+                  >
+                    נסה שוב
+                  </Button>
                 </div>
               ) : (
                 <ClientDetailsTab

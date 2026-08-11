@@ -18,20 +18,24 @@ export async function getAllFamilies(clinicId?: number): Promise<Family[]> {
 
 export async function getPaginatedFamilies(
   clinicId?: number,
-  options?: { limit?: number; offset?: number; order?: string; search?: string },
+  options?: { limit?: number; offset?: number; order?: string; search?: string; includeTotal?: boolean; countOnly?: boolean },
   companyId?: number
-): Promise<{ items: (Family & { clients?: Client[] })[]; total: number }> {
+): Promise<{ items: (Family & { clients?: Client[] })[]; total: number | null; hasMore: boolean }> {
   try {
     const effectiveOptions = options ?? { limit: 25, offset: 0, order: 'created_desc' as const };
     const response = await apiClient.getFamiliesPaginated(clinicId, effectiveOptions, companyId);
     if (response.error) {
       console.error('Error getting paginated families:', response.error);
-      return { items: [], total: 0 };
+      return { items: [], total: null, hasMore: false };
     }
-    return response.data || { items: [], total: 0 };
+    return {
+      items: response.data?.items || [],
+      total: response.data?.total ?? null,
+      hasMore: response.data?.has_more ?? false,
+    };
   } catch (error) {
     console.error('Error getting paginated families:', error);
-    return { items: [], total: 0 };
+    return { items: [], total: null, hasMore: false };
   }
 }
 
