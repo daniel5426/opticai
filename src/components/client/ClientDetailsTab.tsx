@@ -29,7 +29,7 @@ import { useAppLocale } from "@/localization/use-app-locale"
 // Custom label component
 function ModernLabel({ children }: { children: React.ReactNode }) {
   return (
-    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5 block">
+    <Label className="text-xs font-normal text-muted-foreground uppercase tracking-wide mb-1.5 block">
       {children}
     </Label>
   )
