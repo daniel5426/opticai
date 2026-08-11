@@ -9,8 +9,6 @@ import ControlCenterClinicsPage from "../pages/ControlCenterClinicsPage";
 import ControlCenterSettingsPage from "../pages/ControlCenterSettingsPage";
 import SecondPage from "@/pages/SecondPage";
 import ClientsPage from "@/pages/ClientsPage";
-import FamiliesPage from "@/pages/FamiliesPage";
-import ClientsMergePage from "@/pages/ClientsMergePage";
 import ClientDetailPage from "@/pages/ClientDetailPage";
 import NewClientPage from "@/pages/NewClientPage";
 import ExamDetailPage from "@/pages/ExamDetailPage";
@@ -146,29 +144,6 @@ export const ClientsRoute = createRoute({
     sort: getSearchString(search, "sort"),
   }),
   component: ClientsPage,
-});
-
-export const ClientFamiliesRoute = createRoute({
-  getParentRoute: () => RootRoute,
-  path: "/clients/families",
-  validateSearch: (search: Record<string, unknown>) => ({
-    q: getSearchString(search, "q"),
-    page: getPositiveSearchNumber(search, "page"),
-    sort: getSearchString(search, "sort"),
-  }),
-  component: FamiliesPage,
-});
-
-export const ClientsMergeRoute = createRoute({
-  getParentRoute: () => RootRoute,
-  path: "/clients/merge",
-  validateSearch: (search: Record<string, unknown>) => ({
-    q: getSearchString(search, "q"),
-    page: getPositiveSearchNumber(search, "page"),
-    gender: getOptionalFilter(search, "gender"),
-    sort: getSearchString(search, "sort"),
-  }),
-  component: ClientsMergePage,
 });
 
 export const NewClientRoute = createRoute({
@@ -392,8 +367,6 @@ export const rootTree = RootRoute.addChildren([
   UserSelectionRoute,
   SecondPageRoute,
   ClientsRoute,
-  ClientFamiliesRoute,
-  ClientsMergeRoute,
   NewClientRoute,
   ClientDetailRoute,
   ExamDetailRoute,

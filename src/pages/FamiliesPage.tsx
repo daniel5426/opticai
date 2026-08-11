@@ -8,7 +8,6 @@ import { Family } from "@/lib/db/schema-interface"
 import { Button } from "@/components/ui/button"
 import { ArrowRight, GitMerge, PlusIcon, Users } from "lucide-react"
 import { useUser } from "@/contexts/UserContext"
-import { TableFiltersBar } from "@/components/table-filters-bar"
 import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch, useLatestTableSearchRequest } from "@/lib/list-page-search"
 import { GuardedRouterLink } from "@/components/GuardedRouterLink"
 import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
@@ -114,34 +113,24 @@ export default function FamiliesPage() {
       <SiteHeader title="משפחות" />
       <div className="flex h-full min-h-0 flex-1 flex-col p-4 lg:p-6" dir="rtl" style={{ scrollbarWidth: "none" }}>
         <div className="flex min-h-0 flex-1 flex-col gap-2.5">
-          <TableFiltersBar
-            searchValue={searchInput}
-            onSearchChange={(value) => {
-              updateLatestSearch(value)
-              setSearchInput(value)
-            }}
-            searchPlaceholder="חיפוש משפחות…"
-            actions={
-              <>
-                <Button asChild variant="outline" className="flex items-center gap-2">
-                  <GuardedRouterLink to="/clients">
-                    <ArrowRight className="h-4 w-4" />
-                    לקוחות
-                  </GuardedRouterLink>
-                </Button>
-                <Button asChild variant="outline" className="flex items-center gap-2">
-                  <GuardedRouterLink to="/clients/merge">
-                    <GitMerge className="h-4 w-4" />
-                    מיזוג
-                  </GuardedRouterLink>
-                </Button>
-                <Button onClick={() => setIsFamilyModalOpen(true)} className="flex items-center gap-2">
-                  <PlusIcon className="h-4 w-4" />
-                  משפחה חדשה
-                </Button>
-              </>
-            }
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild variant="outline" className="flex items-center gap-2">
+              <GuardedRouterLink to="/clients">
+                <ArrowRight className="h-4 w-4" />
+                לקוחות
+              </GuardedRouterLink>
+            </Button>
+            <Button asChild variant="outline" className="flex items-center gap-2">
+              <GuardedRouterLink to="/clients/merge">
+                <GitMerge className="h-4 w-4" />
+                מיזוג
+              </GuardedRouterLink>
+            </Button>
+            <Button onClick={() => setIsFamilyModalOpen(true)} className="flex items-center gap-2">
+              <PlusIcon className="h-4 w-4" />
+              משפחה חדשה
+            </Button>
+          </div>
           <FamiliesTable
             data={families}
             onFamilyEdit={(family) => {
@@ -150,7 +139,12 @@ export default function FamiliesPage() {
             }}
             onFamilyDeleted={handleFamilyDeleted}
             onFamilyDeleteFailed={loadFamilies}
-            hideSearch
+            searchQuery={searchInput}
+            onSearchChange={(value) => {
+              updateLatestSearch(value)
+              setSearchInput(value)
+            }}
+            hideSearch={false}
             serverFiltered={true}
             loading={loading}
             fillHeight
