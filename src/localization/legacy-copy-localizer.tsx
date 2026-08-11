@@ -3,6 +3,7 @@ import { legacyStaticCopy } from "./legacy-static-copy";
 import { useAppLocale } from "./use-app-locale";
 
 const translatedAttributes = ["aria-label", "placeholder", "title", "alt"];
+const noLocalizeSelector = "[data-no-localize]";
 const sourceCopy = legacyStaticCopy as Record<
   string,
   { en: string; fr: string }
@@ -13,6 +14,15 @@ function translate(value: string, locale: "en" | "fr") {
   const trailing = value.match(/\s*$/)?.[0] ?? "";
   const translated = sourceCopy[value.trim()]?.[locale];
   return translated ? `${leading}${translated}${trailing}` : value;
+}
+
+function isLocalizationDisabled(node: Node) {
+  const element =
+    node.nodeType === Node.ELEMENT_NODE
+      ? (node as Element)
+      : node.parentElement;
+
+  return Boolean(element?.closest(noLocalizeSelector));
 }
 
 /**
@@ -32,6 +42,7 @@ export function LegacyCopyLocalizer() {
     const targetLocale = locale === "he" ? null : locale;
 
     const localizeText = (node: Text) => {
+      if (isLocalizationDisabled(node)) return;
       const current = node.nodeValue ?? "";
       if (!current.trim()) return;
       if (targetLocale && sourceCopy[current.trim()]) {
@@ -41,6 +52,7 @@ export function LegacyCopyLocalizer() {
     };
 
     const localizeElement = (element: Element) => {
+      if (isLocalizationDisabled(element)) return;
       for (const attribute of translatedAttributes) {
         const current = element.getAttribute(attribute);
         if (!current || !sourceCopy[current.trim()] || !targetLocale) continue;
@@ -72,6 +84,7 @@ export function LegacyCopyLocalizer() {
     if (!targetLocale) return;
 
     const localizeTree = (root: Node) => {
+      if (isLocalizationDisabled(root)) return;
       if (root.nodeType === Node.TEXT_NODE) localizeText(root as Text);
       if (root.nodeType === Node.ELEMENT_NODE) localizeElement(root as Element);
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);

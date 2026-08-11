@@ -87,4 +87,36 @@ describe("Electron locales", () => {
     });
     unmount();
   });
+
+  it("leaves marked database content untouched", async () => {
+    const { getByTestId, unmount } = render(
+      createElement(
+        Fragment,
+        null,
+        createElement(LegacyCopyLocalizer),
+        createElement("span", { "data-testid": "static-copy" }, "אובייקטיבי"),
+        createElement(
+          "span",
+          {
+            "data-testid": "database-copy",
+            "data-no-localize": true,
+            "aria-label": "אובייקטיבי",
+          },
+          "אובייקטיבי",
+        ),
+      ),
+    );
+
+    await act(async () => {
+      await i18n.changeLanguage("en");
+    });
+    await waitFor(() => {
+      expect(getByTestId("static-copy").textContent).toBe("objective");
+    });
+
+    const databaseCopy = getByTestId("database-copy");
+    expect(databaseCopy.textContent).toBe("אובייקטיבי");
+    expect(databaseCopy.getAttribute("aria-label")).toBe("אובייקטיבי");
+    unmount();
+  });
 });

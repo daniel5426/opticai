@@ -344,7 +344,7 @@ export function ClientsTable({
                         onClick={() => onToggleMergeClient?.(client)}
                       >
                         <Checkbox checked={true} className="pointer-events-none h-3.5 w-3.5" />
-                        <span className="truncate">
+                        <span className="truncate" data-no-localize>
                           {client.id} · {[client.first_name, client.last_name].filter(Boolean).join(" ") || "ללא שם"}
                         </span>
                       </button>
@@ -414,22 +414,22 @@ export function ClientsTable({
                       </div>
                     </TableCell>
                   )}
-                  <TableCell className="font-medium">{client.id}</TableCell>
-                  <TableCell className="max-w-[12rem] overflow-hidden">
+                  <TableCell className="font-medium" data-no-localize>{client.id}</TableCell>
+                  <TableCell className="max-w-[12rem] overflow-hidden" data-no-localize>
                     <bdi className="block truncate" dir="auto">
                       {getListCellText(client.first_name)}
                     </bdi>
                   </TableCell>
-                  <TableCell className="max-w-[12rem] overflow-hidden">
+                  <TableCell className="max-w-[12rem] overflow-hidden" data-no-localize>
                     <bdi className="block truncate" dir="auto">
                       {getListCellText(client.last_name)}
                     </bdi>
                   </TableCell>
-                  {!compactMode && <TableCell>{client.gender || ""}</TableCell>}
-                  <TableCell>{client.national_id || ""}</TableCell>
-                  {!compactMode && <TableCell>{client.phone_mobile || ""}</TableCell>}
-                  {!compactMode && <TableCell>{client.email || ""}</TableCell>}
-                  {showFamilyColumn && <TableCell>{client.family_role || ""}</TableCell>}
+                  {!compactMode && <TableCell data-no-localize>{client.gender || ""}</TableCell>}
+                  <TableCell data-no-localize>{client.national_id || ""}</TableCell>
+                  {!compactMode && <TableCell data-no-localize>{client.phone_mobile || ""}</TableCell>}
+                  {!compactMode && <TableCell data-no-localize>{client.email || ""}</TableCell>}
+                  {showFamilyColumn && <TableCell data-no-localize>{client.family_role || ""}</TableCell>}
                   <TableCell>
                     <Button
                       variant="ghost"
