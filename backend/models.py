@@ -1227,6 +1227,7 @@ Index('ix_exam_layout_instances_exam_id', ExamLayoutInstance.exam_id)
 Index('ix_exam_layout_instances_exam_id_is_active', ExamLayoutInstance.exam_id, ExamLayoutInstance.is_active)
 Index('ix_exam_layout_instances_exam_id_order', ExamLayoutInstance.exam_id, ExamLayoutInstance.order)
 Index('ix_exam_layouts_clinic_seed_key', ExamLayout.clinic_id, ExamLayout.seed_key, unique=True)
+Index('ix_prescription_search_clinic_id', PrescriptionSearchIndex.clinic_id, PrescriptionSearchIndex.id)
 
 # Indexes to speed up common filters and sorting on exams list
 Index('ix_optical_exams_clinic_id', OpticalExam.clinic_id)
