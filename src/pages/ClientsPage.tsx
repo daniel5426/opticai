@@ -12,11 +12,13 @@ import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch, useLatestTableSearchRequest
 import { GuardedRouterLink } from "@/components/GuardedRouterLink"
 import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
 import { deferPaginationTotal } from "@/lib/deferred-pagination"
+import { useAppLocale } from "@/localization/use-app-locale"
 
 export default function ClientsPage() {
   const search = useSearch({ from: "/clients" })
   const navigate = useNavigate()
   const { currentClinic } = useUser()
+  const { direction } = useAppLocale()
   const clinicId = currentClinic?.id
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
@@ -134,7 +136,7 @@ export default function ClientsPage() {
   return (
     <>
       <SiteHeader title="לקוחות" />
-      <div className="flex h-full min-h-0 flex-1 flex-col p-4 lg:p-6" dir="rtl" style={{ scrollbarWidth: "none" }}>
+      <div className="flex h-full min-h-0 flex-1 flex-col p-4 lg:p-6" dir={direction} style={{ scrollbarWidth: "none" }}>
         <ClientsTable
           data={clients}
           onClientDeleted={handleClientDeleted}

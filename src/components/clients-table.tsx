@@ -15,6 +15,13 @@ import { GENDER_FILTER_OPTIONS } from "@/lib/table-filters"
 import { SortableTableHead } from "@/components/sortable-table-head"
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
 import { DateSearchHelper } from "@/lib/date-search-helper"
+import { useAppLocale } from "@/localization/use-app-locale"
+
+const LIST_CELL_TEXT_LIMIT = 160
+
+function getListCellText(value: string | undefined) {
+  return typeof value === "string" ? value.slice(0, LIST_CELL_TEXT_LIMIT) : ""
+}
 
 interface ClientsTableProps {
   data: Client[]
@@ -73,6 +80,7 @@ export function ClientsTable({
   onToggleMergeClient,
   fillHeight = false
 }: ClientsTableProps) {
+  const { direction } = useAppLocale()
   const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
   const [selectedGender, setSelectedGender] = React.useState<string>("all")
   const [localSort, setLocalSort] = React.useState<SortState | undefined>()
@@ -201,7 +209,7 @@ export function ClientsTable({
       : "לא נמצאו לקוחות לתצוגה"
 
   return (
-    <div className={fillHeight ? "flex min-h-0 flex-1 flex-col gap-2.5" : "space-y-2.5"} dir="rtl" style={{ scrollbarWidth: "none" }}>
+    <div className={fillHeight ? "flex min-h-0 flex-1 flex-col gap-2.5" : "space-y-2.5"} dir={direction} style={{ scrollbarWidth: "none" }}>
       {!hideSearch && (
         <TableFiltersBar
           searchValue={searchQuery}
@@ -226,7 +234,7 @@ export function ClientsTable({
             <>
               {toolbarActions}
               {!hideNewButton ? (
-                <Button onClick={() => navigate({ to: "/clients/new" })} dir="rtl">
+                <Button onClick={() => navigate({ to: "/clients/new" })} dir={direction}>
                   לקוח חדש
                   <PlusIcon className="mr-2 h-4 w-4" />
                 </Button>
@@ -238,7 +246,7 @@ export function ClientsTable({
 
       <div className={fillHeight ? "bg-card min-h-0 flex-1 rounded-md" : "bg-card rounded-md"}>
         <Table
-          dir="rtl"
+          dir={direction}
           containerClassName={fillHeight ? "h-full min-h-0 overflow-y-auto overscroll-contain" : "max-h-[70vh] overflow-y-auto overscroll-contain"}
           containerStyle={{ scrollbarWidth: "none" }}
           emptyState={!loading && displayData.length === 0 ? emptyMessage : undefined}
@@ -407,8 +415,16 @@ export function ClientsTable({
                     </TableCell>
                   )}
                   <TableCell className="font-medium">{client.id}</TableCell>
-                  <TableCell>{client.first_name || ""}</TableCell>
-                  <TableCell>{client.last_name || ""}</TableCell>
+                  <TableCell className="max-w-[12rem] overflow-hidden">
+                    <bdi className="block truncate" dir="auto">
+                      {getListCellText(client.first_name)}
+                    </bdi>
+                  </TableCell>
+                  <TableCell className="max-w-[12rem] overflow-hidden">
+                    <bdi className="block truncate" dir="auto">
+                      {getListCellText(client.last_name)}
+                    </bdi>
+                  </TableCell>
                   {!compactMode && <TableCell>{client.gender || ""}</TableCell>}
                   <TableCell>{client.national_id || ""}</TableCell>
                   {!compactMode && <TableCell>{client.phone_mobile || ""}</TableCell>}

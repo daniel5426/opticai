@@ -15,11 +15,13 @@ import { CustomModal } from "@/components/ui/custom-modal"
 import { apiClient } from "@/lib/api-client"
 import { toast } from "sonner"
 import { deferPaginationTotal } from "@/lib/deferred-pagination"
+import { useAppLocale } from "@/localization/use-app-locale"
 
 export default function ClientsMergePage() {
   const search = useSearch({ from: "/clients/merge" })
   const navigate = useNavigate()
   const { currentClinic } = useUser()
+  const { direction } = useAppLocale()
   const clinicId = currentClinic?.id
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
@@ -155,7 +157,7 @@ export default function ClientsMergePage() {
   return (
     <>
       <SiteHeader title="מיזוג לקוחות" />
-      <div className="flex h-full min-h-0 flex-1 flex-col p-4 lg:p-6" dir="rtl" style={{ scrollbarWidth: "none" }}>
+      <div className="flex h-full min-h-0 flex-1 flex-col p-4 lg:p-6" dir={direction} style={{ scrollbarWidth: "none" }}>
         <ClientsTable
           data={clients}
           onClientDeleted={handleClientDeleted}
