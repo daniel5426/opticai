@@ -4433,8 +4433,8 @@ export const legacyStaticCopy = {
     "fr": "filtres"
   },
   "מספר בית/דירה": {
-    "en": "House/apartment number",
-    "fr": "Numéro de maison/appartement"
+    "en": "Address no.",
+    "fr": "N° d’adresse"
   },
   "מספר חברים": {
     "en": "number of members",
