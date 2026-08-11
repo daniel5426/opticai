@@ -2188,7 +2188,7 @@ export default function OrderDetailPage({
       />
       <ClientSpaceLayout>
         <div
-          className="no-scrollbar mb-10 flex flex-1 flex-col p-4 lg:p-6"
+          className="no-scrollbar flex h-full min-h-0 flex-1 flex-col overflow-hidden p-4 lg:p-6"
           dir="rtl"
           style={{
             scrollbarWidth: "none",
@@ -2199,10 +2199,10 @@ export default function OrderDetailPage({
         >
           <Tabs
             defaultValue={isContactMode ? "contact" : "order"}
-            className="w-full"
+            className="h-full min-h-0 w-full flex-1"
             dir="rtl"
           >
-            <div className="flex items-center justify-between">
+            <div className="flex shrink-0 items-center justify-between">
               <TabsList className="grid w-auto grid-cols-2">
                 {!isContactMode ? (
                   <TabsTrigger value="order">הזמנה</TabsTrigger>
@@ -2296,7 +2296,10 @@ export default function OrderDetailPage({
             </div>
 
             {!isContactMode && (
-              <TabsContent value="order" className="space-y-4">
+              <TabsContent
+                value="order"
+                className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pb-14"
+              >
                 <RegularOrderTab
                   formRef={formRef}
                   isEditing={isEditing}
@@ -2326,7 +2329,10 @@ export default function OrderDetailPage({
             )}
 
             {isContactMode && (
-              <TabsContent value="contact" className="space-y-4">
+              <TabsContent
+                value="contact"
+                className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pb-14"
+              >
                 <ContactOrderTab
                   formRef={formRef}
                   isEditing={isEditing}
@@ -2356,7 +2362,10 @@ export default function OrderDetailPage({
               </TabsContent>
             )}
 
-            <TabsContent value="billing" className="space-y-4">
+            <TabsContent
+              value="billing"
+              className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pb-14"
+            >
               <BillingTab
                 billingFormData={billingFormData}
                 setBillingFormData={setBillingFormData}

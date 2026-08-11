@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
-import { ListPageHeader } from "@/components/list-page-header"
 import { ClientsTable } from "@/components/clients-table"
 import { FamiliesTable } from "@/components/families-table"
 import { FamilyManagementModal } from "@/components/FamilyManagementModal"
@@ -329,16 +328,11 @@ export default function ClientsPage() {
   return (
     <>
       <SiteHeader title="לקוחות" />
-      <div className="flex flex-1 flex-col p-4 lg:p-6" dir="rtl" style={{ scrollbarWidth: "none" }}>
-        <div className="@container/main flex flex-col gap-2">
-          <div className="flex flex-col gap-2 md:gap-0">
-            <ListPageHeader
-              title={isFamilyMode ? "כל המשפחות" : "כל הלקוחות"}
-              description={isFamilyMode ? "ניהול משפחות ושיוך לקוחות" : "ניהול לקוחות ופרטי קשר"}
-            />
-
+      <div className="flex h-full min-h-0 flex-1 flex-col p-4 lg:p-6" dir="rtl" style={{ scrollbarWidth: "none" }}>
+        <div className="@container/main flex min-h-0 flex-1 flex-col">
+          <div className="flex min-h-0 flex-1 flex-col">
             {isFamilyMode ? (
-              <div className="space-y-2.5">
+              <div className="flex min-h-0 flex-1 flex-col gap-2.5">
                 <TableFiltersBar
                   searchValue={searchInput}
                   onSearchChange={handleSearchInputChange}
@@ -360,8 +354,8 @@ export default function ClientsPage() {
                     </>
                   }
                 />
-                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                  <div className="space-y-4">
+                <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 lg:grid-cols-2">
+                  <div className="flex min-h-0 flex-col">
                     <FamiliesTable
                       data={families}
                       onFamilySelected={handleFamilySelected}
@@ -374,6 +368,7 @@ export default function ClientsPage() {
                       hideSearch={true}
                       serverFiltered={true}
                       loading={familiesLoading}
+                      fillHeight
                       sort={activeSort}
                       onSortChange={(sort) =>
                         navigate({
@@ -396,7 +391,7 @@ export default function ClientsPage() {
                       }}
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div className="flex min-h-0 flex-col">
                     <ClientsTable
                       data={clients}
                       onClientDeleted={handleClientDeleted}
@@ -406,6 +401,7 @@ export default function ClientsPage() {
                       hideSearch={true}
                       hideNewButton={true}
                       compactMode={true}
+                      fillHeight
                     />
                   </div>
                 </div>
@@ -427,6 +423,7 @@ export default function ClientsPage() {
                 }
                 hideNewButton={true}
                 loading={clientsLoading}
+                fillHeight
                 sort={activeSort}
                 onSortChange={(sort) =>
                   navigate({
@@ -491,8 +488,6 @@ export default function ClientsPage() {
                 onToggleMergeClient={toggleMergeClient}
               />
             )}
-
-            <div className="h-12"></div>
           </div>
         </div>
       </div>

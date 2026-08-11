@@ -52,6 +52,8 @@ import {
   previewColorTheme,
   setColorTheme,
 } from "@/helpers/theme_helpers"
+import { useTranslation } from "react-i18next"
+import { getActiveLocale, getDirection, normalizeLocale } from "@/localization/locale"
 
 const colorThemes: Array<{
   value: ColorTheme
@@ -73,6 +75,9 @@ export function NavUser({
   currentUser?: User
   showShiftControls?: boolean
 }) {
+  const { i18n } = useTranslation()
+  const locale = normalizeLocale(i18n.resolvedLanguage ?? i18n.language) ?? getActiveLocale()
+  const direction = getDirection(locale)
   const { isMobile } = useSidebar()
   const { currentClinic, logoutUser, logoutClinic } = useUser()
   const location = useLocation()
@@ -229,9 +234,9 @@ export function NavUser({
 
   return (
     <>
-      <SidebarMenu dir="rtl">
-        <SidebarMenuItem dir="rtl">
-          <DropdownMenu dir="rtl">
+      <SidebarMenu dir={direction}>
+        <SidebarMenuItem dir={direction}>
+          <DropdownMenu dir={direction}>
             <DropdownMenuTrigger asChild>
               <SidebarMenuButton
                 size="lg"
@@ -245,7 +250,7 @@ export function NavUser({
                     {userInitials}
                   </AvatarFallback>
                 </Avatar>
-                <div className="grid flex-1 text-right text-sm leading-tight" dir="rtl">
+                <div className="grid flex-1 text-start text-sm leading-tight" dir={direction}>
                   <span className="truncate font-medium">{displayName}</span>
                 </div>
                 <IconDotsVertical className="ml-auto size-4" />
@@ -253,7 +258,7 @@ export function NavUser({
             </DropdownMenuTrigger>
             <DropdownMenuContent
               className="w-(--radix-dropdown-menu-trigger-width) pb-2 min-w-56 rounded-lg mb-4"
-              side={isMobile ? "bottom" : "left"}
+              side={isMobile ? "bottom" : direction === "rtl" ? "left" : "right"}
               align="start"
               sideOffset={4}
             >
@@ -281,6 +286,7 @@ export function NavUser({
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+
               
               {/* Current Time and Shift Controls */}
               {showShiftControls && (
@@ -351,7 +357,7 @@ export function NavUser({
                 <DropdownMenuSubTrigger>מראה צבע</DropdownMenuSubTrigger>
                 <DropdownMenuSubContent
                   className="w-40"
-                  onPointerLeave={() => previewColorTheme(colorTheme)}
+                  onPointerLeave={() => previewColorTheme(getColorTheme(currentUser?.id))}
                 >
                   {colorThemes.map(({ value, label }) => (
                     <DropdownMenuItem

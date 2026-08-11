@@ -1,20 +1,41 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
-import { SiteHeader } from "@/components/site-header"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { DateInput } from "@/components/ui/date"
-import { TimeInput } from "@/components/ui/time"
-import { CustomModal } from "@/components/ui/custom-modal"
-import { Loader2, Clipboard, Copy, Move, Play, Trash2, UserPlus, Users } from "lucide-react"
-import { createAppointment, updateAppointment, deleteAppointment } from "@/lib/db/appointments-db"
-import { createClient, getClientById } from "@/lib/db/clients-db"
-import { getAllExamLayouts } from "@/lib/db/exam-layouts-db"
-import { getDashboardHome } from "@/lib/db/dashboard-db"
-import { Appointment, Client, ExamLayout, Settings, User } from "@/lib/db/schema-interface"
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
+import { SiteHeader } from "@/components/site-header";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { NewClientAppointmentModal } from "@/components/appointments/new-client-appointment-modal";
+import { flattenActiveExamLayouts } from "@/components/appointments/exam-layouts";
+import {
+  Loader2,
+  Clipboard,
+  Copy,
+  Move,
+  Play,
+  Trash2,
+  UserPlus,
+  Users,
+} from "lucide-react";
+import {
+  createAppointment,
+  updateAppointment,
+  deleteAppointment,
+} from "@/lib/db/appointments-db";
+import { createClient, getClientById } from "@/lib/db/clients-db";
+import { getAllExamLayouts } from "@/lib/db/exam-layouts-db";
+import { getDashboardHome } from "@/lib/db/dashboard-db";
+import {
+  Appointment,
+  Client,
+  ExamLayout,
+  Settings,
+  User,
+} from "@/lib/db/schema-interface";
 import {
   format,
   startOfMonth,
@@ -27,59 +48,61 @@ import {
   addMonths,
   subMonths,
   isSameDay,
-  subDays
-} from "date-fns"
-import { ClientSelectModal } from "@/components/ClientSelectModal"
-import { toast } from "sonner"
-import { useUser } from "@/contexts/UserContext"
-import { useNavigate } from "@tanstack/react-router"
-import { CalendarView, AppointmentBlock, DragData, DragPosition, ResizeData } from "./HomePage/types"
+  subDays,
+} from "date-fns";
+import { ClientSelectModal } from "@/components/ClientSelectModal";
+import { toast } from "sonner";
+import { useUser } from "@/contexts/UserContext";
+import { useNavigate } from "@tanstack/react-router";
+import {
+  CalendarView,
+  AppointmentBlock,
+  DragData,
+  DragPosition,
+  ResizeData,
+} from "./HomePage/types";
 import {
   timeToMinutes,
   minutesToTime,
   getAppointmentEndTime,
   getAppointmentTimeRange,
   createUserColorMap,
-  isUserOnVacation as isUserOnVacationUtil
-} from "./HomePage/utils"
-import { CalendarHeader } from "./HomePage/CalendarHeader"
-import { StatisticsSidebar } from "./HomePage/StatisticsSidebar"
-import { MonthView } from "./HomePage/MonthView"
-import { WeekDayView } from "./HomePage/WeekDayView"
-import { AppointmentModal } from "./HomePage/AppointmentModal"
-import { useAppointmentBlocks } from "./HomePage/useAppointmentBlocks"
-import { useDragAndResize } from "./HomePage/useDragAndResize"
-import { useSettings } from "@/hooks/useSettings"
-import { apiClient } from "@/lib/api-client"
-import { CalendarHoliday, holidaysByDate } from "@/lib/clinic-holidays"
-
-function flattenActiveExamLayouts(layouts: ExamLayout[]): ExamLayout[] {
-  return layouts.flatMap((layout) => {
-    const children = layout.children ? flattenActiveExamLayouts(layout.children) : []
-    if (layout.is_group) return layout.is_active !== false ? children : []
-    return layout.is_active === false || !layout.id ? [] : [{ ...layout, children: undefined }]
-  })
-}
+  isUserOnVacation as isUserOnVacationUtil,
+} from "./HomePage/utils";
+import { CalendarHeader } from "./HomePage/CalendarHeader";
+import { StatisticsSidebar } from "./HomePage/StatisticsSidebar";
+import { MonthView } from "./HomePage/MonthView";
+import { WeekDayView } from "./HomePage/WeekDayView";
+import { AppointmentModal } from "./HomePage/AppointmentModal";
+import { useAppointmentBlocks } from "./HomePage/useAppointmentBlocks";
+import { useDragAndResize } from "./HomePage/useDragAndResize";
+import { useSettings } from "@/hooks/useSettings";
+import { apiClient } from "@/lib/api-client";
+import { CalendarHoliday, holidaysByDate } from "@/lib/clinic-holidays";
 
 export default function HomePage() {
-  const [currentDate, setCurrentDate] = useState<Date>(new Date())
-  const [view, setView] = useState<CalendarView>("week")
-  const [appointments, setAppointments] = useState<Appointment[]>([])
-  const [clients, setClients] = useState<Client[]>([])
-  const [dashboardSettings, setDashboardSettings] = useState<Settings | null>(null)
-  const [activeExamLayouts, setActiveExamLayouts] = useState<ExamLayout[]>([])
-  const [calendarHolidays, setCalendarHolidays] = useState<CalendarHoliday[]>([])
-  const [loading, setLoading] = useState(true)
-  const { currentUser, currentClinic } = useUser()
-  const { settings } = useSettings()
-  const navigate = useNavigate()
+  const [currentDate, setCurrentDate] = useState<Date>(new Date());
+  const [view, setView] = useState<CalendarView>("week");
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [dashboardSettings, setDashboardSettings] = useState<Settings | null>(
+    null,
+  );
+  const [activeExamLayouts, setActiveExamLayouts] = useState<ExamLayout[]>([]);
+  const [calendarHolidays, setCalendarHolidays] = useState<CalendarHoliday[]>(
+    [],
+  );
+  const [loading, setLoading] = useState(true);
+  const { currentUser, currentClinic } = useUser();
+  const { settings } = useSettings();
+  const navigate = useNavigate();
 
-  const [users, setUsers] = useState<User[]>([])
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [users, setUsers] = useState<User[]>([]);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<{
-    date: Date
-    time: string
-  }>({ date: new Date(), time: "" })
+    date: Date;
+    time: string;
+  }>({ date: new Date(), time: "" });
   const [formData, setFormData] = useState<Omit<Appointment, "id">>({
     client_id: 0,
     user_id: currentUser?.id,
@@ -88,53 +111,59 @@ export default function HomePage() {
     duration: 30,
     exam_name: undefined,
     exam_layout_id: null,
-    note: undefined
-  })
+    note: undefined,
+  });
 
   useEffect(() => {
     if (currentUser?.id) {
-      setFormData((prev) => ({ ...prev, user_id: currentUser.id }))
-      setNewClientFormData((prev) => ({ ...prev, user_id: currentUser.id }))
+      setFormData((prev) => ({ ...prev, user_id: currentUser.id }));
+      setNewClientFormData((prev) => ({ ...prev, user_id: currentUser.id }));
     }
-  }, [currentUser?.id])
+  }, [currentUser?.id]);
 
   useEffect(() => {
     const loadExamLayouts = async () => {
       if (!currentClinic?.id) {
-        setActiveExamLayouts([])
-        return
+        setActiveExamLayouts([]);
+        return;
       }
       try {
-        const layouts = await getAllExamLayouts(currentClinic.id)
-        setActiveExamLayouts(flattenActiveExamLayouts(layouts))
+        const layouts = await getAllExamLayouts(currentClinic.id);
+        setActiveExamLayouts(flattenActiveExamLayouts(layouts));
       } catch (error) {
-        console.error("Error loading exam layouts:", error)
-        setActiveExamLayouts([])
+        console.error("Error loading exam layouts:", error);
+        setActiveExamLayouts([]);
       }
-    }
-    loadExamLayouts()
-  }, [currentClinic?.id])
+    };
+    loadExamLayouts();
+  }, [currentClinic?.id]);
 
-  const [isClientSelectOpen, setIsClientSelectOpen] = useState(false)
-  const [isNewClientAppointmentOpen, setIsNewClientAppointmentOpen] = useState(false)
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null)
-  const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null)
-  const [copiedAppointment, setCopiedAppointment] = useState<Appointment | null>(null)
-  const [movingAppointment, setMovingAppointment] = useState<Appointment | null>(null)
-  const [selectedAppointmentForCopy, setSelectedAppointmentForCopy] = useState<Appointment | null>(null)
+  const [isClientSelectOpen, setIsClientSelectOpen] = useState(false);
+  const [isNewClientAppointmentOpen, setIsNewClientAppointmentOpen] =
+    useState(false);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [editingAppointment, setEditingAppointment] =
+    useState<Appointment | null>(null);
+  const [copiedAppointment, setCopiedAppointment] =
+    useState<Appointment | null>(null);
+  const [movingAppointment, setMovingAppointment] =
+    useState<Appointment | null>(null);
+  const [selectedAppointmentForCopy, setSelectedAppointmentForCopy] =
+    useState<Appointment | null>(null);
   const [slotMenu, setSlotMenu] = useState<{
-    x: number
-    y: number
-    date: Date
-    time: string
-  } | null>(null)
+    x: number;
+    y: number;
+    date: Date;
+    time: string;
+  } | null>(null);
   const [appointmentMenu, setAppointmentMenu] = useState<{
-    x: number
-    y: number
-    appointment: Appointment
-  } | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [isSavingNewClientAppointment, setIsSavingNewClientAppointment] = useState(false)
+    x: number;
+    y: number;
+    appointment: Appointment;
+  } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [isSavingNewClientAppointment, setIsSavingNewClientAppointment] =
+    useState(false);
   const [newClientFormData, setNewClientFormData] = useState({
     first_name: "",
     last_name: "",
@@ -146,253 +175,290 @@ export default function HomePage() {
     duration: 30,
     exam_name: "",
     exam_layout_id: null as number | null,
-    note: ""
-  })
+    note: "",
+  });
 
-  const calendarRef = useRef<HTMLDivElement | null>(null)
-  const calendarMoveScopeRef = useRef<HTMLDivElement | null>(null)
-  const loadedStartRef = useRef<Date | null>(null)
-  const loadedEndRef = useRef<Date | null>(null)
-  const loadedClinicIdRef = useRef<number | null>(null)
+  const calendarRef = useRef<HTMLDivElement | null>(null);
+  const calendarMoveScopeRef = useRef<HTMLDivElement | null>(null);
+  const loadedStartRef = useRef<Date | null>(null);
+  const loadedEndRef = useRef<Date | null>(null);
+  const loadedClinicIdRef = useRef<number | null>(null);
 
-  const calendarHolidayMap = useMemo(() => holidaysByDate(calendarHolidays), [calendarHolidays])
+  const calendarHolidayMap = useMemo(
+    () => holidaysByDate(calendarHolidays),
+    [calendarHolidays],
+  );
 
   useEffect(() => {
     if (!currentClinic?.id) {
-      setCalendarHolidays([])
-      return
+      setCalendarHolidays([]);
+      return;
     }
-    let cancelled = false
-    const year = currentDate.getFullYear()
-    const years = [year - 1, year, year + 1]
+    let cancelled = false;
+    const year = currentDate.getFullYear();
+    const years = [year - 1, year, year + 1];
     void Promise.all(
       years.map(async (targetYear) => {
-        const response = await apiClient.getClinicHolidays(currentClinic.id, targetYear)
-        if (response.error) throw new Error(response.error)
-        return response.data || []
-      })
+        const response = await apiClient.getClinicHolidays(
+          currentClinic.id,
+          targetYear,
+        );
+        if (response.error) throw new Error(response.error);
+        return response.data || [];
+      }),
     )
       .then((results) => {
-        if (cancelled) return
-        setCalendarHolidays(results.flat())
+        if (cancelled) return;
+        setCalendarHolidays(results.flat());
       })
       .catch((error) => {
-        if (!cancelled) console.error("Error loading clinic holidays:", error)
-      })
+        if (!cancelled) console.error("Error loading clinic holidays:", error);
+      });
     return () => {
-      cancelled = true
-    }
-  }, [currentClinic?.id, currentDate.getFullYear()])
+      cancelled = true;
+    };
+  }, [currentClinic?.id, currentDate.getFullYear()]);
 
   const loadData = useCallback(
     async (startDate: Date, endDate: Date) => {
       try {
-        setLoading(true)
+        setLoading(true);
 
         if (currentClinic?.id) {
-          const s = format(startDate, "yyyy-MM-dd")
-          const e = format(endDate, "yyyy-MM-dd")
+          const s = format(startDate, "yyyy-MM-dd");
+          const e = format(endDate, "yyyy-MM-dd");
 
-          const data = await getDashboardHome(currentClinic.id, s, e)
-          setAppointments(data.appointments)
-          setClients(data.clients)
-          setDashboardSettings(data.settings)
+          const data = await getDashboardHome(currentClinic.id, s, e);
+          setAppointments(data.appointments);
+          setClients(data.clients);
+          setDashboardSettings(data.settings);
           const mergedUsers = (() => {
-            const list = data.users || []
+            const list = data.users || [];
             if (currentUser?.id && !list.some((u) => u.id === currentUser.id)) {
-              return [...list, currentUser as User]
+              return [...list, currentUser as User];
             }
-            return list
-          })()
-          setUsers(mergedUsers)
-          loadedStartRef.current = startDate
-          loadedEndRef.current = endDate
-          loadedClinicIdRef.current = currentClinic.id
+            return list;
+          })();
+          setUsers(mergedUsers);
+          loadedStartRef.current = startDate;
+          loadedEndRef.current = endDate;
+          loadedClinicIdRef.current = currentClinic.id;
         }
       } catch (error) {
-        console.error("Error loading dashboard data:", error)
+        console.error("Error loading dashboard data:", error);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
     },
-    [currentClinic?.id, currentUser]
-  )
+    [currentClinic?.id, currentUser],
+  );
 
   useEffect(() => {
-    if (!currentClinic?.id) return
+    if (!currentClinic?.id) return;
 
-    const desiredStart = startOfMonth(subMonths(currentDate, 6))
-    const desiredEnd = endOfMonth(addMonths(currentDate, 6))
+    const desiredStart = startOfMonth(subMonths(currentDate, 6));
+    const desiredEnd = endOfMonth(addMonths(currentDate, 6));
 
     const needsLoad =
       loadedClinicIdRef.current !== currentClinic.id ||
       !loadedStartRef.current ||
       !loadedEndRef.current ||
       currentDate < loadedStartRef.current ||
-      currentDate > loadedEndRef.current
+      currentDate > loadedEndRef.current;
 
     if (needsLoad) {
-      loadData(desiredStart, desiredEnd)
+      loadData(desiredStart, desiredEnd);
     }
-  }, [currentClinic?.id, currentDate, loadData])
+  }, [currentClinic?.id, currentDate, loadData]);
+
+  useEffect(() => {
+    const handleAppointmentCreated = (event: Event) => {
+      const appointment = (event as CustomEvent<{ appointment?: Appointment }>)
+        .detail?.appointment;
+      if (!appointment?.id) return;
+      setAppointments((current) =>
+        current.some((item) => item.id === appointment.id)
+          ? current
+          : [...current, appointment],
+      );
+    };
+    window.addEventListener("appointmentsChanged", handleAppointmentCreated);
+    return () =>
+      window.removeEventListener(
+        "appointmentsChanged",
+        handleAppointmentCreated,
+      );
+  }, []);
 
   useEffect(() => {
     if (!isClientSelectOpen && selectedClient) {
       // Ensure default examiner is current user when opening create modal
       setFormData((prev) => ({
         ...prev,
-        user_id: currentUser?.id || prev.user_id
-      }))
-      setIsCreateModalOpen(true)
+        user_id: currentUser?.id || prev.user_id,
+      }));
+      setIsCreateModalOpen(true);
     }
-  }, [isClientSelectOpen, selectedClient, currentUser?.id])
+  }, [isClientSelectOpen, selectedClient, currentUser?.id]);
 
   // Ensure the default examiner in the modal is the current user when modal opens without client selection path (e.g., editing or direct open)
   useEffect(() => {
     if (isCreateModalOpen && !formData.user_id && currentUser?.id) {
-      setFormData((prev) => ({ ...prev, user_id: currentUser.id }))
+      setFormData((prev) => ({ ...prev, user_id: currentUser.id }));
     }
-  }, [isCreateModalOpen, currentUser?.id])
+  }, [isCreateModalOpen, currentUser?.id]);
 
   useEffect(() => {
     if (!isCreateModalOpen && !isClientSelectOpen) {
       // Use requestAnimationFrame instead of setTimeout for smoother cleanup
       requestAnimationFrame(() => {
-        document.body.focus()
-        const backdrops = document.querySelectorAll("[data-radix-portal]")
+        document.body.focus();
+        const backdrops = document.querySelectorAll("[data-radix-portal]");
         backdrops.forEach((backdrop) => {
           if (backdrop.innerHTML === "") {
-            backdrop.remove()
+            backdrop.remove();
           }
-        })
-      })
+        });
+      });
     }
-  }, [isCreateModalOpen, isClientSelectOpen])
+  }, [isCreateModalOpen, isClientSelectOpen]);
 
-  const activeSettings = settings || dashboardSettings
-  const WORK_START = activeSettings?.work_start_time || "08:00"
-  const WORK_END = activeSettings?.work_end_time || "18:00"
-  const APPOINTMENT_DURATION = activeSettings?.appointment_duration || 30
-  const BREAK_START = activeSettings?.break_start_time || ""
-  const BREAK_END = activeSettings?.break_end_time || ""
+  const activeSettings = settings || dashboardSettings;
+  const WORK_START = activeSettings?.work_start_time || "08:00";
+  const WORK_END = activeSettings?.work_end_time || "18:00";
+  const APPOINTMENT_DURATION = activeSettings?.appointment_duration || 30;
+  const BREAK_START = activeSettings?.break_start_time || "";
+  const BREAK_END = activeSettings?.break_end_time || "";
 
-  const workStartMinutes = timeToMinutes(WORK_START)
-  const workEndMinutes = timeToMinutes(WORK_END)
-  const totalWorkMinutes = Math.max(0, workEndMinutes - workStartMinutes)
+  const workStartMinutes = timeToMinutes(WORK_START);
+  const workEndMinutes = timeToMinutes(WORK_END);
+  const totalWorkMinutes = Math.max(0, workEndMinutes - workStartMinutes);
 
   // Memoized user color mapping with conflict resolution
   const userColorMap = useMemo(() => {
-    return createUserColorMap(users)
-  }, [users])
+    return createUserColorMap(users);
+  }, [users]);
 
   // Helper function to get user color (now memoized)
   const getUserColor = useCallback(
     (userId?: number) => {
-      if (!userId) return "#3b82f6"
-      return userColorMap.get(userId) || "#3b82f6"
+      if (!userId) return "#3b82f6";
+      return userColorMap.get(userId) || "#3b82f6";
     },
-    [userColorMap]
-  )
+    [userColorMap],
+  );
 
   // Get appointment duration (from database or default)
   const getAppointmentDuration = useCallback(
     (appointment: Appointment) => {
-      return appointment.duration || APPOINTMENT_DURATION
+      return appointment.duration || APPOINTMENT_DURATION;
     },
-    [APPOINTMENT_DURATION]
-  )
+    [APPOINTMENT_DURATION],
+  );
 
   // Navigation functions
   const navigateCalendar = useCallback(
     (direction: "prev" | "next") => {
       if (view === "day") {
-        setCurrentDate(direction === "next" ? addDays(currentDate, 1) : subDays(currentDate, 1))
+        setCurrentDate(
+          direction === "next"
+            ? addDays(currentDate, 1)
+            : subDays(currentDate, 1),
+        );
       } else if (view === "week") {
-        setCurrentDate(direction === "next" ? addWeeks(currentDate, 1) : subWeeks(currentDate, 1))
+        setCurrentDate(
+          direction === "next"
+            ? addWeeks(currentDate, 1)
+            : subWeeks(currentDate, 1),
+        );
       } else if (view === "month") {
-        setCurrentDate(direction === "next" ? addMonths(currentDate, 1) : subMonths(currentDate, 1))
+        setCurrentDate(
+          direction === "next"
+            ? addMonths(currentDate, 1)
+            : subMonths(currentDate, 1),
+        );
       }
     },
-    [view, currentDate]
-  )
+    [view, currentDate],
+  );
 
   const goToToday = useCallback(() => {
-    setCurrentDate(new Date())
-  }, [])
+    setCurrentDate(new Date());
+  }, []);
 
   // Memoized visible dates to prevent recalculation on every render
   const visibleDates = useMemo(() => {
     if (view === "day") {
-      return [currentDate]
+      return [currentDate];
     } else if (view === "week") {
-      const start = startOfWeek(currentDate, { weekStartsOn: 0 })
-      return Array.from({ length: 7 }, (_, i) => addDays(start, i))
+      const start = startOfWeek(currentDate, { weekStartsOn: 0 });
+      return Array.from({ length: 7 }, (_, i) => addDays(start, i));
     } else {
-      const start = startOfMonth(currentDate)
-      const end = endOfMonth(currentDate)
-      const startWeek = startOfWeek(start, { weekStartsOn: 0 })
-      const endWeek = endOfWeek(end, { weekStartsOn: 0 })
-      const days = []
-      let current = startWeek
+      const start = startOfMonth(currentDate);
+      const end = endOfMonth(currentDate);
+      const startWeek = startOfWeek(start, { weekStartsOn: 0 });
+      const endWeek = endOfWeek(end, { weekStartsOn: 0 });
+      const days = [];
+      let current = startWeek;
       while (current <= endWeek) {
-        days.push(current)
-        current = addDays(current, 1)
+        days.push(current);
+        current = addDays(current, 1);
       }
-      return days
+      return days;
     }
-  }, [currentDate, view])
+  }, [currentDate, view]);
 
   // Vacation helper
   const isUserOnVacation = useCallback(
     (userId?: number, dateStr?: string) => {
-      return isUserOnVacationUtil(users, userId, dateStr)
+      return isUserOnVacationUtil(users, userId, dateStr);
     },
-    [users]
-  )
+    [users],
+  );
 
   // Memoized appointments grouped by date for performance
   const appointmentsByDate = useMemo(() => {
-    if (!appointments.length) return new Map<string, Appointment[]>()
+    if (!appointments.length) return new Map<string, Appointment[]>();
 
-    const dateMap = new Map<string, Appointment[]>()
+    const dateMap = new Map<string, Appointment[]>();
 
     appointments.forEach((appointment) => {
-      if (!appointment.date) return
+      if (!appointment.date) return;
       try {
-        const dateStr = format(new Date(appointment.date), "yyyy-MM-dd")
+        const dateStr = format(new Date(appointment.date), "yyyy-MM-dd");
         if (!dateMap.has(dateStr)) {
-          dateMap.set(dateStr, [])
+          dateMap.set(dateStr, []);
         }
-        dateMap.get(dateStr)!.push(appointment)
+        dateMap.get(dateStr)!.push(appointment);
       } catch {
         // Invalid date, skip
       }
-    })
+    });
 
-    return dateMap
-  }, [appointments])
+    return dateMap;
+  }, [appointments]);
 
   // Optimized function to get appointments for a specific date
   const getAppointmentsForDate = useCallback(
     (date: Date) => {
-      const dateStr = format(date, "yyyy-MM-dd")
-      return appointmentsByDate.get(dateStr) || []
+      const dateStr = format(date, "yyyy-MM-dd");
+      return appointmentsByDate.get(dateStr) || [];
     },
-    [appointmentsByDate]
-  )
+    [appointmentsByDate],
+  );
 
   // Memoized client lookup for performance
   const clientsMap = useMemo(() => {
-    if (!clients.length) return new Map<number, Client>()
+    if (!clients.length) return new Map<number, Client>();
 
-    const map = new Map<number, Client>()
+    const map = new Map<number, Client>();
     clients.forEach((client) => {
       if (client.id) {
-        map.set(client.id, client)
+        map.set(client.id, client);
       }
-    })
-    return map
-  }, [clients])
+    });
+    return map;
+  }, [clients]);
 
   // Drag and resize functionality
   const {
@@ -402,7 +468,7 @@ export default function HomePage() {
     resizeData,
     suppressClickRef,
     handleMouseDown,
-    handleResizeStart
+    handleResizeStart,
   } = useDragAndResize({
     calendarRef,
     workStartMinutes,
@@ -411,36 +477,40 @@ export default function HomePage() {
     isUserOnVacation,
     visibleDates,
     updateAppointment,
-    setAppointments
-  })
+    setAppointments,
+  });
 
   // Get dynamic appointment time range for resizing (must be after useDragAndResize)
   const getDynamicTimeRange = useCallback(
     (appointment: Appointment) => {
       if (resizeData && resizeData.appointmentId === appointment.id) {
         // Show current resize state
-        const currentAppointment = appointments.find((a) => a.id === appointment.id)
+        const currentAppointment = appointments.find(
+          (a) => a.id === appointment.id,
+        );
         if (currentAppointment) {
           // Calculate time range based on resize type and current duration
           if (resizeData.type === "top") {
             // Top resize: start time changed, end time stays the same
-            return `${currentAppointment.time} - ${resizeData.originalEnd}`
+            return `${currentAppointment.time} - ${resizeData.originalEnd}`;
           } else {
             // Bottom resize: start time stays the same, calculate end time from duration
-            const startTime = resizeData.originalStart
-            const duration = currentAppointment.duration || getAppointmentDuration(currentAppointment)
-            const endTime = getAppointmentEndTime(startTime, duration)
-            return `${startTime} - ${endTime}`
+            const startTime = resizeData.originalStart;
+            const duration =
+              currentAppointment.duration ||
+              getAppointmentDuration(currentAppointment);
+            const endTime = getAppointmentEndTime(startTime, duration);
+            return `${startTime} - ${endTime}`;
           }
         }
       }
 
       // Normal display using appointment's actual duration
-      const duration = getAppointmentDuration(appointment)
-      return getAppointmentTimeRange(appointment.time || "", duration)
+      const duration = getAppointmentDuration(appointment);
+      return getAppointmentTimeRange(appointment.time || "", duration);
     },
-    [resizeData, appointments, getAppointmentDuration]
-  )
+    [resizeData, appointments, getAppointmentDuration],
+  );
 
   // Optimized appointment blocks calculation with custom hook
   const { getAppointmentBlocks } = useAppointmentBlocks({
@@ -448,22 +518,22 @@ export default function HomePage() {
     clientsMap,
     workStartMinutes,
     getAppointmentDuration,
-    resizeData
-  })
+    resizeData,
+  });
 
   // Memoized time slots for the grid
   const timeSlots = useMemo(() => {
-    const slotCount = Math.ceil(totalWorkMinutes / 60)
+    const slotCount = Math.ceil(totalWorkMinutes / 60);
     return Array.from({ length: slotCount }, (_, i) => {
-      const startMinutes = workStartMinutes + i * 60
-      const durationMinutes = Math.min(60, workEndMinutes - startMinutes)
+      const startMinutes = workStartMinutes + i * 60;
+      const durationMinutes = Math.min(60, workEndMinutes - startMinutes);
       return {
         time: minutesToTime(startMinutes),
         startMinutes,
-        durationMinutes
-      }
-    }).filter((slot) => slot.durationMinutes > 0)
-  }, [totalWorkMinutes, workStartMinutes, workEndMinutes])
+        durationMinutes,
+      };
+    }).filter((slot) => slot.durationMinutes > 0);
+  }, [totalWorkMinutes, workStartMinutes, workEndMinutes]);
 
   // Form and modal handlers
   const resetAllForms = useCallback(() => {
@@ -475,54 +545,72 @@ export default function HomePage() {
       duration: APPOINTMENT_DURATION,
       exam_name: undefined,
       exam_layout_id: null,
-      note: undefined
-    })
-    setSelectedClient(null)
-  }, [currentUser?.id, APPOINTMENT_DURATION])
+      note: undefined,
+    });
+    setSelectedClient(null);
+  }, [currentUser?.id, APPOINTMENT_DURATION]);
 
   // Handle time slot click for creating appointments
   const moveAppointmentToSlot = useCallback(
     async (appointment: Appointment, date: Date, time: string) => {
-      if (!appointment.id) return
-      const dateStr = format(date, "yyyy-MM-dd")
+      if (!appointment.id) return;
+      const dateStr = format(date, "yyyy-MM-dd");
       const movedAppointment = {
         ...appointment,
         clinic_id: appointment.clinic_id || currentClinic?.id,
         date: dateStr,
-        time
-      }
-      const originalAppointment = { ...appointment }
+        time,
+      };
+      const originalAppointment = { ...appointment };
 
-      setMovingAppointment(null)
-      setAppointments((prev) => prev.map((apt) => (apt.id === appointment.id ? movedAppointment : apt)))
+      setMovingAppointment(null);
+      setAppointments((prev) =>
+        prev.map((apt) => (apt.id === appointment.id ? movedAppointment : apt)),
+      );
 
       try {
         if (isUserOnVacation(movedAppointment.user_id, dateStr)) {
-          toast.error("לא ניתן להעביר תור ליום חופשה של המשתמש")
-          setAppointments((prev) => prev.map((apt) => (apt.id === appointment.id ? originalAppointment : apt)))
-          return
+          toast.error("לא ניתן להעביר תור ליום חופשה של המשתמש");
+          setAppointments((prev) =>
+            prev.map((apt) =>
+              apt.id === appointment.id ? originalAppointment : apt,
+            ),
+          );
+          return;
         }
 
-        const result = await updateAppointment(movedAppointment)
+        const result = await updateAppointment(movedAppointment);
         if (result) {
-          setAppointments((prev) => prev.map((apt) => (apt.id === appointment.id ? { ...apt, ...result } : apt)))
-          toast.success("התור הועבר בהצלחה")
+          setAppointments((prev) =>
+            prev.map((apt) =>
+              apt.id === appointment.id ? { ...apt, ...result } : apt,
+            ),
+          );
+          toast.success("התור הועבר בהצלחה");
         } else {
-          toast.error("שגיאה בהעברת התור")
-          setAppointments((prev) => prev.map((apt) => (apt.id === appointment.id ? originalAppointment : apt)))
+          toast.error("שגיאה בהעברת התור");
+          setAppointments((prev) =>
+            prev.map((apt) =>
+              apt.id === appointment.id ? originalAppointment : apt,
+            ),
+          );
         }
       } catch (error) {
-        console.error("Error moving appointment:", error)
-        toast.error("שגיאה בהעברת התור")
-        setAppointments((prev) => prev.map((apt) => (apt.id === appointment.id ? originalAppointment : apt)))
+        console.error("Error moving appointment:", error);
+        toast.error("שגיאה בהעברת התור");
+        setAppointments((prev) =>
+          prev.map((apt) =>
+            apt.id === appointment.id ? originalAppointment : apt,
+          ),
+        );
       }
     },
-    [currentClinic?.id, isUserOnVacation]
-  )
+    [currentClinic?.id, isUserOnVacation],
+  );
 
   const pasteAppointmentToSlot = useCallback(
     async (date: Date, time: string) => {
-      if (!copiedAppointment) return
+      if (!copiedAppointment) return;
       const appointmentData = {
         client_id: copiedAppointment.client_id,
         clinic_id: currentClinic?.id || copiedAppointment.clinic_id,
@@ -532,29 +620,29 @@ export default function HomePage() {
         duration: copiedAppointment.duration || APPOINTMENT_DURATION,
         exam_name: copiedAppointment.exam_name,
         exam_layout_id: copiedAppointment.exam_layout_id || null,
-        note: copiedAppointment.note
-      }
+        note: copiedAppointment.note,
+      };
       try {
-        const result = await createAppointment(appointmentData)
+        const result = await createAppointment(appointmentData);
         if (result) {
-          setAppointments((prev) => [...prev, result])
-          toast.success("התור הודבק בהצלחה")
+          setAppointments((prev) => [...prev, result]);
+          toast.success("התור הודבק בהצלחה");
         } else {
-          toast.error("שגיאה בהדבקת התור")
+          toast.error("שגיאה בהדבקת התור");
         }
       } catch (error) {
-        console.error("Error pasting appointment:", error)
-        toast.error("שגיאה בהדבקת התור")
+        console.error("Error pasting appointment:", error);
+        toast.error("שגיאה בהדבקת התור");
       }
     },
-    [APPOINTMENT_DURATION, copiedAppointment, currentClinic?.id]
-  )
+    [APPOINTMENT_DURATION, copiedAppointment, currentClinic?.id],
+  );
 
   const prepareSlotAppointmentData = useCallback(
     (date: Date, time: string) => {
-      const dateStr = format(date, "yyyy-MM-dd")
-      setSelectedTimeSlot({ date, time })
-      resetAllForms()
+      const dateStr = format(date, "yyyy-MM-dd");
+      setSelectedTimeSlot({ date, time });
+      resetAllForms();
       setFormData({
         client_id: 0,
         user_id: currentUser?.id,
@@ -563,44 +651,44 @@ export default function HomePage() {
         duration: APPOINTMENT_DURATION,
         exam_name: "",
         exam_layout_id: null,
-        note: ""
-      })
+        note: "",
+      });
     },
-    [resetAllForms, currentUser?.id, APPOINTMENT_DURATION]
-  )
+    [resetAllForms, currentUser?.id, APPOINTMENT_DURATION],
+  );
 
   const handleTimeSlotClick = useCallback(
     (date: Date, time: string, event?: React.MouseEvent) => {
-      event?.preventDefault()
-      event?.stopPropagation()
-      setAppointmentMenu(null)
+      event?.preventDefault();
+      event?.stopPropagation();
+      setAppointmentMenu(null);
       if (movingAppointment) {
-        moveAppointmentToSlot(movingAppointment, date, time)
-        return
+        moveAppointmentToSlot(movingAppointment, date, time);
+        return;
       }
-      prepareSlotAppointmentData(date, time)
+      prepareSlotAppointmentData(date, time);
       setSlotMenu({
         x: event?.clientX ?? window.innerWidth / 2,
         y: event?.clientY ?? window.innerHeight / 2,
         date,
-        time
-      })
+        time,
+      });
     },
-    [movingAppointment, moveAppointmentToSlot, prepareSlotAppointmentData]
-  )
+    [movingAppointment, moveAppointmentToSlot, prepareSlotAppointmentData],
+  );
 
   const closeAllDialogs = useCallback(() => {
-    setIsCreateModalOpen(false)
-    setIsClientSelectOpen(false)
-    setIsNewClientAppointmentOpen(false)
-    setEditingAppointment(null)
-    resetAllForms()
-  }, [resetAllForms])
+    setIsCreateModalOpen(false);
+    setIsClientSelectOpen(false);
+    setIsNewClientAppointmentOpen(false);
+    setEditingAppointment(null);
+    resetAllForms();
+  }, [resetAllForms]);
 
   const openEditDialog = useCallback(
     (appointment: Appointment) => {
       try {
-        setEditingAppointment(appointment)
+        setEditingAppointment(appointment);
         // Set form immediately and open modal without waiting for network
         setFormData({
           client_id: appointment.client_id,
@@ -610,33 +698,35 @@ export default function HomePage() {
           duration: appointment.duration || APPOINTMENT_DURATION,
           exam_name: appointment.exam_name || "",
           exam_layout_id: appointment.exam_layout_id || null,
-          note: appointment.note || ""
-        })
+          note: appointment.note || "",
+        });
         // Try to resolve client from local map first
-        const localClient = clientsMap.get(appointment.client_id)
+        const localClient = clientsMap.get(appointment.client_id);
         if (localClient) {
-          setSelectedClient(localClient)
+          setSelectedClient(localClient);
         } else {
           // Background fetch if not available locally
           getClientById(appointment.client_id)
             .then((client) => client && setSelectedClient(client))
-            .catch((error) => console.error("Error loading client (background):", error))
+            .catch((error) =>
+              console.error("Error loading client (background):", error),
+            );
         }
-        setIsCreateModalOpen(true)
+        setIsCreateModalOpen(true);
       } catch (error) {
-        console.error("Error preparing appointment for edit:", error)
-        setIsCreateModalOpen(true)
+        console.error("Error preparing appointment for edit:", error);
+        setIsCreateModalOpen(true);
       }
     },
-    [currentUser?.id, APPOINTMENT_DURATION, clientsMap]
-  )
+    [currentUser?.id, APPOINTMENT_DURATION, clientsMap],
+  );
 
   const handleClientSelect = useCallback(
     async (selectedClientId: number) => {
       try {
-        const client = await getClientById(selectedClientId)
+        const client = await getClientById(selectedClientId);
         if (client) {
-          setSelectedClient(client)
+          setSelectedClient(client);
           setFormData((prev) => ({
             ...prev,
             client_id: selectedClientId,
@@ -646,39 +736,43 @@ export default function HomePage() {
             duration: APPOINTMENT_DURATION,
             exam_name: "",
             exam_layout_id: null,
-            note: ""
-          }))
-          setIsClientSelectOpen(false)
+            note: "",
+          }));
+          setIsClientSelectOpen(false);
         }
       } catch (error) {
-        console.error("Error loading client:", error)
-        toast.error("שגיאה בטעינת פרטי הלקוח")
+        console.error("Error loading client:", error);
+        toast.error("שגיאה בטעינת פרטי הלקוח");
       }
     },
-    [currentUser?.id, selectedTimeSlot, APPOINTMENT_DURATION]
-  )
+    [currentUser?.id, selectedTimeSlot, APPOINTMENT_DURATION],
+  );
 
   const handleSaveAppointment = useCallback(async () => {
     try {
-      setSaving(true)
+      setSaving(true);
       if (formData.date && isUserOnVacation(formData.user_id, formData.date)) {
-        toast.error("לא ניתן לקבוע תור ביום חופשה של המשתמש")
-        return
+        toast.error("לא ניתן לקבוע תור ביום חופשה של המשתמש");
+        return;
       }
       if (!formData.client_id || formData.client_id <= 0) {
-        toast.error("יש לבחור לקוח")
-        return
+        toast.error("יש לבחור לקוח");
+        return;
       }
 
       if (editingAppointment) {
-        const updatedAppointment = { ...formData, id: editingAppointment.id }
-        const result = await updateAppointment(updatedAppointment)
+        const updatedAppointment = { ...formData, id: editingAppointment.id };
+        const result = await updateAppointment(updatedAppointment);
         if (result) {
-          toast.success("התור עודכן בהצלחה")
-          setAppointments((prev) => prev.map((apt) => (apt.id === updatedAppointment.id ? updatedAppointment : apt)))
-          closeAllDialogs()
+          toast.success("התור עודכן בהצלחה");
+          setAppointments((prev) =>
+            prev.map((apt) =>
+              apt.id === updatedAppointment.id ? updatedAppointment : apt,
+            ),
+          );
+          closeAllDialogs();
         } else {
-          toast.error("שגיאה בעדכון התור")
+          toast.error("שגיאה בעדכון התור");
         }
       } else {
         // Filter out undefined values before sending to backend
@@ -691,87 +785,85 @@ export default function HomePage() {
           duration: formData.duration,
           exam_name: formData.exam_name,
           exam_layout_id: formData.exam_layout_id,
-          note: formData.note
-        }
+          note: formData.note,
+        };
 
-        console.log("Sending appointment data from HomePage:", appointmentData)
+        console.log("Sending appointment data from HomePage:", appointmentData);
 
-        const result = await createAppointment(appointmentData)
+        const result = await createAppointment(appointmentData);
         if (result) {
-          toast.success("התור נוצר בהצלחה")
-          setAppointments((prev) => [...prev, result])
-          closeAllDialogs()
+          toast.success("התור נוצר בהצלחה");
+          setAppointments((prev) => [...prev, result]);
+          closeAllDialogs();
         } else {
-          toast.error("שגיאה ביצירת התור")
+          toast.error("שגיאה ביצירת התור");
         }
       }
     } catch (error) {
-      console.error("Error saving appointment:", error)
-      toast.error("שגיאה בשמירת התור")
+      console.error("Error saving appointment:", error);
+      toast.error("שגיאה בשמירת התור");
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }, [formData, isUserOnVacation, editingAppointment, closeAllDialogs, currentClinic?.id])
+  }, [
+    formData,
+    isUserOnVacation,
+    editingAppointment,
+    closeAllDialogs,
+    currentClinic?.id,
+  ]);
 
   const handleDeleteAppointment = useCallback(async (appointmentId: number) => {
-    if (!confirm("האם אתה בטוח שברצונך למחוק את התור?")) return
+    if (!confirm("האם אתה בטוח שברצונך למחוק את התור?")) return;
 
     try {
-      const result = await deleteAppointment(appointmentId)
+      const result = await deleteAppointment(appointmentId);
       if (result) {
-        toast.success("התור נמחק בהצלחה")
+        toast.success("התור נמחק בהצלחה");
         // Remove from local state instead of reloading all data
-        setAppointments((prev) => prev.filter((apt) => apt.id !== appointmentId))
+        setAppointments((prev) =>
+          prev.filter((apt) => apt.id !== appointmentId),
+        );
       } else {
-        toast.error("שגיאה במחיקת התור")
+        toast.error("שגיאה במחיקת התור");
       }
     } catch (error) {
-      console.error("Error deleting appointment:", error)
-      toast.error("שגיאה במחיקת התור")
+      console.error("Error deleting appointment:", error);
+      toast.error("שגיאה במחיקת התור");
     }
-  }, [])
-
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
-  }, [])
-
-  const handleNewClientInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    setNewClientFormData((prev) => ({ ...prev, [name]: value }))
-  }, [])
+  }, []);
 
   const handleExamLayoutChange = useCallback(
     (layoutId: number | null) => {
-      const layout = activeExamLayouts.find((item) => item.id === layoutId)
+      const layout = activeExamLayouts.find((item) => item.id === layoutId);
       setFormData((prev) => ({
         ...prev,
         exam_layout_id: layout?.id || null,
-        exam_name: layout?.name || prev.exam_name || ""
-      }))
+        exam_name: layout?.name || prev.exam_name || "",
+      }));
     },
-    [activeExamLayouts]
-  )
+    [activeExamLayouts],
+  );
 
   const handleNewClientExamLayoutChange = useCallback(
     (layoutId: number | null) => {
-      const layout = activeExamLayouts.find((item) => item.id === layoutId)
+      const layout = activeExamLayouts.find((item) => item.id === layoutId);
       setNewClientFormData((prev) => ({
         ...prev,
         exam_layout_id: layout?.id || null,
-        exam_name: layout?.name || prev.exam_name
-      }))
+        exam_name: layout?.name || prev.exam_name,
+      }));
     },
-    [activeExamLayouts]
-  )
+    [activeExamLayouts],
+  );
 
   const openExistingClientFlowFromSlot = useCallback(() => {
-    setSlotMenu(null)
-    setIsClientSelectOpen(true)
-  }, [])
+    setSlotMenu(null);
+    setIsClientSelectOpen(true);
+  }, []);
 
   const openNewClientFlowFromSlot = useCallback(() => {
-    setSlotMenu(null)
+    setSlotMenu(null);
     setNewClientFormData({
       first_name: "",
       last_name: "",
@@ -783,28 +875,38 @@ export default function HomePage() {
       duration: formData.duration || APPOINTMENT_DURATION,
       exam_name: "",
       exam_layout_id: null,
-      note: ""
-    })
-    setIsNewClientAppointmentOpen(true)
-  }, [APPOINTMENT_DURATION, currentUser?.id, formData.date, formData.duration, formData.time, selectedTimeSlot])
+      note: "",
+    });
+    setIsNewClientAppointmentOpen(true);
+  }, [
+    APPOINTMENT_DURATION,
+    currentUser?.id,
+    formData.date,
+    formData.duration,
+    formData.time,
+    selectedTimeSlot,
+  ]);
 
   const handleSaveNewClientAndAppointment = useCallback(async () => {
-    if (!newClientFormData.first_name.trim() || !newClientFormData.last_name.trim()) {
-      toast.error("שם פרטי ושם משפחה הם שדות חובה")
-      return
+    if (
+      !newClientFormData.first_name.trim() ||
+      !newClientFormData.last_name.trim()
+    ) {
+      toast.error("שם פרטי ושם משפחה הם שדות חובה");
+      return;
     }
     try {
-      setIsSavingNewClientAppointment(true)
+      setIsSavingNewClientAppointment(true);
       const newClient = await createClient({
         first_name: newClientFormData.first_name,
         last_name: newClientFormData.last_name,
         phone_mobile: newClientFormData.phone_mobile,
         email: newClientFormData.email,
-        clinic_id: currentClinic?.id
-      })
+        clinic_id: currentClinic?.id,
+      });
       if (!newClient?.id) {
-        toast.error("שגיאה ביצירת הלקוח")
-        return
+        toast.error("שגיאה ביצירת הלקוח");
+        return;
       }
 
       const result = await createAppointment({
@@ -816,106 +918,120 @@ export default function HomePage() {
         duration: newClientFormData.duration,
         exam_name: newClientFormData.exam_name,
         exam_layout_id: newClientFormData.exam_layout_id,
-        note: newClientFormData.note
-      })
+        note: newClientFormData.note,
+      });
       if (result) {
-        setClients((prev) => [...prev, newClient])
-        setAppointments((prev) => [...prev, result])
-        toast.success("לקוח חדש ותור נוצרו בהצלחה")
-        closeAllDialogs()
+        setClients((prev) => [...prev, newClient]);
+        setAppointments((prev) => [...prev, result]);
+        toast.success("לקוח חדש ותור נוצרו בהצלחה");
+        closeAllDialogs();
       } else {
-        toast.error("שגיאה ביצירת התור")
+        toast.error("שגיאה ביצירת התור");
       }
     } catch (error) {
-      console.error("Error creating client appointment from calendar:", error)
-      toast.error("שגיאה ביצירת לקוח ותור")
+      console.error("Error creating client appointment from calendar:", error);
+      toast.error("שגיאה ביצירת לקוח ותור");
     } finally {
-      setIsSavingNewClientAppointment(false)
+      setIsSavingNewClientAppointment(false);
     }
-  }, [closeAllDialogs, currentClinic?.id, newClientFormData])
+  }, [closeAllDialogs, currentClinic?.id, newClientFormData]);
 
   const handleCopyAppointment = useCallback((appointment: Appointment) => {
-    setCopiedAppointment(appointment)
-    setSelectedAppointmentForCopy(appointment)
-    setAppointmentMenu(null)
-    toast.success("התור הועתק")
-  }, [])
+    setCopiedAppointment(appointment);
+    setSelectedAppointmentForCopy(appointment);
+    setAppointmentMenu(null);
+    toast.success("התור הועתק");
+  }, []);
 
   const handleStartMoveAppointment = useCallback((appointment: Appointment) => {
-    setMovingAppointment(appointment)
-    setAppointmentMenu(null)
-    toast.info("בחר מיקום חדש לתור")
-  }, [])
+    setMovingAppointment(appointment);
+    setAppointmentMenu(null);
+    toast.info("בחר מיקום חדש לתור");
+  }, []);
 
   const handleStartExam = useCallback(
     (appointment?: Appointment | null) => {
-      const target = appointment || editingAppointment || formData
+      const target = appointment || editingAppointment || formData;
       if (!target.client_id || !target.exam_layout_id) {
-        toast.error("יש לבחור סוג בדיקה לפני התחלת בדיקה")
-        return
+        toast.error("יש לבחור סוג בדיקה לפני התחלת בדיקה");
+        return;
       }
-      setAppointmentMenu(null)
+      setAppointmentMenu(null);
       navigate({
         to: "/clients/$clientId/exams/new",
         params: { clientId: String(target.client_id) },
-        search: { layoutId: String(target.exam_layout_id) }
-      })
+        search: { layoutId: String(target.exam_layout_id) },
+      });
     },
-    [editingAppointment, formData, navigate]
-  )
+    [editingAppointment, formData, navigate],
+  );
 
-  const handleAppointmentContextMenu = useCallback((event: React.MouseEvent, appointment: Appointment) => {
-    event.preventDefault()
-    event.stopPropagation()
-    setSelectedAppointmentForCopy(appointment)
-    setSlotMenu(null)
-    setAppointmentMenu({
-      x: event.clientX,
-      y: event.clientY,
-      appointment
-    })
-  }, [])
+  const handleAppointmentContextMenu = useCallback(
+    (event: React.MouseEvent, appointment: Appointment) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setSelectedAppointmentForCopy(appointment);
+      setSlotMenu(null);
+      setAppointmentMenu({
+        x: event.clientX,
+        y: event.clientY,
+        appointment,
+      });
+    },
+    [],
+  );
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c") {
-        const activeElement = document.activeElement
+        const activeElement = document.activeElement;
         const isTyping =
           activeElement instanceof HTMLInputElement ||
           activeElement instanceof HTMLTextAreaElement ||
-          activeElement?.getAttribute("contenteditable") === "true"
-        if (isTyping || !selectedAppointmentForCopy) return
-        event.preventDefault()
-        handleCopyAppointment(selectedAppointmentForCopy)
+          activeElement?.getAttribute("contenteditable") === "true";
+        if (isTyping || !selectedAppointmentForCopy) return;
+        event.preventDefault();
+        handleCopyAppointment(selectedAppointmentForCopy);
       }
-    }
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [handleCopyAppointment, selectedAppointmentForCopy])
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleCopyAppointment, selectedAppointmentForCopy]);
 
   useEffect(() => {
     const handleDocumentMouseDown = (event: MouseEvent) => {
-      const target = event.target as Node
-      if (movingAppointment && calendarMoveScopeRef.current && !calendarMoveScopeRef.current.contains(target)) {
-        setMovingAppointment(null)
+      const target = event.target as Node;
+      if (
+        movingAppointment &&
+        calendarMoveScopeRef.current &&
+        !calendarMoveScopeRef.current.contains(target)
+      ) {
+        setMovingAppointment(null);
       }
       if (slotMenu || appointmentMenu) {
-        const menuElement = (target as HTMLElement).closest?.("[data-calendar-menu]")
+        const menuElement = (target as HTMLElement).closest?.(
+          "[data-calendar-menu]",
+        );
         if (!menuElement) {
-          setSlotMenu(null)
-          setAppointmentMenu(null)
+          setSlotMenu(null);
+          setAppointmentMenu(null);
         }
       }
-    }
-    document.addEventListener("mousedown", handleDocumentMouseDown)
-    return () => document.removeEventListener("mousedown", handleDocumentMouseDown)
-  }, [appointmentMenu, movingAppointment, slotMenu])
+    };
+    document.addEventListener("mousedown", handleDocumentMouseDown);
+    return () =>
+      document.removeEventListener("mousedown", handleDocumentMouseDown);
+  }, [appointmentMenu, movingAppointment, slotMenu]);
 
   if (loading) {
     return (
       <>
         <SiteHeader title={"לוח זמנים"} />
-        <div className="bg-muted/50 flex flex-1 flex-col gap-6" dir="rtl" style={{ scrollbarWidth: "none" }}>
+        <div
+          className="bg-muted/50 flex flex-1 flex-col gap-6"
+          dir="rtl"
+          style={{ scrollbarWidth: "none" }}
+        >
           <div className="flex items-center justify-between p-6 pb-5">
             <div className="flex items-center gap-4">
               <Skeleton className="h-9 w-16" />
@@ -968,14 +1084,17 @@ export default function HomePage() {
             <div className="flex flex-1 flex-col rounded-xl">
               <Card className="bg-card rounded-t-xl p-0">
                 <CardContent className="rounded-xl p-2 pt-2">
-                  <Skeleton className="w-full rounded-t-xl" style={{ height: "calc(100vh - 200px)" }} />
+                  <Skeleton
+                    className="w-full rounded-t-xl"
+                    style={{ height: "calc(100vh - 200px)" }}
+                  />
                 </CardContent>
               </Card>
             </div>
           </div>
         </div>
       </>
-    )
+    );
   }
 
   return (
@@ -1072,11 +1191,15 @@ export default function HomePage() {
           users={users}
           examLayouts={activeExamLayouts}
           saving={saving}
-          onInputChange={handleInputChange}
+          onFieldChange={(field, value) => {
+            if (field === "exam_layout_id") {
+              handleExamLayoutChange(value as number | null);
+              return;
+            }
+            setFormData((prev) => ({ ...prev, [field]: value }));
+          }}
           onSave={handleSaveAppointment}
           onDelete={handleDeleteAppointment}
-          onUserChange={(userId) => setFormData((prev) => ({ ...prev, user_id: userId }))}
-          onExamLayoutChange={handleExamLayoutChange}
           onStartExam={() => handleStartExam()}
         />
 
@@ -1092,8 +1215,8 @@ export default function HomePage() {
                 type="button"
                 className="hover:bg-muted flex w-full items-center gap-2 rounded-sm px-3 py-2 text-right"
                 onClick={() => {
-                  pasteAppointmentToSlot(slotMenu.date, slotMenu.time)
-                  setSlotMenu(null)
+                  pasteAppointmentToSlot(slotMenu.date, slotMenu.time);
+                  setSlotMenu(null);
                 }}
               >
                 <Clipboard className="h-4 w-4" />
@@ -1132,8 +1255,8 @@ export default function HomePage() {
               disabled={!appointmentMenu.appointment.exam_layout_id}
               onClick={() => handleStartExam(appointmentMenu.appointment)}
             >
-              <Play className="h-4 w-4" />
               התחל בדיקה
+              <Play className="h-4 w-4 -scale-x-100" />
             </button>
             <button
               type="button"
@@ -1146,7 +1269,9 @@ export default function HomePage() {
             <button
               type="button"
               className="hover:bg-muted flex w-full items-center gap-2 rounded-sm px-3 py-2 text-right"
-              onClick={() => handleStartMoveAppointment(appointmentMenu.appointment)}
+              onClick={() =>
+                handleStartMoveAppointment(appointmentMenu.appointment)
+              }
             >
               <Move className="h-4 w-4" />
               העבר
@@ -1155,8 +1280,8 @@ export default function HomePage() {
               type="button"
               className="text-destructive hover:bg-destructive/10 flex w-full items-center gap-2 rounded-sm px-3 py-2 text-right"
               onClick={() => {
-                handleDeleteAppointment(appointmentMenu.appointment.id!)
-                setAppointmentMenu(null)
+                handleDeleteAppointment(appointmentMenu.appointment.id!);
+                setAppointmentMenu(null);
               }}
             >
               <Trash2 className="h-4 w-4" />
@@ -1165,144 +1290,24 @@ export default function HomePage() {
           </div>
         )}
 
-        <CustomModal
+        <NewClientAppointmentModal
           isOpen={isNewClientAppointmentOpen}
           onClose={closeAllDialogs}
-          title="לקוח חדש ותור"
-          className="sm:max-w-[500px]"
-        >
-          <div className="grid max-h-[60vh] gap-4 overflow-auto p-1" style={{ scrollbarWidth: "none" }}>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="calendar-new-first-name" className="block text-right">
-                  שם פרטי *
-                </Label>
-                <Input
-                  id="calendar-new-first-name"
-                  name="first_name"
-                  value={newClientFormData.first_name}
-                  onChange={handleNewClientInputChange}
-                  dir="rtl"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="calendar-new-last-name" className="block text-right">
-                  שם משפחה *
-                </Label>
-                <Input
-                  id="calendar-new-last-name"
-                  name="last_name"
-                  value={newClientFormData.last_name}
-                  onChange={handleNewClientInputChange}
-                  dir="rtl"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="calendar-new-email" className="block text-right">
-                  אימייל
-                </Label>
-                <Input
-                  id="calendar-new-email"
-                  name="email"
-                  type="email"
-                  value={newClientFormData.email}
-                  onChange={handleNewClientInputChange}
-                  dir="rtl"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="calendar-new-phone" className="block text-right">
-                  טלפון נייד
-                </Label>
-                <Input
-                  id="calendar-new-phone"
-                  name="phone_mobile"
-                  value={newClientFormData.phone_mobile}
-                  onChange={handleNewClientInputChange}
-                  dir="rtl"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="calendar-new-time" className="block text-right">
-                  שעה
-                </Label>
-                <TimeInput
-                  id="calendar-new-time"
-                  name="time"
-                  value={newClientFormData.time}
-                  onChange={handleNewClientInputChange}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="block text-right">תאריך</Label>
-                <DateInput
-                  name="date"
-                  value={newClientFormData.date}
-                  onChange={handleNewClientInputChange}
-                  className="justify-end"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="block text-right">סוג בדיקה</Label>
-                <select
-                  className="border-input bg-card h-9 w-full rounded-md border px-3 text-sm"
-                  value={newClientFormData.exam_layout_id ? String(newClientFormData.exam_layout_id) : ""}
-                  onChange={(event) =>
-                    handleNewClientExamLayoutChange(event.target.value ? Number(event.target.value) : null)
-                  }
-                  dir="rtl"
-                >
-                  <option value="">בחר סוג בדיקה</option>
-                  {activeExamLayouts.map((layout) => (
-                    <option key={layout.id} value={layout.id}>
-                      {layout.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="calendar-new-duration" className="block text-right">
-                  משך
-                </Label>
-                <Input
-                  id="calendar-new-duration"
-                  name="duration"
-                  type="number"
-                  value={newClientFormData.duration}
-                  onChange={handleNewClientInputChange}
-                />
-              </div>
-            </div>
-            <div className="space-y-2 pb-2">
-              <Label htmlFor="calendar-new-note" className="block text-right">
-                הערות
-              </Label>
-              <Textarea
-                id="calendar-new-note"
-                name="note"
-                value={newClientFormData.note}
-                onChange={handleNewClientInputChange}
-                dir="rtl"
-              />
-            </div>
-          </div>
-          <div className="mt-4 flex justify-start gap-2">
-            <Button onClick={handleSaveNewClientAndAppointment} disabled={isSavingNewClientAppointment}>
-              {isSavingNewClientAppointment && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              שמור
-            </Button>
-            <Button variant="outline" onClick={closeAllDialogs}>
-              ביטול
-            </Button>
-          </div>
-        </CustomModal>
+          formData={newClientFormData}
+          users={users}
+          examLayouts={activeExamLayouts}
+          saving={isSavingNewClientAppointment}
+          onChange={(field, value) => {
+            if (field === "exam_layout_id") {
+              handleNewClientExamLayoutChange(value as number | null);
+              return;
+            }
+            setNewClientFormData((prev) => ({ ...prev, [field]: value }));
+          }}
+          onSave={handleSaveNewClientAndAppointment}
+          idPrefix="calendar-new-client-appointment"
+        />
       </div>
     </>
-  )
+  );
 }

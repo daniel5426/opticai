@@ -18,7 +18,18 @@ import {
   SlidersHorizontal,
   Upload,
 } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { toast } from "sonner";
 
 import { SiteHeader } from "@/components/site-header";
@@ -26,11 +37,9 @@ import {
   AnalyticsChartTooltip,
   AnalyticsMetricCard,
   AnalyticsPanel,
-  AnalyticsRangePicker,
   AnalyticsTooltip,
   RankedMetricTable,
 } from "@/components/analytics";
-import { ListPageHeader } from "@/components/list-page-header";
 import { TableFiltersBar } from "@/components/table-filters-bar";
 import { TablePagination } from "@/components/table-pagination";
 import { Badge } from "@/components/ui/badge";
@@ -70,17 +79,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useUser } from "@/contexts/UserContext";
 import { useAnalyticsRange } from "@/hooks/useAnalyticsRange";
 import { apiClient } from "@/lib/api-client";
-import type { InventoryAnalyticsResponse, InventoryInsightItem } from "@/lib/analytics";
+import type {
+  InventoryAnalyticsResponse,
+  InventoryInsightItem,
+} from "@/lib/analytics";
 import {
   CatalogVariant,
   DiscoveryCandidate,
@@ -134,11 +141,10 @@ const currencyFormatter = new Intl.NumberFormat("he-IL", {
   currency: "ILS",
   maximumFractionDigits: 0,
 });
-const integerFormatter = new Intl.NumberFormat("he-IL", { maximumFractionDigits: 0 });
-const FULFILLMENT_MIX_COLORS = [
-  "hsl(var(--primary))",
-  "hsl(var(--chart-2))",
-];
+const integerFormatter = new Intl.NumberFormat("he-IL", {
+  maximumFractionDigits: 0,
+});
+const FULFILLMENT_MIX_COLORS = ["hsl(var(--primary))", "hsl(var(--chart-2))"];
 
 const dateFormatter = new Intl.DateTimeFormat("he-IL", {
   dateStyle: "short",
@@ -193,9 +199,11 @@ function SummaryCard({
 function InventorySummaryStrip({
   summary,
   canViewCost,
+  actions,
 }: {
   summary: Record<string, number>;
   canViewCost: boolean;
+  actions: React.ReactNode;
 }) {
   const items = [
     {
@@ -238,15 +246,25 @@ function InventorySummaryStrip({
     <section
       aria-label="סיכום מלאי"
       className={`grid w-full shrink-0 grid-cols-2 gap-3 md:grid-cols-3 ${
-        canViewCost ? "xl:grid-cols-6" : "xl:grid-cols-5"
+        canViewCost
+          ? "xl:grid-cols-[repeat(6,minmax(0,1fr))_minmax(0,0.667fr)]"
+          : "xl:grid-cols-[repeat(5,minmax(0,1fr))_minmax(0,0.667fr)]"
       }`}
     >
       {items.map((item) => (
-        <div key={item.key} className="bg-card min-w-0 rounded-md border px-4 py-3.5">
+        <div
+          key={item.key}
+          className="bg-card min-w-0 rounded-md border px-4 py-3.5"
+        >
           <p className="text-muted-foreground truncate text-sm">{item.label}</p>
-          <p className="mt-1 truncate text-2xl font-semibold tracking-tight tabular-nums">{item.value}</p>
+          <p className="mt-1 truncate text-2xl font-semibold tracking-tight tabular-nums">
+            {item.value}
+          </p>
         </div>
       ))}
+      <div className="flex min-w-0 flex-col justify-center gap-2">
+        {actions}
+      </div>
     </section>
   );
 }
@@ -521,9 +539,7 @@ function AdjustDialog({
         clinic_id: clinicId,
         on_hand_delta: Number(delta),
         reason,
-        expected_version: variant.balance?.id
-          ? variant.balance.version
-          : 1,
+        expected_version: variant.balance?.id ? variant.balance.version : 1,
         idempotency_key: "manual-" + Date.now() + "-" + variant.id,
         reorder_point: Number(reorderPoint || 0),
         target_quantity: Number(target || 0),
@@ -1057,7 +1073,10 @@ function ImportDialog({
     setCommitting(false);
     if (response.error) {
       const detail = response.errorDetail as
-        | { message?: string; rows?: { row_number?: number; errors?: string[] }[] }
+        | {
+            message?: string;
+            rows?: { row_number?: number; errors?: string[] }[];
+          }
         | undefined;
       const rowError = detail?.rows?.[0];
       toast.error(
@@ -1174,8 +1193,11 @@ export default function InventoryPage() {
   const [variants, setVariants] = useState<CatalogVariant[]>([]);
   const [summary, setSummary] = useState<Record<string, number>>({});
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
-  const { range: insightsRange, setRange: setInsightsRange } = useAnalyticsRange("90d");
-  const [insights, setInsights] = useState<InventoryAnalyticsResponse | null>(null);
+  const { range: insightsRange, setRange: setInsightsRange } =
+    useAnalyticsRange("90d");
+  const [insights, setInsights] = useState<InventoryAnalyticsResponse | null>(
+    null,
+  );
   const [insightsError, setInsightsError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -1203,12 +1225,20 @@ export default function InventoryPage() {
     INVENTORY_HEADER_TABS.find((tab) => tab.value === activeTab)?.label ||
     "מלאי וקטלוג";
   const insightMetrics = useMemo(
-    () => new Map((insights?.metrics || []).map((metric) => [metric.key, metric])),
+    () =>
+      new Map((insights?.metrics || []).map((metric) => [metric.key, metric])),
     [insights?.metrics],
   );
-  const rtlDemandSeries = useMemo(() => [...(insights?.demand_series || [])].reverse(), [insights?.demand_series]);
+  const rtlDemandSeries = useMemo(
+    () => [...(insights?.demand_series || [])].reverse(),
+    [insights?.demand_series],
+  );
   const fulfillmentTotal = useMemo(
-    () => (insights?.fulfillment_mix || []).reduce((total, item) => total + item.quantity, 0),
+    () =>
+      (insights?.fulfillment_mix || []).reduce(
+        (total, item) => total + item.quantity,
+        0,
+      ),
     [insights?.fulfillment_mix],
   );
 
@@ -1233,7 +1263,10 @@ export default function InventoryPage() {
     }
     if (activeTab === "insights") {
       setInsightsError(false);
-      const response = await apiClient.getInventoryInsights(clinicId, insightsRange);
+      const response = await apiClient.getInventoryInsights(
+        clinicId,
+        insightsRange,
+      );
       if (response.error || !response.data) {
         setInsights(null);
         setInsightsError(true);
@@ -1330,6 +1363,40 @@ export default function InventoryPage() {
     URL.revokeObjectURL(url);
   };
 
+  useEffect(() => {
+    if (!clinicId) return;
+
+    const handleQuickAction = (action: string | undefined) => {
+      if (!action) return;
+      setActiveTab("stock");
+      if (action === "count" && canWrite) setCountOpen(true);
+      if (action === "discovery" && canWrite) setDiscoveryOpen(true);
+      if (action === "import" && canWrite) setImportOpen(true);
+      if (action === "export") void exportCsv();
+    };
+    const handleInventoryQuickAction = (event: Event) => {
+      handleQuickAction(
+        (event as CustomEvent<{ action?: string }>).detail?.action,
+      );
+    };
+
+    window.addEventListener("inventoryQuickAction", handleInventoryQuickAction);
+    try {
+      const action = sessionStorage.getItem("sidebar-inventory-quick-action");
+      if (action) {
+        sessionStorage.removeItem("sidebar-inventory-quick-action");
+        handleQuickAction(action);
+      }
+    } catch (error) {
+      console.error("Unable to read inventory quick action:", error);
+    }
+    return () =>
+      window.removeEventListener(
+        "inventoryQuickAction",
+        handleInventoryQuickAction,
+      );
+  }, [canWrite, clinicId, exportCsv]);
+
   const archive = async (variant: CatalogVariant) => {
     const response = await apiClient.archiveCatalogVariant(
       variant.id,
@@ -1368,46 +1435,54 @@ export default function InventoryPage() {
         className="flex h-full min-h-0 flex-1 flex-col gap-5 overflow-hidden p-4 lg:p-6"
         dir="rtl"
       >
-        <ListPageHeader
-          title={activeTabTitle}
-          description={`קטלוג חברה משותף ומלאי מדויק עבור ${currentClinic?.name}`}
-          className="mb-0 items-center"
-          actions={
-            activeTab === "insights" ? (
-              <AnalyticsRangePicker value={insightsRange} onChange={setInsightsRange} disabled={loading} />
-            ) : (
+        {activeTab === "stock" ? (
+          <InventorySummaryStrip
+            summary={summary}
+            canViewCost={canViewCost}
+            actions={
               <>
                 {canWrite ? (
-                  <Button onClick={() => { setEditing(null); setCatalogOpen(true); }}>
+                  <Button
+                    className="w-full"
+                    onClick={() => {
+                      setEditing(null);
+                      setCatalogOpen(true);
+                    }}
+                  >
                     הוסף פריט
                     <Plus className="h-4 w-4" />
                   </Button>
                 ) : null}
                 <DropdownMenu dir="rtl">
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline">פעולות <MoreHorizontal className="h-4 w-4" /></Button>
+                    <Button className="w-full" variant="outline">
+                      פעולות <MoreHorizontal className="h-4 w-4" />
+                    </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     {canWrite ? (
                       <>
-                        <DropdownMenuItem onClick={() => setCountOpen(true)}>ספירת מלאי <ClipboardCheck className="h-4 w-4" /></DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setDiscoveryOpen(true)}>גילוי מהזמנות <ScanSearch className="h-4 w-4" /></DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setImportOpen(true)}>ייבוא CSV <Upload className="h-4 w-4" /></DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setCountOpen(true)}>
+                          ספירת מלאי <ClipboardCheck className="h-4 w-4" />
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setDiscoveryOpen(true)}
+                        >
+                          גילוי מהזמנות <ScanSearch className="h-4 w-4" />
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setImportOpen(true)}>
+                          ייבוא CSV <Upload className="h-4 w-4" />
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                       </>
                     ) : null}
-                    <DropdownMenuItem onClick={() => void exportCsv()}>ייצוא CSV <ArrowDownToLine className="h-4 w-4" /></DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => void exportCsv()}>
+                      ייצוא CSV <ArrowDownToLine className="h-4 w-4" />
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </>
-            )
-          }
-        />
-
-        {activeTab === "stock" ? (
-          <InventorySummaryStrip
-            summary={summary}
-            canViewCost={canViewCost}
+            }
           />
         ) : null}
 
@@ -1482,6 +1557,12 @@ export default function InventoryPage() {
               <Table
                 dir="rtl"
                 containerClassName="h-full min-h-0 overflow-auto overscroll-contain"
+                emptyState={
+                  !loading && !movements.length
+                    ? "עדיין אין תנועות מלאי."
+                    : undefined
+                }
+                showTrailingRowBorder
               >
                 <TableHeader className="bg-card sticky top-0">
                   <TableRow>
@@ -1532,16 +1613,6 @@ export default function InventoryPage() {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {!movements.length && !loading ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={6}
-                        className="text-muted-foreground h-32 text-center"
-                      >
-                        עדיין אין תנועות מלאי.
-                      </TableCell>
-                    </TableRow>
-                  ) : null}
                 </TableBody>
               </Table>
             </div>
@@ -1559,40 +1630,147 @@ export default function InventoryPage() {
             className="min-h-0 space-y-4 overflow-y-auto"
           >
             <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-              <AnalyticsMetricCard metric={insightMetrics.get("consumed")} formatter={integerFormatter.format} loading={loading} error={insightsError} polarity="neutral" />
-              <AnalyticsMetricCard metric={insightMetrics.get("inventory_fulfillment")} formatter={(value) => `${integerFormatter.format(value)}%`} loading={loading} error={insightsError} polarity="higher" />
-              <AnalyticsMetricCard metric={insightMetrics.get("reorder")} formatter={integerFormatter.format} loading={loading} error={insightsError} polarity="lower" />
-              <AnalyticsMetricCard metric={insightMetrics.get("out_of_stock")} formatter={integerFormatter.format} loading={loading} error={insightsError} polarity="lower" />
-              <AnalyticsMetricCard metric={insightMetrics.get("slow_stock")} formatter={canViewCost ? currencyFormatter.format : integerFormatter.format} loading={loading} error={insightsError} polarity="lower" />
+              <AnalyticsMetricCard
+                metric={insightMetrics.get("consumed")}
+                formatter={integerFormatter.format}
+                loading={loading}
+                error={insightsError}
+                polarity="neutral"
+              />
+              <AnalyticsMetricCard
+                metric={insightMetrics.get("inventory_fulfillment")}
+                formatter={(value) => `${integerFormatter.format(value)}%`}
+                loading={loading}
+                error={insightsError}
+                polarity="higher"
+              />
+              <AnalyticsMetricCard
+                metric={insightMetrics.get("reorder")}
+                formatter={integerFormatter.format}
+                loading={loading}
+                error={insightsError}
+                polarity="lower"
+              />
+              <AnalyticsMetricCard
+                metric={insightMetrics.get("out_of_stock")}
+                formatter={integerFormatter.format}
+                loading={loading}
+                error={insightsError}
+                polarity="lower"
+              />
+              <AnalyticsMetricCard
+                metric={insightMetrics.get("slow_stock")}
+                formatter={
+                  canViewCost
+                    ? currencyFormatter.format
+                    : integerFormatter.format
+                }
+                loading={loading}
+                error={insightsError}
+                polarity="lower"
+              />
             </section>
 
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.7fr)]">
-              <AnalyticsPanel title="צריכה לאורך זמן" description="ביקוש מאומת לפי קטגוריה" loading={loading} error={insightsError} empty={!insights?.demand_series.length}>
+              <AnalyticsPanel
+                title="צריכה לאורך זמן"
+                description="ביקוש מאומת לפי קטגוריה"
+                loading={loading}
+                error={insightsError}
+                empty={!insights?.demand_series.length}
+              >
                 <div className="h-64" dir="ltr">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={rtlDemandSeries} margin={{ top: 6, right: 4, left: 0, bottom: 0 }}>
-                      <CartesianGrid vertical={false} strokeDasharray="4 4" stroke="hsl(var(--border))" />
-                      <XAxis dataKey="label" axisLine={false} tickLine={false} tickMargin={10} fontSize={12} />
-                      <YAxis orientation="right" axisLine={false} tickLine={false} allowDecimals={false} width={38} />
+                    <BarChart
+                      data={rtlDemandSeries}
+                      margin={{ top: 6, right: 4, left: 0, bottom: 0 }}
+                    >
+                      <CartesianGrid
+                        vertical={false}
+                        strokeDasharray="4 4"
+                        stroke="hsl(var(--border))"
+                      />
+                      <XAxis
+                        dataKey="label"
+                        axisLine={false}
+                        tickLine={false}
+                        tickMargin={10}
+                        fontSize={12}
+                      />
+                      <YAxis
+                        orientation="right"
+                        axisLine={false}
+                        tickLine={false}
+                        allowDecimals={false}
+                        width={38}
+                      />
                       <AnalyticsChartTooltip content={<AnalyticsTooltip />} />
-                      <Legend verticalAlign="bottom" height={28} wrapperStyle={{ direction: "rtl" }} />
-                      <Bar dataKey="frame" stackId="demand" name="מסגרות" fill="hsl(var(--primary))" />
-                      <Bar dataKey="contact_lens" stackId="demand" name="עדשות מגע" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
+                      <Legend
+                        verticalAlign="bottom"
+                        height={28}
+                        wrapperStyle={{ direction: "rtl" }}
+                      />
+                      <Bar
+                        dataKey="frame"
+                        stackId="demand"
+                        name="מסגרות"
+                        fill="hsl(var(--primary))"
+                      />
+                      <Bar
+                        dataKey="contact_lens"
+                        stackId="demand"
+                        name="עדשות מגע"
+                        fill="hsl(var(--chart-2))"
+                        radius={[4, 4, 0, 0]}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
               </AnalyticsPanel>
-              <AnalyticsPanel title="מקור אספקה" description="מלאי קיים לעומת הזמנת ספק" loading={loading} error={insightsError} empty={!insights?.fulfillment_mix.some((item) => item.quantity > 0)}>
-                <div className="grid h-64 grid-cols-[minmax(0,1fr)_minmax(120px,0.8fr)] items-center gap-3" dir="rtl">
+              <AnalyticsPanel
+                title="מקור אספקה"
+                description="מלאי קיים לעומת הזמנת ספק"
+                loading={loading}
+                error={insightsError}
+                empty={
+                  !insights?.fulfillment_mix.some((item) => item.quantity > 0)
+                }
+              >
+                <div
+                  className="grid h-64 grid-cols-[minmax(0,1fr)_minmax(120px,0.8fr)] items-center gap-3"
+                  dir="rtl"
+                >
                   <div className="min-w-0 space-y-2">
                     {(insights?.fulfillment_mix || []).map((item, index) => (
-                      <div key={item.source} className="flex min-w-0 items-center justify-between gap-3 text-sm">
+                      <div
+                        key={item.source}
+                        className="flex min-w-0 items-center justify-between gap-3 text-sm"
+                      >
                         <span className="flex min-w-0 items-center gap-2">
-                          <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: FULFILLMENT_MIX_COLORS[index % FULFILLMENT_MIX_COLORS.length] }} />
-                          <span className="truncate" title={item.source}>{item.source}</span>
+                          <span
+                            className="size-2.5 shrink-0 rounded-full"
+                            style={{
+                              backgroundColor:
+                                FULFILLMENT_MIX_COLORS[
+                                  index % FULFILLMENT_MIX_COLORS.length
+                                ],
+                            }}
+                          />
+                          <span className="truncate" title={item.source}>
+                            {item.source}
+                          </span>
                         </span>
-                        <span className="shrink-0 text-muted-foreground tabular-nums" dir="ltr">
-                          {integerFormatter.format(item.quantity)} · {fulfillmentTotal ? Math.round((item.quantity / fulfillmentTotal) * 100) : 0}%
+                        <span
+                          className="text-muted-foreground shrink-0 tabular-nums"
+                          dir="ltr"
+                        >
+                          {integerFormatter.format(item.quantity)} ·{" "}
+                          {fulfillmentTotal
+                            ? Math.round(
+                                (item.quantity / fulfillmentTotal) * 100,
+                              )
+                            : 0}
+                          %
                         </span>
                       </div>
                     ))}
@@ -1613,65 +1791,221 @@ export default function InventoryPage() {
                           strokeWidth={2}
                           isAnimationActive={false}
                         >
-                          {(insights?.fulfillment_mix || []).map((item, index) => (
-                            <Cell key={item.source} fill={FULFILLMENT_MIX_COLORS[index % FULFILLMENT_MIX_COLORS.length]} />
-                          ))}
+                          {(insights?.fulfillment_mix || []).map(
+                            (item, index) => (
+                              <Cell
+                                key={item.source}
+                                fill={
+                                  FULFILLMENT_MIX_COLORS[
+                                    index % FULFILLMENT_MIX_COLORS.length
+                                  ]
+                                }
+                              />
+                            ),
+                          )}
                         </Pie>
-                        <AnalyticsChartTooltip content={<AnalyticsTooltip />} wrapperStyle={{ zIndex: 10 }} />
+                        <AnalyticsChartTooltip
+                          content={<AnalyticsTooltip />}
+                          wrapperStyle={{ zIndex: 10 }}
+                        />
                       </PieChart>
                     </ResponsiveContainer>
                     <div className="pointer-events-none absolute inset-0 z-0 flex flex-col items-center justify-center">
-                      <strong className="text-xl leading-none tabular-nums">{integerFormatter.format(fulfillmentTotal)}</strong>
-                      <span className="mt-1 text-[11px] text-muted-foreground">יחידות</span>
+                      <strong className="text-xl leading-none tabular-nums">
+                        {integerFormatter.format(fulfillmentTotal)}
+                      </strong>
+                      <span className="text-muted-foreground mt-1 text-[11px]">
+                        יחידות
+                      </span>
                     </div>
                   </div>
                 </div>
               </AnalyticsPanel>
             </div>
 
-            <AnalyticsPanel flat title="המלצות הזמנה מחדש" description="פריטים הדורשים פעולה לפי מלאי זמין וקצב צריכה" loading={loading} error={insightsError} empty={!insights?.reorder_suggestions.length}>
+            <AnalyticsPanel
+              flat
+              title="המלצות הזמנה מחדש"
+              description="פריטים הדורשים פעולה לפי מלאי זמין וקצב צריכה"
+              loading={loading}
+              error={insightsError}
+              empty={!insights?.reorder_suggestions.length}
+            >
               <RankedMetricTable
                 rows={insights?.reorder_suggestions || []}
                 getKey={(item) => item.variant.id}
                 columns={[
-                  { key: "item", label: "פריטים להזמנה מחדש", render: (item) => <div><p className="font-medium">{item.variant.display_name}</p><p className="text-xs text-muted-foreground">{inventoryVariantDescription(item.variant)}</p></div> },
-                  { key: "risk", label: "סיכון", render: (item) => <Badge variant={item.stockout_risk === "out_of_stock" || item.stockout_risk === "high" ? "destructive" : "outline"}>{riskLabels[item.stockout_risk]}</Badge> },
-                  { key: "available", label: "זמין", render: (item) => integerFormatter.format(item.variant.balance.available), className: "tabular-nums" },
-                  { key: "velocity", label: "קצב יומי", render: (item) => item.daily_velocity.toLocaleString("he-IL", { maximumFractionDigits: 2 }), className: "tabular-nums" },
-                  { key: "cover", label: "ימי כיסוי", render: (item) => item.days_cover == null ? "—" : integerFormatter.format(item.days_cover), className: "tabular-nums" },
-                  { key: "reorder", label: "כמות להזמנה", render: (item) => <strong>{integerFormatter.format(item.reorder_quantity)}</strong>, className: "tabular-nums" },
-                  { key: "confidence", label: "ביטחון", render: (item) => confidenceLabels[item.confidence] },
+                  {
+                    key: "item",
+                    label: "פריטים להזמנה מחדש",
+                    render: (item) => (
+                      <div>
+                        <p className="font-medium">
+                          {item.variant.display_name}
+                        </p>
+                        <p className="text-muted-foreground text-xs">
+                          {inventoryVariantDescription(item.variant)}
+                        </p>
+                      </div>
+                    ),
+                  },
+                  {
+                    key: "risk",
+                    label: "סיכון",
+                    render: (item) => (
+                      <Badge
+                        variant={
+                          item.stockout_risk === "out_of_stock" ||
+                          item.stockout_risk === "high"
+                            ? "destructive"
+                            : "outline"
+                        }
+                      >
+                        {riskLabels[item.stockout_risk]}
+                      </Badge>
+                    ),
+                  },
+                  {
+                    key: "available",
+                    label: "זמין",
+                    render: (item) =>
+                      integerFormatter.format(item.variant.balance.available),
+                    className: "tabular-nums",
+                  },
+                  {
+                    key: "velocity",
+                    label: "קצב יומי",
+                    render: (item) =>
+                      item.daily_velocity.toLocaleString("he-IL", {
+                        maximumFractionDigits: 2,
+                      }),
+                    className: "tabular-nums",
+                  },
+                  {
+                    key: "cover",
+                    label: "ימי כיסוי",
+                    render: (item) =>
+                      item.days_cover == null
+                        ? "—"
+                        : integerFormatter.format(item.days_cover),
+                    className: "tabular-nums",
+                  },
+                  {
+                    key: "reorder",
+                    label: "כמות להזמנה",
+                    render: (item) => (
+                      <strong>
+                        {integerFormatter.format(item.reorder_quantity)}
+                      </strong>
+                    ),
+                    className: "tabular-nums",
+                  },
+                  {
+                    key: "confidence",
+                    label: "ביטחון",
+                    render: (item) => confidenceLabels[item.confidence],
+                  },
                 ]}
               />
             </AnalyticsPanel>
 
             <div className="grid items-start gap-4 xl:grid-cols-2">
-              <AnalyticsPanel flat title="הפריטים הנצרכים ביותר" description="דירוג לפי יחידות ביקוש מאומתות" loading={loading} error={insightsError} empty={!insights?.top_consumed.length}>
+              <AnalyticsPanel
+                flat
+                title="הפריטים הנצרכים ביותר"
+                description="דירוג לפי יחידות ביקוש מאומתות"
+                loading={loading}
+                error={insightsError}
+                empty={!insights?.top_consumed.length}
+              >
                 <RankedMetricTable
                   rows={insights?.top_consumed || []}
                   getKey={(item) => item.variant.id}
                   columns={[
-                    { key: "item", label: "פריטים מובילים בצריכה", render: (item) => <span className="font-medium">{item.variant.display_name}</span> },
-                    { key: "units", label: "יחידות", render: (item) => integerFormatter.format(item.units_demanded), className: "tabular-nums" },
-                    { key: "cover", label: "ימי כיסוי", render: (item) => item.days_cover == null ? "—" : integerFormatter.format(item.days_cover), className: "tabular-nums" },
+                    {
+                      key: "item",
+                      label: "פריטים מובילים בצריכה",
+                      render: (item) => (
+                        <span className="font-medium">
+                          {item.variant.display_name}
+                        </span>
+                      ),
+                    },
+                    {
+                      key: "units",
+                      label: "יחידות",
+                      render: (item) =>
+                        integerFormatter.format(item.units_demanded),
+                      className: "tabular-nums",
+                    },
+                    {
+                      key: "cover",
+                      label: "ימי כיסוי",
+                      render: (item) =>
+                        item.days_cover == null
+                          ? "—"
+                          : integerFormatter.format(item.days_cover),
+                      className: "tabular-nums",
+                    },
                   ]}
                 />
               </AnalyticsPanel>
-              <AnalyticsPanel flat title="מלאי ללא תנועה" description="פריטים במלאי שלא נרשמה עבורם צריכה בטווח" loading={loading} error={insightsError} empty={!insights?.slow_moving.length}>
+              <AnalyticsPanel
+                flat
+                title="מלאי ללא תנועה"
+                description="פריטים במלאי שלא נרשמה עבורם צריכה בטווח"
+                loading={loading}
+                error={insightsError}
+                empty={!insights?.slow_moving.length}
+              >
                 <RankedMetricTable
                   rows={insights?.slow_moving || []}
                   getKey={(item) => item.variant.id}
                   columns={[
-                    { key: "item", label: "מלאי ללא תנועה", render: (item) => <span className="font-medium">{item.variant.display_name}</span> },
-                    { key: "stock", label: "במלאי", render: (item) => integerFormatter.format(item.variant.balance.on_hand), className: "tabular-nums" },
-                    { key: "value", label: canViewCost ? "שווי עלות" : "מצב", render: (item) => canViewCost ? currencyFormatter.format((item.variant.default_cost || 0) * item.variant.balance.on_hand) : "ללא תנועה", className: "tabular-nums" },
+                    {
+                      key: "item",
+                      label: "מלאי ללא תנועה",
+                      render: (item) => (
+                        <span className="font-medium">
+                          {item.variant.display_name}
+                        </span>
+                      ),
+                    },
+                    {
+                      key: "stock",
+                      label: "במלאי",
+                      render: (item) =>
+                        integerFormatter.format(item.variant.balance.on_hand),
+                      className: "tabular-nums",
+                    },
+                    {
+                      key: "value",
+                      label: canViewCost ? "שווי עלות" : "מצב",
+                      render: (item) =>
+                        canViewCost
+                          ? currencyFormatter.format(
+                              (item.variant.default_cost || 0) *
+                                item.variant.balance.on_hand,
+                            )
+                          : "ללא תנועה",
+                      className: "tabular-nums",
+                    },
                   ]}
                 />
               </AnalyticsPanel>
             </div>
             <p className="text-muted-foreground pb-2 text-xs">
-              הנתונים מבוססים על הזמנות שאושרו ותנועות צריכה שלא משויכות לאותה הזמנה. רמת ביטחון: {insights?.data_quality.confidence === "high" ? "גבוהה" : insights?.data_quality.confidence === "medium" ? "בינונית" : "נמוכה"}.
-              {insights?.data_quality.first_observation ? ` כיסוי נתונים החל מ-${new Date(insights.data_quality.first_observation).toLocaleDateString("he-IL")}.` : " עדיין אין היסטוריה מספקת."}
+              הנתונים מבוססים על הזמנות שאושרו ותנועות צריכה שלא משויכות לאותה
+              הזמנה. רמת ביטחון:{" "}
+              {insights?.data_quality.confidence === "high"
+                ? "גבוהה"
+                : insights?.data_quality.confidence === "medium"
+                  ? "בינונית"
+                  : "נמוכה"}
+              .
+              {insights?.data_quality.first_observation
+                ? ` כיסוי נתונים החל מ-${new Date(insights.data_quality.first_observation).toLocaleDateString("he-IL")}.`
+                : " עדיין אין היסטוריה מספקת."}
             </p>
           </TabsContent>
         </Tabs>
@@ -1691,7 +2025,7 @@ export default function InventoryPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="bg-muted/30 max-h-[55vh] overflow-y-auto rounded-md border p-4">
-            <p className="whitespace-pre-wrap break-words text-sm leading-6">
+            <p className="text-sm leading-6 break-words whitespace-pre-wrap">
               {selectedMovementReason}
             </p>
           </div>
@@ -1778,6 +2112,12 @@ function InventoryTable({
         <Table
           dir="rtl"
           containerClassName="h-full min-h-0 overflow-auto overscroll-contain"
+          emptyState={
+            !loading && !variants.length
+              ? "אין פריטים התואמים לסינון. אפשר להוסיף פריט ראשון או לגלות מוצרים מהזמנות."
+              : undefined
+          }
+          showTrailingRowBorder
         >
           <TableHeader className="bg-card sticky top-0 z-10">
             <TableRow>
@@ -1816,7 +2156,7 @@ function InventoryTable({
                             type="button"
                             disabled={!canWrite}
                             onClick={() => onEdit(variant)}
-                            className="rounded-sm text-right font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none"
+                            className="focus-visible:ring-ring rounded-sm text-right font-medium outline-none hover:underline focus-visible:ring-2 disabled:pointer-events-none"
                           >
                             {[variant.product.brand, variant.product.model]
                               .filter(Boolean)
@@ -1901,7 +2241,8 @@ function InventoryTable({
                             size="icon"
                             className="text-muted-foreground size-8"
                             disabled={
-                              !variant.is_stockable || Boolean(variant.archived_at)
+                              !variant.is_stockable ||
+                              Boolean(variant.archived_at)
                             }
                             onClick={() => onAdjust(variant)}
                             aria-label={`התאם מלאי עבור ${variant.display_name}`}
@@ -1952,17 +2293,6 @@ function InventoryTable({
                     </TableCell>
                   </TableRow>
                 ))}
-            {!loading && !variants.length ? (
-              <TableRow>
-                <TableCell
-                  colSpan={9}
-                  className="text-muted-foreground h-40 text-center"
-                >
-                  אין פריטים התואמים לסינון. אפשר להוסיף פריט ראשון או לגלות
-                  מוצרים מהזמנות.
-                </TableCell>
-              </TableRow>
-            ) : null}
           </TableBody>
         </Table>
       </div>

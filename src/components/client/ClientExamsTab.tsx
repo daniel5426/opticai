@@ -59,6 +59,7 @@ export function ClientExamsTab({ enabled = true }: ClientExamsTabProps) {
       onExamDeleted={handleExamDeleted} 
       onExamDeleteFailed={handleExamDeleteFailed}
       loading={examsQuery.isLoading}
+      fillHeight
     />
   )
 } 

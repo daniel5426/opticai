@@ -44,6 +44,7 @@ interface ClientsTableProps {
   selectedMergeClientIds?: number[]
   selectedMergeClients?: Client[]
   onToggleMergeClient?: (client: Client) => void
+  fillHeight?: boolean
 }
 
 export function ClientsTable({
@@ -68,7 +69,8 @@ export function ClientsTable({
   mergeMode = false,
   selectedMergeClientIds = [],
   selectedMergeClients = [],
-  onToggleMergeClient
+  onToggleMergeClient,
+  fillHeight = false
 }: ClientsTableProps) {
   const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
   const [selectedGender, setSelectedGender] = React.useState<string>("all")
@@ -191,9 +193,14 @@ export function ClientsTable({
   }
 
   const columnsCount = (compactMode ? (showFamilyColumn ? 6 : 5) : showFamilyColumn ? 9 : 8) + (mergeMode ? 1 : 0)
+  const emptyMessage = showFamilyColumn && !selectedFamilyId
+    ? "בחר משפחה כדי לראות את חבריה"
+    : selectedFamilyId
+      ? "לא נמצאו לקוחות במשפחה זו"
+      : "לא נמצאו לקוחות לתצוגה"
 
   return (
-    <div className="space-y-2.5" dir="rtl" style={{ scrollbarWidth: "none" }}>
+    <div className={fillHeight ? "flex min-h-0 flex-1 flex-col gap-2.5" : "space-y-2.5"} dir="rtl" style={{ scrollbarWidth: "none" }}>
       {!hideSearch && (
         <TableFiltersBar
           searchValue={searchQuery}
@@ -228,11 +235,13 @@ export function ClientsTable({
         />
       )}
 
-      <div className="bg-card rounded-md">
+      <div className={fillHeight ? "bg-card min-h-0 flex-1 rounded-md" : "bg-card rounded-md"}>
         <Table
           dir="rtl"
-          containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain"
+          containerClassName={fillHeight ? "h-full min-h-0 overflow-y-auto overscroll-contain" : "max-h-[70vh] overflow-y-auto overscroll-contain"}
           containerStyle={{ scrollbarWidth: "none" }}
+          emptyState={!loading && displayData.length === 0 ? emptyMessage : undefined}
+          showTrailingRowBorder={fillHeight}
         >
           <TableHeader className="bg-card sticky top-0">
             <TableRow>
@@ -420,17 +429,7 @@ export function ClientsTable({
                   </TableCell>
                 </TableRow>
               ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={columnsCount} className="text-muted-foreground h-24 text-center">
-                  {showFamilyColumn && !selectedFamilyId
-                    ? "בחר משפחה כדי לראות את חבריה"
-                    : selectedFamilyId
-                      ? "לא נמצאו לקוחות במשפחה זו"
-                      : "לא נמצאו לקוחות לתצוגה"}
-                </TableCell>
-              </TableRow>
-            )}
+            ) : null}
           </TableBody>
         </Table>
       </div>

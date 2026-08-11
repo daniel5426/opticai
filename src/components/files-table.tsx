@@ -41,6 +41,7 @@ interface FilesTableProps {
   onFileCategoryFilterChange?: (value: string) => void
   sort?: SortState
   onSortChange?: (sort: SortState) => void
+  fillHeight?: boolean
 }
 
 export function FilesTable({
@@ -59,7 +60,8 @@ export function FilesTable({
   fileCategoryFilter: externalFileCategoryFilter,
   onFileCategoryFilterChange,
   sort,
-  onSortChange
+  onSortChange,
+  fillHeight = false
 }: FilesTableProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [localSort, setLocalSort] = useState<SortState | undefined>()
@@ -368,7 +370,7 @@ export function FilesTable({
 
   return (
     <div
-      className="relative space-y-2.5"
+      className={fillHeight ? "relative flex min-h-0 flex-1 flex-col gap-2.5" : "relative space-y-2.5"}
       style={{ scrollbarWidth: "none" }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -414,11 +416,13 @@ export function FilesTable({
 
       <input ref={fileInputRef} type="file" className="hidden" multiple onChange={handleFileInputChange} />
 
-      <div className="bg-card rounded-md">
+      <div className={fillHeight ? "bg-card min-h-0 flex-1 rounded-md" : "bg-card rounded-md"}>
         <Table
           dir="rtl"
-          containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain"
+          containerClassName={fillHeight ? "h-full min-h-0 overflow-y-auto overscroll-contain" : "max-h-[70vh] overflow-y-auto overscroll-contain"}
           containerStyle={{ scrollbarWidth: "none" }}
+          emptyState={!loading && displayData.length === 0 ? "לא נמצאו מסמכים." : undefined}
+          showTrailingRowBorder={fillHeight}
         >
           <TableHeader className="bg-card sticky top-0">
             <TableRow>
@@ -566,13 +570,7 @@ export function FilesTable({
                   </TableCell>
                 </TableRow>
               ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={7} className="text-muted-foreground h-24 text-center">
-                  לא נמצאו מסמכים.
-                </TableCell>
-              </TableRow>
-            )}
+            ) : null}
           </TableBody>
         </Table>
       </div>

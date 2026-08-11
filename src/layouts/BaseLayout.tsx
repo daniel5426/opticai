@@ -1,31 +1,64 @@
-import React, { useState, useEffect } from "react"
-import DragWindowRegion from "@/components/DragWindowRegion"
-import { ThemeProvider } from "@/components/theme-provider"
-import { Toaster } from "@/components/ui/sonner"
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
-import { AppSidebar } from "@/components/app-sidebar"
-import { ControlCenterSidebar } from "@/components/control-center-sidebar"
-import { getSettings } from "@/lib/db/settings-db"
-import { applyCompanyThemeColors, cacheCompanyThemeColors } from "@/helpers/theme_helpers"
-import { Settings, User } from "@/lib/db/schema-interface"
-import { SettingsContext } from "@/contexts/SettingsContext"
-import { ClientSidebarProvider } from "@/contexts/ClientSidebarContext"
-import { NavigationGuardProvider } from "@/contexts/NavigationGuardContext"
-import { useUser } from "@/contexts/UserContext"
-import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels"
-import { ClientSidebar } from "@/components/ClientSidebar"
-import { useLocation, useNavigate, useRouterState } from "@tanstack/react-router"
-import { Button } from "@/components/ui/button"
-import { apiClient, type SubscriptionSummary } from "@/lib/api-client"
-import Loader from "@/components/kokonutui/loader"
-import { IconAlertTriangle } from "@tabler/icons-react"
+import React, { useState, useEffect } from "react";
+import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "@/components/ui/sonner";
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/app-sidebar";
+import { ControlCenterSidebar } from "@/components/control-center-sidebar";
+import { getSettings } from "@/lib/db/settings-db";
+import {
+  applyCompanyThemeColors,
+  cacheCompanyThemeColors,
+} from "@/helpers/theme_helpers";
+import { Settings, User } from "@/lib/db/schema-interface";
+import { SettingsContext } from "@/contexts/SettingsContext";
+import { ClientSidebarProvider } from "@/contexts/ClientSidebarContext";
+import { NavigationGuardProvider } from "@/contexts/NavigationGuardContext";
+import { useUser } from "@/contexts/UserContext";
+import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels";
+import { ClientSidebar } from "@/components/ClientSidebar";
+import {
+  useLocation,
+  useNavigate,
+  useRouterState,
+} from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
+import { apiClient, type SubscriptionSummary } from "@/lib/api-client";
+import Loader from "@/components/kokonutui/loader";
+import { IconAlertTriangle } from "@tabler/icons-react";
+import { useTranslation } from "react-i18next";
+import {
+  getActiveLocale,
+  getDirection,
+  normalizeLocale,
+} from "@/localization/locale";
 
-function SubscriptionBanner({ subscription }: { subscription: SubscriptionSummary | null }) {
-  if (!subscription || (subscription.status !== "past_due" && subscription.access_mode !== "read_only")) return null
-  const message = subscription.access_mode === "read_only"
-    ? "החשבון במצב קריאה בלבד. צפייה, הדפסה וייצוא זמינים; יש להסדיר את החיוב כדי לערוך נתונים."
-    : "התשלום לא הושלם. הגישה המלאה תישמר למשך תקופת החסד בת שבעת הימים."
-  return <div className="flex items-center justify-center gap-2 border-amber-500/30 border-b bg-amber-500/10 px-4 py-2 text-amber-950 text-sm dark:text-amber-100" dir="rtl"><IconAlertTriangle className="size-4" /><span>{message}</span></div>
+function SubscriptionBanner({
+  subscription,
+  direction,
+}: {
+  subscription: SubscriptionSummary | null;
+  direction: "rtl" | "ltr";
+}) {
+  const { t } = useTranslation();
+  if (
+    !subscription ||
+    (subscription.status !== "past_due" &&
+      subscription.access_mode !== "read_only")
+  )
+    return null;
+  const message =
+    subscription.access_mode === "read_only"
+      ? t("readOnlySubscription")
+      : t("overdueSubscription");
+  return (
+    <div
+      className="flex items-center justify-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-950 dark:text-amber-100"
+      dir={direction}
+    >
+      <IconAlertTriangle className="size-4" />
+      <span>{message}</span>
+    </div>
+  );
 }
 
 /**
@@ -34,147 +67,178 @@ function SubscriptionBanner({ subscription }: { subscription: SubscriptionSummar
  * Auth logic is delegated to AuthService - this component just consumes the state
  */
 function BaseLayoutContent({ children }: { children: React.ReactNode }) {
-  const [settings, setSettings] = useState<Settings | null>(null)
-  const [isLogoLoaded, setIsLogoLoaded] = useState(false)
-  const [company, setCompany] = useState<any>(null)
-  const [subscription, setSubscription] = useState<SubscriptionSummary | null>(null)
-  const navigate = useNavigate()
-  const location = useLocation()
-  const routerLocation = useRouterState({ select: (state) => state.location })
+  const { i18n, t } = useTranslation();
+  const locale =
+    normalizeLocale(i18n.resolvedLanguage ?? i18n.language) ??
+    getActiveLocale();
+  const direction = getDirection(locale);
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [isLogoLoaded, setIsLogoLoaded] = useState(false);
+  const [company, setCompany] = useState<any>(null);
+  const [subscription, setSubscription] = useState<SubscriptionSummary | null>(
+    null,
+  );
+  const navigate = useNavigate();
+  const location = useLocation();
+  const routerLocation = useRouterState({ select: (state) => state.location });
 
   // Safe access to user context (handles HMR gracefully)
-  let currentUser: User | null = null
-  let currentClinic: any = null
-  let isUserLoading = true
+  let currentUser: User | null = null;
+  let currentClinic: any = null;
+  let isUserLoading = true;
 
   try {
-    const userContext = useUser()
-    currentUser = userContext.currentUser
-    currentClinic = userContext.currentClinic
-    isUserLoading = userContext.isLoading
+    const userContext = useUser();
+    currentUser = userContext.currentUser;
+    currentClinic = userContext.currentClinic;
+    isUserLoading = userContext.isLoading;
   } catch (error) {
     // During HMR, UserProvider might be temporarily unavailable
-    console.log("[BaseLayout] UserContext temporarily unavailable (likely HMR)")
+    console.log(
+      "[BaseLayout] UserContext temporarily unavailable (likely HMR)",
+    );
   }
 
   const updateSettings = (newSettings: Settings) => {
-    setSettings(newSettings)
-  }
+    setSettings(newSettings);
+  };
 
   // Load settings when clinic context is available
   useEffect(() => {
     const loadSettings = async () => {
-      if (!currentClinic?.id) return
+      if (!currentClinic?.id) return;
 
       try {
-        const dbSettings = await getSettings(currentClinic.id)
+        const dbSettings = await getSettings(currentClinic.id);
         if (dbSettings) {
-          setSettings(dbSettings)
+          setSettings(dbSettings);
           // Apply company theme colors (they're already cached from UserContext)
-          applyCompanyThemeColors()
+          applyCompanyThemeColors();
         }
       } catch (error) {
-        console.error("[BaseLayout] Error loading settings:", error)
+        console.error("[BaseLayout] Error loading settings:", error);
       }
-    }
+    };
 
-    loadSettings()
-  }, [currentClinic?.id, currentUser?.id])
+    loadSettings();
+  }, [currentClinic?.id, currentUser?.id]);
 
   // Load company data
   useEffect(() => {
     const loadCompany = async () => {
-      const companyId = currentClinic?.company_id || currentUser?.company_id
+      const companyId = currentClinic?.company_id || currentUser?.company_id;
       if (!companyId) {
-        setCompany(null)
-        return
+        setCompany(null);
+        return;
       }
 
-      const companyData = localStorage.getItem("controlCenterCompany")
+      const companyData = localStorage.getItem("controlCenterCompany");
       if (companyData) {
         try {
-          const cachedCompany = JSON.parse(companyData)
+          const cachedCompany = JSON.parse(companyData);
           if (cachedCompany?.id === companyId) {
-            setCompany(cachedCompany)
-            cacheCompanyThemeColors(cachedCompany)
-            applyCompanyThemeColors(cachedCompany)
-            return
+            setCompany(cachedCompany);
+            cacheCompanyThemeColors(cachedCompany);
+            applyCompanyThemeColors(cachedCompany);
+            return;
           }
-          localStorage.removeItem("controlCenterCompany")
+          localStorage.removeItem("controlCenterCompany");
         } catch (error) {
-          localStorage.removeItem("controlCenterCompany")
+          localStorage.removeItem("controlCenterCompany");
         }
       }
 
       try {
-        const resp = await apiClient.getCompany(companyId)
+        const resp = await apiClient.getCompany(companyId);
         if (resp.data) {
-          setCompany(resp.data)
-          localStorage.setItem("controlCenterCompany", JSON.stringify(resp.data))
-          cacheCompanyThemeColors(resp.data)
-          applyCompanyThemeColors(resp.data)
+          setCompany(resp.data);
+          localStorage.setItem(
+            "controlCenterCompany",
+            JSON.stringify(resp.data),
+          );
+          cacheCompanyThemeColors(resp.data);
+          applyCompanyThemeColors(resp.data);
         }
       } catch (error) {
-        console.error("[BaseLayout] Error loading company:", error)
+        console.error("[BaseLayout] Error loading company:", error);
       }
-    }
+    };
 
-    loadCompany()
-  }, [currentClinic?.company_id, currentUser?.company_id])
+    loadCompany();
+  }, [currentClinic?.company_id, currentUser?.company_id]);
 
   useEffect(() => {
-    if (!currentUser?.id) { setSubscription(null); return }
+    if (!currentUser?.id) {
+      setSubscription(null);
+      return;
+    }
     void apiClient.getSubscriptionSummary().then((response) => {
-      if (response.data) setSubscription(response.data)
-    })
-  }, [currentUser?.id])
+      if (response.data) setSubscription(response.data);
+    });
+  }, [currentUser?.id]);
 
   // Listen for company updates
   useEffect(() => {
     const handler = (e: any) => {
       if (e?.detail) {
-        setCompany(e.detail)
+        setCompany(e.detail);
         // Cache and apply updated company theme colors
-        cacheCompanyThemeColors(e.detail)
-        applyCompanyThemeColors(e.detail)
+        cacheCompanyThemeColors(e.detail);
+        applyCompanyThemeColors(e.detail);
       }
-    }
-    window.addEventListener("companyUpdated", handler as EventListener)
-    return () => window.removeEventListener("companyUpdated", handler as EventListener)
-  }, [])
+    };
+    window.addEventListener("companyUpdated", handler as EventListener);
+    return () =>
+      window.removeEventListener("companyUpdated", handler as EventListener);
+  }, []);
 
   // Preload logo
   useEffect(() => {
     if (settings?.clinic_logo_path) {
-      setIsLogoLoaded(false)
-      const img = new Image()
-      img.src = settings.clinic_logo_path
-      img.onload = () => setIsLogoLoaded(true)
-      img.onerror = () => setIsLogoLoaded(true)
+      setIsLogoLoaded(false);
+      const img = new Image();
+      img.src = settings.clinic_logo_path;
+      img.onload = () => setIsLogoLoaded(true);
+      img.onerror = () => setIsLogoLoaded(true);
     } else {
-      setIsLogoLoaded(true)
+      setIsLogoLoaded(true);
     }
-  }, [settings?.clinic_logo_path])
+  }, [settings?.clinic_logo_path]);
 
   // Determine which layout to show
-  const noSidebarRoutes = ["/control-center", "/user-selection", "/auth/callback", "/oauth/callback"]
+  const noSidebarRoutes = [
+    "/control-center",
+    "/user-selection",
+    "/auth/callback",
+    "/oauth/callback",
+  ];
   const shouldShowSidebar =
-    !noSidebarRoutes.some((route) => location.pathname.startsWith(route)) && location.pathname !== "/" // Exclude exact root path
+    !noSidebarRoutes.some((route) => location.pathname.startsWith(route)) &&
+    location.pathname !== "/"; // Exclude exact root path
 
   const controlCenterRoutes = [
     "/control-center/dashboard",
     "/control-center/users",
     "/control-center/clinics",
-    "/control-center/settings"
-  ]
-  const isControlCenterRoute = controlCenterRoutes.some((route) => location.pathname.startsWith(route))
+    "/control-center/settings",
+  ];
+  const isControlCenterRoute = controlCenterRoutes.some((route) =>
+    location.pathname.startsWith(route),
+  );
 
-  const canAccessControlCenter = isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo)
+  const canAccessControlCenter = isRoleAtLeast(
+    currentUser?.role_level,
+    ROLE_LEVELS.ceo,
+  );
 
   // Don't show loading screen on callback route (OAuth popup)
   // Use window.location directly for this check to be ultra-reliable during boot
-  const currentPath = typeof window !== "undefined" ? window.location.pathname : location.pathname
-  const isCallbackRoute = currentPath === "/auth/callback" || currentPath === "/oauth/callback"
+  const currentPath =
+    typeof window !== "undefined"
+      ? window.location.pathname
+      : location.pathname;
+  const isCallbackRoute =
+    currentPath === "/auth/callback" || currentPath === "/oauth/callback";
 
   useEffect(() => {
     if (
@@ -182,7 +246,7 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
       routerLocation.pathname === "/auth/callback" ||
       routerLocation.pathname === "/oauth/callback"
     ) {
-      return
+      return;
     }
 
     try {
@@ -190,32 +254,39 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
         typeof routerLocation.search === "string"
           ? routerLocation.search
           : (() => {
-              if (!routerLocation.search) return ""
-              const params = new URLSearchParams()
-              Object.entries(routerLocation.search as Record<string, unknown>).forEach(([key, value]) => {
-                if (value === undefined || value === null) return
+              if (!routerLocation.search) return "";
+              const params = new URLSearchParams();
+              Object.entries(
+                routerLocation.search as Record<string, unknown>,
+              ).forEach(([key, value]) => {
+                if (value === undefined || value === null) return;
                 if (Array.isArray(value)) {
-                  value.forEach((entry) => params.append(key, String(entry)))
-                  return
+                  value.forEach((entry) => params.append(key, String(entry)));
+                  return;
                 }
-                params.set(key, String(value))
-              })
-              const query = params.toString()
-              return query ? `?${query}` : ""
-            })()
+                params.set(key, String(value));
+              });
+              const query = params.toString();
+              return query ? `?${query}` : "";
+            })();
 
-      const hash = typeof routerLocation.hash === "string" ? routerLocation.hash : ""
+      const hash =
+        typeof routerLocation.hash === "string" ? routerLocation.hash : "";
 
-      const pathWithSearch = `${routerLocation.pathname}${search}${hash}`
-      localStorage.setItem("lastAppPath", pathWithSearch)
+      const pathWithSearch = `${routerLocation.pathname}${search}${hash}`;
+      localStorage.setItem("lastAppPath", pathWithSearch);
 
       const isControlCenterContext =
-        routerLocation.pathname === "/" || routerLocation.pathname.startsWith("/control-center")
-      localStorage.setItem("lastAppContext", isControlCenterContext ? "control-center" : "clinic")
+        routerLocation.pathname === "/" ||
+        routerLocation.pathname.startsWith("/control-center");
+      localStorage.setItem(
+        "lastAppContext",
+        isControlCenterContext ? "control-center" : "clinic",
+      );
     } catch (error) {
-      console.error("[BaseLayout] Failed to persist path/context:", error)
+      console.error("[BaseLayout] Failed to persist path/context:", error);
     }
-  }, [routerLocation?.pathname, routerLocation?.search, routerLocation?.hash])
+  }, [routerLocation?.pathname, routerLocation?.search, routerLocation?.hash]);
 
   // Show loading during auth initialization (except on callback route)
   if (isUserLoading && !isCallbackRoute) {
@@ -226,7 +297,7 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
         </div>
         <Toaster />
       </ThemeProvider>
-    )
+    );
   }
 
   return (
@@ -235,22 +306,32 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
         <SettingsContext.Provider value={{ settings, updateSettings }}>
           <ClientSidebarProvider>
             <NavigationGuardProvider>
-              {isControlCenterRoute && currentUser && !canAccessControlCenter ? (
+              {isControlCenterRoute &&
+              currentUser &&
+              !canAccessControlCenter ? (
                 // Access denied for non-CEO trying to access control center
                 <div className="bg-background flex min-h-screen flex-col items-center justify-center gap-4">
-                  <div className="text-foreground text-xl">אין לך הרשאה לגשת למרכז הבקרה</div>
-                  <Button onClick={() => navigate({ to: "/control-center" })}>למסך התחלה</Button>
+                  <div className="text-foreground text-xl">
+                    {t("accessDenied")}
+                  </div>
+                  <Button onClick={() => navigate({ to: "/control-center" })}>
+                    {t("goToStart")}
+                  </Button>
                 </div>
-              ) : isControlCenterRoute && currentUser && canAccessControlCenter ? (
+              ) : isControlCenterRoute &&
+                currentUser &&
+                canAccessControlCenter ? (
                 // Control Center Layout
-                <SidebarProvider dir="rtl">
-                  <div className="flex h-screen flex-col">
-                    <DragWindowRegion title="" />
-                    <SubscriptionBanner subscription={subscription} />
+                <SidebarProvider dir={direction}>
+                  <div className="flex h-screen w-full flex-col">
+                    <SubscriptionBanner
+                      subscription={subscription}
+                      direction={direction}
+                    />
                     <div className="flex flex-1 overflow-hidden">
                       <ControlCenterSidebar
                         variant="inset"
-                        side="right"
+                        side={direction === "rtl" ? "right" : "left"}
                         company={company}
                         currentUser={currentUser}
                         currentClinic={currentClinic}
@@ -264,10 +345,12 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
                             <div id="header-container" />
                           </div>
                           <main
-                            className="bg-muted dark:bg-muted/50 no-scrollbar flex flex-1 overflow-auto"
+                            className="bg-muted dark:bg-muted/50 no-scrollbar flex min-h-0 flex-1 overflow-auto"
                             style={{ scrollbarWidth: "none" }}
                           >
-                            <div className="no-scrollbar flex-1 overflow-auto">{children}</div>
+                            <div className="no-scrollbar flex min-h-0 flex-1 flex-col overflow-auto">
+                              {children}
+                            </div>
                           </main>
                         </div>
                       </SidebarInset>
@@ -276,17 +359,21 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
                 </SidebarProvider>
               ) : shouldShowSidebar && currentUser ? (
                 // Clinic Layout with Sidebar
-                <SidebarProvider dir="rtl">
-                  <div className="flex h-screen flex-col">
-                    <DragWindowRegion title="" />
-                    <SubscriptionBanner subscription={subscription} />
+                <SidebarProvider dir={direction}>
+                  <div className="flex h-screen w-full flex-col">
+                    <SubscriptionBanner
+                      subscription={subscription}
+                      direction={direction}
+                    />
                     <div className="flex flex-1 overflow-hidden">
                       <AppSidebar
                         variant="inset"
-                        side="right"
+                        side={direction === "rtl" ? "right" : "left"}
                         clinicName={currentClinic?.name}
                         currentUser={currentUser}
-                        logoPath={settings?.clinic_logo_path || company?.logo_path}
+                        logoPath={
+                          settings?.clinic_logo_path || company?.logo_path
+                        }
                         isLogoLoaded={isLogoLoaded}
                         currentClinic={currentClinic}
                       />
@@ -299,10 +386,12 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
                             <div id="header-container" />
                           </div>
                           <main
-                            className="bg-muted dark:bg-muted/50 no-scrollbar flex flex-1 overflow-auto"
+                            className="bg-muted dark:bg-muted/50 no-scrollbar flex min-h-0 flex-1 overflow-auto"
                             style={{ scrollbarWidth: "none" }}
                           >
-                            <div className="no-scrollbar flex-1 overflow-auto">{children}</div>
+                            <div className="no-scrollbar flex min-h-0 flex-1 flex-col overflow-auto">
+                              {children}
+                            </div>
                             <ClientSidebar />
                           </main>
                         </div>
@@ -322,14 +411,18 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
         <Toaster />
       </ThemeProvider>
     </>
-  )
+  );
 }
 
 /**
  * BaseLayout - Root layout component
  * Note: UserProvider is now in __root.tsx to prevent context loss during navigation
  */
-export default function BaseLayout({ children }: { children: React.ReactNode }) {
+export default function BaseLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <React.Suspense
       fallback={
@@ -343,5 +436,5 @@ export default function BaseLayout({ children }: { children: React.ReactNode }) 
     >
       <BaseLayoutContent>{children}</BaseLayoutContent>
     </React.Suspense>
-  )
+  );
 }

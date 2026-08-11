@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 
 import {
   Select,
@@ -25,7 +25,7 @@ import {
 } from "@/lib/exam-clipboard";
 import { inputSyncManager } from "@/components/exam/shared/OptimizedInputs";
 import { toast } from "sonner";
-import { CatalogVariantPicker } from "@/components/inventory/CatalogVariantPicker";
+import { apiClient } from "@/lib/api-client";
 import {
   CatalogVariant,
   FulfillmentSource,
@@ -72,16 +72,47 @@ export default function ContactOrderTab({
   rightInventorySelection,
   leftInventorySelection,
   onInventorySelect,
-  onInventoryClear,
   onInventoryRelevantFieldChange,
   clientOrderIndex,
 }: ContactOrderTabProps) {
   const [clipboardSourceType, setClipboardSourceType] =
     useState<ExamComponentType | null>(null);
+  const [catalogVariants, setCatalogVariants] = useState<CatalogVariant[]>([]);
+  const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
 
   useEffect(() => {
     setClipboardSourceType(getClipboardContentType());
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (!clinicId) {
+      setCatalogVariants([]);
+      setIsLoadingCatalog(false);
+      return;
+    }
+
+    setIsLoadingCatalog(true);
+    void apiClient
+      .getInventoryVariants(clinicId, {
+        category: "contact_lens",
+        stockableOnly: true,
+      })
+      .then((response) => {
+        if (isMounted) setCatalogVariants(response.data?.items || []);
+      })
+      .catch((error) => {
+        if (isMounted) setCatalogVariants([]);
+        console.error("Failed to load contact-lens catalog", error);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingCatalog(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [clinicId]);
 
   const contactLensExamCard = {
     id: "contact-lens-exam-order",
@@ -93,11 +124,12 @@ export default function ContactOrderTab({
   };
 
   const applyToContactLensExam = (nextData: Record<string, unknown>) => {
-    const allowedEntries = Object.entries(nextData).filter(([key, value]) =>
-      key !== "id" &&
-      key !== "layout_instance_id" &&
-      value !== undefined &&
-      onInventoryRelevantFieldChange(key, value) !== false,
+    const allowedEntries = Object.entries(nextData).filter(
+      ([key, value]) =>
+        key !== "id" &&
+        key !== "layout_instance_id" &&
+        value !== undefined &&
+        onInventoryRelevantFieldChange(key, value) !== false,
     );
     setContactLensExamData((prev: any) => {
       const updated = { ...prev };
@@ -109,11 +141,12 @@ export default function ContactOrderTab({
   };
 
   const applyToContactLensDetails = (nextData: Record<string, unknown>) => {
-    const allowedEntries = Object.entries(nextData).filter(([key, value]) =>
-      key !== "id" &&
-      key !== "layout_instance_id" &&
-      value !== undefined &&
-      onInventoryRelevantFieldChange(key, value) !== false,
+    const allowedEntries = Object.entries(nextData).filter(
+      ([key, value]) =>
+        key !== "id" &&
+        key !== "layout_instance_id" &&
+        value !== undefined &&
+        onInventoryRelevantFieldChange(key, value) !== false,
     );
     setContactLensDetailsData((prev: any) => {
       const updated = { ...prev };
@@ -204,47 +237,6 @@ export default function ContactOrderTab({
       style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
     >
       <div className="grid grid-cols-1 gap-4">
-        {clinicId ? (
-          <Card className="examcard" dir="rtl">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-muted-foreground text-center font-medium">
-                בחירת עדשות מהקטלוג
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-3 lg:grid-cols-2">
-              <CatalogVariantPicker
-                category="contact_lens"
-                clinicId={clinicId}
-                selected={rightInventorySelection?.variant}
-                selectedSource={rightInventorySelection?.fulfillment_source}
-                disabled={
-                  !isEditing ||
-                  rightInventorySelection?.lifecycle_state === "consumed"
-                }
-                title="עין ימין"
-                onSelect={(variant, source) =>
-                  onInventorySelect("right", variant, source)
-                }
-                onClear={() => onInventoryClear("right")}
-              />
-              <CatalogVariantPicker
-                category="contact_lens"
-                clinicId={clinicId}
-                selected={leftInventorySelection?.variant}
-                selectedSource={leftInventorySelection?.fulfillment_source}
-                disabled={
-                  !isEditing ||
-                  leftInventorySelection?.lifecycle_state === "consumed"
-                }
-                title="עין שמאל"
-                onSelect={(variant, source) =>
-                  onInventorySelect("left", variant, source)
-                }
-                onClear={() => onInventoryClear("left")}
-              />
-            </CardContent>
-          </Card>
-        ) : null}
         {/* Two-column layout for the top section */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-4" dir="rtl">
           <div className="lg:col-span-1">
@@ -383,7 +375,8 @@ export default function ContactOrderTab({
                 contactLensExamData={contactLensExamData}
                 onContactLensExamChange={(field, value) => {
                   if (
-                    onInventoryRelevantFieldChange(String(field), value) === false
+                    onInventoryRelevantFieldChange(String(field), value) ===
+                    false
                   ) {
                     return;
                   }
@@ -416,7 +409,8 @@ export default function ContactOrderTab({
                 contactLensDetailsData={contactLensDetailsData}
                 onContactLensDetailsChange={(field, value) => {
                   if (
-                    onInventoryRelevantFieldChange(String(field), value) === false
+                    onInventoryRelevantFieldChange(String(field), value) ===
+                    false
                   ) {
                     return;
                   }
@@ -426,6 +420,51 @@ export default function ContactOrderTab({
                   }));
                 }}
                 isEditing={isEditing}
+                inventoryCatalog={
+                  clinicId
+                    ? {
+                        variants: catalogVariants,
+                        loading: isLoadingCatalog,
+                        rightValues: {
+                          type:
+                            contactLensDetailsData.r_type ??
+                            contactLensDetailsData.r_lens_type,
+                          model: contactLensDetailsData.r_model,
+                          supplier: contactLensDetailsData.r_supplier,
+                          material: contactLensDetailsData.r_material,
+                          color: contactLensDetailsData.r_color,
+                          sph: contactLensExamData.r_sph,
+                          bc: contactLensExamData.r_bc,
+                          diam: contactLensExamData.r_diam,
+                          cyl: contactLensExamData.r_cyl,
+                          ax: contactLensExamData.r_ax,
+                          read_ad: contactLensExamData.r_read_ad,
+                        },
+                        leftValues: {
+                          type:
+                            contactLensDetailsData.l_type ??
+                            contactLensDetailsData.l_lens_type,
+                          model: contactLensDetailsData.l_model,
+                          supplier: contactLensDetailsData.l_supplier,
+                          material: contactLensDetailsData.l_material,
+                          color: contactLensDetailsData.l_color,
+                          sph: contactLensExamData.l_sph,
+                          bc: contactLensExamData.l_bc,
+                          diam: contactLensExamData.l_diam,
+                          cyl: contactLensExamData.l_cyl,
+                          ax: contactLensExamData.l_ax,
+                          read_ad: contactLensExamData.l_read_ad,
+                        },
+                        rightDisabled:
+                          rightInventorySelection?.lifecycle_state ===
+                          "consumed",
+                        leftDisabled:
+                          leftInventorySelection?.lifecycle_state ===
+                          "consumed",
+                        onSelect: onInventorySelect,
+                      }
+                    : undefined
+                }
               />
             </div>
           </div>

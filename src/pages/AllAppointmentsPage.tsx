@@ -1,48 +1,56 @@
-import React, { useState, useEffect } from "react"
-import { useNavigate, useSearch } from "@tanstack/react-router"
-import { SiteHeader } from "@/components/site-header"
-import { ListPageHeader } from "@/components/list-page-header"
-import { getPaginatedAppointments } from "@/lib/db/appointments-db"
-import { Appointment } from "@/lib/db/schema-interface"
-import { AppointmentsTable } from "@/components/appointments-table"
-import { useUser } from "@/contexts/UserContext"
-import { ALL_FILTER_VALUE } from "@/lib/table-filters"
-import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch, useLatestTableSearchRequest } from "@/lib/list-page-search"
-import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
+import React, { useState, useEffect } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { SiteHeader } from "@/components/site-header";
+import { getPaginatedAppointments } from "@/lib/db/appointments-db";
+import { Appointment } from "@/lib/db/schema-interface";
+import { AppointmentsTable } from "@/components/appointments-table";
+import { useUser } from "@/contexts/UserContext";
+import { ALL_FILTER_VALUE } from "@/lib/table-filters";
+import {
+  TABLE_SEARCH_DEBOUNCE_MS,
+  buildTableSearch,
+  useLatestTableSearchRequest,
+} from "@/lib/list-page-search";
+import {
+  parseSortSearch,
+  sortToOrder,
+  sortToSearch,
+} from "@/lib/table-sorting";
 
 export default function AllAppointmentsPage() {
-  const { currentClinic } = useUser()
-  const search = useSearch({ from: "/appointments" })
-  const navigate = useNavigate()
-  const [appointments, setAppointments] = useState<Appointment[]>([])
-  const [loading, setLoading] = useState(true)
-  const [pageSize] = useState(25)
-  const [total, setTotal] = useState(0)
-  const [searchInput, setSearchInput] = useState(search.q)
-  const { startSearchRequest, updateLatestSearch } = useLatestTableSearchRequest(searchInput)
+  const { currentClinic } = useUser();
+  const search = useSearch({ from: "/appointments" });
+  const navigate = useNavigate();
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [pageSize] = useState(25);
+  const [total, setTotal] = useState(0);
+  const [searchInput, setSearchInput] = useState(search.q);
+  const { startSearchRequest, updateLatestSearch } =
+    useLatestTableSearchRequest(searchInput);
   const activeSort = React.useMemo(
     () => parseSortSearch(search.sort, { key: "date", direction: "desc" }),
-    [search.sort]
-  )
+    [search.sort],
+  );
 
   useEffect(() => {
-    updateLatestSearch(search.q)
-    setSearchInput(search.q)
-  }, [search.q, updateLatestSearch])
+    updateLatestSearch(search.q);
+    setSearchInput(search.q);
+  }, [search.q, updateLatestSearch]);
 
   const handleSearchInputChange = (value: string) => {
-    updateLatestSearch(value)
-    setSearchInput(value)
-  }
+    updateLatestSearch(value);
+    setSearchInput(value);
+  };
 
   const buildSearchState = (
     overrides?: Partial<{
-      q: string
-      page: number
-      dateScope: string
-      examName: string
-      sort: string
-    }>
+      q: string;
+      page: number;
+      dateScope: string;
+      examName: string;
+      sort: string;
+    }>,
   ) =>
     buildTableSearch(
       {
@@ -51,56 +59,63 @@ export default function AllAppointmentsPage() {
         dateScope: search.dateScope,
         examName: search.examName,
         sort: search.sort,
-        ...overrides
+        ...overrides,
       },
       {
         q: "",
         page: 1,
         dateScope: ALL_FILTER_VALUE,
         examName: ALL_FILTER_VALUE,
-        sort: ""
-      }
-    )
+        sort: "",
+      },
+    );
 
   useEffect(() => {
     const t = setTimeout(() => {
-      if (searchInput === search.q) return
+      if (searchInput === search.q) return;
       navigate({
         to: "/appointments",
-        search: buildSearchState({ q: searchInput.trim(), page: 1 })
-      })
-    }, TABLE_SEARCH_DEBOUNCE_MS)
-    return () => clearTimeout(t)
-  }, [navigate, search.q, searchInput])
+        search: buildSearchState({ q: searchInput.trim(), page: 1 }),
+      });
+    }, TABLE_SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [navigate, search.q, searchInput]);
 
   const loadData = async () => {
-    const canCommit = startSearchRequest(search.q)
+    const canCommit = startSearchRequest(search.q);
     try {
-      setLoading(true)
-      const offset = (search.page - 1) * pageSize
-      const { items, total } = await getPaginatedAppointments(currentClinic?.id, {
-        limit: pageSize,
-        offset,
-        order: sortToOrder(activeSort, "date_desc"),
-        q: search.q || undefined,
-        dateScope: search.dateScope !== ALL_FILTER_VALUE ? search.dateScope : undefined,
-        examName: search.examName !== ALL_FILTER_VALUE ? search.examName : undefined
-      })
-      if (!canCommit()) return
-      setAppointments(items)
-      setTotal(total)
+      setLoading(true);
+      const offset = (search.page - 1) * pageSize;
+      const { items, total } = await getPaginatedAppointments(
+        currentClinic?.id,
+        {
+          limit: pageSize,
+          offset,
+          order: sortToOrder(activeSort, "date_desc"),
+          q: search.q || undefined,
+          dateScope:
+            search.dateScope !== ALL_FILTER_VALUE
+              ? search.dateScope
+              : undefined,
+          examName:
+            search.examName !== ALL_FILTER_VALUE ? search.examName : undefined,
+        },
+      );
+      if (!canCommit()) return;
+      setAppointments(items);
+      setTotal(total);
     } catch (error) {
-      console.error("Error loading data:", error)
+      console.error("Error loading data:", error);
     } finally {
       if (canCommit()) {
-        setLoading(false)
+        setLoading(false);
       }
     }
-  }
+  };
 
   useEffect(() => {
     if (currentClinic) {
-      loadData()
+      loadData();
     }
   }, [
     activeSort,
@@ -110,37 +125,54 @@ export default function AllAppointmentsPage() {
     search.examName,
     search.page,
     search.q,
-    startSearchRequest
-  ])
+    startSearchRequest,
+  ]);
+
+  useEffect(() => {
+    const handleAppointmentCreated = () => {
+      void loadData();
+    };
+    window.addEventListener("appointmentsChanged", handleAppointmentCreated);
+    return () =>
+      window.removeEventListener(
+        "appointmentsChanged",
+        handleAppointmentCreated,
+      );
+  }, [loadData]);
 
   const handleAppointmentDeleted = (deletedAppointmentId: number) => {
     setAppointments((prevAppointments) =>
-      prevAppointments.filter((appointment) => appointment.id !== deletedAppointmentId)
-    )
+      prevAppointments.filter(
+        (appointment) => appointment.id !== deletedAppointmentId,
+      ),
+    );
     // Move to previous page if we deleted the last item on the current page
     if (appointments.length === 1 && search.page > 1) {
       navigate({
         to: "/appointments",
-        search: buildSearchState({ page: search.page - 1 })
-      })
+        search: buildSearchState({ page: search.page - 1 }),
+      });
     } else {
-      setTotal((prev) => prev - 1)
+      setTotal((prev) => prev - 1);
     }
-  }
+  };
 
   const handleAppointmentDeleteFailed = () => {
-    loadData()
-  }
+    loadData();
+  };
 
   const handleAppointmentChange = () => {
-    loadData()
-  }
+    loadData();
+  };
 
   return (
     <>
       <SiteHeader title="תורים" />
-      <div className="flex flex-1 flex-col p-4 lg:p-6" dir="rtl" style={{ scrollbarWidth: "none" }}>
-        <ListPageHeader title="כל התורים" description="ניהול תורים, זמינות ולוחות זמנים" />
+      <div
+        className="flex h-full min-h-0 flex-1 flex-col p-4 lg:p-6"
+        dir="rtl"
+        style={{ scrollbarWidth: "none" }}
+      >
         <AppointmentsTable
           data={appointments}
           clientId={0}
@@ -154,24 +186,25 @@ export default function AllAppointmentsPage() {
           onDateScopeFilterChange={(value) =>
             navigate({
               to: "/appointments",
-              search: buildSearchState({ dateScope: value, page: 1 })
+              search: buildSearchState({ dateScope: value, page: 1 }),
             })
           }
           examTypeFilter={search.examName}
           onExamTypeFilterChange={(value) =>
             navigate({
               to: "/appointments",
-              search: buildSearchState({ examName: value, page: 1 })
+              search: buildSearchState({ examName: value, page: 1 }),
             })
           }
           sort={activeSort}
           onSortChange={(sort) =>
             navigate({
               to: "/appointments",
-              search: buildSearchState({ sort: sortToSearch(sort), page: 1 })
+              search: buildSearchState({ sort: sortToSearch(sort), page: 1 }),
             })
           }
           loading={loading}
+          fillHeight
           pagination={{
             page: search.page,
             pageSize,
@@ -179,11 +212,11 @@ export default function AllAppointmentsPage() {
             setPage: (page) =>
               navigate({
                 to: "/appointments",
-                search: buildSearchState({ page })
-              })
+                search: buildSearchState({ page }),
+              }),
           }}
         />
       </div>
     </>
-  )
+  );
 }

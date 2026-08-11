@@ -35,6 +35,7 @@ interface FamiliesTableProps {
   currentClinicId?: number
   sort?: SortState
   onSortChange?: (sort: SortState) => void
+  fillHeight?: boolean
 }
 
 export function FamiliesTable({
@@ -53,7 +54,8 @@ export function FamiliesTable({
   companyId,
   currentClinicId,
   sort,
-  onSortChange
+  onSortChange,
+  fillHeight = false
 }: FamiliesTableProps) {
   const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
   const [localSort, setLocalSort] = React.useState<SortState | undefined>()
@@ -157,7 +159,7 @@ export function FamiliesTable({
   }
 
   return (
-    <div className="space-y-2.5" dir="rtl">
+    <div className={fillHeight ? "flex min-h-0 flex-1 flex-col gap-2.5" : "space-y-2.5"} dir="rtl">
       {!hideSearch && (
         <div className="flex items-center justify-between">
           <Input
@@ -182,11 +184,13 @@ export function FamiliesTable({
         </div>
       )}
 
-      <div className="bg-card rounded-md">
+      <div className={fillHeight ? "bg-card min-h-0 flex-1 rounded-md" : "bg-card rounded-md"}>
         <Table
           dir="rtl"
-          containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain"
+          containerClassName={fillHeight ? "h-full min-h-0 overflow-y-auto overscroll-contain" : "max-h-[70vh] overflow-y-auto overscroll-contain"}
           containerStyle={{ scrollbarWidth: "none" }}
+          emptyState={!loading && displayData.length === 0 ? (searchQuery ? "לא נמצאו משפחות המתאימות לחיפוש" : "לא נמצאו משפחות") : undefined}
+          showTrailingRowBorder={fillHeight}
         >
           <TableHeader className="bg-card sticky top-0">
             <TableRow>
@@ -285,13 +289,7 @@ export function FamiliesTable({
                   </TableCell>
                 </TableRow>
               ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={4} className="text-muted-foreground h-24 text-center">
-                  {searchQuery ? "לא נמצאו משפחות המתאימות לחיפוש" : "לא נמצאו משפחות"}
-                </TableCell>
-              </TableRow>
-            )}
+            ) : null}
           </TableBody>
         </Table>
       </div>

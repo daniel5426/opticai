@@ -37,6 +37,7 @@ export function ClientReferralTab({ enabled = true }: ClientReferralTabProps) {
       onReferralDeleteFailed={handleReferralDeleteFailed}
       clientId={clientIdNum}
       loading={referralsQuery.isLoading}
+      fillHeight
     />
   )
 } 

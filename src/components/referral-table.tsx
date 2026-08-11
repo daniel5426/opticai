@@ -39,6 +39,7 @@ interface ReferralTableProps {
   onReferralTypeFilterChange?: (value: string) => void
   sort?: SortState
   onSortChange?: (sort: SortState) => void
+  fillHeight?: boolean
 }
 
 export function ReferralTable({
@@ -56,7 +57,8 @@ export function ReferralTable({
   referralTypeFilter: externalReferralTypeFilter,
   onReferralTypeFilterChange,
   sort,
-  onSortChange
+  onSortChange,
+  fillHeight = false
 }: ReferralTableProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [localSort, setLocalSort] = useState<SortState | undefined>()
@@ -239,7 +241,7 @@ export function ReferralTable({
   }
 
   return (
-    <div className="space-y-2.5" style={{ scrollbarWidth: "none" }}>
+    <div className={fillHeight ? "flex min-h-0 flex-1 flex-col gap-2.5" : "space-y-2.5"} style={{ scrollbarWidth: "none" }}>
       <TableFiltersBar
         searchValue={searchValue}
         onSearchChange={(value) => (onSearchChange ? onSearchChange(value) : setSearchTerm(value))}
@@ -299,11 +301,13 @@ export function ReferralTable({
         }
       />
 
-      <div className="bg-card overflow-hidden rounded-lg" style={{ scrollbarWidth: "none" }}>
+      <div className={fillHeight ? "bg-card min-h-0 flex-1 overflow-hidden rounded-lg" : "bg-card overflow-hidden rounded-lg"} style={{ scrollbarWidth: "none" }}>
         <Table
           dir="rtl"
-          containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain"
+          containerClassName={fillHeight ? "h-full min-h-0 overflow-y-auto overscroll-contain" : "max-h-[70vh] overflow-y-auto overscroll-contain"}
           containerStyle={{ scrollbarWidth: "none" }}
+          emptyState={!loading && displayData.length === 0 ? "לא נמצאו הפניות" : undefined}
+          showTrailingRowBorder={fillHeight}
         >
           <TableHeader className="bg-card sticky top-0">
             <TableRow>
@@ -495,13 +499,7 @@ export function ReferralTable({
                   </TableRow>
                 )
               })
-            ) : (
-              <TableRow>
-                <TableCell colSpan={clientId === 0 ? 6 : 5} className="text-muted-foreground h-24 text-center">
-                  לא נמצאו הפניות
-                </TableCell>
-              </TableRow>
-            )}
+            ) : null}
           </TableBody>
         </Table>
       </div>

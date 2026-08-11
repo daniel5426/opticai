@@ -21,50 +21,34 @@ export type ColorTheme =
 const COLOR_THEMES: Record<ColorTheme, {
   primary: string;
   sidebar: string;
-  muted: string;
-  accent: string;
 }> = {
   blue: {
     primary: "#2256aa",
     sidebar: "#cce9ff",
-    muted: "#f1f5f9",
-    accent: "#f1f5f9",
   },
   neutral: {
     primary: "#3f3f46",
     sidebar: "#f4f4f5",
-    muted: "#fafafa",
-    accent: "#f4f4f5",
   },
   forest: {
     primary: "#386451",
     sidebar: "#e7f2eb",
-    muted: "#f8fbf9",
-    accent: "#e7f2eb",
   },
   bronze: {
     primary: "#87613f",
     sidebar: "#f7eee4",
-    muted: "#fdfaf7",
-    accent: "#f7eee4",
   },
   plum: {
     primary: "#65516f",
     sidebar: "#f1e9f4",
-    muted: "#fbf9fc",
-    accent: "#f1e9f4",
   },
   monochrome: {
     primary: "#0a0a0a",
     sidebar: "#f5f5f5",
-    muted: "#fafafa",
-    accent: "#f5f5f5",
   },
   openai: {
     primary: "#0f766e",
     sidebar: "#e7f5f2",
-    muted: "#f7fcfa",
-    accent: "#e7f5f2",
   },
 };
 
@@ -144,10 +128,10 @@ function applyColorThemeValues(theme: ColorTheme): void {
   }
 
   const colors = COLOR_THEMES[theme];
+  root.style.removeProperty("--muted");
+  root.style.removeProperty("--accent");
   root.style.setProperty("--primary", hexToHsl(colors.primary));
   root.style.setProperty("--sidebar", `hsl(${hexToHsl(colors.sidebar)})`);
-  root.style.setProperty("--muted", hexToHsl(colors.muted));
-  root.style.setProperty("--accent", hexToHsl(colors.accent));
 }
 
 export function applyColorTheme(userId?: number): void {

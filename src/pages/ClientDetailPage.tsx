@@ -160,13 +160,13 @@ export default function ClientDetailPage() {
         }}
       />
       <ClientSpaceLayout>
-        <div className="flex flex-col flex-1 p-2 lg:p-5 mb-30" dir="rtl" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <div className="flex h-full min-h-0 flex-1 flex-col p-2 lg:p-5" dir="rtl" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           <Tabs
             value={activeTab}
-            className="w-full"
+            className="w-full min-h-0 flex-1"
             onValueChange={handleTabChange}
           >
-            <TabsContent value="details">
+            <TabsContent value="details" className="min-h-0 overflow-y-auto">
               {editor.isError ? (
                 <div className="bg-card rounded-lg examcard p-6 text-right" dir="rtl">
                   לא הצלחנו לטעון את פרטי הלקוח
@@ -186,28 +186,28 @@ export default function ClientDetailPage() {
               )}
             </TabsContent>
 
-            <TabsContent value="exams">
+            <TabsContent value="exams" className="flex min-h-0 flex-1 flex-col">
               <ClientExamsTab enabled={activeTab === "exams"} />
             </TabsContent>
 
-            <TabsContent value="medical">
+            <TabsContent value="medical" className="min-h-0 overflow-y-auto">
               <ClientMedicalRecordTab enabled={activeTab === "medical"} />
             </TabsContent>
 
-            <TabsContent value="orders">
+            <TabsContent value="orders" className="flex min-h-0 flex-1 flex-col">
               <ClientOrdersTab enabled={activeTab === "orders"} />
             </TabsContent>
 
 
-            <TabsContent value="referrals">
+            <TabsContent value="referrals" className="flex min-h-0 flex-1 flex-col">
               <ClientReferralTab enabled={activeTab === "referrals"} />
             </TabsContent>
 
-            <TabsContent value="appointments">
+            <TabsContent value="appointments" className="flex min-h-0 flex-1 flex-col">
               <ClientAppointmentsTab enabled={activeTab === "appointments"} />
             </TabsContent>
 
-            <TabsContent value="files">
+            <TabsContent value="files" className="flex min-h-0 flex-1 flex-col">
               <ClientFilesTab enabled={activeTab === "files"} />
             </TabsContent>
 

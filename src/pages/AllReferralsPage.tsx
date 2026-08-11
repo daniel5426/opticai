@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
-import { ListPageHeader } from "@/components/list-page-header"
 import { getPaginatedReferrals } from "@/lib/db/referral-db"
 import { Referral } from "@/lib/db/schema-interface"
 import { ReferralTable } from "@/components/referral-table"
@@ -133,14 +132,14 @@ export default function AllReferralsPage() {
   return (
     <>
       <SiteHeader title="הפניות" />
-      <div className="flex flex-1 flex-col p-4 lg:p-6" dir="rtl" style={{ scrollbarWidth: "none" }}>
-        <ListPageHeader title="כל ההפניות" description="הפניות, סטטוסים ומעקב טיפול" />
+      <div className="flex h-full min-h-0 flex-1 flex-col p-4 lg:p-6" dir="rtl" style={{ scrollbarWidth: "none" }}>
         <ReferralTable
           referrals={referrals}
           onReferralDeleted={handleReferralDeleted}
           onReferralDeleteFailed={handleReferralDeleteFailed}
           clientId={0}
           loading={loading}
+          fillHeight
           searchQuery={searchInput}
           onSearchChange={handleSearchInputChange}
           serverFiltered={true}

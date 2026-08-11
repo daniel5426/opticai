@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react"
 import { useSearch, useNavigate } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
-import { ListPageHeader } from "@/components/list-page-header"
 import { getPaginatedOrders, saveOrderDetailsComponent, updateContactLensOrder } from "@/lib/db/orders-db"
 import { Order } from "@/lib/db/schema-interface"
 import { OrdersTable } from "@/components/orders-table"
@@ -176,8 +175,7 @@ export default function AllOrdersPage() {
   return (
     <>
       <SiteHeader title="הזמנות" />
-      <div className="flex flex-1 flex-col p-4 lg:p-6" dir="rtl" style={{ scrollbarWidth: "none" }}>
-        <ListPageHeader title="כל ההזמנות" description="מעקב אחר הזמנות משקפיים ועדשות מגע" />
+      <div className="flex h-full min-h-0 flex-1 flex-col p-4 lg:p-6" dir="rtl" style={{ scrollbarWidth: "none" }}>
         <OrdersTable
           data={orders}
           clientId={0}
@@ -210,6 +208,7 @@ export default function AllOrdersPage() {
             })
           }
           loading={loading}
+          fillHeight
           pagination={{
             page: search.page,
             pageSize,

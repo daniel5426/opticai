@@ -253,8 +253,8 @@ export const VASelect = memo(function VASelect({
     <div
       data-slot="va-select"
       className={cn(
-        "flex items-center w-full group h-8 border border-input rounded-md transition-shadow relative bg-background min-w-0",
-        !disabled ? "bg-white" : "bg-accent/50",
+        "flex items-center w-full group h-8 border border-input rounded-md transition-shadow relative min-w-0",
+        !disabled ? "!bg-card dark:!bg-card" : "!bg-accent/50 dark:!bg-accent/50",
         disabled && UI_CONFIG.noBorderOnDisabled ? "border-none" : "",
         "focus-within:border-ring focus-within:ring-ring/30 focus-within:ring-[1px] outline-none",
         className
@@ -288,7 +288,7 @@ export const VASelect = memo(function VASelect({
           }}
         >
           <SelectTrigger dir="ltr"
-            className="border-none focus:ring-0 focus:ring-offset-0 h-full w-full bg-transparent shadow-none px-2"
+            className="border-none focus:ring-0 focus:ring-offset-0 h-full w-full !bg-transparent data-[disabled]:!bg-transparent shadow-none px-2"
             size="sm"
             centered
             data-clinical-nav-item="true"
@@ -340,7 +340,8 @@ export const VASelect = memo(function VASelect({
         className={cn(
           "absolute rounded-tr-md rounded-br-md px-1 right-0 top-0 w-5 h-full text-[10px] font-bold flex items-center justify-center transition-all border-none focus:outline-none",
           modifier ? "text-primary bg-primary/5" : "text-muted-foreground/30",
-          !disabled && "hover:text-accent-foreground hover:bg-accent"
+          !disabled && "hover:text-accent-foreground hover:bg-accent",
+          disabled && "!bg-transparent"
         )}
       >
         {modifier || "±"}

@@ -1,4 +1,4 @@
-import * as React from "react"
+import * as React from "react";
 import {
   IconCamera,
   IconChartBar,
@@ -26,12 +26,13 @@ import {
   IconUserCog,
   IconFlask,
   IconPackages,
-} from "@tabler/icons-react"
-import { NavDocuments } from "@/components/nav-documents"
-import { NavMain } from "@/components/nav-main"
-import { NavSecondary } from "@/components/nav-secondary"
-import { NavUser } from "@/components/nav-user"
-import { ClinicDropdown } from "@/components/clinic-dropdown"
+  IconSearch,
+} from "@tabler/icons-react";
+import { NavDocuments } from "@/components/nav-documents";
+import { NavMain } from "@/components/nav-main";
+import { NavSecondary } from "@/components/nav-secondary";
+import { NavUser } from "@/components/nav-user";
+import { ClinicDropdown } from "@/components/clinic-dropdown";
 import {
   Sidebar,
   SidebarContent,
@@ -41,146 +42,185 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from "@/components/ui/sidebar"
-import { cn } from "@/utils/tailwind"
-import { User, Clinic } from "@/lib/db/schema-interface"
-import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels"
+} from "@/components/ui/sidebar";
+import { cn } from "@/utils/tailwind";
+import { User, Clinic } from "@/lib/db/schema-interface";
+import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels";
+import { useTranslation } from "react-i18next";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { GlobalSearch } from "@/components/GlobalSearch";
+import { SidebarQuickActions } from "@/components/sidebar-quick-actions";
 
-const showBetaSidebarItems = import.meta.env.DEV
+const showBetaSidebarItems = import.meta.env.DEV;
 
-const getNavData = (currentUser?: User) => ({
+const getNavData = (
+  t: (key: string) => string,
+  currentUser?: User,
+  onOpenSearch?: () => void,
+) => ({
   navMain: [
     {
-      title: "יומן",
+      title: t("calendar"),
       url: "/dashboard",
       icon: IconDashboard,
+      quickAction: "appointment" as const,
     },
     {
-      title: "לקוחות",
+      title: t("clients"),
       url: "/clients",
       icon: IconUsers,
+      quickAction: "client" as const,
     },
-    ...(showBetaSidebarItems ? [{
-      title: "עוזר חכם",
-      url: "/ai-assistant",
-      icon: IconRobot,
-    }] : []),
+    ...(showBetaSidebarItems
+      ? [
+          {
+            title: t("smartAssistant"),
+            url: "/ai-assistant",
+            icon: IconRobot,
+          },
+        ]
+      : []),
     {
-      title: "יומן נוכחות",
+      title: t("attendance"),
       url: "/worker-stats",
       icon: IconChartLine,
     },
-    ...(showBetaSidebarItems && isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) ? [{
-      title: "קמפיינים",
-      url: "/campaigns",
-      icon: IconChartBar,
-    }] : []),
-    ...(showBetaSidebarItems ? [{
-      title: "בדיקות UI",
-      url: "/dev/ui-tests",
-      icon: IconFlask,
-    }] : [])
+    ...(showBetaSidebarItems &&
+    isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager)
+      ? [
+          {
+            title: t("campaigns"),
+            url: "/campaigns",
+            icon: IconChartBar,
+          },
+        ]
+      : []),
+    ...(showBetaSidebarItems
+      ? [
+          {
+            title: t("uiTests"),
+            url: "/dev/ui-tests",
+            icon: IconFlask,
+          },
+        ]
+      : []),
   ],
   navSecondary: [
     {
-      title: "הגדרות",
+      title: t("search"),
+      icon: IconSearch,
+      onClick: onOpenSearch,
+    },
+    {
+      title: t("settings"),
       url: "/settings",
       icon: IconSettings,
     },
     {
-      title: "קבלת עזרה",
+      title: t("help"),
       url: "https://prysm.co.il/contact",
       icon: IconHelp,
     },
   ],
   documents: [
     {
-      name: "בדיקות",
+      name: t("exams"),
       url: "/exams",
       icon: IconEye,
+      quickAction: "exam" as const,
     },
     {
-      name: "הזמנות",
+      name: t("orders"),
       url: "/orders",
       icon: IconShoppingCart,
+      quickAction: "order" as const,
     },
     {
-      name: "מלאי ואספקה",
+      name: t("inventory"),
       url: "/inventory",
       icon: IconPackages,
+      quickAction: "inventory" as const,
     },
     {
-      name: "הפניות",
+      name: t("referrals"),
       url: "/referrals",
       icon: IconArrowForward,
+      quickAction: "referral" as const,
     },
     {
-      name: "תורים",
+      name: t("appointments"),
       url: "/appointments",
       icon: IconCalendar,
+      quickAction: "appointment" as const,
     },
     {
-      name: "מסמכים",
+      name: t("files"),
       url: "/files",
       icon: IconFiles,
+      quickAction: "file" as const,
     },
   ],
-})
+});
 
-export function AppSidebar({ 
-  clinicName, 
+export function AppSidebar({
+  clinicName,
   currentUser,
   logoPath,
   isLogoLoaded,
   currentClinic,
-  ...props 
-}: React.ComponentProps<typeof Sidebar> & { 
+  ...props
+}: React.ComponentProps<typeof Sidebar> & {
   clinicName?: string;
   currentUser?: User;
   logoPath?: string | null;
   isLogoLoaded?: boolean;
   currentClinic?: Clinic | null;
 }) {
-  const { state } = useSidebar()
+  const { t } = useTranslation();
+  const { state } = useSidebar();
   const hasLogo = logoPath;
-  const [isLogoVisible, setIsLogoVisible] = React.useState(false)
+  const [isLogoVisible, setIsLogoVisible] = React.useState(false);
+  const [isSearchOpen, setIsSearchOpen] = React.useState(false);
+  const navData = getNavData(t, currentUser, () => setIsSearchOpen(true));
 
   React.useEffect(() => {
-    if (state === 'collapsed') {
+    if (state === "collapsed") {
       setIsLogoVisible(false);
-    } else if (state === 'expanded' && isLogoLoaded) {
+    } else if (state === "expanded" && isLogoLoaded) {
       const timer = setTimeout(() => {
         setIsLogoVisible(true);
       }, 250);
       return () => clearTimeout(timer);
     }
-  }, [state, isLogoLoaded])
+  }, [state, isLogoLoaded]);
 
   const clinicHeaderContent = (
     <>
       {hasLogo && (
-        <img 
-          src={logoPath} 
-          alt="לוגו המרפאה" 
+        <img
+          src={logoPath}
+          alt="לוגו המרפאה"
           className={cn(
-            "max-h-10 h-auto w-auto rounded object-contain",
-            state === 'expanded' && 'transition-opacity duration-300',
-            isLogoLoaded && isLogoVisible ? "opacity-100" : "opacity-0"
+            "h-auto max-h-10 w-auto rounded object-contain",
+            state === "expanded" && "transition-opacity duration-300",
+            isLogoLoaded && isLogoVisible ? "opacity-100" : "opacity-0",
           )}
         />
-      ) }
-      <span className="text-base self-center font-semibold whitespace-normal break-words leading-tight text-right max-w-full">{clinicName || ""}</span>
+      )}
+      <span className="max-w-full self-center text-right text-base leading-tight font-semibold break-words whitespace-normal">
+        {clinicName || ""}
+      </span>
     </>
-  )
+  );
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
-        <SidebarMenu className="ring-0 border-0">
-          <SidebarMenuItem className="ring-0 border-0">
-          <SidebarMenuButton
+        <SidebarMenu className="border-0 ring-0">
+          <SidebarMenuItem className="border-0 ring-0">
+            <SidebarMenuButton
               asChild
-              className="data-[slot=sidebar-menu-button]:!p-1.5 !h-auto ring-0 border-0 min-h-5 items-start"
+              className="!h-auto min-h-5 items-start border-0 ring-0 data-[slot=sidebar-menu-button]:!p-1.5"
             >
               <div>
                 <ClinicDropdown
@@ -189,7 +229,7 @@ export function AppSidebar({
                   logoPath={logoPath}
                   isLogoLoaded={true}
                 >
-                  <div className="flex items-start gap-2 w-full max-w-full min-w-0 overflow-hidden ring-0 border-0">
+                  <div className="flex w-full max-w-full min-w-0 items-start gap-2 overflow-hidden border-0 ring-0">
                     {clinicHeaderContent}
                   </div>
                 </ClinicDropdown>
@@ -198,14 +238,34 @@ export function AppSidebar({
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent>
-        <NavMain items={getNavData(currentUser).navMain} />
-        <NavDocuments items={getNavData(currentUser).documents} />
-        <NavSecondary items={getNavData(currentUser).navSecondary} className="mt-auto" />
-      </SidebarContent>
+      <SidebarQuickActions>
+        {(renderQuickAction) => (
+          <SidebarContent>
+            <NavMain
+              items={navData.navMain}
+              renderQuickAction={renderQuickAction}
+            />
+            <NavDocuments
+              items={navData.documents}
+              renderQuickAction={renderQuickAction}
+            />
+            <NavSecondary items={navData.navSecondary} className="mt-auto" />
+          </SidebarContent>
+        )}
+      </SidebarQuickActions>
       <SidebarFooter>
         <NavUser currentUser={currentUser} />
       </SidebarFooter>
+      <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
+        <DialogContent
+          dir="rtl"
+          showCloseButton={false}
+          className="!top-[10vh] max-h-[calc(90vh-1rem)] w-[98vw] !translate-y-0 !gap-0 overflow-hidden rounded-lg !p-0 shadow-lg sm:max-w-screen-sm"
+        >
+          <DialogTitle className="sr-only">{t("search")}</DialogTitle>
+          <GlobalSearch inModal onClose={() => setIsSearchOpen(false)} />
+        </DialogContent>
+      </Dialog>
     </Sidebar>
-  )
+  );
 }

@@ -6,8 +6,8 @@ interface ClientSpaceLayoutProps {
 
 export function ClientSpaceLayout({ children }: ClientSpaceLayoutProps) {
   return (
-    <div className="flex flex-col flex-1 overflow-auto" style={{scrollbarWidth: 'none'}}>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden" style={{scrollbarWidth: 'none'}}>
       {children}
     </div>
   )
-} 
+}

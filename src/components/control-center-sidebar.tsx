@@ -28,28 +28,29 @@ import {
 import { cn } from "@/utils/tailwind"
 import { User, Company, Clinic } from "@/lib/db/schema-interface"
 import { useUser } from "@/contexts/UserContext"
+import { useTranslation } from "react-i18next"
 
-const getControlCenterNavData = () => ({
+const getControlCenterNavData = (t: (key: string) => string) => ({
   navMain: [
     {
-      title: "לוח בקרה",
+      title: t("dashboard"),
       url: "/control-center/dashboard",
       icon: IconDashboard,
     },
     {
-      title: "משתמשים",
+      title: t("users"),
       url: "/control-center/users",
       icon: IconUsers,
     },
     {
-      title: "מרפאות",
+      title: t("clinics"),
       url: "/control-center/clinics",
       icon: IconBuilding,
     },
   ],
   navSecondary: [
     {
-      title: "הגדרות",
+      title: t("settings"),
       url: "/control-center/settings",
       icon: IconSettings,
     }
@@ -66,6 +67,7 @@ export function ControlCenterSidebar({
   currentUser?: User;
   currentClinic?: Clinic | null;
 }) {
+  const { t } = useTranslation()
   const { state } = useSidebar()
 
   const hasLogo = company?.logo_path
@@ -78,7 +80,7 @@ export function ControlCenterSidebar({
           className="max-h-10 h-auto w-auto rounded object-contain"
         />
       ) }
-      <span className="text-base ring-0 border-0 font-semibold whitespace-normal break-words leading-tight text-right max-w-full">{company?.name || "מרכז בקרה"}</span>
+      <span className="text-base ring-0 border-0 font-semibold whitespace-normal break-words leading-tight text-start max-w-full">{company?.name || t("controlCenter")}</span>
     </>
   )
 
@@ -108,8 +110,8 @@ export function ControlCenterSidebar({
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={getControlCenterNavData().navMain} showAddClientButton={false} />
-        <NavSecondary items={getControlCenterNavData().navSecondary} className="mt-auto" />
+        <NavMain items={getControlCenterNavData(t).navMain} showAddClientButton={false} />
+        <NavSecondary items={getControlCenterNavData(t).navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
         <NavUser currentUser={currentUser} showShiftControls={false} />

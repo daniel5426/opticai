@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
-import { ListPageHeader } from "@/components/list-page-header"
 import { getPaginatedEnrichedExams } from "@/lib/db/exams-db"
 import { OpticalExam } from "@/lib/db/schema-interface"
 import { ExamsTable } from "@/components/exams-table"
@@ -128,8 +127,7 @@ export default function AllExamsPage() {
   return (
     <>
       <SiteHeader title="בדיקות" />
-      <div className="flex flex-1 flex-col p-4 lg:p-6" dir="rtl" style={{ scrollbarWidth: "none" }}>
-        <ListPageHeader title="כל הבדיקות" description="בדיקות ראייה ורשומות קליניות" />
+      <div className="flex h-full min-h-0 flex-1 flex-col p-4 lg:p-6" dir="rtl" style={{ scrollbarWidth: "none" }}>
         <ExamsTable
           data={exams}
           clientId={0}
@@ -153,6 +151,7 @@ export default function AllExamsPage() {
             })
           }
           loading={loading}
+          fillHeight
           pagination={{
             page: search.page,
             pageSize,

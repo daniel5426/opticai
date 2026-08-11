@@ -50,6 +50,7 @@ export function ClientFilesTab({ enabled = true }: ClientFilesTabProps) {
       onFileDeleted={handleFileDeleted}
       onFileDeleteFailed={handleFileDeleteFailed}
       loading={filesQuery.isLoading}
+      fillHeight
     />
   )
 } 

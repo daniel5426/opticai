@@ -104,6 +104,7 @@ export function ClientOrdersTab({ enabled = true }: ClientOrdersTabProps) {
       onOrderDeleteFailed={handleOrderDeleteFailed}
       onOrderStatusChange={handleOrderStatusChange}
       loading={ordersQuery.isLoading}
+      fillHeight
       searchQuery={searchQuery}
       onSearchChange={setSearchQuery}
     />

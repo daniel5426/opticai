@@ -16,6 +16,7 @@ import { DateInput } from "@/components/ui/date";
 import { ExamToolbox } from "@/components/exam/ExamToolbox";
 import { OrderFinalPrescriptionTab } from "@/components/orders/OrderFinalPrescriptionTab";
 import { NotesCard } from "@/components/ui/notes-card";
+import { FastInput } from "@/components/exam/shared/OptimizedInputs";
 import {
   Clinic,
   Order,
@@ -406,21 +407,20 @@ export default function RegularOrderTab({
           return (
             <div key={`${side}-${field.key}`} className={field.className}>
               <Label className={labelClass}>{label}</Label>
-              <Input
+              <FastInput
                 name={getLensFieldName(side, field.key)}
                 type="number"
+                min={0}
+                step={1}
                 value={getLensValue(side, field.key)}
-                onChange={(e) =>
+                onInput={(value) =>
                   isLensSplit
-                    ? handleSplitLensFieldChange(
-                        side,
-                        field.key,
-                        e.target.value,
-                      )
-                    : handleCombinedLensFieldChange(field.key, e.target.value)
+                    ? handleSplitLensFieldChange(side, field.key, value)
+                    : handleCombinedLensFieldChange(field.key, value)
                 }
                 disabled={!isEditing}
-                className={`${fieldClass} ${isEditing ? "bg-white" : "bg-accent/50"}`}
+                wrapperClassName="mt-1.5"
+                className={`${inlineFieldClass} ${isEditing ? "bg-white" : "bg-accent/50"}`}
               />
             </div>
           );
@@ -788,15 +788,18 @@ export default function RegularOrderTab({
                       </div>
                       <div>
                         <Label className={labelClass}>גודל</Label>
-                        <Input
+                        <FastInput
                           name="frame_size"
                           type="number"
-                          value={activeFrame.width || ""}
-                          onChange={(e) =>
-                            onFrameFieldChange("width", e.target.value)
+                          min={0}
+                          step={1}
+                          value={String(activeFrame.width ?? "")}
+                          onInput={(value) =>
+                            onFrameFieldChange("width", value)
                           }
                           disabled={!isEditing}
-                          className={`${fieldClass} ${isEditing ? "bg-white" : "bg-accent/50"}`}
+                          wrapperClassName="mt-1.5"
+                          className={`${inlineFieldClass} ${isEditing ? "bg-white" : "bg-accent/50"}`}
                         />
                       </div>
                     </div>
@@ -888,54 +891,66 @@ export default function RegularOrderTab({
                       <div className="grid gap-3 pt-2 md:w-1/2 md:grid-cols-4">
                         <div className="max-w-[120px]">
                           <Label className={labelClass}>גשר</Label>
-                          <Input
+                          <FastInput
                             name="bridge"
                             type="number"
-                            value={activeFrame.bridge || ""}
-                            onChange={(e) =>
-                              onFrameFieldChange("bridge", e.target.value)
+                            min={0}
+                            step={1}
+                            value={String(activeFrame.bridge ?? "")}
+                            onInput={(value) =>
+                              onFrameFieldChange("bridge", value)
                             }
                             disabled={!isEditing}
-                            className={`${fieldClass} ${isEditing ? "bg-white" : "bg-accent/50"}`}
+                            wrapperClassName="mt-1.5"
+                            className={`${inlineFieldClass} ${isEditing ? "bg-white" : "bg-accent/50"}`}
                           />
                         </div>
                         <div className="max-w-[120px]">
                           <Label className={labelClass}>רוחב</Label>
-                          <Input
+                          <FastInput
                             name="width"
                             type="number"
-                            value={activeFrame.width || ""}
-                            onChange={(e) =>
-                              onFrameFieldChange("width", e.target.value)
+                            min={0}
+                            step={1}
+                            value={String(activeFrame.width ?? "")}
+                            onInput={(value) =>
+                              onFrameFieldChange("width", value)
                             }
                             disabled={!isEditing}
-                            className={`${fieldClass} ${isEditing ? "bg-white" : "bg-accent/50"}`}
+                            wrapperClassName="mt-1.5"
+                            className={`${inlineFieldClass} ${isEditing ? "bg-white" : "bg-accent/50"}`}
                           />
                         </div>
                         <div className="max-w-[120px]">
                           <Label className={labelClass}>גובה</Label>
-                          <Input
+                          <FastInput
                             name="height"
                             type="number"
-                            value={activeFrame.height || ""}
-                            onChange={(e) =>
-                              onFrameFieldChange("height", e.target.value)
+                            min={0}
+                            step={1}
+                            value={String(activeFrame.height ?? "")}
+                            onInput={(value) =>
+                              onFrameFieldChange("height", value)
                             }
                             disabled={!isEditing}
-                            className={`${fieldClass} ${isEditing ? "bg-white" : "bg-accent/50"}`}
+                            wrapperClassName="mt-1.5"
+                            className={`${inlineFieldClass} ${isEditing ? "bg-white" : "bg-accent/50"}`}
                           />
                         </div>
                         <div className="max-w-[120px]">
                           <Label className={labelClass}>אורך זרוע</Label>
-                          <Input
+                          <FastInput
                             name="length"
                             type="number"
-                            value={activeFrame.length || ""}
-                            onChange={(e) =>
-                              onFrameFieldChange("length", e.target.value)
+                            min={0}
+                            step={1}
+                            value={String(activeFrame.length ?? "")}
+                            onInput={(value) =>
+                              onFrameFieldChange("length", value)
                             }
                             disabled={!isEditing}
-                            className={`${fieldClass} ${isEditing ? "bg-white" : "bg-accent/50"}`}
+                            wrapperClassName="mt-1.5"
+                            className={`${inlineFieldClass} ${isEditing ? "bg-white" : "bg-accent/50"}`}
                           />
                         </div>
                       </div>

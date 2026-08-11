@@ -18,7 +18,12 @@ const queryClient = new QueryClient({
 });
 
 // Simple error boundary component
-class ErrorBoundary extends React.Component<{ children: ReactNode }> {
+class ErrorBoundary extends React.Component<{
+  children: ReactNode;
+  title: string;
+  description: string;
+  refreshLabel: string;
+}> {
   state = { hasError: false, error: null };
 
   static getDerivedStateFromError(error: unknown) {
@@ -33,13 +38,13 @@ class ErrorBoundary extends React.Component<{ children: ReactNode }> {
     if (this.state.hasError) {
       return (
         <div style={{ padding: "20px", textAlign: "center" }}>
-          <h2>Something went wrong</h2>
-          <p>The application encountered an error. Please try refreshing.</p>
+          <h2>{this.props.title}</h2>
+          <p>{this.props.description}</p>
           <button
             onClick={() => window.location.reload()}
             style={{ padding: "8px 16px", marginTop: "16px", cursor: "pointer" }}
           >
-            Refresh
+            {this.props.refreshLabel}
           </button>
         </div>
       );
@@ -49,14 +54,14 @@ class ErrorBoundary extends React.Component<{ children: ReactNode }> {
 }
 
 // Loading component
-const Loading = () => (
+const Loading = ({ label }: { label: string }) => (
   <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>
-    Loading...
+    {label}
   </div>
 );
 
 export default function App() {
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
 
   useEffect(() => {
     // Apply user's theme colors immediately from localStorage to prevent flash
@@ -90,9 +95,13 @@ export default function App() {
   }, []);
 
   return (
-    <ErrorBoundary>
+    <ErrorBoundary
+      title={t("appError")}
+      description={t("appErrorDescription")}
+      refreshLabel={t("refresh")}
+    >
       <QueryClientProvider client={queryClient}>
-        <Suspense fallback={<Loading />}>
+        <Suspense fallback={<Loading label={t("loading")} />}>
           <RouterProvider router={router} />
         </Suspense>
       </QueryClientProvider>

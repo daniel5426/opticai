@@ -251,6 +251,12 @@ export default function ExamDetailPage({
 
   const [isEditing, setIsEditing] = useState(isNewMode);
   const [activeTab, setActiveTab] = useState(config.sidebarTab);
+  const layoutContentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const content = layoutContentRef.current;
+    if (content) content.scrollTop = 0;
+  }, [activeInstanceId]);
 
   const [formData, setFormData] = useState<Partial<OpticalExam>>(
     isNewMode
@@ -1776,7 +1782,7 @@ export default function ExamDetailPage({
       />
       <ClientSpaceLayout>
         <div
-          className="no-scrollbar flex flex-1 flex-col p-4 lg:p-5"
+          className="no-scrollbar flex h-full min-h-0 flex-1 flex-col overflow-hidden p-4 lg:p-5"
           dir="rtl"
           style={{
             scrollbarWidth: "none",
@@ -1784,7 +1790,7 @@ export default function ExamDetailPage({
             margin: "0",
           }}
         >
-          <div className="mb-4">
+          <div className="mb-4 shrink-0">
             <ExamDetailsCard
               mode="detail"
               detailProps={detailPropsWithOverrides}
@@ -1793,43 +1799,53 @@ export default function ExamDetailPage({
           </div>
 
           {/* Layout Tabs */}
-          <ExamLayoutTabs
-            layoutTabs={layoutTabs}
-            activeInstanceId={activeInstanceId}
-            isEditing={isEditing}
-            onTabClick={handleLayoutTabChange}
-            onTabDrop={handleLayoutTabDrop}
-            onFullDataClick={handleActivateFullDataTab}
-            onRemoveTab={handleRemoveLayoutTab}
-          />
-
-          <form ref={formRef} className="pt-4 pb-14">
-            <ExamLayoutRenderer
-              cardRows={cardRows}
-              customWidths={customWidths}
-              gridItems={gridItems}
-              rowWidths={rowWidths}
-              rowRefs={rowRefs}
+          <div className="shrink-0">
+            <ExamLayoutTabs
+              layoutTabs={layoutTabs}
+              activeInstanceId={activeInstanceId}
               isEditing={isEditing}
-              detailProps={detailPropsWithOverrides}
-              clipboardContentType={clipboardContentType}
-              activeCoverTestTabs={activeCoverTestTabs}
-              computedCoverTestTabs={computedCoverTestTabs}
-              activeOldRefractionTabs={activeOldRefractionTabs}
-              computedOldRefractionTabs={computedOldRefractionTabs}
-              activeOldRefractionExtensionTabs={
-                activeOldRefractionExtensionTabs
-              }
-              computedOldRefractionExtensionTabs={
-                computedOldRefractionExtensionTabs
-              }
-              examFormData={examFormData}
-              setExamFormData={setExamFormData}
-              toolboxActions={toolboxActions}
-              onCopy={handleCopy}
-              onPaste={handlePaste}
+              onTabClick={handleLayoutTabChange}
+              onTabDrop={handleLayoutTabDrop}
+              onFullDataClick={handleActivateFullDataTab}
+              onRemoveTab={handleRemoveLayoutTab}
             />
-          </form>
+          </div>
+
+          <div className="min-h-0 flex-1">
+            <div
+              ref={layoutContentRef}
+              className="no-scrollbar h-full overflow-y-auto overscroll-contain"
+              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+            >
+              <form ref={formRef} className="min-h-full pt-4 pb-14">
+                <ExamLayoutRenderer
+                  cardRows={cardRows}
+                  customWidths={customWidths}
+                  gridItems={gridItems}
+                  rowWidths={rowWidths}
+                  rowRefs={rowRefs}
+                  isEditing={isEditing}
+                  detailProps={detailPropsWithOverrides}
+                  clipboardContentType={clipboardContentType}
+                  activeCoverTestTabs={activeCoverTestTabs}
+                  computedCoverTestTabs={computedCoverTestTabs}
+                  activeOldRefractionTabs={activeOldRefractionTabs}
+                  computedOldRefractionTabs={computedOldRefractionTabs}
+                  activeOldRefractionExtensionTabs={
+                    activeOldRefractionExtensionTabs
+                  }
+                  computedOldRefractionExtensionTabs={
+                    computedOldRefractionExtensionTabs
+                  }
+                  examFormData={examFormData}
+                  setExamFormData={setExamFormData}
+                  toolboxActions={toolboxActions}
+                  onCopy={handleCopy}
+                  onPaste={handlePaste}
+                />
+              </form>
+            </div>
+          </div>
         </div>
       </ClientSpaceLayout>
       <UnsavedChangesDialog

@@ -47,6 +47,7 @@ interface ExamsTableProps {
   onTestNameFilterChange?: (value: string) => void
   sort?: SortState
   onSortChange?: (sort: SortState) => void
+  fillHeight?: boolean
 }
 
 function filterActiveLayouts(layouts: ExamLayout[]): ExamLayout[] {
@@ -74,7 +75,8 @@ export function ExamsTable({
   testNameFilter: externalTestNameFilter,
   onTestNameFilterChange,
   sort,
-  onSortChange
+  onSortChange,
+  fillHeight = false
 }: ExamsTableProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [localSort, setLocalSort] = useState<SortState | undefined>()
@@ -185,7 +187,7 @@ export function ExamsTable({
   }
 
   return (
-    <div className="space-y-2.5" dir="rtl" style={{ scrollbarWidth: "none" }}>
+    <div className={fillHeight ? "flex min-h-0 flex-1 flex-col gap-2.5" : "space-y-2.5"} dir="rtl" style={{ scrollbarWidth: "none" }}>
       <TableFiltersBar
         searchValue={searchValue}
         onSearchChange={(value) => (onSearchChange ? onSearchChange(value) : setSearchQuery(value))}
@@ -260,11 +262,13 @@ export function ExamsTable({
         }
       />
 
-      <div className="bg-card rounded-md">
+      <div className={fillHeight ? "bg-card min-h-0 flex-1 rounded-md" : "bg-card rounded-md"}>
         <Table
           dir="rtl"
-          containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain"
+          containerClassName={fillHeight ? "h-full min-h-0 overflow-y-auto overscroll-contain" : "max-h-[70vh] overflow-y-auto overscroll-contain"}
           containerStyle={{ scrollbarWidth: "none" }}
+          emptyState={!loading && displayData.length === 0 ? "לא נמצאו בדיקות לתצוגה" : undefined}
+          showTrailingRowBorder={fillHeight}
         >
           <TableHeader className="bg-card sticky top-0 z-0">
             <TableRow>
@@ -401,13 +405,7 @@ export function ExamsTable({
                   </TableCell>
                 </TableRow>
               ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={clientId === 0 ? 6 : 5} className="h-24 text-center">
-                  לא נמצאו בדיקות לתצוגה
-                </TableCell>
-              </TableRow>
-            )}
+            ) : null}
           </TableBody>
         </Table>
       </div>

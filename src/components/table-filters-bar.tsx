@@ -111,7 +111,7 @@ export function TableFiltersBar({
               <SelectTrigger
                 aria-label={filter.ariaLabel || filter.placeholder}
                 className={cn(
-                  "border-border/80 bg-background/80 h-9 rounded-lg shadow-none",
+                  "border-border/80 bg-card h-9 rounded-lg shadow-none",
                   filter.widthClassName || "w-[160px]",
                 )}
               >
@@ -141,7 +141,7 @@ export function TableFiltersBar({
                 placeholder={searchPlaceholder}
                 value={searchValue}
                 onChange={(event) => onSearchChange(event.target.value)}
-                className="border-border/80 bg-background/80 h-9 rounded-lg pr-9 shadow-none"
+                className="border-border/80 bg-card h-9 rounded-lg pr-9 shadow-none"
                 dir="rtl"
               />
             </div>

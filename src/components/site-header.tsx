@@ -202,10 +202,18 @@ export function SiteHeader({
     <header
       className="flex h-(--header-height) shrink-0 items-center gap-2 border-b-[1px] transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)"
       dir="rtl"
+      style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
     >
-      <div className="flex w-full items-center justify-between px-4 py-2 lg:px-6">
+      <div
+        className={`flex w-full items-center justify-between px-4 lg:px-6 ${
+          tabs ? "py-1" : "py-2"
+        }`}
+      >
         {/* Right side - Navigation (in RTL, this appears on the right) */}
-        <div className="flex items-center gap-1 lg:gap-2">
+        <div
+          className="flex items-center gap-1 lg:gap-2"
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+        >
           {isInSidebarContext && <SidebarTrigger className="-mr-1" />}
           {isInSidebarContext && (
             <Separator
@@ -351,7 +359,10 @@ export function SiteHeader({
         </div>
 
         {/* Left side - Tabs (in RTL, this appears on the left) */}
-        <div className="flex items-center gap-2 text-base">
+        <div
+          className="flex items-center gap-2 text-base"
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+        >
           {tabs && (
             <Tabs value={tabs.activeTab} onValueChange={tabs.onTabChange}>
               <TabsList className="bg-transparent">

@@ -1,6 +1,16 @@
 import React from "react"
-import { createMemoryHistory, createRouter } from "@tanstack/react-router";
+import { createRouter } from "@tanstack/react-router";
+import { createBrowserHistory, createMemoryHistory, parseHref } from "@tanstack/history";
+import { useTranslation } from "react-i18next";
 import { rootTree } from "./routes";
+import {
+  detectPreferredLocale,
+  getLocaleFromPath,
+  isUnprefixedPath,
+  localeRoutingEnabled,
+  localizeHref,
+  stripLocalePrefix,
+} from "@/localization/locale";
 
 declare module "@tanstack/react-router" {
   interface Register {
@@ -38,7 +48,7 @@ const serializeSearch = (search: unknown): string => {
 };
 
 const isCallbackPath = (path: string) =>
-  path === "/auth/callback" || path === "/oauth/callback";
+  isUnprefixedPath(path);
 
 const isPackagedIndexPath = (path: string) =>
   path === "/index.html" ||
@@ -49,6 +59,23 @@ const isUsableStoredPath = (path: string) =>
   path.startsWith("/") &&
   !isCallbackPath(path) &&
   !isPackagedIndexPath(path);
+
+function RouteError({ error }: { error: Error }) {
+  const { t } = useTranslation();
+  console.error("Router error:", error);
+  return (
+    <div style={{ padding: "20px", textAlign: "center" }}>
+      <h2>{t("navigationError")}</h2>
+      <p>{t("navigationErrorDescription")}</p>
+      <button
+        onClick={() => window.location.reload()}
+        style={{ padding: "8px 16px", marginTop: "16px", cursor: "pointer" }}
+      >
+        {t("tryAgain")}
+      </button>
+    </div>
+  );
+}
 
 const resolveInitialEntry = (): string => {
   if (typeof window === "undefined") return "/";
@@ -79,38 +106,53 @@ const resolveInitialEntry = (): string => {
   }
 
   const fallback =
-    window.location.pathname + window.location.search + window.location.hash;
+    stripLocalePrefix(window.location.pathname) + window.location.search + window.location.hash;
   return fallback || "/";
 };
 
-// Create the memory history with error handling
-// IMPORTANT: Initialize history with the actual current URL so popup/callback
-// windows render the correct route (e.g. /auth/callback) instead of '/'
-const initialEntry = resolveInitialEntry();
+const isWebBrowser =
+  typeof window !== "undefined" &&
+  window.location.protocol !== "file:" &&
+  !window.electronAPI;
 
-const history = createMemoryHistory({
-  initialEntries: [initialEntry],
-});
+/**
+ * The router intentionally sees locale-free paths, so existing route
+ * definitions and internal links remain compatible. Browser-facing hrefs are
+ * prefixed by the history adapter (for example, /clients -> /he/clients).
+ */
+const history = isWebBrowser
+  ? (() => {
+      const currentPath = window.location.pathname;
+      const requestedLocale = getLocaleFromPath(currentPath);
+      if ((!localeRoutingEnabled || !requestedLocale) && !isCallbackPath(currentPath)) {
+        const locale = detectPreferredLocale();
+        window.history.replaceState(
+          window.history.state,
+          "",
+          localizeHref(`${currentPath}${window.location.search}${window.location.hash}`, locale),
+        );
+      }
+
+      return createBrowserHistory({
+        parseLocation: () => {
+          const physicalHref = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+          const internalHref = isCallbackPath(window.location.pathname)
+            ? physicalHref
+            : `${stripLocalePrefix(window.location.pathname)}${window.location.search}${window.location.hash}`;
+          return parseHref(internalHref, window.history.state);
+        },
+        createHref: (href) => localizeHref(href),
+      });
+    })()
+  : createMemoryHistory({
+      initialEntries: [resolveInitialEntry()],
+    });
 
 // Create router with error handlers
 export const router = createRouter({
   routeTree: rootTree,
   history: history,
-  defaultErrorComponent: ({ error }) => {
-    console.error('Router error:', error);
-    return (
-      <div style={{ padding: '20px', textAlign: 'center' }}>
-        <h2>Navigation Error</h2>
-        <p>There was a problem loading this page.</p>
-        <button
-          onClick={() => window.location.reload()}
-          style={{ padding: '8px 16px', marginTop: '16px', cursor: 'pointer' }}
-        >
-          Try Again
-        </button>
-      </div>
-    );
-  },
+  defaultErrorComponent: RouteError,
   defaultPreloadStaleTime: 0,
   defaultStaleTime: 0,
 });

@@ -10,7 +10,6 @@
 - **Files Fixed**: 
   - `src/pages/ControlCenterPage.tsx` (login-banner.png)
   - `src/components/WelcomeComponent.tsx` (prysm-logo.png)
-  - `src/components/DragWindowRegion.tsx` (prysm-logo.png)
 - **Fix**: Changed to proper ES6 imports: `import image from '@/assets/images/image.png'`
 
 #### 2. **Context Re-render Hell** (CRITICAL)
@@ -173,4 +172,3 @@ From https://www.electronjs.org/docs/latest/tutorial/performance:
 ---
 
 Last Updated: 2025-10-23
-

@@ -47,31 +47,37 @@ export function ExamLayoutTabs({
     setTabPendingDelete(null);
   };
 
-  /* ── pill-tab style helper ── */
+  /* ── connected-tab style helper ── */
   const folderTab = (isActive: boolean): React.CSSProperties => ({
     position: "relative",
     display: "flex",
     alignItems: "center",
     gap: "7px",
-    padding: "7px 18px",
+    padding: "8px 18px 9px",
     fontSize: "15px",
-    fontWeight: 500,
+    fontWeight: isActive ? 600 : 500,
     whiteSpace: "nowrap",
     cursor: "pointer",
     transition: "background 0.15s ease, color 0.15s ease",
-    borderRadius: "8px",
+    borderRadius: "8px 8px 0 0",
     border: isActive ? "1px solid hsl(var(--border))" : "1px solid transparent",
-    backgroundColor: isActive ? "hsl(var(--card))" : "transparent",
-    color: isActive ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
+    borderBottomColor: isActive ? "hsl(var(--muted))" : "transparent",
+    marginBottom: isActive ? "-1px" : 0,
+    background: isActive
+      ? "linear-gradient(to bottom, hsl(var(--card)), hsl(var(--muted)))"
+      : "transparent",
+    color: isActive
+      ? "hsl(var(--foreground))"
+      : "hsl(var(--muted-foreground) / 0.72)",
   });
 
   return (
     <>
-      <div className="">
+      <div className="border-b">
         <div
-          className="flex items-center gap-2"
+          className="flex items-end gap-2"
           style={{
-            alignItems: "center",
+            alignItems: "flex-end",
           }}
         >
           <div
@@ -79,9 +85,6 @@ export function ExamLayoutTabs({
             className="ml-auto"
             style={{
               position: "relative",
-              backgroundColor: "hsl(var(--muted))",
-              padding: "4px",
-              borderRadius: "10px",
               display: "flex",
             }}
           >
@@ -91,7 +94,7 @@ export function ExamLayoutTabs({
                   !isFullDataActive ? activeInstanceId?.toString() || "" : ""
                 }
                 style={{
-                  gap: 4,
+                  gap: 2,
                   position: "relative",
                   backgroundColor: "transparent",
                   padding: 0,
@@ -122,7 +125,7 @@ export function ExamLayoutTabs({
               </Tabs>
             ) : null}
           </div>
-          <div className="ml-2 flex items-center gap-2" dir="rtl">
+          <div className="ml-2 flex items-end gap-2" dir="rtl">
             {showDeleteButton ? (
               <button
                 type="button"

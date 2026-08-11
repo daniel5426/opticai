@@ -13,24 +13,20 @@ import { ArrowRight, ArrowLeft, Building2, MapPin, Check } from "lucide-react";
 import { WelcomeComponent } from "@/components/WelcomeComponent";
 import { ClinicEntrance } from "@/components/ClinicEntrance";
 import loginBanner from "@/assets/images/login-banner.jpeg";
+import { useTranslation } from "react-i18next";
+import { getActiveLocale, getDirection, normalizeLocale } from "@/localization/locale";
 
 export default function ControlCenterPage() {
+  const { i18n } = useTranslation();
+  const locale = normalizeLocale(i18n.resolvedLanguage ?? i18n.language) ?? getActiveLocale();
+  const direction = getDirection(locale);
   const [loading, setLoading] = useState(false);
-  const [isRegisterMode, setIsRegisterMode] = useState(false);
   const { authState } = useUser();
 
   // Login form
   const [loginForm, setLoginForm] = useState({
     email: "",
     password: "",
-  });
-
-  // Register form
-  const [registerForm, setRegisterForm] = useState({
-    fullName: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
   });
 
   // Setup wizard
@@ -109,59 +105,6 @@ export default function ControlCenterPage() {
   };
 
   // ============================================================================
-  // REGISTER HANDLERS
-  // ============================================================================
-
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Validation
-    if (
-      !registerForm.fullName ||
-      !registerForm.email ||
-      !registerForm.password
-    ) {
-      toast.error("אנא מלא את כל השדות");
-      return;
-    }
-
-    if (registerForm.password !== registerForm.confirmPassword) {
-      toast.error("הסיסמאות אינן תואמות");
-      return;
-    }
-
-    if (registerForm.password.length < 6) {
-      toast.error("הסיסמה חייבת להכיל לפחות 6 תווים");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const result = await authService.signUp(
-        registerForm.email,
-        registerForm.password,
-        registerForm.fullName,
-      );
-
-      if (result.success && result.status === "pending_confirmation") {
-        toast.success("נשלח אליך אימייל לאישור החשבון")
-        setIsRegisterMode(false)
-      } else if (!result.success) {
-        if (result.error === "email_exists_but_wrong_password") {
-          toast.error("האימייל כבר קיים במערכת - אנא התחבר");
-        } else {
-          toast.error("שגיאה ביצירת חשבון");
-        }
-      }
-    } catch (error) {
-      console.error("Registration error:", error);
-      toast.error("שגיאה בהרשמה");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ============================================================================
   // SETUP WIZARD HANDLERS
   // ============================================================================
 
@@ -211,7 +154,7 @@ export default function ControlCenterPage() {
   return (
     <div
       className="bg-muted flex min-h-svh flex-col items-center justify-center p-6 md:p-10"
-      dir="rtl"
+      dir={direction}
       style={{ scrollbarWidth: "none" }}
     >
       <div className={cn("w-full max-w-sm md:max-w-5xl")}>
@@ -266,12 +209,6 @@ export default function ControlCenterPage() {
                     onComplete={handleCompleteSetup}
                     onPrevious={handlePreviousStep}
                   />
-                ) : isRegisterMode ? (
-                  <div className="flex flex-col justify-center gap-6 p-8 text-right" dir="rtl">
-                    <div><h2 className="text-2xl font-semibold">פתיחת חשבון חדש באתר Prysm</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">בחרו תוכנית, אשרו אימייל והתחילו חודש ניסיון דרך תהליך ההרשמה המאובטח באתר.</p></div>
-                    <Button type="button" className="w-full" onClick={() => window.electronAPI.openExternalAuthUrl("https://prysm.co.il/signup")}>פתיחת אתר ההרשמה</Button>
-                    <Button type="button" variant="ghost" onClick={() => setIsRegisterMode(false)}>חזרה להתחברות</Button>
-                  </div>
                 ) : (
                   <LoginForm
                     form={loginForm}
@@ -279,7 +216,7 @@ export default function ControlCenterPage() {
                     loading={loading}
                     onSubmit={handleLogin}
                     onGoogleClick={handleGoogleLogin}
-                    onToggleMode={() => setIsRegisterMode(true)}
+                    onToggleMode={() => window.electronAPI.openExternalAuthUrl("https://prysm.co.il/pricing")}
                   />
                 )}
                 <div className="bg-muted relative hidden md:block">
@@ -413,129 +350,6 @@ function LoginForm({
         </div>
       </form>
     </div>
-  );
-}
-
-function RegisterForm({
-  form,
-  setForm,
-  loading,
-  onSubmit,
-  onGoogleClick,
-  onToggleMode,
-}: any) {
-  return (
-    <form
-      onSubmit={onSubmit}
-      className="overflow-auto p-6 md:p-8"
-      style={{ scrollbarWidth: "none" }}
-    >
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col items-center text-center">
-          <h1 className="text-2xl font-bold">צור חשבון חדש</h1>
-          <p className="text-muted-foreground text-balance">
-            המשך להגדרת החברה
-          </p>
-        </div>
-
-        <div className="grid gap-4">
-          <div className="grid gap-3">
-            <Label htmlFor="fullName">שם מלא</Label>
-            <Input
-              id="fullName"
-              type="text"
-              dir="rtl"
-              value={form.fullName}
-              onChange={(e) =>
-                setForm((prev: any) => ({ ...prev, fullName: e.target.value }))
-              }
-              required
-            />
-          </div>
-
-          <div className="grid gap-3">
-            <Label htmlFor="regEmail">אימייל</Label>
-            <Input
-              id="regEmail"
-              type="email"
-              dir="rtl"
-              value={form.email}
-              onChange={(e) =>
-                setForm((prev: any) => ({ ...prev, email: e.target.value }))
-              }
-              required
-            />
-          </div>
-
-          <div className="grid gap-3">
-            <Label htmlFor="regPassword">סיסמה</Label>
-            <Input
-              id="regPassword"
-              type="password"
-              dir="rtl"
-              value={form.password}
-              onChange={(e) =>
-                setForm((prev: any) => ({ ...prev, password: e.target.value }))
-              }
-              required
-            />
-          </div>
-
-          <div className="grid gap-3">
-            <Label htmlFor="confirmPassword">אישור סיסמה</Label>
-            <Input
-              id="confirmPassword"
-              type="password"
-              dir="rtl"
-              value={form.confirmPassword}
-              onChange={(e) =>
-                setForm((prev: any) => ({
-                  ...prev,
-                  confirmPassword: e.target.value,
-                }))
-              }
-              required
-            />
-          </div>
-        </div>
-
-        <Button
-          type="submit"
-          className="bg-general-primary hover:bg-general-primary/80 w-full"
-          disabled={loading}
-        >
-          {loading ? "ממשיך..." : "המשך להגדרת החברה"}
-        </Button>
-
-        <div className="after:border-border relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t">
-          <span className="bg-card text-muted-foreground relative z-10 px-2">
-            או המשך עם
-          </span>
-        </div>
-
-        <Button
-          variant="outline"
-          type="button"
-          className="w-full"
-          onClick={onGoogleClick}
-          disabled={loading}
-        >
-          <GoogleIcon />
-          הירשם עם Google
-        </Button>
-
-        <div className="text-center text-sm">
-          כבר יש לך חשבון?{" "}
-          <button
-            type="button"
-            onClick={onToggleMode}
-            className="underline underline-offset-4"
-          >
-            התחבר
-          </button>
-        </div>
-      </div>
-    </form>
   );
 }
 

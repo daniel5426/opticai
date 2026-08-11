@@ -1,228 +1,769 @@
-import * as React from "react";
+import React, { useState, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, XAxis, YAxis } from "recharts";
-import { Plus, Trash2 } from "lucide-react";
-import { toast } from "sonner";
-
-import {
-  AnalyticsChartTooltip,
-  AnalyticsMetricCard,
-  AnalyticsPanel,
-  AnalyticsRangePicker,
-  AnalyticsTooltip,
-} from "@/components/analytics";
-import { ListPageHeader } from "@/components/list-page-header";
 import { SiteHeader } from "@/components/site-header";
-import { Button } from "@/components/ui/button";
-import { CustomModal } from "@/components/ui/custom-modal";
-import { DateInput } from "@/components/ui/date";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useUser } from "@/contexts/UserContext";
-import { useAnalyticsRange } from "@/hooks/useAnalyticsRange";
+import { Button } from "@/components/ui/button";
+import { CustomModal } from "@/components/ui/custom-modal";
+import { Skeleton } from "@/components/ui/skeleton";
+import { DateInput } from "@/components/ui/date";
+import {
+  IconClock,
+  IconCalendar,
+  IconChartBar,
+  IconPlus,
+  IconTrash,
+} from "@tabler/icons-react";
 import { apiClient } from "@/lib/api-client";
-import type { WorkforceAnalyticsResponse } from "@/lib/analytics";
-import type { User, WorkShift } from "@/lib/db/schema-interface";
+import { User, WorkShift } from "@/lib/db/schema-interface";
 import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels";
+import { useUser } from "@/contexts/UserContext";
 
-const queryKeys = {
+type WorkerStats = {
+  totalShifts: number;
+  totalMinutes: number;
+  averageMinutes: number;
+};
+
+type WorkShiftStatsResponse = {
+  total_shifts: number;
+  total_minutes: number;
+  average_minutes: number;
+};
+
+const workerStatsQueryKeys = {
   users: ["worker-stats", "users"] as const,
-  day: (userId: number | null, value: string) => ["worker-stats", "day", userId, value] as const,
-  analytics: (userId: number | null, start: string, end: string) =>
-    ["worker-stats", "analytics", userId, start, end] as const,
+  dayShifts: (userId: number | null, date: string) =>
+    ["worker-stats", "day-shifts", userId, date] as const,
+  monthlyStats: (userId: number | null, year: number, month: number) =>
+    ["worker-stats", "monthly-stats", userId, year, month] as const,
 };
 
-const formatDuration = (minutes: number) => {
-  const total = Math.max(0, Math.round(Number(minutes) || 0));
-  const hours = Math.floor(total / 60);
-  return `${hours}:${String(total % 60).padStart(2, "0")}`;
+const normalizeDisplayNumber = (
+  value: number | null | undefined,
+  fractionDigits = 0,
+) => {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return 0;
+
+  return Number(numericValue.toFixed(fractionDigits));
 };
 
-async function fetchUsers() {
+const emptyWorkerStats: WorkerStats = {
+  totalShifts: 0,
+  totalMinutes: 0,
+  averageMinutes: 0,
+};
+
+const getWorkerUsers = async () => {
   const response = await apiClient.getUsers();
-  if (response.error) throw new Error(String(response.error));
-  return (response.data || []).filter((user) => isRoleAtLeast(user.role_level, ROLE_LEVELS.worker));
-}
+  if (response.error) throw new Error(response.error);
+
+  return (response.data || []).filter((user) =>
+    isRoleAtLeast(user.role_level, ROLE_LEVELS.worker),
+  );
+};
+
+const getDayShifts = async (userId: number, date: string) => {
+  const response = await apiClient.getWorkShiftsByUserAndDate(userId, date);
+  if (response.error) throw new Error(response.error);
+
+  return response.data || [];
+};
+
+const getMonthlyStats = async (
+  userId: number,
+  year: number,
+  month: number,
+): Promise<WorkerStats> => {
+  const response = await apiClient.getWorkShiftStats(userId, year, month);
+  if (response.error) throw new Error(response.error);
+
+  const stats = response.data as WorkShiftStatsResponse | undefined;
+  if (!stats) return emptyWorkerStats;
+
+  return {
+    totalShifts: normalizeDisplayNumber(stats.total_shifts),
+    totalMinutes: normalizeDisplayNumber(stats.total_minutes),
+    averageMinutes: normalizeDisplayNumber(stats.average_minutes),
+  };
+};
 
 export default function WorkerStatsPage() {
   const { currentUser } = useUser();
   const queryClient = useQueryClient();
-  const { range, setRange } = useAnalyticsRange("30d");
-  const [selectedUserId, setSelectedUserId] = React.useState<number | null>(null);
-  const [selectedDate, setSelectedDate] = React.useState(() => new Date().toISOString().slice(0, 10));
-  const [modalOpen, setModalOpen] = React.useState(false);
-  const [shiftForm, setShiftForm] = React.useState({ start_time: "", end_time: "" });
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string>(
+    new Date().toISOString().split("T")[0],
+  );
+  const [selectedMonth, setSelectedMonth] = useState<number>(
+    new Date().getMonth() + 1,
+  );
+  const [selectedYear, setSelectedYear] = useState<number>(
+    new Date().getFullYear(),
+  );
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isCreatingShift, setIsCreatingShift] = useState(false);
+  const isCreatingShiftRef = useRef(false);
+  const [newShiftData, setNewShiftData] = useState({
+    start_time: "",
+    end_time: "",
+  });
 
-  const usersQuery = useQuery({ queryKey: queryKeys.users, queryFn: fetchUsers, refetchOnWindowFocus: true });
+  const usersQuery = useQuery({
+    queryKey: workerStatsQueryKeys.users,
+    queryFn: getWorkerUsers,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+  });
+
   const users = usersQuery.data || [];
-  const effectiveUserId = users.some((user) => user.id === selectedUserId) ? selectedUserId : (users[0]?.id ?? null);
-  const selectedUser = users.find((user) => user.id === effectiveUserId);
+  const selectedUserExists =
+    selectedUserId !== null && users.some((user) => user.id === selectedUserId);
+  const effectiveSelectedUserId = selectedUserExists
+    ? selectedUserId
+    : (users[0]?.id ?? null);
 
-  const analyticsQuery = useQuery({
-    queryKey: queryKeys.analytics(effectiveUserId, range.startDate, range.endDate),
-    queryFn: async () => {
-      const response = await apiClient.getWorkforceAnalytics(effectiveUserId!, range);
-      if (response.error || !response.data) throw new Error(String(response.error || "טעינת הנתונים נכשלה"));
-      return response.data as WorkforceAnalyticsResponse;
-    },
-    enabled: Boolean(effectiveUserId),
+  const dayShiftsQuery = useQuery({
+    queryKey: workerStatsQueryKeys.dayShifts(
+      effectiveSelectedUserId,
+      selectedDate,
+    ),
+    queryFn: () => getDayShifts(effectiveSelectedUserId!, selectedDate),
+    enabled: !!effectiveSelectedUserId && !!selectedDate,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
   });
 
-  const dayQuery = useQuery({
-    queryKey: queryKeys.day(effectiveUserId, selectedDate),
-    queryFn: async () => {
-      const response = await apiClient.getWorkShiftsByUserAndDate(effectiveUserId!, selectedDate);
-      if (response.error) throw new Error(String(response.error));
-      return response.data || [];
-    },
-    enabled: Boolean(effectiveUserId && selectedDate),
+  const monthlyStatsQuery = useQuery({
+    queryKey: workerStatsQueryKeys.monthlyStats(
+      effectiveSelectedUserId,
+      selectedYear,
+      selectedMonth,
+    ),
+    queryFn: () =>
+      getMonthlyStats(effectiveSelectedUserId!, selectedYear, selectedMonth),
+    enabled: !!effectiveSelectedUserId,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   });
 
-  const invalidate = async () => {
+  const dayShifts = dayShiftsQuery.data || [];
+  const userStats = monthlyStatsQuery.data || emptyWorkerStats;
+
+  const invalidateSelectedWorkerData = async () => {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.day(effectiveUserId, selectedDate) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.analytics(effectiveUserId, range.startDate, range.endDate) }),
+      queryClient.invalidateQueries({
+        queryKey: workerStatsQueryKeys.dayShifts(
+          effectiveSelectedUserId,
+          selectedDate,
+        ),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: workerStatsQueryKeys.monthlyStats(
+          effectiveSelectedUserId,
+          selectedYear,
+          selectedMonth,
+        ),
+      }),
     ]);
   };
 
-  const createMutation = useMutation({
-    mutationFn: async (payload: Omit<WorkShift, "id" | "created_at" | "updated_at">) => {
-      const response = await apiClient.createWorkShift(payload);
-      if (response.error) throw new Error(String(response.error));
+  const createShiftMutation = useMutation({
+    mutationFn: async (
+      workShift: Omit<WorkShift, "id" | "created_at" | "updated_at">,
+    ) => {
+      const response = await apiClient.createWorkShift(workShift);
+      if (response.error) throw new Error(response.error);
       return response.data;
     },
-    onSuccess: invalidate,
-  });
-  const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const response = await apiClient.deleteWorkShift(id);
-      if (response.error) throw new Error(String(response.error));
+    onSuccess: async () => {
+      await invalidateSelectedWorkerData();
     },
-    onSuccess: invalidate,
   });
 
-  const metrics = React.useMemo(
-    () => new Map((analyticsQuery.data?.metrics || []).map((metric) => [metric.key, metric])),
-    [analyticsQuery.data?.metrics],
-  );
-  const chartData = React.useMemo(
-    () => (analyticsQuery.data?.series || []).map((point) => ({ ...point, hours: Number((point.minutes / 60).toFixed(2)) })).reverse(),
-    [analyticsQuery.data?.series],
-  );
-  const canManage = isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager);
+  const deleteShiftMutation = useMutation({
+    mutationFn: async (shiftId: number) => {
+      const response = await apiClient.deleteWorkShift(shiftId);
+      if (response.error) throw new Error(response.error);
+      return response.data;
+    },
+    onSuccess: async () => {
+      await invalidateSelectedWorkerData();
+    },
+  });
 
-  const createShift = async () => {
-    if (!effectiveUserId || !shiftForm.start_time || !shiftForm.end_time) return;
-    const start = new Date(`${selectedDate}T${shiftForm.start_time}:00`);
-    const end = new Date(`${selectedDate}T${shiftForm.end_time}:00`);
-    const duration = Math.floor((end.getTime() - start.getTime()) / 60000);
-    if (duration <= 0) {
-      toast.error("שעת הסיום חייבת להיות אחרי שעת ההתחלה");
+  if (usersQuery.isLoading) {
+    return (
+      <>
+        <SiteHeader title="יומן נוכחות" />
+        <div
+          className="bg-muted/30 h-full overflow-auto"
+          style={{ scrollbarWidth: "none" }}
+          dir="ltr"
+        >
+          <div className="mx-auto max-w-6xl space-y-6 p-6 pb-20" dir="ltr">
+            {/* Header */}
+            <div className="mb-8 space-y-2 text-right">
+              <h1 className="text-xl font-bold">יומן נוכחות</h1>
+              <p className="text-muted-foreground">
+                צפה בנתוני נוכחות ומשמרות של העובדים
+              </p>
+            </div>
+
+            <div className="flex gap-6" dir="ltr">
+              <div className="flex-1 space-y-6">
+                <Card className="border-none shadow-md">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div className="mb-6 flex items-center justify-end gap-2">
+                        <Skeleton className="h-8 w-24" />
+                        <Skeleton className="h-8 w-24" />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <Skeleton className="ml-auto h-6 w-24" />
+                          <Skeleton className="mt-2 ml-auto h-4 w-56" />
+                        </div>
+                        <Skeleton className="h-10 w-10 rounded-full" />
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                      <Skeleton className="h-24 w-full rounded-lg" />
+                      <Skeleton className="h-24 w-full rounded-lg" />
+                      <Skeleton className="h-24 w-full rounded-lg" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-none shadow-md">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <Skeleton className="h-8 w-36" />
+                      </div>
+                      <div className="text-right">
+                        <Skeleton className="ml-auto h-5 w-28" />
+                        <Skeleton className="mt-2 ml-auto h-4 w-56" />
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-end gap-4">
+                      <Skeleton className="h-10 w-40" />
+                      <Skeleton className="h-5 w-16" />
+                    </div>
+                    <div className="grid gap-3">
+                      <Skeleton className="h-20 w-full rounded-lg" />
+                      <Skeleton className="h-20 w-full rounded-lg" />
+                      <Skeleton className="h-20 w-full rounded-lg" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="w-48 shrink-0">
+                <div
+                  className="no-scrollbar dark:bg-card/50 flex h-fit max-h-[70vh] w-48 flex-col gap-1 overflow-y-auto rounded-md bg-cyan-800/10 p-1"
+                  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                >
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <div key={i} className="w-full rounded-md px-2 py-2">
+                      <div className="flex items-center justify-end gap-2">
+                        <Skeleton className="h-3 w-14" />
+                        <Skeleton className="h-4 w-20" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  const formatDuration = (minutes: number) => {
+    const totalMinutes = Math.max(0, normalizeDisplayNumber(minutes));
+    if (!totalMinutes) return "0:00";
+
+    const hours = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
+    return `${hours}:${mins.toString().padStart(2, "0")}`;
+  };
+
+  const handleCreateShift = async () => {
+    if (isCreatingShiftRef.current) return;
+    if (
+      !effectiveSelectedUserId ||
+      !newShiftData.start_time ||
+      !newShiftData.end_time
+    )
       return;
-    }
+
+    isCreatingShiftRef.current = true;
+    setIsCreatingShift(true);
     try {
-      await createMutation.mutateAsync({
-        user_id: effectiveUserId,
-        start_time: shiftForm.start_time,
-        end_time: shiftForm.end_time,
-        duration_minutes: duration,
+      const startTime = new Date(
+        `${selectedDate}T${newShiftData.start_time}:00`,
+      );
+      const endTime = new Date(`${selectedDate}T${newShiftData.end_time}:00`);
+      const durationMinutes = Math.floor(
+        (endTime.getTime() - startTime.getTime()) / (1000 * 60),
+      );
+
+      const shiftData = {
+        user_id: effectiveSelectedUserId,
+        start_time: newShiftData.start_time,
+        end_time: newShiftData.end_time,
+        duration_minutes: durationMinutes,
         date: selectedDate,
-        status: "completed",
-      });
-      setShiftForm({ start_time: "", end_time: "" });
-      setModalOpen(false);
-      toast.success("המשמרת נוספה");
+        status: "completed" as const,
+      };
+
+      await createShiftMutation.mutateAsync(shiftData);
+      setIsCreateModalOpen(false);
+      setNewShiftData({ start_time: "", end_time: "" });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "הוספת המשמרת נכשלה");
+      console.error("Error creating shift:", error);
+    } finally {
+      isCreatingShiftRef.current = false;
+      setIsCreatingShift(false);
+    }
+  };
+
+  const handleDeleteShift = async (shiftId: number) => {
+    if (!shiftId) return;
+
+    try {
+      await deleteShiftMutation.mutateAsync(shiftId);
+    } catch (error) {
+      console.error("Error deleting shift:", error);
     }
   };
 
   return (
     <>
       <SiteHeader title="יומן נוכחות" />
-      <main className="min-h-0 flex-1 overflow-y-auto p-4 lg:p-6" dir="rtl">
-        <div className="mx-auto max-w-[1500px] space-y-5">
-          <ListPageHeader
-            title="יומן נוכחות"
-            description={selectedUser ? `מגמות ושעות עבודה עבור ${selectedUser.full_name || selectedUser.username}` : "נתוני נוכחות ומשמרות"}
-            className="mb-0 items-center"
-            actions={
-              <>
-                <Select value={effectiveUserId?.toString() || ""} onValueChange={(value) => setSelectedUserId(Number(value))}>
-                  <SelectTrigger className="w-52"><SelectValue placeholder="בחירת עובד" /></SelectTrigger>
-                  <SelectContent dir="rtl">{users.map((user) => <SelectItem key={user.id} value={String(user.id)}>{user.full_name || user.username}</SelectItem>)}</SelectContent>
-                </Select>
-                <AnalyticsRangePicker value={range} onChange={setRange} disabled={analyticsQuery.isFetching} />
-              </>
-            }
-          />
+      <div
+        className="bg-muted/30 h-full overflow-auto"
+        style={{ scrollbarWidth: "none" }}
+        dir="rtl"
+      >
+        <div className="mx-auto max-w-6xl space-y-6 p-6 pb-20">
+          {/* Header */}
+          <div className="mb-8 space-y-2 text-right">
+            <h1 className="text-xl font-bold">יומן נוכחות</h1>
+            <p className="text-muted-foreground">
+              צפה בנתוני נוכחות ומשמרות של העובדים
+            </p>
+          </div>
 
-          {!usersQuery.isLoading && !users.length ? (
-            <div className="flex h-64 items-center justify-center rounded-md border text-sm text-muted-foreground">אין עובדים להצגה.</div>
+          {users.length === 0 ? (
+            <Card className="">
+              <CardContent className="flex h-64 items-center justify-center">
+                <div className="text-muted-foreground text-center">
+                  <p className="mb-2 text-lg">אין עובדים במערכת</p>
+                  <p className="text-sm">הוסף עובדים דרך עמוד ההגדרות</p>
+                </div>
+              </CardContent>
+            </Card>
           ) : (
-            <>
-              <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <AnalyticsMetricCard metric={metrics.get("total_minutes")} formatter={formatDuration} loading={analyticsQuery.isLoading} error={analyticsQuery.isError} polarity="neutral" />
-                <AnalyticsMetricCard metric={metrics.get("shifts")} formatter={(value) => Math.round(value).toLocaleString("he-IL")} loading={analyticsQuery.isLoading} error={analyticsQuery.isError} polarity="neutral" />
-                <AnalyticsMetricCard metric={metrics.get("active_days")} formatter={(value) => Math.round(value).toLocaleString("he-IL")} loading={analyticsQuery.isLoading} error={analyticsQuery.isError} polarity="neutral" />
-                <AnalyticsMetricCard metric={metrics.get("average_minutes")} formatter={formatDuration} loading={analyticsQuery.isLoading} error={analyticsQuery.isError} polarity="neutral" />
-              </section>
+            <Tabs
+              value={effectiveSelectedUserId?.toString()}
+              onValueChange={(value) => setSelectedUserId(Number(value))}
+              className="w-full"
+              orientation="vertical"
+            >
+              <div className="flex gap-6">
+                {/* Content on the Left */}
+                <div className="flex-1">
+                  {users.map((user) => (
+                    <TabsContent
+                      key={user.id}
+                      value={user.id!.toString()}
+                      className="mt-0 space-y-6"
+                    >
+                      {/* User Stats Overview */}
+                      <Card className="">
+                        <CardHeader>
+                          <div className="flex items-center justify-between">
+                            <div className="mb-6 flex items-center justify-end gap-4">
+                              <div className="flex items-center gap-2">
+                                <select
+                                  value={selectedYear}
+                                  onChange={(e) =>
+                                    setSelectedYear(Number(e.target.value))
+                                  }
+                                  className="bg-background rounded-md border px-3 py-1 text-sm"
+                                >
+                                  {Array.from(
+                                    { length: 10 },
+                                    (_, i) => new Date().getFullYear() - i,
+                                  ).map((year) => (
+                                    <option key={year} value={year}>
+                                      {year}
+                                    </option>
+                                  ))}
+                                </select>
+                                <select
+                                  value={selectedMonth}
+                                  onChange={(e) =>
+                                    setSelectedMonth(Number(e.target.value))
+                                  }
+                                  className="bg-background rounded-md border px-3 py-1 text-sm"
+                                >
+                                  {Array.from(
+                                    { length: 12 },
+                                    (_, i) => i + 1,
+                                  ).map((month) => (
+                                    <option key={month} value={month}>
+                                      {new Date(
+                                        2024,
+                                        month - 1,
+                                      ).toLocaleDateString("he-IL", {
+                                        month: "long",
+                                      })}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <div className="text-right">
+                                <CardTitle>
+                                  {user.full_name || user.username}
+                                </CardTitle>
+                                <p className="text-muted-foreground text-sm">
+                                  נתוני נוכחות לחודש{" "}
+                                  {new Date(
+                                    selectedYear,
+                                    selectedMonth - 1,
+                                  ).toLocaleDateString("he-IL", {
+                                    month: "long",
+                                    year: "numeric",
+                                  })}
+                                </p>
+                              </div>
+                              <div className="bg-muted flex h-10 w-10 items-center justify-center overflow-hidden rounded-full">
+                                {user.profile_picture ? (
+                                  <img
+                                    src={user.profile_picture}
+                                    alt={user.full_name || user.username}
+                                    className="h-full w-full object-cover"
+                                  />
+                                ) : (
+                                  <span className="font-semibold">
+                                    {(user.full_name || user.username)
+                                      .charAt(0)
+                                      .toUpperCase()}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          {/* Month/Year Selector */}
+                          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                            <div className="bg-accent/70 rounded-lg p-4 text-center shadow-md">
+                              <div className="mb-2 flex items-center justify-center">
+                                <IconCalendar className="text-primary h-5 w-5" />
+                              </div>
+                              <div className="text-primary text-2xl font-bold">
+                                {userStats.totalShifts}
+                              </div>
+                              <div className="text-muted-foreground text-sm">
+                                משמרות החודש
+                              </div>
+                            </div>
 
-              <AnalyticsPanel title="שעות עבודה לאורך זמן" description="משך המשמרות שנרשם בכל תקופה" loading={analyticsQuery.isLoading} error={analyticsQuery.isError} empty={!chartData.length}>
-                <div className="h-64" dir="ltr">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                      <CartesianGrid vertical={false} strokeDasharray="4 4" stroke="hsl(var(--border))" />
-                      <XAxis dataKey="label" axisLine={false} tickLine={false} tickMargin={10} fontSize={12} />
-                      <YAxis orientation="right" axisLine={false} tickLine={false} width={38} />
-                      <AnalyticsChartTooltip content={<AnalyticsTooltip />} />
-                      <Bar dataKey="hours" name="שעות" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </AnalyticsPanel>
+                            <div className="border-primary rounded-lg border-[1px] p-4 text-center shadow-md">
+                              <div className="mb-2 flex items-center justify-center">
+                                <IconClock className="h-5 w-5" />
+                              </div>
+                              <div className="text-2xl font-bold">
+                                {formatDuration(userStats.totalMinutes)}
+                              </div>
+                              <div className="text-muted-foreground text-sm">
+                                סה"כ שעות
+                              </div>
+                            </div>
 
-              <AnalyticsPanel flat title="פירוט יומי" description="שעות כניסה, יציאה ומשך משמרת">
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                  {canManage ? <Button onClick={() => setModalOpen(true)}>הוספת משמרת <Plus className="size-4" /></Button> : <span />}
-                  <DateInput name="selected_date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} className="w-44" />
+                            <div className="bg-accent/70 rounded-lg p-4 text-center shadow-md">
+                              <div className="mb-2 flex items-center justify-center">
+                                <IconChartBar className="text-primary h-5 w-5" />
+                              </div>
+                              <div className="text-primary text-2xl font-bold">
+                                {formatDuration(userStats.averageMinutes)}
+                              </div>
+                              <div className="text-muted-foreground text-sm">
+                                ממוצע למשמרת
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Day View */}
+                      <Card className="">
+                        <CardHeader>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center">
+                              {isRoleAtLeast(
+                                currentUser?.role_level,
+                                ROLE_LEVELS.manager,
+                              ) && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setIsCreateModalOpen(true)}
+                                  className="flex items-center gap-2"
+                                >
+                                  <IconPlus className="h-4 w-4" />
+                                  הוספת משמרת
+                                </Button>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <CardTitle>צפייה לפי יום</CardTitle>
+                              <p className="text-muted-foreground text-sm">
+                                בחר תאריך לצפייה בשעות הגעה ויציאה
+                              </p>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="flex items-center justify-end gap-4">
+                            <DateInput
+                              name="selected_date"
+                              value={selectedDate}
+                              onChange={(e) => setSelectedDate(e.target.value)}
+                              className="w-auto text-center"
+                            />
+                            <Label className="text-sm font-medium">
+                              :תאריך
+                            </Label>
+                          </div>
+
+                          {dayShifts.length === 0 ? (
+                            <div className="text-muted-foreground py-12 text-center">
+                              <IconClock className="mx-auto mb-4 h-12 w-12 opacity-50" />
+                              <p className="mb-2 text-lg">
+                                אין משמרות לתאריך זה
+                              </p>
+                              <p className="text-sm">
+                                לחץ על "הוספת משמרת" כדי להוסיף משמרת חדשה
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="grid gap-3">
+                              {dayShifts.map((shift, index) => (
+                                <div
+                                  key={shift.id || index}
+                                  className="bg-accent/50 rounded-lg p-4 shadow-md transition-colors"
+                                >
+                                  <div className="mb-3 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <Badge
+                                        variant={
+                                          shift.status === "completed"
+                                            ? "default"
+                                            : shift.status === "active"
+                                              ? "destructive"
+                                              : "outline"
+                                        }
+                                      >
+                                        {shift.status === "completed"
+                                          ? "הושלמה"
+                                          : shift.status === "active"
+                                            ? "פעילה"
+                                            : "בוטלה"}
+                                      </Badge>
+                                      {isRoleAtLeast(
+                                        currentUser?.role_level,
+                                        ROLE_LEVELS.manager,
+                                      ) && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() =>
+                                            handleDeleteShift(shift.id!)
+                                          }
+                                          className="h-8 w-8 p-0 text-red-500 hover:bg-red-50 hover:text-red-700"
+                                        >
+                                          <IconTrash className="h-4 w-4" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                    <div className="text-muted-foreground text-sm">
+                                      משמרת {index + 1}
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-3 gap-4 text-sm">
+                                    <div className="bg-card rounded-lg p-3 text-center shadow-md">
+                                      <div className="text-lg font-medium">
+                                        {formatDuration(
+                                          shift.duration_minutes || 0,
+                                        )}{" "}
+                                      </div>
+                                      <div className="text-muted-foreground">
+                                        משך המשמרת
+                                      </div>
+                                    </div>
+                                    <div className="bg-card rounded-lg p-3 text-center shadow-md">
+                                      <div className="text-lg font-medium">
+                                        {shift.end_time
+                                          ? shift.end_time.slice(0, 5)
+                                          : "פעילה"}
+                                      </div>
+                                      <div className="text-muted-foreground">
+                                        סיום
+                                      </div>
+                                    </div>
+                                    <div className="bg-card rounded-lg p-3 text-center shadow-md">
+                                      <div className="text-lg font-medium">
+                                        {shift.start_time.slice(0, 5)}
+                                      </div>
+                                      <div className="text-muted-foreground">
+                                        התחלה
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                  ))}
                 </div>
-                <Table className="bg-card" containerClassName="border-border bg-card" dir="rtl">
-                  <TableHeader><TableRow><TableHead>שעת התחלה</TableHead><TableHead>שעת סיום</TableHead><TableHead>משך משמרת</TableHead>{canManage ? <TableHead className="w-16">פעולות</TableHead> : null}</TableRow></TableHeader>
-                  <TableBody>
-                    {(dayQuery.data || []).map((shift) => (
-                      <TableRow key={shift.id}>
-                        <TableCell className="tabular-nums" dir="ltr">{shift.start_time.slice(0, 5)}</TableCell>
-                        <TableCell className="tabular-nums" dir="ltr">{shift.end_time?.slice(0, 5) || "פעילה"}</TableCell>
-                        <TableCell className="tabular-nums" dir="ltr">{formatDuration(shift.duration_minutes || 0)}</TableCell>
-                        {canManage ? <TableCell><Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-destructive" aria-label="מחיקת משמרת" onClick={() => shift.id && deleteMutation.mutate(shift.id)}><Trash2 className="size-4" /></Button></TableCell> : null}
-                      </TableRow>
-                    ))}
-                    {!dayQuery.isLoading && !dayQuery.data?.length ? <TableRow><TableCell colSpan={canManage ? 4 : 3} className="h-24 text-center text-muted-foreground">אין משמרות בתאריך זה.</TableCell></TableRow> : null}
-                  </TableBody>
-                </Table>
-              </AnalyticsPanel>
-            </>
+
+                {/* Vertical TabsList on the Right */}
+                <TabsList
+                  className="no-scrollbar dark:bg-card/50 flex h-fit max-h-[70vh] w-48 shrink-0 flex-col items-stretch justify-start overflow-y-auto bg-cyan-800/10 p-1"
+                  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                >
+                  {users.map((user) => (
+                    <TabsTrigger
+                      key={user.id}
+                      value={user.id!.toString()}
+                      className="w-full justify-end text-right"
+                      onClick={() => setSelectedUserId(user.id!)}
+                    >
+                      <div className="w-full text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="text-muted-foreground text-sm">
+                            {isRoleAtLeast(user.role_level, ROLE_LEVELS.manager)
+                              ? "(מנהל)"
+                              : "(עובד)"}
+                          </span>
+                          <span className="font-medium">
+                            {user.full_name || user.username}
+                          </span>
+                        </div>
+                      </div>
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </div>
+            </Tabs>
           )}
         </div>
-      </main>
+      </div>
 
+      {/* Create Shift Modal */}
       <CustomModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title="הוספת משמרת"
-        subtitle={new Date(selectedDate).toLocaleDateString("he-IL")}
-        onConfirm={createShift}
+        isOpen={isCreateModalOpen}
+        onClose={() => {
+          if (isCreatingShift) return;
+          setIsCreateModalOpen(false);
+          setNewShiftData({ start_time: "", end_time: "" });
+        }}
+        title="הוספת משמרת חדשה"
+        subtitle={`תאריך: ${new Date(selectedDate).toLocaleDateString("he-IL")}`}
+        width="max-w-md"
+        className="px-2"
+        onConfirm={handleCreateShift}
         confirmText="הוספה"
-        cancelText="ביטול"
-        isLoading={createMutation.isPending}
         showCloseButton={false}
+        cancelText="ביטול"
+        isLoading={isCreatingShift}
       >
-        <div className="grid grid-cols-2 gap-4" dir="rtl">
-          <label className="grid gap-2"><Label htmlFor="shift-start">שעת התחלה</Label><Input id="shift-start" type="time" value={shiftForm.start_time} onChange={(event) => setShiftForm((current) => ({ ...current, start_time: event.target.value }))} /></label>
-          <label className="grid gap-2"><Label htmlFor="shift-end">שעת סיום</Label><Input id="shift-end" type="time" value={shiftForm.end_time} onChange={(event) => setShiftForm((current) => ({ ...current, end_time: event.target.value }))} /></label>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="start_time" className="text-sm font-medium">
+                שעת התחלה
+              </Label>
+              <Input
+                id="start_time"
+                type="time"
+                value={newShiftData.start_time}
+                onChange={(e) =>
+                  setNewShiftData((prev) => ({
+                    ...prev,
+                    start_time: e.target.value,
+                  }))
+                }
+                className="mt-1"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="end_time" className="text-sm font-medium">
+                שעת סיום
+              </Label>
+              <Input
+                id="end_time"
+                type="time"
+                value={newShiftData.end_time}
+                onChange={(e) =>
+                  setNewShiftData((prev) => ({
+                    ...prev,
+                    end_time: e.target.value,
+                  }))
+                }
+                className="mt-1"
+              />
+            </div>
+          </div>
+
+          {newShiftData.start_time && newShiftData.end_time && (
+            <div className="bg-muted/50 rounded-lg p-3 text-center">
+              <div className="text-muted-foreground text-sm">משך המשמרת</div>
+              <div className="font-medium">
+                {(() => {
+                  const start = new Date(
+                    `${selectedDate}T${newShiftData.start_time}:00`,
+                  );
+                  const end = new Date(
+                    `${selectedDate}T${newShiftData.end_time}:00`,
+                  );
+                  const duration = Math.floor(
+                    (end.getTime() - start.getTime()) / (1000 * 60),
+                  );
+                  return formatDuration(duration);
+                })()}
+              </div>
+            </div>
+          )}
         </div>
       </CustomModal>
     </>

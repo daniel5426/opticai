@@ -7,6 +7,7 @@ interface ListPageHeaderProps {
   description?: string;
   actions?: ReactNode;
   className?: string;
+  titleClassName?: string;
 }
 
 export function ListPageHeader({
@@ -14,6 +15,7 @@ export function ListPageHeader({
   description,
   actions,
   className,
+  titleClassName,
 }: ListPageHeaderProps) {
   return (
     <header
@@ -24,7 +26,7 @@ export function ListPageHeader({
       dir="rtl"
     >
       <div>
-        <h1 className="text-xl font-semibold">{title}</h1>
+        <h1 className={cn("text-xl font-semibold", titleClassName)}>{title}</h1>
         {description ? (
           <p className="text-muted-foreground mt-1 text-sm">{description}</p>
         ) : null}

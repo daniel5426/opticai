@@ -121,6 +121,7 @@ export default function ControlCenterDashboardPage() {
         <div className="mx-auto max-w-[1600px] space-y-5">
           <ListPageHeader
             title="תמונה פיננסית ותפעולית מאוחדת לכל המרפאות"
+            titleClassName="text-lg text-muted-foreground"
             className="mb-0 items-center pb-2"
             actions={<AnalyticsRangePicker value={range} onChange={setRange} disabled={loading} />}
           />

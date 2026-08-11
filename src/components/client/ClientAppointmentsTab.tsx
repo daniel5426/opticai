@@ -40,7 +40,7 @@ export function ClientAppointmentsTab({ enabled = true }: ClientAppointmentsTabP
   }
 
   return (
-    <div className="space-y-4" style={{scrollbarWidth: 'none'}}>
+    <div className="flex min-h-0 flex-1 flex-col" style={{scrollbarWidth: 'none'}}>
       <AppointmentsTable 
         data={appointmentsQuery.data || []} 
         clientId={clientIdNum} 
@@ -48,6 +48,7 @@ export function ClientAppointmentsTab({ enabled = true }: ClientAppointmentsTabP
         onAppointmentDeleted={handleAppointmentDeleted}
         onAppointmentDeleteFailed={handleAppointmentDeleteFailed}
         loading={appointmentsQuery.isLoading}
+        fillHeight
       />
     </div>
   )
