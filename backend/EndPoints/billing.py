@@ -3,7 +3,8 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
-from models import Billing, BillingPayment, Order, OrderLineItem, ContactLensOrder, User
+from models import Billing, BillingPayment, Clinic, Company, ContactLensOrder, Order, OrderLineItem, User
+from currency import DEFAULT_CURRENCY, normalize_currency
 from auth import get_current_user
 from security.scope import (
     get_allowed_clinic_ids,
@@ -50,6 +51,42 @@ def _billing_query_for_allowed_clinics(db: Session, allowed_clinic_ids: list[int
     )
 
 
+def _billing_clinic_id(db: Session, payload: dict) -> int | None:
+    if payload.get("order_id"):
+        return db.query(Order.clinic_id).filter(Order.id == payload["order_id"]).scalar()
+    if payload.get("contact_lens_id"):
+        return db.query(ContactLensOrder.clinic_id).filter(
+            ContactLensOrder.id == payload["contact_lens_id"]
+        ).scalar()
+    return None
+
+
+def _default_currency_for_billing(db: Session, payload: dict) -> str:
+    clinic_id = _billing_clinic_id(db, payload)
+    if clinic_id is None:
+        return DEFAULT_CURRENCY
+    value = (
+        db.query(Company.default_currency)
+        .join(Clinic, Clinic.company_id == Company.id)
+        .filter(Clinic.id == clinic_id)
+        .scalar()
+    )
+    return normalize_currency(value) or DEFAULT_CURRENCY
+
+
+def _prepare_billing_currency(db: Session, payload: dict, existing: Billing | None = None) -> None:
+    requested = normalize_currency(payload.get("currency"), default=None)
+    if existing:
+        if requested and requested != existing.currency:
+            raise HTTPException(
+                status_code=409,
+                detail="Billing currency is immutable. Create a new billing record for another currency.",
+            )
+        payload.pop("currency", None)
+        return
+    payload["currency"] = requested or _default_currency_for_billing(db, payload)
+
+
 @router.post("/", response_model=BillingSchema)
 def create_billing(
     billing: BillingCreate,
@@ -59,6 +96,7 @@ def create_billing(
     line_items = billing.line_items or []
     billing_data = billing.dict(exclude={"line_items"})
     _scope_billing_payload(db, current_user, billing_data)
+    _prepare_billing_currency(db, billing_data)
 
     db_billing = Billing(**billing_data)
     db.add(db_billing)
@@ -68,6 +106,7 @@ def create_billing(
     for item in line_items:
         item_data = item.dict()
         item_data["billings_id"] = db_billing.id
+        item_data["currency"] = db_billing.currency
         db.add(OrderLineItem(**item_data))
     if line_items:
         db.commit()
@@ -168,7 +207,11 @@ def create_billing_payment(
     if next_paid < 0:
         raise HTTPException(status_code=422, detail="Paid amount cannot be negative")
 
-    db_payment = BillingPayment(billing_id=billing_id, **payment.dict())
+    db_payment = BillingPayment(
+        billing_id=billing_id,
+        currency=db_billing.currency,
+        **payment.dict(),
+    )
     db_billing.prepayment_amount = next_paid
     db.add(db_payment)
     db.commit()
@@ -216,6 +259,8 @@ def update_billing(
         }
         _scope_billing_payload(db, current_user, candidate)
 
+    _prepare_billing_currency(db, payload, db_billing)
+
     for field, value in payload.items():
         setattr(db_billing, field, value)
     db.commit()
@@ -232,12 +277,13 @@ def update_billing(
                 if not li:
                     continue
                 for field, value in item.dict(exclude_unset=True).items():
-                    if field in {"id", "billings_id"}:
+                    if field in {"id", "billings_id", "currency"}:
                         continue
                     setattr(li, field, value)
             else:
                 item_data = item.dict(exclude_unset=True)
                 item_data["billings_id"] = db_billing.id
+                item_data["currency"] = db_billing.currency
                 db.add(OrderLineItem(**item_data))
         db.commit()
     return db_billing

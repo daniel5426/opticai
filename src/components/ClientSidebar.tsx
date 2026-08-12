@@ -8,6 +8,35 @@ import { X, User, Phone, Mail, IdCard, Calendar, MapPin, Building2, PanelLeftIco
 import { useLocation, useSearch } from '@tanstack/react-router'
 import { apiClient } from '@/lib/api-client';
 import { Skeleton } from '@/components/ui/skeleton'
+import { useTranslation } from 'react-i18next'
+import { getActiveLocale, getDirection, normalizeLocale } from '@/localization/locale'
+
+const CLIENT_SIDEBAR_WIDTH_KEY = 'client-sidebar-width'
+const DEFAULT_CLIENT_SIDEBAR_WIDTH = 320
+const MIN_CLIENT_SIDEBAR_WIDTH = 280
+const MAX_CLIENT_SIDEBAR_WIDTH = 560
+
+function clampClientSidebarWidth(width: number): number {
+  const viewportMaximum =
+    typeof window === 'undefined'
+      ? MAX_CLIENT_SIDEBAR_WIDTH
+      : Math.max(MIN_CLIENT_SIDEBAR_WIDTH, window.innerWidth - 360)
+
+  return Math.round(
+    Math.min(Math.max(width, MIN_CLIENT_SIDEBAR_WIDTH), Math.min(MAX_CLIENT_SIDEBAR_WIDTH, viewportMaximum)),
+  )
+}
+
+function getStoredClientSidebarWidth(): number {
+  try {
+    const storedWidth = Number(localStorage.getItem(CLIENT_SIDEBAR_WIDTH_KEY))
+    return Number.isFinite(storedWidth) && storedWidth > 0
+      ? clampClientSidebarWidth(storedWidth)
+      : DEFAULT_CLIENT_SIDEBAR_WIDTH
+  } catch {
+    return DEFAULT_CLIENT_SIDEBAR_WIDTH
+  }
+}
 
 function calculateAge(dateOfBirth: string | undefined): number | null {
   if (!dateOfBirth) return null
@@ -25,18 +54,19 @@ function calculateAge(dateOfBirth: string | undefined): number | null {
 }
 
 function detectCurrentPart(pathname: string, searchParams?: any, contextActiveTab?: string | null): string | null {
-  if (!pathname.includes('/clients/')) return null
+  const clientPathname = pathname.replace(/^\/(?:he|en|fr)(?=\/|$)/, '')
+  if (!clientPathname.includes('/clients/')) return null
   
   // Check if we're on a specific detail page (e.g., /clients/1/exams/2)
-  if (pathname.includes('/exams/')) return 'exam'
-  if (pathname.includes('/orders/')) return 'order'
-  if (pathname.includes('/referrals/')) return 'referral'
-  if (pathname.includes('/appointments/')) return 'appointment'
-  if (pathname.includes('/files/')) return 'file'
-  if (pathname.includes('/medical/')) return 'medical'
+  if (clientPathname.includes('/exams/')) return 'exam'
+  if (clientPathname.includes('/orders/')) return 'order'
+  if (clientPathname.includes('/referrals/')) return 'referral'
+  if (clientPathname.includes('/appointments/')) return 'appointment'
+  if (clientPathname.includes('/files/')) return 'file'
+  if (clientPathname.includes('/medical/')) return 'medical'
   
   // Check if we're on the main ClientDetailPage with a specific tab
-  const clientDetailPageMatch = pathname.match(/^\/clients\/\d+$/)
+  const clientDetailPageMatch = clientPathname.match(/^\/clients\/\d+$/)
   if (clientDetailPageMatch) {
     // Use the context active tab first (most reliable)
     if (contextActiveTab) {
@@ -71,7 +101,7 @@ function detectCurrentPart(pathname: string, searchParams?: any, contextActiveTa
     }
     
     // Fallback to localStorage
-    const clientId = pathname.split('/').pop()
+    const clientId = clientPathname.split('/').pop()
     if (clientId) {
       const activeTab = localStorage.getItem(`client-${clientId}-last-tab`)
       if (activeTab) {
@@ -190,7 +220,7 @@ function AIInformationSection({
                     <Sparkles className="h-3 w-3 text-primary" />
                     <span className="text-xs text-primary font-medium">המלצות AI</span>
                   </div>
-                  <div className="text-sm whitespace-pre-line leading-relaxed">
+                  <div className="break-words whitespace-pre-line text-sm leading-relaxed [overflow-wrap:anywhere]">
                     {aiInfo}
                   </div>
                 </div>
@@ -218,7 +248,11 @@ function AIInformationSection({
 
 export function ClientSidebar() {
   const { isOpen, closeSidebar, currentClient, isClientSpacePage, activeTab: contextActiveTab } = useClientSidebar()
+  const { i18n, t } = useTranslation()
+  const locale = normalizeLocale(i18n.resolvedLanguage ?? i18n.language) ?? getActiveLocale()
+  const direction = getDirection(locale)
   const location = useLocation()
+  const sidebarRef = useRef<HTMLDivElement>(null)
   const [aiInfo, setAiInfo] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -233,9 +267,96 @@ export function ClientSidebar() {
     const saved = localStorage.getItem('client-sidebar-ai-block-open')
     return saved !== null ? JSON.parse(saved) : true
   })
+  const [sidebarWidth, setSidebarWidth] = useState(getStoredClientSidebarWidth)
+  const [isResizing, setIsResizing] = useState(false)
+  const sidebarWidthRef = useRef(sidebarWidth)
   const updateAiPartCache = useCallback((updates: Record<string, string | null>) => {
     setAiPartCache(previous => mergeAiPartCache(previous, updates))
   }, [])
+
+  useEffect(() => {
+    sidebarWidthRef.current = sidebarWidth
+  }, [sidebarWidth])
+
+  const updateSidebarWidth = useCallback((width: number) => {
+    setSidebarWidth((previous) => {
+      const next = clampClientSidebarWidth(width)
+      sidebarWidthRef.current = next
+      return previous === next ? previous : next
+    })
+  }, [])
+
+  const handleResizePointerMove = useCallback((event: PointerEvent) => {
+    const sidebar = sidebarRef.current
+    if (!sidebar) return
+
+    const bounds = sidebar.getBoundingClientRect()
+    const width = direction === 'rtl'
+      ? event.clientX - bounds.left
+      : bounds.right - event.clientX
+    updateSidebarWidth(width)
+  }, [direction, updateSidebarWidth])
+
+  const finishResize = useCallback(() => {
+    setIsResizing(false)
+    try {
+      localStorage.setItem(CLIENT_SIDEBAR_WIDTH_KEY, String(sidebarWidthRef.current))
+    } catch {
+      // Storage can be unavailable in private or restricted environments.
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isResizing) return
+
+    const previousCursor = document.body.style.cursor
+    const previousUserSelect = document.body.style.userSelect
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    window.addEventListener('pointermove', handleResizePointerMove)
+    window.addEventListener('pointerup', finishResize)
+    window.addEventListener('pointercancel', finishResize)
+
+    return () => {
+      document.body.style.cursor = previousCursor
+      document.body.style.userSelect = previousUserSelect
+      window.removeEventListener('pointermove', handleResizePointerMove)
+      window.removeEventListener('pointerup', finishResize)
+      window.removeEventListener('pointercancel', finishResize)
+    }
+  }, [finishResize, handleResizePointerMove, isResizing])
+
+  useEffect(() => {
+    const constrainSidebarWidth = () => updateSidebarWidth(sidebarWidthRef.current)
+    window.addEventListener('resize', constrainSidebarWidth)
+    return () => window.removeEventListener('resize', constrainSidebarWidth)
+  }, [updateSidebarWidth])
+
+  const handleResizePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setIsResizing(true)
+  }
+
+  const handleResizeKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const step = event.shiftKey ? 40 : 16
+    const increasesWidth =
+      (direction === 'rtl' && event.key === 'ArrowRight') ||
+      (direction === 'ltr' && event.key === 'ArrowLeft')
+    const decreasesWidth =
+      (direction === 'rtl' && event.key === 'ArrowLeft') ||
+      (direction === 'ltr' && event.key === 'ArrowRight')
+
+    if (increasesWidth || decreasesWidth) {
+      event.preventDefault()
+      const nextWidth = sidebarWidthRef.current + (increasesWidth ? step : -step)
+      updateSidebarWidth(nextWidth)
+      try {
+        localStorage.setItem(CLIENT_SIDEBAR_WIDTH_KEY, String(clampClientSidebarWidth(nextWidth)))
+      } catch {
+        // Storage can be unavailable in private or restricted environments.
+      }
+    }
+  }
   
   // Get search params, but handle potential errors
   let searchParams: any = null
@@ -437,13 +558,30 @@ export function ClientSidebar() {
   const isClientLoading = !currentClient?.id
 
   const reserveSpace = isClientSpacePage && isOpen
-  const displayWidth = reserveSpace ? 'w-80 ml-6' : 'w-0'
-  const transitionClass = mounted ? 'transition-all duration-300 ease-in-out' : ''
+  const transitionClass = mounted && !isResizing ? 'transition-[width,margin] duration-300 ease-in-out' : ''
 
   return (
-    <Card className={`relative my-5 h-[calc(100%-2.5rem)] min-h-0 overflow-hidden bg-card pt-0 ${displayWidth} ${transitionClass}`}>
-      <div className="flex flex-col h-full" dir="rtl" style={{scrollbarWidth: 'none'}}>
-        <div className="absolute top-2 left-2 z-1000">
+    <Card
+      ref={sidebarRef}
+      className={`relative my-5 h-[calc(100%-2.5rem)] min-h-0 shrink-0 overflow-hidden bg-card pt-0 ${reserveSpace ? 'me-6' : 'me-0'} ${transitionClass}`}
+      style={{ width: reserveSpace ? `${sidebarWidth}px` : 0 }}
+    >
+      {reserveSpace && (
+        <div
+          aria-label={t('clientSidebarResize')}
+          aria-orientation="vertical"
+          aria-valuemax={MAX_CLIENT_SIDEBAR_WIDTH}
+          aria-valuemin={MIN_CLIENT_SIDEBAR_WIDTH}
+          aria-valuenow={sidebarWidth}
+          className={`absolute inset-y-0 z-20 w-2 cursor-col-resize touch-none outline-none focus-visible:bg-primary/20 ${direction === 'rtl' ? 'end-0' : 'start-0'}`}
+          onKeyDown={handleResizeKeyDown}
+          onPointerDown={handleResizePointerDown}
+          role="separator"
+          tabIndex={0}
+        />
+      )}
+      <div className="flex h-full min-w-0 flex-col" dir={direction} style={{scrollbarWidth: 'none'}}>
+        <div className="absolute top-2 start-2 z-10">
           <Button
             variant="ghost"
             size="sm"
@@ -454,7 +592,7 @@ export function ClientSidebar() {
           </Button>
         </div>
 
-        <div className="flex-1 overflow-auto p-4 space-y-4 min-h-0" style={{scrollbarWidth: 'none'}}>
+        <div className="min-h-0 flex-1 space-y-4 overflow-auto p-4" style={{scrollbarWidth: 'none'}}>
           <div className="flex flex-col items-center space-y-3">
             {isClientLoading ? (
               <Skeleton className="h-20 w-20 rounded-full" />
@@ -467,7 +605,7 @@ export function ClientSidebar() {
               </Avatar>
             )}
             
-            <div className="text-center w-full flex flex-col items-center">
+            <div className="flex w-full min-w-0 flex-col items-center px-8 text-center">
               {isClientLoading ? (
                 <>
                   <Skeleton className="h-5 w-40" />
@@ -475,7 +613,7 @@ export function ClientSidebar() {
                 </>
               ) : (
                 <>
-                  <h3 className="text-xl font-semibold">{fullName}</h3>
+                  <h3 className="max-w-full break-words text-xl font-semibold [overflow-wrap:anywhere]">{fullName}</h3>
                   {currentClient?.id && (
                     <p className="text-sm text-muted-foreground">לקוח מס' {currentClient.id}</p>
                   )}
@@ -499,29 +637,29 @@ export function ClientSidebar() {
           <div className="space-y-3">
             <h4 className="font-medium text-sm text-muted-foreground">מידע אישי</h4>
             
-            <div className="flex gap-3">
-              <div className="flex items-center p-2 rounded-lg bg-muted/50 flex-1">
-                <User className="h-4 w-4 text-primary" />
-                <div className="flex-1">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(132px,1fr))] gap-2">
+              <div className="flex min-w-0 items-center gap-2 rounded-lg bg-muted/50 p-3">
+                <User className="h-4 w-4 shrink-0 text-primary" />
+                <div className="min-w-0 flex-1">
                   {isClientLoading ? (
-                    <Skeleton className="h-4 w-24 ml-2" />
+                    <Skeleton className="h-4 w-24 ms-2" />
                   ) : (
-                    <p className="text-sm">
-                      <span className="text-muted-foreground px-2">מגדר: </span>
+                    <p className="break-words text-sm [overflow-wrap:anywhere]">
+                      <span className="text-muted-foreground">מגדר: </span>
                       {currentClient?.gender || 'לא צוין'}
                     </p>
                   )}
                 </div>
               </div>
 
-              <div className="flex items-center p-2 rounded-lg bg-muted/50 flex-1">
-                <Calendar className="h-4 w-4 text-primary" />
-                <div className="flex-1">
+              <div className="flex min-w-0 items-center gap-2 rounded-lg bg-muted/50 p-3">
+                <Calendar className="h-4 w-4 shrink-0 text-primary" />
+                <div className="min-w-0 flex-1">
                   {isClientLoading ? (
-                    <Skeleton className="h-4 w-16 ml-2" />
+                    <Skeleton className="h-4 w-16 ms-2" />
                   ) : age ? (
-                    <p className="text-sm">
-                      <span className="text-muted-foreground px-2">גיל: </span>
+                    <p className="break-words text-sm [overflow-wrap:anywhere]">
+                      <span className="text-muted-foreground">גיל: </span>
                       {age} שנים
                     </p>
                   ) : null}
@@ -529,15 +667,15 @@ export function ClientSidebar() {
               </div>
             </div>
 
-            <div className="flex items-center p-2 rounded-lg bg-muted/50">
-              <IdCard className="h-4 w-4 text-primary" />
-              <div className="flex-1">
+            <div className="flex min-w-0 items-center gap-2 rounded-lg bg-muted/50 p-3">
+              <IdCard className="h-4 w-4 shrink-0 text-primary" />
+              <div className="min-w-0 flex-1">
                 {isClientLoading ? (
-                  <Skeleton className="h-4 w-40 ml-2" />
+                  <Skeleton className="h-4 w-40 ms-2" />
                 ) : currentClient?.national_id ? (
-                  <p className="text-sm">
-                    <span className="text-muted-foreground px-2">תעודת זהות: </span>
-                    {currentClient?.national_id}
+                  <p className="break-words text-sm [overflow-wrap:anywhere]">
+                    <span className="text-muted-foreground">תעודת זהות: </span>
+                    <span dir="ltr">{currentClient?.national_id}</span>
                   </p>
                 ) : null}
               </div>
@@ -558,43 +696,43 @@ export function ClientSidebar() {
                 ) : (
                 <>
                 {currentClient?.phone_mobile && (
-                  <div className="flex items-center p-2 rounded-lg bg-muted/50">
-                    <Phone className="h-4 w-4 text-primary" />
-                    <div className="flex-1">
-                      <p className="text-sm">
-                        <span className="text-muted-foreground px-2">נייד: </span>
-                        {currentClient?.phone_mobile}
+                  <div className="flex min-w-0 items-center gap-2 rounded-lg bg-muted/50 p-3">
+                    <Phone className="h-4 w-4 shrink-0 text-primary" />
+                    <div className="min-w-0 flex-1">
+                      <p className="break-words text-sm [overflow-wrap:anywhere]">
+                        <span className="text-muted-foreground">נייד: </span>
+                        <span dir="ltr">{currentClient?.phone_mobile}</span>
                       </p>
                     </div>
                   </div>
                 )}
                 {currentClient?.phone_home && (
-                  <div className="flex items-center p-2 rounded-lg bg-muted/50">
-                    <Phone className="h-4 w-4 text-primary" />
-                    <div className="flex-1">
-                      <p className="text-sm">
-                        <span className="text-muted-foreground px-2">בית: </span>
-                        {currentClient?.phone_home}
+                  <div className="flex min-w-0 items-center gap-2 rounded-lg bg-muted/50 p-3">
+                    <Phone className="h-4 w-4 shrink-0 text-primary" />
+                    <div className="min-w-0 flex-1">
+                      <p className="break-words text-sm [overflow-wrap:anywhere]">
+                        <span className="text-muted-foreground">בית: </span>
+                        <span dir="ltr">{currentClient?.phone_home}</span>
                       </p>
                     </div>
                   </div>
                 )}
                 {currentClient?.email && (
-                  <div className="flex items-start p-2 rounded-lg bg-muted/50">
-                    <Mail className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                  <div className="flex min-w-0 items-start gap-2 rounded-lg bg-muted/50 p-3">
+                    <Mail className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm break-all pr-2">
+                      <p className="break-words text-start text-sm [overflow-wrap:anywhere]" dir="ltr">
                         {currentClient?.email}
                       </p>
                     </div>
                   </div>
                 )}
                 {currentClient?.address_street && (
-                  <div className="flex items-center p-2 rounded-lg bg-muted/50">
-                    <MapPin className="h-4 w-4 text-primary" />
-                    <div className="flex-1">
-                      <p className="text-sm">
-                        <span className="text-muted-foreground px-2">כתובת: </span>
+                  <div className="flex min-w-0 items-start gap-2 rounded-lg bg-muted/50 p-3">
+                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <div className="min-w-0 flex-1">
+                      <p className="break-words text-sm [overflow-wrap:anywhere]">
+                        <span className="text-muted-foreground">כתובת: </span>
                         {currentClient?.address_street}{currentClient?.address_city ? `, ${currentClient?.address_city}` : ''}
                       </p>
                     </div>
@@ -621,10 +759,10 @@ export function ClientSidebar() {
               <Separator />
               <div className="space-y-3">
                 <h4 className="font-medium text-sm text-muted-foreground">הערות</h4>
-                <div className="flex items-center p-2 rounded-lg bg-muted/50">
-                                          <p className="text-sm whitespace-pre-line">
+                <div className="flex min-w-0 items-start rounded-lg bg-muted/50 p-3">
+                  <p className="min-w-0 break-words whitespace-pre-line text-sm [overflow-wrap:anywhere]">
                         {currentClient?.notes}
-                      </p>
+                  </p>
                 </div>
               </div>
             </>

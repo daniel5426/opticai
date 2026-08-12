@@ -24,8 +24,10 @@ from models import (
     InventoryMovement,
     Order,
     OrderInventoryAllocation,
+    Company,
     User,
 )
+from currency import DEFAULT_CURRENCY, normalize_currency
 from security.scope import normalize_clinic_id_for_company, resolve_company_id
 from services.inventory_service import (
     _validate_price,
@@ -51,6 +53,13 @@ from services.analytics_service import add_to_series, empty_series, metric_paylo
 
 
 router = APIRouter(prefix="/inventory", tags=["inventory"])
+
+
+def _default_currency_for_company(db: Session, company_id: int | None) -> str:
+    if company_id is None:
+        return DEFAULT_CURRENCY
+    value = db.query(Company.default_currency).filter(Company.id == company_id).scalar()
+    return normalize_currency(value) or DEFAULT_CURRENCY
 
 
 def _inventory_demand_events(observations, movements, minimum_date: date) -> list[dict[str, Any]]:
@@ -255,13 +264,23 @@ def create_catalog_entry(
     require_inventory_write(current_user)
     company_id = resolve_company_id(db, current_user)
     category = str(payload.get("category") or "")
+    clinic_id = payload.get("clinic_id")
+    scoped_clinic_id = (
+        normalize_clinic_id_for_company(db, current_user, int(clinic_id))
+        if clinic_id is not None
+        else None
+    )
     _guard_cost_write(current_user, payload.get("variant") or {})
     product = create_product(db, company_id=company_id, category=category, data=payload.get("product") or {})
-    variant = create_variant(db, company_id=company_id, product=product, data=payload.get("variant") or {})
-    clinic_id = payload.get("clinic_id")
+    variant = create_variant(
+        db,
+        company_id=company_id,
+        product=product,
+        data=payload.get("variant") or {},
+        default_currency=_default_currency_for_company(db, company_id),
+    )
     balance = None
-    if clinic_id is not None:
-        scoped_clinic_id = normalize_clinic_id_for_company(db, current_user, int(clinic_id))
+    if scoped_clinic_id is not None:
         balance = get_or_create_balance(
             db,
             company_id=company_id,
@@ -379,6 +398,8 @@ def update_variant(
         variant.default_cost = _validate_price(payload.get("default_cost"), "default_cost")
     if "default_retail" in payload:
         variant.default_retail = _validate_price(payload.get("default_retail"), "default_retail")
+    if "currency" in payload:
+        variant.currency = normalize_currency(payload.get("currency"))
     _commit_or_conflict(db)
     db.refresh(variant)
     return variant_dict(variant, product, include_cost=can_view_cost(current_user))
@@ -481,6 +502,8 @@ def update_catalog_entry(
             variant_payload.get("default_retail"),
             "default_retail",
         )
+    if "currency" in variant_payload:
+        variant.currency = normalize_currency(variant_payload.get("currency"))
     _commit_or_conflict(db)
     db.refresh(product)
     db.refresh(variant)
@@ -860,6 +883,7 @@ def _csv_row_to_payload(row: dict[str, Any]) -> dict[str, Any]:
         "barcode": row.get("barcode"),
         "default_cost": row.get("default_cost") or row.get("cost"),
         "default_retail": row.get("default_retail") or row.get("retail"),
+        "currency": row.get("currency"),
         "is_stockable": str(row.get("is_stockable") or "true").strip().casefold() not in {"false", "0", "no"},
     }
     return {
@@ -951,6 +975,11 @@ def _validated_import_rows(
                         "barcode": str(variant_data.get("barcode") or "").strip() or None,
                         "default_cost": _validate_price(variant_data.get("default_cost"), "default_cost"),
                         "default_retail": _validate_price(variant_data.get("default_retail"), "default_retail"),
+                        "currency": (
+                            normalize_currency(variant_data.get("currency"))
+                            if variant_data.get("currency") not in (None, "")
+                            else None
+                        ),
                         "is_stockable": requested_stockable and complete,
                     }
                     fingerprint = normalized_variant_fingerprint(
@@ -1051,6 +1080,7 @@ def commit_import(
     if not isinstance(rows, list) or not rows:
         raise HTTPException(status_code=422, detail="Import rows are required")
     validated_rows = _validated_import_rows(db, company_id=company_id, rows=rows)
+    default_currency = _default_currency_for_company(db, company_id)
     created = 0
     invalid_rows = [row for row in validated_rows if row["status"] != "valid"]
     skipped = len(invalid_rows)
@@ -1066,7 +1096,13 @@ def commit_import(
             CatalogVariant.company_id == company_id,
             CatalogVariant.normalized_fingerprint == row["fingerprint"],
         ).scalar()
-        variant = create_variant(db, company_id=company_id, product=product, data=data["variant"])
+        variant = create_variant(
+            db,
+            company_id=company_id,
+            product=product,
+            data=data["variant"],
+            default_currency=default_currency,
+        )
         if before_id:
             skipped += 1
             continue
@@ -1141,7 +1177,7 @@ def export_inventory(
     ]
     fields = [
         "category", "brand", "model", "product_type", "material", "preferred_supplier",
-        "replacement_schedule", "sku", "barcode", *attribute_fields, "default_retail",
+        "replacement_schedule", "sku", "barcode", *attribute_fields, "currency", "default_retail",
         "on_hand", "reserved", "available", "reorder_point", "target_quantity", "archived",
     ]
     if can_view_cost(current_user):
@@ -1160,6 +1196,7 @@ def export_inventory(
             "replacement_schedule": product.replacement_schedule,
             "sku": variant.sku,
             "barcode": variant.barcode,
+            "currency": variant.currency,
             "default_retail": variant.default_retail,
             "on_hand": balance.on_hand,
             "reserved": balance.reserved,
@@ -1196,6 +1233,7 @@ def inventory_insights(
 ):
     company_id = resolve_company_id(db, current_user)
     scoped_clinic_id = normalize_clinic_id_for_company(db, current_user, clinic_id)
+    reporting_currency = _default_currency_for_company(db, company_id)
     window = resolve_analytics_window(start_date, end_date, bucket, default_days=days)
     rows = _variant_rows(
         db,
@@ -1307,6 +1345,7 @@ def inventory_insights(
     slow_value = sum(
         float(item["variant"].get("default_cost") or 0) * int(item["variant"]["balance"]["on_hand"] or 0)
         for item in slow_moving
+        if item["variant"].get("currency") == reporting_currency
     )
     fulfillment_series = [
         {
@@ -1335,13 +1374,14 @@ def inventory_insights(
             [],
             series_field="slow_stock",
             snapshot=True,
-            context="שווי עלות" if can_view_cost(current_user) else "מספר פריטים",
+            context=reporting_currency if can_view_cost(current_user) else "מספר פריטים",
         ),
     ]
     observed_dates = [event["date"] for event in events]
     confidence = "high" if current_consumed >= 24 else "medium" if current_consumed >= 8 else "low"
     return {
         "period_days": window.days,
+        "currency": reporting_currency,
         "range": {
             "start_date": window.start_date,
             "end_date": window.end_date,

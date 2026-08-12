@@ -45,6 +45,7 @@ import {
   normalizeFieldValue,
   shallowEqual,
   FULL_DATA_NAME,
+  isNonEmptyComponent,
 } from "./exam-detail/utils";
 
 // Import new hooks
@@ -1082,11 +1083,17 @@ export default function ExamDetailPage({
           <ExamLayoutTabs
             layoutTabs={layoutTabs}
             activeInstanceId={activeInstanceId}
-            isEditing={isEditing}
             isRegeneratingFullData={isRegeneratingFullData}
             onTabClick={handleLayoutTabChange}
             onTabDrop={handleLayoutTabDrop}
             onRegenerateFullData={handleRegenerateFullData}
+            hasTabData={(tab) =>
+              Object.entries(
+                tab.id === activeInstanceId
+                  ? examFormData
+                  : examFormDataByInstance[tab.id] || {},
+              ).some(([key, value]) => isNonEmptyComponent(key, value))
+            }
             onRemoveTab={handleRemoveLayoutTab}
           />
 

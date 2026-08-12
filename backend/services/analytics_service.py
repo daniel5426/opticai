@@ -8,6 +8,7 @@ from typing import Any, Literal
 from fastapi import HTTPException
 from sqlalchemy import and_, case, func
 from sqlalchemy.orm import Session
+from currency import DEFAULT_CURRENCY, normalize_currency
 
 
 AnalyticsBucket = Literal["day", "week", "month"]
@@ -161,6 +162,7 @@ def _company_sales_rows(
     *,
     start_date: date | None = None,
     clinic_id: int | None = None,
+    currency: str = DEFAULT_CURRENCY,
 ) -> list[dict[str, Any]]:
     from models import Billing, Clinic, ContactLensOrder, Order
 
@@ -168,6 +170,7 @@ def _company_sales_rows(
         query = query.filter(
             Clinic.company_id == company_id,
             order_model.order_date <= end_date,
+            Billing.currency == currency,
         )
         if start_date:
             query = query.filter(order_model.order_date >= start_date)
@@ -224,11 +227,16 @@ def _company_payment_rows(
     *,
     start_date: date | None = None,
     clinic_id: int | None = None,
+    currency: str = DEFAULT_CURRENCY,
 ) -> list[dict[str, Any]]:
     from models import Billing, BillingPayment, Clinic, ContactLensOrder, Order
 
     def apply_filters(query, order_model):
-        query = query.filter(Clinic.company_id == company_id, BillingPayment.paid_at <= end_date)
+        query = query.filter(
+            Clinic.company_id == company_id,
+            BillingPayment.paid_at <= end_date,
+            BillingPayment.currency == currency,
+        )
         if start_date:
             query = query.filter(BillingPayment.paid_at >= start_date)
         if clinic_id:
@@ -279,6 +287,7 @@ def _company_outstanding_by_clinic(
     window: AnalyticsWindow,
     *,
     clinic_id: int | None = None,
+    currency: str = DEFAULT_CURRENCY,
 ) -> dict[int, dict[str, float]]:
     """Return current and previous open balances without materializing billing rows."""
     from models import Billing, BillingPayment, Clinic, ContactLensOrder, Order
@@ -312,6 +321,7 @@ def _company_outstanding_by_clinic(
             .select_from(Billing)
             .join(order_model, join_condition)
             .join(Clinic, order_model.clinic_id == Clinic.id)
+            .filter(Billing.currency == currency)
             .outerjoin(
                 BillingPayment,
                 and_(
@@ -371,6 +381,7 @@ def build_company_analytics(
     company_id: int,
     window: AnalyticsWindow,
     clinic_id: int | None = None,
+    currency: str = DEFAULT_CURRENCY,
 ) -> dict[str, Any]:
     from models import Appointment, Client, Clinic, ContactLensOrder, Order, OrderLineItem, Billing
 
@@ -381,9 +392,14 @@ def build_company_analytics(
     if clinic_id and not clinic_rows:
         raise HTTPException(status_code=404, detail="Clinic not found")
 
+    currency = normalize_currency(currency) or DEFAULT_CURRENCY
     all_start = window.previous_start
-    sales_rows = _company_sales_rows(db, company_id, window.end_date, start_date=all_start, clinic_id=clinic_id)
-    payment_rows = _company_payment_rows(db, company_id, window.end_date, start_date=all_start, clinic_id=clinic_id)
+    sales_rows = _company_sales_rows(
+        db, company_id, window.end_date, start_date=all_start, clinic_id=clinic_id, currency=currency
+    )
+    payment_rows = _company_payment_rows(
+        db, company_id, window.end_date, start_date=all_start, clinic_id=clinic_id, currency=currency
+    )
     current_sales_rows = [row for row in sales_rows if window.start_date <= row["date"] <= window.end_date]
     previous_sales_rows = [row for row in sales_rows if window.previous_start <= row["date"] <= window.previous_end]
     current_payment_rows = [row for row in payment_rows if window.start_date <= row["date"] <= window.end_date]
@@ -448,7 +464,9 @@ def build_company_analytics(
             }
         )
 
-    outstanding_by_clinic = _company_outstanding_by_clinic(db, company_id, window, clinic_id=clinic_id)
+    outstanding_by_clinic = _company_outstanding_by_clinic(
+        db, company_id, window, clinic_id=clinic_id, currency=currency
+    )
     current_outstanding = sum(item["current"] for item in outstanding_by_clinic.values())
     previous_outstanding = sum(item["previous"] for item in outstanding_by_clinic.values())
 
@@ -486,6 +504,7 @@ def build_company_analytics(
             .join(order_model, (Billing.contact_lens_id if contact else Billing.order_id) == order_model.id)
             .join(Clinic, order_model.clinic_id == Clinic.id)
             .filter(Clinic.company_id == company_id, order_model.order_date >= window.start_date, order_model.order_date <= window.end_date)
+            .filter(OrderLineItem.currency == currency)
         )
         if clinic_id:
             query = query.filter(order_model.clinic_id == clinic_id)
@@ -514,6 +533,7 @@ def build_company_analytics(
             "previous_end": window.previous_end,
             "bucket": window.bucket,
         },
+        "currency": currency,
         "metrics": metrics,
         "financial_series": series,
         "activity": {

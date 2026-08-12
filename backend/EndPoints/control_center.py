@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
 from models import Company, Clinic, User as UserModel, Appointment
+from currency import DEFAULT_CURRENCY, normalize_currency
 from datetime import date, datetime, timedelta
 from schemas import Company as CompanySchema, Clinic as ClinicSchema, User as UserSchema, ControlCenterAnalyticsResponse
 from sqlalchemy import func
@@ -25,12 +26,14 @@ def get_company_analytics(
     current_user: UserModel = Depends(get_current_user),
 ) -> Dict[str, Any]:
     require_company_admin(db, current_user, company_id)
+    company = _get_company_or_404(db, company_id)
     window = resolve_analytics_window(start_date, end_date, bucket)
     return build_company_analytics(
         db,
         company_id=company_id,
         window=window,
         clinic_id=clinic_id,
+        currency=normalize_currency(company.default_currency) or DEFAULT_CURRENCY,
     )
 
 def _get_company_or_404(db: Session, company_id: int) -> Company:

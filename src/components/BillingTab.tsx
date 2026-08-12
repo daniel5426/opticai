@@ -38,6 +38,8 @@ import {
   onBillingPaymentsChanged,
   type BillingPaymentsChangedDetail,
 } from "@/lib/billing-events";
+import { useAppLocale } from "@/localization/use-app-locale";
+import { useTranslation } from "react-i18next";
 
 const roundToTwoDecimals = (value: number) => Math.round(value * 100) / 100;
 
@@ -103,6 +105,11 @@ export function BillingTab({
   handleDeleteOrderLineItem,
 }: BillingTabProps) {
   const queryClient = useQueryClient();
+  const { locale } = useAppLocale();
+  const { t } = useTranslation();
+  const billingCurrency = billingFormData.currency || "ILS";
+  const formatCurrency = (value?: number | null, currency = billingCurrency) =>
+    formatBillingAmount(value, currency, locale);
   const paymentStatus = getBillingPaymentStatus(
     billingFormData.total_after_discount,
     billingFormData.prepayment_amount,
@@ -582,7 +589,7 @@ export function BillingTab({
                         />
                       ) : (
                         <span className="block w-full truncate text-sm">
-                          {item.price}
+                          {formatCurrency(item.price, item.currency)}
                         </span>
                       )}
                     </td>
@@ -624,7 +631,7 @@ export function BillingTab({
                         />
                       ) : (
                         <span className="block w-full truncate text-sm">
-                          {item.discount}
+                          {formatCurrency(item.discount, item.currency)}
                         </span>
                       )}
                     </td>
@@ -658,7 +665,7 @@ export function BillingTab({
                       <div className="flex items-center justify-between gap-2">
                         <span className="block min-w-0 flex-1 truncate text-sm">
                           {isFiniteNumber(item.line_total)
-                            ? item.line_total.toFixed(2)
+                            ? formatCurrency(item.line_total, item.currency)
                             : ""}
                         </span>
                         <Button
@@ -748,7 +755,7 @@ export function BillingTab({
                 </div>
               </div>
               <div>
-                <Label className="text-sm">הנחה (₪)</Label>
+                <Label className="text-sm">{t("discount")}</Label>
                 <Input
                   name="discount_amount"
                   type="number"
@@ -830,14 +837,14 @@ export function BillingTab({
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-muted-foreground">שולם / סה"כ</span>
                           <span className="font-medium tabular-nums">
-                            {formatBillingAmount(billingFormData.prepayment_amount)} /{" "}
-                            {formatBillingAmount(billingFormData.total_after_discount)}
+                            {formatCurrency(billingFormData.prepayment_amount)} /{" "}
+                            {formatCurrency(billingFormData.total_after_discount)}
                           </span>
                         </div>
                         <div className="mt-1 flex items-center justify-between gap-3 border-t pt-1">
                           <span className="text-muted-foreground">יתרה לתשלום</span>
                           <span className="font-medium tabular-nums">
-                            {formatBillingAmount(balanceDue)}
+                            {formatCurrency(balanceDue)}
                           </span>
                         </div>
                       </div>
@@ -894,7 +901,7 @@ export function BillingTab({
                                   {payment.kind === "adjustment" ? " · תיקון" : ""}
                                 </span>
                                 <span className="tabular-nums">
-                                  {formatBillingAmount(payment.amount)}
+                                  {formatCurrency(payment.amount, payment.currency)}
                                 </span>
                               </div>
                             ))}
@@ -947,7 +954,9 @@ export function BillingTab({
                 {paymentHistory.map((payment) => (
                   <tr key={payment.id} className="border-t">
                     <td className="px-3 py-2">{formatPaymentDate(payment.paid_at)}</td>
-                    <td className="px-3 py-2 tabular-nums">{formatBillingAmount(payment.amount)}</td>
+                    <td className="px-3 py-2 tabular-nums">
+                      {formatCurrency(payment.amount, payment.currency)}
+                    </td>
                     <td className="px-3 py-2">
                       {payment.kind === "adjustment" ? "תיקון" : "תשלום"}
                     </td>

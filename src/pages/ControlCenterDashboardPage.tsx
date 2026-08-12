@@ -28,14 +28,11 @@ import { SiteHeader } from "@/components/site-header";
 import { Progress } from "@/components/ui/progress";
 import { useAnalyticsRange } from "@/hooks/useAnalyticsRange";
 import { apiClient } from "@/lib/api-client";
+import { formatMoney } from "@/lib/money";
+import { useAppLocale } from "@/localization/use-app-locale";
 import type { AnalyticsRange, CompanyAnalyticsResponse } from "@/lib/analytics";
 import type { Company, User } from "@/lib/db/schema-interface";
 
-const currencyFormatter = new Intl.NumberFormat("he-IL", {
-  style: "currency",
-  currency: "ILS",
-  maximumFractionDigits: 0,
-});
 const integerFormatter = new Intl.NumberFormat("he-IL", { maximumFractionDigits: 0 });
 const ORDER_MIX_COLORS = [
   "hsl(var(--primary))",
@@ -47,8 +44,8 @@ const ORDER_MIX_COLORS = [
 const ANALYTICS_CACHE_TTL_MS = 60_000;
 const analyticsCache = new Map<string, { data: CompanyAnalyticsResponse; expiresAt: number }>();
 
-function analyticsCacheKey(companyId: number, range: AnalyticsRange) {
-  return [companyId, range.startDate, range.endDate, range.bucket].join(":");
+function analyticsCacheKey(companyId: number, range: AnalyticsRange, currency?: string) {
+  return [companyId, range.startDate, range.endDate, range.bucket, currency || "ILS"].join(":");
 }
 
 function parseStored<T>(value: string | null): T | null {
@@ -64,6 +61,7 @@ export default function ControlCenterDashboardPage() {
   const router = useRouter();
   const search = useSearch({ from: "/control-center/dashboard" });
   const { range, setRange } = useAnalyticsRange("30d");
+  const { locale, direction } = useAppLocale();
   const [company, setCompany] = React.useState<Company | null>(() =>
     parseStored<Company>(localStorage.getItem("controlCenterCompany")),
   );
@@ -91,7 +89,7 @@ export default function ControlCenterDashboardPage() {
 
   React.useEffect(() => {
     if (!company?.id) return;
-    const cacheKey = analyticsCacheKey(company.id, range);
+    const cacheKey = analyticsCacheKey(company.id, range, company.default_currency);
     const cached = analyticsCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       setData(cached.data);
@@ -120,7 +118,12 @@ export default function ControlCenterDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [company?.id, range]);
+  }, [company?.default_currency, company?.id, range]);
+
+  const formatCurrency = React.useCallback(
+    (value: number) => formatMoney(value, data?.currency || company?.default_currency, locale, { maximumFractionDigits: 0 }),
+    [company?.default_currency, data?.currency, locale],
+  );
 
   const metrics = React.useMemo(
     () => new Map((data?.metrics || []).map((metric) => [metric.key, metric])),
@@ -136,13 +139,17 @@ export default function ControlCenterDashboardPage() {
   return (
     <>
       <SiteHeader title="לוח בקרה" />
-      <main className="min-h-0 flex-1 overflow-y-auto p-4 lg:p-6" dir="rtl">
+      <main className="min-h-0 flex-1 overflow-y-auto p-4 lg:p-6" dir={direction}>
         <div className="mx-auto max-w-[1600px] space-y-5">
           <ListPageHeader
             title="תמונה פיננסית ותפעולית מאוחדת לכל המרפאות"
             titleClassName="text-lg text-muted-foreground"
             className="mb-0 items-center pb-2"
-            actions={<AnalyticsRangePicker value={range} onChange={setRange} disabled={loading} />}
+            actions={
+              <div className="flex items-center gap-2">
+                <AnalyticsRangePicker value={range} onChange={setRange} disabled={loading} />
+              </div>
+            }
           />
 
           {error ? (
@@ -152,10 +159,10 @@ export default function ControlCenterDashboardPage() {
           ) : null}
 
           <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <AnalyticsMetricCard metric={metrics.get("sales")} formatter={currencyFormatter.format} loading={loading} error={Boolean(error)} polarity="higher" />
-            <AnalyticsMetricCard metric={metrics.get("collected")} formatter={currencyFormatter.format} loading={loading} error={Boolean(error)} polarity="higher" />
-            <AnalyticsMetricCard metric={metrics.get("outstanding")} formatter={currencyFormatter.format} loading={loading} error={Boolean(error)} polarity="lower" />
-            <AnalyticsMetricCard metric={metrics.get("aov")} formatter={currencyFormatter.format} loading={loading} error={Boolean(error)} polarity="higher" />
+            <AnalyticsMetricCard metric={metrics.get("sales")} formatter={formatCurrency} loading={loading} error={Boolean(error)} polarity="higher" />
+            <AnalyticsMetricCard metric={metrics.get("collected")} formatter={formatCurrency} loading={loading} error={Boolean(error)} polarity="higher" />
+            <AnalyticsMetricCard metric={metrics.get("outstanding")} formatter={formatCurrency} loading={loading} error={Boolean(error)} polarity="lower" />
+            <AnalyticsMetricCard metric={metrics.get("aov")} formatter={formatCurrency} loading={loading} error={Boolean(error)} polarity="higher" />
             <AnalyticsMetricCard metric={metrics.get("orders")} formatter={integerFormatter.format} loading={loading} error={Boolean(error)} polarity="higher" />
           </section>
 
@@ -235,9 +242,9 @@ export default function ControlCenterDashboardPage() {
               getKey={(row) => row.clinic_id}
               columns={[
                 { key: "clinic", label: "מרפאה לפי ביצועים", render: (row) => <span className="font-medium">{row.clinic_name}</span> },
-                { key: "sales", label: "מכירות", render: (row) => currencyFormatter.format(row.sales), className: "tabular-nums" },
-                { key: "collected", label: "נגבה", render: (row) => currencyFormatter.format(row.collected), className: "tabular-nums" },
-                { key: "outstanding", label: "יתרה פתוחה", render: (row) => currencyFormatter.format(row.outstanding), className: "tabular-nums" },
+                { key: "sales", label: "מכירות", render: (row) => formatCurrency(row.sales), className: "tabular-nums" },
+                { key: "collected", label: "נגבה", render: (row) => formatCurrency(row.collected), className: "tabular-nums" },
+                { key: "outstanding", label: "יתרה פתוחה", render: (row) => formatCurrency(row.outstanding), className: "tabular-nums" },
                 { key: "orders", label: "הזמנות", render: (row) => integerFormatter.format(row.orders), className: "tabular-nums" },
                 {
                   key: "share",
@@ -287,7 +294,7 @@ export default function ControlCenterDashboardPage() {
                 columns={[
                   { key: "name", label: "מוצרים מובילים לפי מכירות", render: (row) => <div><p className="font-medium">{row.name}</p>{row.sku ? <p className="text-xs text-muted-foreground" dir="ltr">{row.sku}</p> : null}</div> },
                   { key: "quantity", label: "כמות", render: (row) => integerFormatter.format(row.quantity), className: "tabular-nums" },
-                  { key: "sales", label: "מכירות", render: (row) => currencyFormatter.format(row.sales), className: "tabular-nums" },
+                  { key: "sales", label: "מכירות", render: (row) => formatCurrency(row.sales), className: "tabular-nums" },
                 ]}
               />
             </AnalyticsPanel>

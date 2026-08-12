@@ -1921,8 +1921,8 @@ export const legacyStaticCopy = {
     "fr": "remise (%)"
   },
   "הנחה (₪)": {
-    "en": "discount (NIS)",
-    "fr": "remise (NIS)"
+    "en": "discount",
+    "fr": "remise"
   },
   "הנחה באחוזים": {
     "en": "Percentage discount",
@@ -7467,6 +7467,114 @@ export const legacyStaticCopy = {
   "VA משולב": {
     "en": "VA incorporated",
     "fr": "VA incorporée"
+  },
+  "אין משפחות להצגה": {
+    "en": "No families to display",
+    "fr": "Aucune famille à afficher"
+  },
+  "אין ספקים התואמים לסינון הנוכחי.": {
+    "en": "No suppliers match the current filter.",
+    "fr": "Aucun fournisseur ne correspond au filtre actuel."
+  },
+  "אין עדיין הוספות או הפחתות מלאי.": {
+    "en": "No inventory additions or reductions yet.",
+    "fr": "Aucun ajout ou retrait de stock pour le moment."
+  },
+  "בחר או הקלד יצרן...": {
+    "en": "Select or type a manufacturer…",
+    "fr": "Sélectionnez ou saisissez un fabricant…"
+  },
+  "בחר או הקלד סוג עדשה...": {
+    "en": "Select or type a lens type…",
+    "fr": "Sélectionnez ou saisissez un type de lentille…"
+  },
+  "במלאי / משוריין": {
+    "en": "In stock / reserved",
+    "fr": "En stock / réservé"
+  },
+  "הוסף למלאי": {
+    "en": "Add to inventory",
+    "fr": "Ajouter au stock"
+  },
+  "הוסף פריט לספק": {
+    "en": "Add item to supplier",
+    "fr": "Ajouter un article au fournisseur"
+  },
+  "היסטוריית מלאי": {
+    "en": "Inventory history",
+    "fr": "Historique des stocks"
+  },
+  "המלאי הופחת": {
+    "en": "Inventory reduced",
+    "fr": "Stock réduit"
+  },
+  "המלאי נוסף": {
+    "en": "Inventory added",
+    "fr": "Stock ajouté"
+  },
+  "הפחת מהמלאי": {
+    "en": "Remove from inventory",
+    "fr": "Retirer du stock"
+  },
+  "הפחתה": {
+    "en": "Reduction",
+    "fr": "Retrait"
+  },
+  "טוען משפחות...": {
+    "en": "Loading families…",
+    "fr": "Chargement des familles…"
+  },
+  "טעינת היסטוריית המלאי נכשלה": {
+    "en": "Failed to load inventory history",
+    "fr": "Échec du chargement de l’historique des stocks"
+  },
+  "יש להזין כמות שלמה הגדולה מאפס": {
+    "en": "Enter a whole quantity greater than zero",
+    "fr": "Saisissez une quantité entière supérieure à zéro"
+  },
+  "כמות היעד לא יכולה להיות נמוכה מנקודת ההזמנה מחדש": {
+    "en": "Target quantity cannot be lower than the reorder point",
+    "fr": "La quantité cible ne peut pas être inférieure au point de commande"
+  },
+  "ללא ספק": {
+    "en": "No supplier",
+    "fr": "Aucun fournisseur"
+  },
+  "מדיניות מלאי": {
+    "en": "Inventory policy",
+    "fr": "Politique de stock"
+  },
+  "נקה סינון ספק": {
+    "en": "Clear supplier filter",
+    "fr": "Effacer le filtre fournisseur"
+  },
+  "נקה סינון ספק וחזור לתצוגת ספקים": {
+    "en": "Clear the supplier filter and return to supplier view",
+    "fr": "Effacer le filtre fournisseur et revenir à la vue fournisseurs"
+  },
+  "סוג עדכון מלאי": {
+    "en": "Inventory update type",
+    "fr": "Type de mise à jour du stock"
+  },
+  "עדכון מלאי": {
+    "en": "Update inventory",
+    "fr": "Mettre à jour le stock"
+  },
+  "עדכון מלאי ידני": {
+    "en": "Manual inventory update",
+    "fr": "Mise à jour manuelle du stock"
+  },
+  "תצוגת טבלה": {
+    "en": "Table view",
+    "fr": "Vue tableau"
+  },
+  "תצוגת מלאי": {
+    "en": "Stock view",
+    "fr": "Vue du stock"
+  },
+  "תצוגת ספקים": {
+    "en": "Suppliers view",
+    "fr": "Vue fournisseurs"
   },
   "WhatsApp חובק בהצלחה!": {
     "en": "WhatsApp hugs success!",

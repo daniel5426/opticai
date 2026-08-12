@@ -57,15 +57,16 @@ import { getActiveLocale, getDirection, normalizeLocale } from "@/localization/l
 
 const colorThemes: Array<{
   value: ColorTheme
-  label: string
+  labelKey: string
 }> = [
-  { value: "blue", label: "כחול קלאסי" },
-  { value: "neutral", label: "גרפיט" },
-  { value: "forest", label: "יער" },
-  { value: "bronze", label: "ברונזה" },
-  { value: "plum", label: "שזיף" },
-  { value: "monochrome", label: "מונוכרום" },
-  { value: "openai", label: "OpenAI" },
+  { value: "blue", labelKey: "colorThemeClassicBlue" },
+  { value: "ice", labelKey: "colorThemeIceBlue" },
+  { value: "neutral", labelKey: "colorThemeGraphite" },
+  { value: "forest", labelKey: "colorThemeForest" },
+  { value: "bronze", labelKey: "colorThemeBronze" },
+  { value: "plum", labelKey: "colorThemePlum" },
+  { value: "monochrome", labelKey: "colorThemeMonochrome" },
+  { value: "openai", labelKey: "colorThemeOpenAI" },
 ]
 
 export function NavUser({
@@ -75,7 +76,7 @@ export function NavUser({
   currentUser?: User
   showShiftControls?: boolean
 }) {
-  const { i18n } = useTranslation()
+  const { i18n, t } = useTranslation()
   const locale = normalizeLocale(i18n.resolvedLanguage ?? i18n.language) ?? getActiveLocale()
   const direction = getDirection(locale)
   const { isMobile } = useSidebar()
@@ -354,12 +355,12 @@ export function NavUser({
               <DropdownMenuSeparator />
 
               <DropdownMenuSub>
-                <DropdownMenuSubTrigger>מראה צבע</DropdownMenuSubTrigger>
+                <DropdownMenuSubTrigger>{t("colorAppearance")}</DropdownMenuSubTrigger>
                 <DropdownMenuSubContent
                   className="w-40"
                   onPointerLeave={() => previewColorTheme(getColorTheme(currentUser?.id))}
                 >
-                  {colorThemes.map(({ value, label }) => (
+                  {colorThemes.map(({ value, labelKey }) => (
                     <DropdownMenuItem
                       key={value}
                       onPointerEnter={() => previewColorTheme(value)}
@@ -371,7 +372,7 @@ export function NavUser({
                           : ""
                       }`}
                     >
-                      {label}
+                      {t(labelKey)}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuSubContent>

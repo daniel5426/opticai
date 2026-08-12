@@ -20,8 +20,19 @@ import { AboutTab } from "@/components/settings/AboutTab"
 import { WhatsAppTab } from "@/components/settings/WhatsAppTab"
 import { SubscriptionTab } from "@/components/settings/SubscriptionTab"
 import { ROLE_LEVELS, getRoleBadgeVariant, getRoleLabel, isRoleAtLeast } from "@/lib/role-levels"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { useTranslation } from "react-i18next"
+import { useAppLocale } from "@/localization/use-app-locale"
 
 export default function ControlCenterSettingsPage() {
+  const { t } = useTranslation()
+  const { direction } = useAppLocale()
   const { currentUser, setCurrentUser } = useUser()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -42,7 +53,8 @@ export default function ControlCenterSettingsPage() {
     address: '',
     logo_path: '',
     primary_theme_color: '#3f3f46',
-    secondary_theme_color: '#f4f4f5'
+    secondary_theme_color: '#f4f4f5',
+    default_currency: 'ILS'
   })
 
   const [personalProfile, setPersonalProfile] = useState<Partial<User>>({
@@ -104,6 +116,7 @@ export default function ControlCenterSettingsPage() {
             logo_path: companyData.logo_path || '',
             primary_theme_color: companyData.primary_theme_color || '#3f3f46',
             secondary_theme_color: companyData.secondary_theme_color || '#f4f4f5',
+            default_currency: companyData.default_currency || 'ILS',
             whatsapp_access_token: companyData.whatsapp_access_token || '',
             whatsapp_phone_number_id: companyData.whatsapp_phone_number_id || '',
             whatsapp_verify_token: companyData.whatsapp_verify_token || ''
@@ -180,6 +193,7 @@ export default function ControlCenterSettingsPage() {
           logo_path: (localCompany.logo_path === '' ? null : localCompany.logo_path) as any,
           primary_theme_color: localCompany.primary_theme_color || undefined,
           secondary_theme_color: localCompany.secondary_theme_color || undefined,
+          default_currency: localCompany.default_currency || 'ILS',
           whatsapp_access_token: localCompany.whatsapp_access_token || undefined,
           whatsapp_phone_number_id: localCompany.whatsapp_phone_number_id || undefined,
           whatsapp_verify_token: localCompany.whatsapp_verify_token || undefined,
@@ -219,6 +233,7 @@ export default function ControlCenterSettingsPage() {
           logo_path: data.company.logo_path || '',
           primary_theme_color: data.company.primary_theme_color || '#3f3f46',
           secondary_theme_color: data.company.secondary_theme_color || '#f4f4f5',
+          default_currency: data.company.default_currency || 'ILS',
           whatsapp_access_token: data.company.whatsapp_access_token || '',
           whatsapp_phone_number_id: data.company.whatsapp_phone_number_id || '',
           whatsapp_verify_token: data.company.whatsapp_verify_token || ''
@@ -607,6 +622,38 @@ export default function ControlCenterSettingsPage() {
                 <div className="flex-1 overflow-y-auto pr-2 pb-8" style={{scrollbarWidth: 'none'}}>
                   
                   <TabsContent value="company-profile" className="space-y-6 mt-0">
+                    <Card className="shadow-md border-none" dir={direction}>
+                      <CardHeader>
+                        <CardTitle className="text-start">{t("currencySettings")}</CardTitle>
+                        <p className="text-sm text-muted-foreground text-start">
+                          {t("currencySettingsDescription")}
+                        </p>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="max-w-sm space-y-2">
+                          <Label htmlFor="company-default-currency" className="text-start block">
+                            {t("defaultCurrency")}
+                          </Label>
+                          <Select
+                            dir={direction}
+                            value={localCompany.default_currency || "ILS"}
+                            onValueChange={(value) => handleCompanyChange("default_currency", value)}
+                          >
+                            <SelectTrigger id="company-default-currency" className="text-start">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent align={direction === "rtl" ? "end" : "start"}>
+                              <SelectItem value="ILS">{t("israeliShekel")}</SelectItem>
+                              <SelectItem value="USD">{t("usDollar")}</SelectItem>
+                              <SelectItem value="EUR">{t("euro")}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-muted-foreground text-start text-xs">
+                            {t("currencyChangeNotice")}
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
                     <Card className="shadow-md border-none">
                       <CardHeader>
                         <CardTitle className="text-right">פרטים בסיסיים</CardTitle>

@@ -31,6 +31,7 @@ export interface AnalyticsMetric {
 
 export interface CompanyAnalyticsResponse {
   range: Record<string, string>;
+  currency: "ILS" | "USD" | "EUR";
   metrics: AnalyticsMetric[];
   financial_series: Array<{
     bucket: string;
@@ -79,6 +80,7 @@ export interface InventoryInsightItem {
 
 export interface InventoryAnalyticsResponse {
   period_days: number;
+  currency: "ILS" | "USD" | "EUR";
   range: Record<string, string>;
   metrics: AnalyticsMetric[];
   demand_series: Array<{ bucket: string; label: string; consumed: number; frame: number; contact_lens: number }>;

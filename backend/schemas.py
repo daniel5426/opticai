@@ -4,6 +4,16 @@ from datetime import datetime, date
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Date, Float, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
+from currency import DEFAULT_CURRENCY, SUPPORTED_CURRENCIES
+
+
+def validate_currency_code(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return value
+    currency = value.strip().upper()
+    if currency not in SUPPORTED_CURRENCIES:
+        raise ValueError("Currency must be one of ILS, USD, or EUR")
+    return currency
 
 
 class AnalyticsRangeResponse(BaseModel):
@@ -33,6 +43,7 @@ class AnalyticsMetricResponse(BaseModel):
 
 class ControlCenterAnalyticsResponse(BaseModel):
     range: AnalyticsRangeResponse
+    currency: Literal["ILS", "USD", "EUR"] = DEFAULT_CURRENCY
     metrics: List[AnalyticsMetricResponse]
     financial_series: List[Dict[str, Any]]
     activity: Dict[str, Any]
@@ -56,10 +67,16 @@ class CompanyBase(BaseModel):
     address: Optional[str] = None
     primary_theme_color: Optional[str] = None
     secondary_theme_color: Optional[str] = None
+    default_currency: Optional[str] = DEFAULT_CURRENCY
     whatsapp_access_token: Optional[str] = None
     whatsapp_phone_number_id: Optional[str] = None
     whatsapp_business_account_id: Optional[str] = None
     whatsapp_verify_token: Optional[str] = None
+
+    @field_validator("default_currency")
+    @classmethod
+    def validate_default_currency(cls, value: Optional[str]) -> Optional[str]:
+        return validate_currency_code(value)
 
 class CompanyCreate(CompanyBase):
     pass
@@ -518,6 +535,7 @@ class Order(OrderBase):
     billing_id: Optional[int] = None
     billing_total_after_discount: Optional[float] = None
     billing_prepayment_amount: Optional[float] = None
+    billing_currency: Optional[str] = None
     
     class Config:
         from_attributes = True
@@ -574,6 +592,7 @@ class ContactLensOrder(ContactLensOrderBase):
     billing_id: Optional[int] = None
     billing_total_after_discount: Optional[float] = None
     billing_prepayment_amount: Optional[float] = None
+    billing_currency: Optional[str] = None
     class Config:
         from_attributes = True
 
@@ -777,6 +796,12 @@ class OrderLineItemBase(BaseModel):
     quantity: Optional[float] = None
     discount: Optional[float] = None
     line_total: Optional[float] = None
+    currency: Optional[str] = None
+
+    @field_validator("currency")
+    @classmethod
+    def validate_currency(cls, value: Optional[str]) -> Optional[str]:
+        return validate_currency_code(value)
 
 class OrderLineItemCreate(OrderLineItemBase):
     pass
@@ -791,6 +816,12 @@ class OrderLineItemUpdate(BaseModel):
     quantity: Optional[float] = None
     discount: Optional[float] = None
     line_total: Optional[float] = None
+    currency: Optional[str] = None
+
+    @field_validator("currency")
+    @classmethod
+    def validate_currency(cls, value: Optional[str]) -> Optional[str]:
+        return validate_currency_code(value)
 
 class OrderLineItem(OrderLineItemBase):
     id: int
@@ -808,6 +839,12 @@ class BillingBase(BaseModel):
     prepayment_amount: Optional[float] = None
     installment_count: Optional[int] = None
     notes: Optional[str] = None
+    currency: Optional[str] = None
+
+    @field_validator("currency")
+    @classmethod
+    def validate_currency(cls, value: Optional[str]) -> Optional[str]:
+        return validate_currency_code(value)
 
 class BillingCreate(BillingBase):
     line_items: Optional[List[OrderLineItemCreate]] = None
@@ -832,6 +869,7 @@ class BillingPayment(BillingPaymentCreate):
     id: int
     billing_id: int
     created_at: Optional[datetime] = None
+    currency: str = DEFAULT_CURRENCY
 
     class Config:
         from_attributes = True

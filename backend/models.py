@@ -15,6 +15,7 @@ class Company(Base):
     address = Column(String)
     primary_theme_color = Column(String)
     secondary_theme_color = Column(String)
+    default_currency = Column(String(3), nullable=False, default="ILS", server_default="ILS")
     
     # WhatsApp Settings
     whatsapp_access_token = Column(String)
@@ -604,6 +605,7 @@ class Billing(Base):
     prepayment_amount = Column(Float)
     installment_count = Column(Integer)
     notes = Column(Text)
+    currency = Column(String(3), nullable=False, default="ILS", server_default="ILS")
 
 
 class BillingPayment(Base):
@@ -614,6 +616,7 @@ class BillingPayment(Base):
     amount = Column(Float, nullable=False)
     paid_at = Column(Date, nullable=False)
     kind = Column(String, nullable=False, default="payment")
+    currency = Column(String(3), nullable=False, default="ILS", server_default="ILS")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -630,6 +633,7 @@ class OrderLineItem(Base):
     quantity = Column(Float)
     discount = Column(Float)
     line_total = Column(Float)
+    currency = Column(String(3), nullable=False, default="ILS", server_default="ILS")
 
 class Order(Base):
     __tablename__ = "orders"

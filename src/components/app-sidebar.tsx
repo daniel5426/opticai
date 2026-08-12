@@ -24,7 +24,6 @@ import {
   IconLayoutGrid,
   IconChartLine,
   IconUserCog,
-  IconFlask,
   IconPackages,
   IconSearch,
 } from "@tabler/icons-react";
@@ -92,15 +91,6 @@ const getNavData = (
             title: t("campaigns"),
             url: "/campaigns",
             icon: IconChartBar,
-          },
-        ]
-      : []),
-    ...(showBetaSidebarItems
-      ? [
-          {
-            title: t("uiTests"),
-            url: "/dev/ui-tests",
-            icon: IconFlask,
           },
         ]
       : []),

@@ -41,6 +41,7 @@ import {
 } from "@/lib/addition-add-sources"
 import { formatBillingAmount, getBillingBalance, getBillingPaymentStatus } from "@/lib/billing-payment-status"
 import { emitBillingPaymentsChanged, onBillingPaymentsChanged } from "@/lib/billing-events"
+import { useAppLocale } from "@/localization/use-app-locale"
 
 const MONEY_STEP = "0.01"
 
@@ -101,6 +102,7 @@ export function OrdersTable({
   onSortChange,
   fillHeight = false
 }: OrdersTableProps) {
+  const { locale } = useAppLocale()
   const navigate = useNavigate()
   const [internalSearch, setInternalSearch] = useState("")
   const [localSort, setLocalSort] = useState<SortState | undefined>()
@@ -132,6 +134,7 @@ export function OrdersTable({
         billing_id?: number
         total_after_discount?: number
         prepayment_amount?: number
+        currency?: "ILS" | "USD" | "EUR"
       }
     >
   >({})
@@ -431,6 +434,14 @@ export function OrdersTable({
     [billingOverrides]
   )
 
+  const getBillingCurrency = React.useCallback(
+    (order: Order) =>
+      billingOverrides[order.id || -1]?.currency ||
+      (order as any).billing_currency ||
+      "ILS",
+    [billingOverrides],
+  )
+
   React.useEffect(() => {
     return onBillingPaymentsChanged((detail) => {
       const matchingOrders = data.filter((order) => {
@@ -451,7 +462,8 @@ export function OrdersTable({
             billing_id: detail.billingId,
             total_after_discount:
               prev[order.id!]?.total_after_discount ?? (Number((order as any).billing_total_after_discount) || 0),
-            prepayment_amount: detail.prepaymentAmount
+            prepayment_amount: detail.prepaymentAmount,
+            currency: prev[order.id!]?.currency ?? (order as any).billing_currency,
           }
         })
         return next
@@ -531,7 +543,8 @@ export function OrdersTable({
       [order.id!]: {
         billing_id: saved.id,
         total_after_discount: saved.total_after_discount ?? total,
-        prepayment_amount: saved.prepayment_amount ?? getBillingPaid(order)
+        prepayment_amount: saved.prepayment_amount ?? getBillingPaid(order),
+        currency: saved.currency,
       }
     }))
     return saved.id
@@ -557,7 +570,8 @@ export function OrdersTable({
       [orderId]: {
         billing_id: getBillingId(order),
         total_after_discount: total,
-        prepayment_amount: nextPaid
+        prepayment_amount: nextPaid,
+        currency: getBillingCurrency(order),
       }
     }))
 
@@ -574,8 +588,9 @@ export function OrdersTable({
         ...prev,
         [orderId]: {
           billing_id: billingId,
-          total_after_discount: total,
-          prepayment_amount: nextPaid
+        total_after_discount: total,
+        prepayment_amount: nextPaid,
+        currency: getBillingCurrency(order),
         }
       }))
       setPaymentHistory((prev) => ({
@@ -1046,15 +1061,17 @@ export function OrdersTable({
                               <div className="flex items-center justify-between gap-3">
                                 <span className="text-muted-foreground">שולם / סה"כ</span>
                                 <span className="font-medium tabular-nums">
-                                  {formatBillingAmount(getBillingPaid(order))} /{" "}
-                                  {formatBillingAmount(getBillingTotal(order))}
+                                  {formatBillingAmount(getBillingPaid(order), getBillingCurrency(order), locale)} /{" "}
+                                  {formatBillingAmount(getBillingTotal(order), getBillingCurrency(order), locale)}
                                 </span>
                               </div>
                               <div className="mt-1 flex items-center justify-between gap-3 border-t pt-1">
                                 <span className="text-muted-foreground">יתרה לתשלום</span>
                                 <span className="font-medium tabular-nums">
                                   {formatBillingAmount(
-                                    getBillingBalance(getBillingTotal(order), getBillingPaid(order))
+                                    getBillingBalance(getBillingTotal(order), getBillingPaid(order)),
+                                    getBillingCurrency(order),
+                                    locale,
                                   )}
                                 </span>
                               </div>
@@ -1119,7 +1136,9 @@ export function OrdersTable({
                                         {payment.paid_at ? new Date(payment.paid_at).toLocaleDateString("he-IL") : ""}
                                         {payment.kind === "adjustment" ? " · תיקון" : ""}
                                       </span>
-                                      <span className="tabular-nums">{formatBillingAmount(payment.amount)}</span>
+                                      <span className="tabular-nums">
+                                        {formatBillingAmount(payment.amount, payment.currency, locale)}
+                                      </span>
                                     </div>
                                   ))}
                                 </div>

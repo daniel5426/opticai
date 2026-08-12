@@ -25,6 +25,7 @@ from auth import (
     verify_password,
 )
 from config import settings
+from currency import normalize_currency
 from database import get_db
 from models import AuthSession, Clinic, ClinicDeviceTrust, Company, PendingCompanySetup, User
 from schemas import Clinic as ClinicSchema
@@ -314,6 +315,7 @@ async def register_complete(
             contact_email=company_payload.get("contact_email") or pending.email,
             contact_phone=company_payload.get("contact_phone") or company_payload.get("phone") or "",
             address=company_payload.get("address") or "",
+            default_currency=normalize_currency(company_payload.get("default_currency")),
         )
         db.add(company)
         db.flush()

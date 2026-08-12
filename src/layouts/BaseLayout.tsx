@@ -9,7 +9,7 @@ import {
   applyCompanyThemeColors,
   cacheCompanyThemeColors,
 } from "@/helpers/theme_helpers";
-import { Settings, User } from "@/lib/db/schema-interface";
+import { Company, Settings, User } from "@/lib/db/schema-interface";
 import { SettingsContext } from "@/contexts/SettingsContext";
 import { ClientSidebarProvider } from "@/contexts/ClientSidebarContext";
 import { NavigationGuardProvider } from "@/contexts/NavigationGuardContext";
@@ -102,11 +102,16 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
   const updateSettings = (newSettings: Settings) => {
     setSettings(newSettings);
   };
+  const updateCompany = (newCompany: Company) => {
+    setCompany(newCompany);
+  };
 
   // Load settings when clinic context is available
   useEffect(() => {
     const loadSettings = async () => {
-      if (!currentClinic?.id) return;
+      // A trusted clinic session is intentionally unauthenticated until a
+      // staff member signs in. Settings require staff authorization.
+      if (!currentClinic?.id || !currentUser?.id) return;
 
       try {
         const dbSettings = await getSettings(currentClinic.id);
@@ -303,7 +308,7 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
   return (
     <>
       <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
-        <SettingsContext.Provider value={{ settings, updateSettings }}>
+        <SettingsContext.Provider value={{ settings, company, updateSettings, updateCompany }}>
           <ClientSidebarProvider>
             <NavigationGuardProvider>
               {isControlCenterRoute &&

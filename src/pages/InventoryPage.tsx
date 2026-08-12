@@ -34,6 +34,7 @@ import {
   YAxis,
 } from "recharts";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 import { SiteHeader } from "@/components/site-header";
 import {
@@ -100,6 +101,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useUser } from "@/contexts/UserContext";
+import { useSettings } from "@/hooks/useSettings";
 import { useAnalyticsRange } from "@/hooks/useAnalyticsRange";
 import { apiClient } from "@/lib/api-client";
 import type {
@@ -118,6 +120,9 @@ import {
   inventoryVariantDescription,
 } from "@/lib/inventory";
 import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels";
+import { formatMoney } from "@/lib/money";
+import type { AppLocale } from "@/localization/locale";
+import { useAppLocale } from "@/localization/use-app-locale";
 
 type InventoryTab = "stock" | "insights";
 type InventoryVisibility = "active" | "archived" | "all";
@@ -160,15 +165,11 @@ const emptyCatalogForm = {
   barcode: "",
   default_cost: "",
   default_retail: "",
+  currency: "ILS" as "ILS" | "USD" | "EUR",
   reorder_point: "",
   target_quantity: "",
 };
 
-const currencyFormatter = new Intl.NumberFormat("he-IL", {
-  style: "currency",
-  currency: "ILS",
-  maximumFractionDigits: 0,
-});
 const integerFormatter = new Intl.NumberFormat("he-IL", {
   maximumFractionDigits: 0,
 });
@@ -218,6 +219,7 @@ function CatalogDialog({
   open,
   onOpenChange,
   clinicId,
+  defaultCurrency,
   editing,
   initialSupplier,
   canViewCost,
@@ -227,6 +229,7 @@ function CatalogDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   clinicId: number;
+  defaultCurrency: "ILS" | "USD" | "EUR";
   editing: CatalogVariant | null;
   initialSupplier?: string | null;
   canViewCost: boolean;
@@ -234,6 +237,8 @@ function CatalogDialog({
   onSaved: () => void;
 }) {
   const [form, setForm] = useState({ ...emptyCatalogForm });
+  const { t } = useTranslation();
+  const { direction } = useAppLocale();
   const [saving, setSaving] = useState(false);
   const [catalogVariants, setCatalogVariants] = useState<CatalogVariant[]>([]);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
@@ -247,6 +252,7 @@ function CatalogDialog({
       setForm({
         ...emptyCatalogForm,
         preferred_supplier: initialSupplier || "",
+        currency: defaultCurrency,
       });
       return;
     }
@@ -279,10 +285,11 @@ function CatalogDialog({
         editing.default_cost == null ? "" : String(editing.default_cost),
       default_retail:
         editing.default_retail == null ? "" : String(editing.default_retail),
+      currency: editing.currency,
       reorder_point: String(editing.balance?.reorder_point ?? 0),
       target_quantity: String(editing.balance?.target_quantity ?? 0),
     });
-  }, [editing, initialSupplier, open]);
+  }, [defaultCurrency, editing, initialSupplier, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -363,6 +370,7 @@ function CatalogDialog({
       barcode: form.barcode,
       default_cost: canViewCost ? form.default_cost : undefined,
       default_retail: form.default_retail,
+      currency: form.currency,
       is_stockable: true,
     };
     try {
@@ -492,7 +500,7 @@ function CatalogDialog({
       <DialogContent
         ref={setDialogContent}
         className="max-h-[88vh] max-w-3xl overflow-y-auto text-right"
-        dir="rtl"
+        dir={direction}
       >
         <DialogHeader>
           <DialogTitle>
@@ -509,7 +517,7 @@ function CatalogDialog({
               value={form.category}
               onValueChange={(value) => setField("category", value)}
               disabled={Boolean(editing)}
-              dir="rtl"
+              dir={direction}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -636,6 +644,28 @@ function CatalogDialog({
             )}
             {field("sku", "SKU")}
             {field("barcode", "ברקוד")}
+            <div className="space-y-1.5">
+              <Label>{t("defaultCurrency")}</Label>
+              <Select
+                dir={direction}
+                value={form.currency}
+                onValueChange={(value) => setField("currency", value)}
+              >
+                <SelectTrigger className="text-start">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align={direction === "rtl" ? "end" : "start"}>
+                  <SelectItem value="ILS">{t("israeliShekel")}</SelectItem>
+                  <SelectItem value="USD">{t("usDollar")}</SelectItem>
+                  <SelectItem value="EUR">{t("euro")}</SelectItem>
+                </SelectContent>
+              </Select>
+              {editing ? (
+                <p className="text-muted-foreground text-xs">
+                  {t("currencyChangeNotice")}
+                </p>
+              ) : null}
+            </div>
             {canViewCost
               ? field("default_cost", "עלות ברירת מחדל", "number")
               : null}
@@ -1233,6 +1263,9 @@ function ImportDialog({
 
 export default function InventoryPage() {
   const { currentClinic, currentUser } = useUser();
+  const { company } = useSettings();
+  const { t } = useTranslation();
+  const { locale, direction } = useAppLocale();
   const [activeTab, setActiveTab] = useState<InventoryTab>("stock");
   const [variants, setVariants] = useState<CatalogVariant[]>([]);
   const { range: insightsRange, setRange: setInsightsRange } =
@@ -1579,7 +1612,7 @@ export default function InventoryPage() {
             className="flex h-9 shrink-0 items-center justify-between gap-3"
           >
             <h2 className="text-muted-foreground text-xl font-semibold tracking-tight">
-              ניהול מוצרים, ספקים ורמות מלאי
+              {t("inventoryManagementSubtitle")}
             </h2>
             <div className="flex items-center gap-2">
               {canWrite ? (
@@ -1736,6 +1769,7 @@ export default function InventoryPage() {
                 canWrite={canWrite}
                 canViewCost={canViewCost}
                 clinicId={clinicId}
+                locale={locale}
                 onStockChanged={() => void load()}
                 onHistory={(variant) => void openHistory(variant)}
                 onEdit={(variant) => {
@@ -1796,7 +1830,13 @@ export default function InventoryPage() {
                 metric={insightMetrics.get("slow_stock")}
                 formatter={
                   canViewCost
-                    ? currencyFormatter.format
+                    ? (value) =>
+                        formatMoney(
+                          value,
+                          insights?.currency || company?.default_currency,
+                          locale,
+                          { maximumFractionDigits: 0 },
+                        )
                     : integerFormatter.format
                 }
                 loading={loading}
@@ -2117,9 +2157,12 @@ export default function InventoryPage() {
                       label: canViewCost ? "שווי עלות" : "מצב",
                       render: (item) =>
                         canViewCost
-                          ? currencyFormatter.format(
+                          ? formatMoney(
                               (item.variant.default_cost || 0) *
                                 item.variant.balance.on_hand,
+                              item.variant.currency,
+                              locale,
+                              { maximumFractionDigits: 0 },
                             )
                           : "ללא תנועה",
                       className: "tabular-nums",
@@ -2205,6 +2248,7 @@ export default function InventoryPage() {
         open={catalogOpen}
         onOpenChange={setCatalogOpen}
         clinicId={clinicId}
+        defaultCurrency={company?.default_currency || "ILS"}
         editing={editing}
         initialSupplier={initialCatalogSupplier}
         canViewCost={canViewCost}
@@ -2505,6 +2549,7 @@ function InventoryTable({
   canWrite,
   canViewCost,
   clinicId,
+  locale,
   onStockChanged,
   onHistory,
   onEdit,
@@ -2519,6 +2564,7 @@ function InventoryTable({
   canWrite: boolean;
   canViewCost: boolean;
   clinicId: number;
+  locale: AppLocale;
   onStockChanged: () => void;
   onHistory: (variant: CatalogVariant) => void;
   onEdit: (variant: CatalogVariant) => void;
@@ -2651,13 +2697,23 @@ function InventoryTable({
                     <TableCell>
                       {variant.default_retail == null
                         ? ""
-                        : currencyFormatter.format(variant.default_retail)}
+                        : formatMoney(
+                            variant.default_retail,
+                            variant.currency,
+                            locale,
+                            { maximumFractionDigits: 0 },
+                          )}
                     </TableCell>
                     {canViewCost ? (
                       <TableCell>
                         {variant.default_cost == null
                           ? ""
-                          : currencyFormatter.format(variant.default_cost)}
+                          : formatMoney(
+                              variant.default_cost,
+                              variant.currency,
+                              locale,
+                              { maximumFractionDigits: 0 },
+                            )}
                       </TableCell>
                     ) : null}
                     <TableCell className="whitespace-nowrap">

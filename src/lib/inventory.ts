@@ -39,7 +39,7 @@ export interface CatalogVariant {
   barcode?: string | null;
   default_cost?: number | null;
   default_retail?: number | null;
-  currency: "ILS";
+  currency: "ILS" | "USD" | "EUR";
   is_stockable: boolean;
   archived_at?: string | null;
   balance?: InventoryBalance;

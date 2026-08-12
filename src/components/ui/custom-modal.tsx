@@ -19,9 +19,10 @@ interface CustomModalProps {
   dismissible?: boolean
   isLoading?: boolean
   headerContent?: React.ReactNode
+  direction?: 'rtl' | 'ltr'
 }
 
-export function CustomModal({ isOpen, onClose, title, subtitle, description, children, className = '', width = 'max-w-lg', onConfirm, confirmText = 'אישור', cancelText = 'ביטול', showCloseButton = true, dismissible = true, isLoading = false, headerContent }: CustomModalProps) {
+export function CustomModal({ isOpen, onClose, title, subtitle, description, children, className = '', width = 'max-w-lg', onConfirm, confirmText = 'אישור', cancelText = 'ביטול', showCloseButton = true, dismissible = true, isLoading = false, headerContent, direction = 'rtl' }: CustomModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
 
@@ -86,7 +87,7 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
       className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
       onClick={handleOverlayClick}
       style={{ pointerEvents: 'auto' }}
-      dir="rtl"
+      dir={direction}
     >
       <div
         ref={modalRef}
@@ -95,9 +96,9 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
         tabIndex={-1}
       >
         {/* Header */}
-        <div className="flex items-center justify-between py-2 px-4 flex-shrink-0 border-b" dir="rtl">
+        <div className="flex items-center justify-between py-2 px-4 flex-shrink-0 border-b" dir={direction}>
           {/* Right side: Subtitle */}
-          <div className="flex-1 text-right">
+          <div className="flex-1 text-start">
             {subtitle && (
               <p className="text-sm text-muted-foreground">
                 {subtitle}
@@ -128,7 +129,7 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
         </div>
 
         {/* Content */}
-        <div className="px-6 p-3 overflow-y-auto flex-1" dir="rtl">
+        <div className="px-6 p-3 overflow-y-auto flex-1" dir={direction}>
           <div className="space-y-4">
 
             {description && <p className="text-sm text-muted-foreground mb-4">{description}</p>}
@@ -138,8 +139,8 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
         </div>
 
         {onConfirm && (
-          <div className="flex justify-center p-4 " dir="rtl">
-            <Button variant="outline" onClick={onClose} className="ml-2" disabled={isLoading}>
+          <div className="flex justify-center p-4 " dir={direction}>
+            <Button variant="outline" onClick={onClose} className="me-2" disabled={isLoading}>
               {cancelText}
             </Button>
             <Button onClick={onConfirm} disabled={isLoading}>

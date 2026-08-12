@@ -105,6 +105,8 @@ import { toast } from "sonner";
 import { FileDown, FileText, Loader2, Save, Edit, Printer } from "lucide-react";
 import { BillingTab } from "@/components/BillingTab";
 import { useUser } from "@/contexts/UserContext";
+import { useSettings } from "@/hooks/useSettings";
+import { useTranslation } from "react-i18next";
 import { getAllUsers } from "@/lib/db/users-db";
 import {
   ExamToolbox,
@@ -312,6 +314,8 @@ export default function OrderDetailPage({
   const [finalPrescription, setFinalPrescription] =
     useState<FinalPrescriptionExam | null>(null);
   const { currentUser, currentClinic } = useUser();
+  const { company } = useSettings();
+  const { t } = useTranslation();
   const { currentClient } = useClientSidebar();
   const [orderIdForData, setOrderIdForData] = useState<number | null>(null);
 
@@ -378,6 +382,14 @@ export default function OrderDetailPage({
   const [billingFormData, setBillingFormData] = useState<Billing>(
     isNewMode ? ({} as Billing) : ({} as Billing),
   );
+  useEffect(() => {
+    if (!isNewMode) return;
+    setBillingFormData((current) =>
+      current.currency
+        ? current
+        : { ...current, currency: company?.default_currency || "ILS" },
+    );
+  }, [company?.default_currency, isNewMode]);
   const [finalPrescriptionFormData, setFinalPrescriptionFormData] =
     useState<FinalPrescriptionExam>(
       isNewMode
@@ -1035,6 +1047,22 @@ export default function OrderDetailPage({
         return nextItems;
       }
 
+      const otherItems =
+        previousIndex >= 0
+          ? nextItems.filter((_, index) => index !== previousIndex)
+          : nextItems;
+      const billingCurrency = billingFormDataRef.current.currency || "ILS";
+      if (otherItems.length > 0 && billingCurrency !== variant.currency) {
+        toast.error(t("cannotMixCurrencies"));
+        return currentItems;
+      }
+      if (!billingFormDataRef.current.id && otherItems.length === 0) {
+        setBillingFormData((current) => ({
+          ...current,
+          currency: variant.currency,
+        }));
+      }
+
       const suggestedItem: OrderLineItem = {
         id:
           previousIndex >= 0
@@ -1057,6 +1085,7 @@ export default function OrderDetailPage({
         quantity,
         discount: 0,
         line_total: Math.round(variant.default_retail * quantity * 100) / 100,
+        currency: variant.currency,
       };
       if (previousIndex >= 0) nextItems[previousIndex] = suggestedItem;
       else nextItems.push(suggestedItem);
@@ -1538,8 +1567,9 @@ export default function OrderDetailPage({
               },
             };
 
-        const hasBillingData = Object.values(currentBillingFormData).some(
-          (value) => value !== undefined && value !== null && value !== "",
+        const hasBillingData = Object.entries(currentBillingFormData).some(
+          ([field, value]) =>
+            field !== "currency" && value !== undefined && value !== null && value !== "",
         );
         const shouldCreateBilling =
           hasBillingData || currentOrderLineItems.length > 0;
@@ -1764,8 +1794,9 @@ export default function OrderDetailPage({
             },
           };
 
-      const hasBillingData = Object.values(currentBillingFormData).some(
-        (value) => value !== undefined && value !== null && value !== "",
+      const hasBillingData = Object.entries(currentBillingFormData).some(
+        ([field, value]) =>
+          field !== "currency" && value !== undefined && value !== null && value !== "",
       );
       const shouldCreateBilling =
         hasBillingData || currentOrderLineItems.length > 0;

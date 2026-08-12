@@ -1813,10 +1813,16 @@ export default function ExamDetailPage({
             <ExamLayoutTabs
               layoutTabs={layoutTabs}
               activeInstanceId={activeInstanceId}
-              isEditing={isEditing}
               onTabClick={handleLayoutTabChange}
               onTabDrop={handleLayoutTabDrop}
               onFullDataClick={handleActivateFullDataTab}
+              hasTabData={(tab) =>
+                Object.entries(
+                  tab.id === activeInstanceId
+                    ? examFormData
+                    : examFormDataByInstance[tab.id] || {},
+                ).some(([key, value]) => isNonEmptyComponent(key, value))
+              }
               onRemoveTab={handleRemoveLayoutTab}
             />
           </div>

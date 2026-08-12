@@ -11,7 +11,10 @@ export function formatDate(value?: string | Date | null): string {
   return date.toLocaleDateString("he-IL");
 }
 
-export function formatCurrency(value?: number | string | null): string {
+export function formatCurrency(
+  value?: number | string | null,
+  currency: "ILS" | "USD" | "EUR" = "ILS",
+): string {
   if (value === undefined || value === null || value === "") return "";
   const num = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(num)) return "";
@@ -19,7 +22,9 @@ export function formatCurrency(value?: number | string | null): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  return `${isolateLtrText(amount)} ש"ח`;
+  if (currency === "ILS") return `${isolateLtrText(amount)} ש"ח`;
+  const symbol = currency === "USD" ? "$" : "€";
+  return isolateLtrText(`${symbol}${amount}`);
 }
 
 export function formatOpticalNumber(value?: number | string | null): string {

@@ -3,7 +3,8 @@ from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 from datetime import date
 from database import get_db
-from models import Order, Client, User, Billing, OrderLineItem, ContactLensOrder
+from models import Order, Client, User, Billing, OrderLineItem, ContactLensOrder, Company
+from currency import DEFAULT_CURRENCY, normalize_currency
 from sqlalchemy import Date, func
 from schemas import OrderCreate, OrderUpdate, Order as OrderSchema, BillingCreate, BillingUpdate, Billing as BillingSchema, OrderLineItemCreate, OrderLineItemUpdate, OrderLineItem as OrderLineItemSchema, ContactLensOrderCreate, ContactLensOrderUpdate, ContactLensOrder as ContactLensOrderSchema
 from utils.table_search import build_all_terms_search_condition, search_blob, spaced_concat
@@ -52,6 +53,19 @@ def _attach_billing_summaries(db: Session, orders: list, *, contact: bool = Fals
         setattr(order, "billing_id", billing.id if billing else None)
         setattr(order, "billing_total_after_discount", billing.total_after_discount if billing else None)
         setattr(order, "billing_prepayment_amount", billing.prepayment_amount if billing else None)
+        setattr(order, "billing_currency", billing.currency if billing else None)
+
+
+def _default_currency_for_clinic(db: Session, clinic_id: int | None) -> str:
+    if clinic_id is None:
+        return DEFAULT_CURRENCY
+    value = (
+        db.query(Company.default_currency)
+        .join(Clinic, Clinic.company_id == Company.id)
+        .filter(Clinic.id == clinic_id)
+        .scalar()
+    )
+    return normalize_currency(value) or DEFAULT_CURRENCY
 
 @router.get("/paginated")
 def get_orders_paginated(
@@ -215,6 +229,13 @@ def get_orders_paginated(
             .limit(1)
             .scalar_subquery()
         )
+        regular_billing_currency = (
+            select(Billing.currency)
+            .where(Billing.order_id == Order.id)
+            .order_by(Billing.id.desc())
+            .limit(1)
+            .scalar_subquery()
+        )
         contact_billing_id = (
             select(Billing.id)
             .where(Billing.contact_lens_id == ContactLensOrder.id)
@@ -231,6 +252,13 @@ def get_orders_paginated(
         )
         contact_billing_prepayment = (
             select(Billing.prepayment_amount)
+            .where(Billing.contact_lens_id == ContactLensOrder.id)
+            .order_by(Billing.id.desc())
+            .limit(1)
+            .scalar_subquery()
+        )
+        contact_billing_currency = (
+            select(Billing.currency)
             .where(Billing.contact_lens_id == ContactLensOrder.id)
             .order_by(Billing.id.desc())
             .limit(1)
@@ -254,6 +282,7 @@ def get_orders_paginated(
                 regular_billing_id.label("billing_id"),
                 regular_billing_total.label("billing_total_after_discount"),
                 regular_billing_prepayment.label("billing_prepayment_amount"),
+                regular_billing_currency.label("billing_currency"),
             )
             .select_from(
                 selected.join(Order.__table__, selected.c.id == Order.id)
@@ -279,6 +308,7 @@ def get_orders_paginated(
                 contact_billing_id.label("billing_id"),
                 contact_billing_total.label("billing_total_after_discount"),
                 contact_billing_prepayment.label("billing_prepayment_amount"),
+                contact_billing_currency.label("billing_currency"),
             )
             .select_from(
                 selected.join(ContactLensOrder.__table__, selected.c.id == ContactLensOrder.id)
@@ -321,6 +351,7 @@ def get_orders_paginated(
         Billing.id.label('billing_id'),
         Billing.total_after_discount.label('billing_total_after_discount'),
         Billing.prepayment_amount.label('billing_prepayment_amount'),
+        Billing.currency.label('billing_currency'),
     ).select_from(orders_from)
     if order_filters:
         orders_select = orders_select.where(*order_filters)
@@ -347,6 +378,7 @@ def get_orders_paginated(
         Billing.id.label('billing_id'),
         Billing.total_after_discount.label('billing_total_after_discount'),
         Billing.prepayment_amount.label('billing_prepayment_amount'),
+        Billing.currency.label('billing_currency'),
     ).select_from(cl_from)
     if cl_filters:
         cl_select = cl_select.where(*cl_filters)
@@ -668,8 +700,14 @@ def _upsert_billing_and_items(
         db_billing = db.query(Billing).filter(Billing.contact_lens_id == contact_lens_order_id).first()
 
     if db_billing:
+        requested_currency = normalize_currency(filtered_billing_data.get("currency"), default=None)
+        if requested_currency and requested_currency != db_billing.currency:
+            raise HTTPException(
+                status_code=409,
+                detail="Billing currency is immutable. Create a new billing record for another currency.",
+            )
         for key, value in filtered_billing_data.items():
-            if key not in {"id", "order_id", "contact_lens_id", "line_items"}:
+            if key not in {"id", "order_id", "contact_lens_id", "line_items", "currency"}:
                 setattr(db_billing, key, value)
     else:
         create_data = {
@@ -678,6 +716,17 @@ def _upsert_billing_and_items(
             "contact_lens_id": contact_lens_order_id,
         }
         create_data.pop("id", None)
+        clinic_id = (
+            db.query(Order.clinic_id).filter(Order.id == order_id).scalar()
+            if order_id is not None
+            else db.query(ContactLensOrder.clinic_id)
+            .filter(ContactLensOrder.id == contact_lens_order_id)
+            .scalar()
+        )
+        create_data["currency"] = (
+            normalize_currency(create_data.get("currency"), default=None)
+            or _default_currency_for_clinic(db, clinic_id)
+        )
         db_billing = Billing(**create_data)
         db.add(db_billing)
     db.flush()
@@ -696,12 +745,13 @@ def _upsert_billing_and_items(
             if item_id and item_id in existing:
                 db_item = existing[item_id]
                 for key, value in filtered.items():
-                    if key not in {"id", "billings_id"}:
+                    if key not in {"id", "billings_id", "currency"}:
                         setattr(db_item, key, value)
                 sent_ids.add(item_id)
             elif not item_id:
                 filtered.pop("id", None)
                 filtered["billings_id"] = db_billing.id
+                filtered["currency"] = db_billing.currency
                 db.add(OrderLineItem(**filtered))
         for existing_id, db_item in existing.items():
             if existing_id not in sent_ids:

@@ -17,9 +17,16 @@ export function getBillingPaymentStatus(total?: number | null, paid?: number | n
   return BILLING_PAYMENT_STATUS.partial;
 }
 
-export function formatBillingAmount(value?: number | null) {
-  return (Number(value) || 0).toLocaleString("he-IL", {
+export function formatBillingAmount(
+  value?: number | null,
+  currency?: string | null,
+  locale: "he" | "en" | "fr" = "he",
+) {
+  const locales = { he: "he-IL", en: "en-US", fr: "fr-FR" } as const;
+  return new Intl.NumberFormat(locales[locale], {
+    style: "currency",
+    currency: currency || "ILS",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  });
+  }).format(Number(value) || 0);
 }

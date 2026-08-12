@@ -4,6 +4,13 @@
 - Always respond in English unless the user explicitly asks for another language.
 - Before making UI changes, read and follow `design.md`. Reuse its shared page, toolbar, table, dialog, and RTL conventions.
 
+## Internationalization And Direction
+
+- Every user-visible UI string must ship in all three supported languages: Hebrew (`he`), English (`en`), and French (`fr`). Do not rely on a Hebrew source literal being translated at runtime for new or changed UI copy; add a stable i18n key and all three translations.
+- Every affected surface must be intentionally verified in both direction modes: Hebrew is RTL; English and French are LTR. Use logical alignment and spacing (`text-start`, `ms-*`, `me-*`, `start-*`, `end-*`) rather than physical right/left classes unless a physical position is explicitly required.
+- Centered content must remain centered in every locale. Keep machine-readable values—such as color codes, numbers, dates, identifiers, phone numbers, and clinical measurements—locally LTR when that improves readability.
+- Locale-aware controls, menus, tabs, toolbars, and dialogs must receive the active direction explicitly when their physical ordering or portal alignment depends on it.
+
 ## Production Compatibility And Migrations
 
 - The app is in production and clients are actively using it. Treat every code edit as production-impacting.

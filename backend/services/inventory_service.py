@@ -20,6 +20,7 @@ from models import (
     OrderInventoryAllocation,
     User,
 )
+from currency import DEFAULT_CURRENCY, normalize_currency
 
 
 INVENTORY_WRITE_LEVEL = 2
@@ -239,6 +240,7 @@ def create_variant(
     company_id: int,
     product: CatalogProduct,
     data: dict[str, Any],
+    default_currency: str = DEFAULT_CURRENCY,
 ) -> CatalogVariant:
     if product.company_id != company_id:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -287,7 +289,7 @@ def create_variant(
         barcode=barcode,
         default_cost=_validate_price(data.get("default_cost"), "default_cost"),
         default_retail=_validate_price(data.get("default_retail"), "default_retail"),
-        currency="ILS",
+        currency=normalize_currency(data.get("currency"), default=default_currency),
         is_stockable=bool(requested_stockable and complete),
     )
     db.add(variant)

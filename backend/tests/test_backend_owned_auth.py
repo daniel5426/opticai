@@ -99,6 +99,7 @@ def test_signup_complete_creates_backend_session(client_and_db):
     assert payload["refresh_token"]
     assert payload["user"]["email"] == "owner@example.com"
     assert payload["company"]["name"] == "Optic Clinic"
+    assert payload["company"]["default_currency"] == "ILS"
     assert payload["clinic"]["name"] == "Main Clinic"
 
     me = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {payload['access_token']}"})

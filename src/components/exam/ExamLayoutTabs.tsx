@@ -1,6 +1,6 @@
 import React from "react";
 import Tabs, { Tab } from "@uiw/react-tabs-draggable";
-import { Combine, Trash2 } from "lucide-react";
+import { Combine, X } from "lucide-react";
 import { LayoutTab } from "@/pages/exam-detail/types";
 import {
   isPersistableLayoutTab,
@@ -13,37 +13,43 @@ import { useTranslation } from "react-i18next";
 interface ExamLayoutTabsProps {
   layoutTabs: LayoutTab[];
   activeInstanceId: number | null;
-  isEditing: boolean;
   onTabClick: (id: number) => void;
   onTabDrop: (id: string, index?: number) => void;
   onFullDataClick?: () => void;
   onRegenerateFullData?: () => void;
   isRegeneratingFullData?: boolean;
+  hasTabData?: (tab: LayoutTab) => boolean;
   onRemoveTab: (tabId: number) => void;
 }
 
 export function ExamLayoutTabs({
   layoutTabs,
   activeInstanceId,
-  isEditing,
   onTabClick,
   onTabDrop,
   onFullDataClick,
   onRegenerateFullData,
   isRegeneratingFullData = false,
+  hasTabData = () => true,
   onRemoveTab,
 }: ExamLayoutTabsProps) {
   const { direction } = useAppLocale();
   const { t } = useTranslation();
   const visibleTabs = layoutTabs.filter(isPersistableLayoutTab);
-  const activeTab = visibleTabs.find((t) => t.isActive);
   const isFullDataActive = isVirtualFullDataTabId(activeInstanceId);
   const [tabPendingDelete, setTabPendingDelete] =
     React.useState<LayoutTab | null>(null);
   const handleFullDataClick = onFullDataClick ?? onRegenerateFullData;
-  const showDeleteButton = Boolean(
-    visibleTabs.length > 0 && isEditing && activeTab && !isFullDataActive,
-  );
+  const canRemoveLayoutTabs = visibleTabs.length > 0;
+
+  const requestDelete = (tab: LayoutTab) => {
+    if (hasTabData(tab)) {
+      setTabPendingDelete(tab);
+      return;
+    }
+
+    onRemoveTab(tab.id);
+  };
 
   const confirmDelete = () => {
     if (!tabPendingDelete) return;
@@ -79,6 +85,7 @@ export function ExamLayoutTabs({
     <>
       <div className="border-b">
         <div
+          dir={direction}
           className="flex items-end gap-2"
           style={{
             alignItems: "flex-end",
@@ -86,7 +93,7 @@ export function ExamLayoutTabs({
         >
           <div
             dir="ltr"
-            className="ml-auto"
+            className="shrink-0"
             style={{
               position: "relative",
               display: "flex",
@@ -112,6 +119,7 @@ export function ExamLayoutTabs({
                   <Tab
                     key={tab.id}
                     id={tab.id.toString()}
+                    className="group"
                     style={folderTab(tab.isActive)}
                   >
                     <Combine
@@ -124,25 +132,31 @@ export function ExamLayoutTabs({
                       }}
                     />
                     {tab.name}
+                    {canRemoveLayoutTabs ? (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          requestDelete(tab);
+                        }}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                        }}
+                        className="ms-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
+                        aria-label={t("deleteLayoutTab")}
+                        title={t("deleteLayoutTab")}
+                      >
+                        <X className="h-3 w-3" strokeWidth={2.5} />
+                      </button>
+                    ) : null}
                   </Tab>
                 ))}
               </Tabs>
             ) : null}
           </div>
-          <div className="ml-2 flex items-end gap-2" dir={direction}>
-            {showDeleteButton ? (
-              <button
-                type="button"
-                onClick={() => {
-                  if (activeTab) setTabPendingDelete(activeTab);
-                }}
-                className="bg-card flex h-[34px] w-[34px] items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
-                aria-label={t("deleteLayoutTab")}
-                title={t("deleteLayoutTab")}
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            ) : null}
+          <div className="ms-auto flex items-end gap-2" dir={direction}>
             <button
               type="button"
               onClick={handleFullDataClick}
@@ -177,6 +191,7 @@ export function ExamLayoutTabs({
           name: tabPendingDelete?.name || "",
         })}
         showCloseButton={false}
+        direction={direction}
       />
     </>
   );

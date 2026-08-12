@@ -65,7 +65,10 @@ function getClinicInfo(
     .join(" | ");
 }
 
-function getLineItemsBlock(lineItems: OrderLineItem[]) {
+function getLineItemsBlock(
+  lineItems: OrderLineItem[],
+  billingCurrency: "ILS" | "USD" | "EUR" = "ILS",
+) {
   if (lineItems.length === 0) return "";
   const lines = lineItems.map((item, index) => {
     const parts = [
@@ -73,15 +76,18 @@ function getLineItemsBlock(lineItems: OrderLineItem[]) {
       item.description || "",
       item.sku ? `(מק"ט: ${item.sku})` : "",
       item.quantity ? `כמות: ${formatPlainNumber(item.quantity)}` : "",
-      item.price ? `מחיר: ${formatCurrency(item.price)}` : "",
-      item.line_total ? `סה"כ שורה: ${formatCurrency(item.line_total)}` : "",
+      item.price ? `מחיר: ${formatCurrency(item.price, item.currency || billingCurrency)}` : "",
+      item.line_total ? `סה"כ שורה: ${formatCurrency(item.line_total, item.currency || billingCurrency)}` : "",
     ].filter(Boolean);
     return parts.join(" | ");
   });
   return lines.join("\n");
 }
 
-function getLineItemRows(lineItems: OrderLineItem[]): RegularOrderPrintLineItem[] {
+function getLineItemRows(
+  lineItems: OrderLineItem[],
+  billingCurrency: "ILS" | "USD" | "EUR" = "ILS",
+): RegularOrderPrintLineItem[] {
   if (lineItems.length === 0) {
     return [
       {
@@ -100,8 +106,8 @@ function getLineItemRows(lineItems: OrderLineItem[]): RegularOrderPrintLineItem[
     line_description: toDisplayString(item.description),
     line_sku: toDisplayString(item.sku),
     line_quantity: formatPlainNumber(item.quantity),
-    line_price: formatCurrency(item.price),
-    line_total: formatCurrency(item.line_total),
+    line_price: formatCurrency(item.price, item.currency || billingCurrency),
+    line_total: formatCurrency(item.line_total, item.currency || billingCurrency),
   }));
 }
 
@@ -119,11 +125,12 @@ function getOperationalMoneyBlock(context: LoadedOrderExportContext) {
     total !== undefined && total !== null
       ? total - (paid || 0)
       : undefined;
+  const currency = context.billing?.currency || "ILS";
 
   return {
-    total: formatCurrency(total),
-    paid: formatCurrency(paid),
-    balance: formatCurrency(balance),
+    total: formatCurrency(total, currency),
+    paid: formatCurrency(paid, currency),
+    balance: formatCurrency(balance, currency),
     paymentStatus: getBillingPaymentStatus(total, paid),
   };
 }
@@ -236,8 +243,14 @@ export function buildRegularOrderPrintModel(
     // Existing orders may omit this because the editor displays "חנות" as its default.
     frame_supplied_by: getLensValue(frame.supplied_by, "חנות"),
     promised_date: formatDate(details.promised_date),
-    line_items_block: getLineItemsBlock(context.lineItems),
-    line_items_rows: getLineItemRows(context.lineItems),
+    line_items_block: getLineItemsBlock(
+      context.lineItems,
+      context.billing?.currency || "ILS",
+    ),
+    line_items_rows: getLineItemRows(
+      context.lineItems,
+      context.billing?.currency || "ILS",
+    ),
     total_price: money.total,
     amount_paid: money.paid,
     balance_due: money.balance,

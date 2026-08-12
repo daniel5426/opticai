@@ -16,6 +16,7 @@ The resulting owner can sign in with:
 from __future__ import annotations
 
 import argparse
+import json
 import random
 import sys
 from dataclasses import dataclass
@@ -23,7 +24,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
-from sqlalchemy import func
+from sqlalchemy import func, inspect, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
@@ -108,6 +109,17 @@ DEMO_COMPANY_NAME = "Northstar Vision Group"
 DEMO_CLINIC_NAME = "Northstar Optometry — Midtown"
 DEMO_LOGIN_PASSWORD = "DemoClinic2026!"
 DEMO_RANDOM_SEED = 20260811
+DEMO_CURRENCY = "USD"
+
+DEMO_CLINIC_SPECS = (
+    ("Northstar Optometry — Midtown", "Midtown Manhattan", "Suite 810", "245 Madison Avenue", "New York", "10016", "+1 212 555 0180", "midtown@northstaroptical.test", "Mia Chen", "NY-OPT-44821", "northstar-demo-midtown"),
+    ("Northstar Optometry — SoHo", "SoHo", "Ground Floor", "145 Spring Street", "New York", "10012", "+1 212 555 0181", "soho@northstaroptical.test", "Avery Brooks", "NY-OPT-44822", "northstar-demo-soho"),
+    ("Northstar Optometry — Williamsburg", "Williamsburg", "Suite 204", "65 North 6th Street", "Brooklyn", "11249", "+1 718 555 0182", "williamsburg@northstaroptical.test", "Sofia Patel", "NY-OPT-44823", "northstar-demo-williamsburg"),
+    ("Northstar Optometry — Upper West Side", "Upper West Side", "Suite 302", "198 Columbus Avenue", "New York", "10023", "+1 212 555 0183", "uws@northstaroptical.test", "Ryan Brooks", "NY-OPT-44824", "northstar-demo-uws"),
+    ("Northstar Optometry — Long Island City", "Long Island City", "Suite 420", "27-01 Queens Plaza North", "Queens", "11101", "+1 718 555 0184", "lic@northstaroptical.test", "Dr. Elena Ruiz", "NY-OPT-44825", "northstar-demo-lic"),
+    ("Northstar Optometry — Jersey City", "Downtown Jersey City", "Suite 510", "90 Columbus Drive", "Jersey City", "07302", "+1 201 555 0185", "jerseycity@northstaroptical.test", "Dr. Nathan Cole", "NJ-OPT-28614", "northstar-demo-jersey-city"),
+    ("Northstar Optometry — Hoboken", "Hoboken Waterfront", "Suite 110", "421 Washington Street", "Hoboken", "07030", "+1 201 555 0186", "hoboken@northstaroptical.test", "Dr. Priya Shah", "NJ-OPT-28615", "northstar-demo-hoboken"),
+)
 
 
 @dataclass(frozen=True)
@@ -162,10 +174,17 @@ STREETS = ("Madison Avenue", "Lexington Avenue", "Broadway", "Park Avenue", "Fif
 EXAM_NAMES = (
     "Comprehensive Eye Exam",
     "Annual Vision Check",
-    "Contact Lens Follow-up",
+    "Contact Lens Comprehensive",
+    "Contact Lens Fitting",
     "Dry Eye Evaluation",
-    "Pediatric Vision Assessment",
+    "Pediatric & Binocular Vision",
     "Myopia Management Review",
+    "Progressive Lens Consultation",
+    "Computer Vision Assessment",
+    "Dilated Refraction Review",
+    "Low Vision Assessment",
+    "Keratoconus Lens Review",
+    "Post-Operative Follow-up",
 )
 ORDER_TYPES = ("Progressive Glasses", "Single Vision Glasses", "Computer Glasses", "Prescription Sunglasses")
 ORDER_STATUSES = (
@@ -183,6 +202,12 @@ FRAME_CATALOG = (
     ("Warby Parker", "Durand", "Acetate"), ("Tom Ford", "FT5401", "Acetate"),
     ("Mykita", "Lite Acetate", "Stainless Steel"), ("Oakley", "Holbrook RX", "O Matter"),
     ("Dita", "Statesman", "Titanium"), ("Etnia Barcelona", "Tobago", "Acetate"),
+    ("Maui Jim", "Kawika Optical", "Titanium"), ("Silhouette", "TMA Icon", "Titanium"),
+    ("ic! berlin", "Mauerpark", "Stainless Steel"), ("Vanni", "V1836", "Acetate"),
+    ("William Morris London", "LN 508", "Acetate"), ("Flexon", "H6001", "Memory Metal"),
+    ("ProDesign Denmark", "Titanium 4760", "Titanium"), ("Kirk & Kirk", "Maya", "Acetate"),
+    ("Marchon NYC", "M-4012", "Acetate"), ("Nike Vision", "NVX 709", "Nylon"),
+    ("Polo Ralph Lauren", "PH2256", "Acetate"), ("Carrera", "CA 8908", "Stainless Steel"),
 )
 CONTACT_CATALOG = (
     ("Acuvue", "Oasys 1-Day", "Daily", "Silicone Hydrogel"),
@@ -193,7 +218,22 @@ CONTACT_CATALOG = (
     ("Alcon", "Precision1", "Daily", "Silicone Hydrogel"),
     ("Bausch + Lomb", "Ultra", "Monthly", "Silicone Hydrogel"),
     ("Bausch + Lomb", "Infuse", "Daily", "Silicone Hydrogel"),
+    ("Johnson & Johnson Vision", "Acuvue Oasys Max", "Daily", "Silicone Hydrogel"),
+    ("Menicon", "Miru 1day Flat Pack", "Daily", "Silicone Hydrogel"),
+    ("SEED", "1dayPure Moisture", "Daily", "Silicone Hydrogel"),
+    ("Hoya", "iD MyStyle", "Monthly", "Silicone Hydrogel"),
+    ("SynergEyes", "UltraHealth", "Specialty", "Hyper-Gel"),
+    ("Bausch + Lomb Specialty", "Zenlens", "Specialty", "Hyper-Gel"),
+    ("CooperVision Specialty", "MiSight 1 day", "Daily", "Silicone Hydrogel"),
 )
+FRAME_SUPPLIERS = (
+    "A&A Optical", "Allied Vision Supply", "Aspex Eyewear", "Marchon Eyewear",
+    "De Rigo Vision", "Safilo Group", "Luxottica Wholesale", "Marcolin",
+    "Kering Eyewear", "Tura", "WestGroupe", "Europa Eyewear",
+    "ECO Eyewear", "Modo Eyewear", "Design Eyewear Group", "OGI Eyewear",
+    "The Optical Foundry", "Viva International", "ClearVision Optical", "Bellinger House",
+)
+CONTACT_SUPPLIERS = tuple(dict.fromkeys(item[0] for item in CONTACT_CATALOG))
 
 
 def _chunks(rows: Sequence[Any], size: int = 500) -> Iterable[Sequence[Any]]:
@@ -232,14 +272,16 @@ def _utc_at(day: date, hour: int = 10) -> datetime:
 
 
 LOOKUP_SEEDS: dict[type[Any], tuple[str, ...]] = {
-    LookupSupplier: ("Essilor", "Zeiss", "CooperVision", "Alcon", "Bausch + Lomb"),
+    LookupSupplier: FRAME_SUPPLIERS + CONTACT_SUPPLIERS + (
+        "EssilorLuxottica", "Zeiss Vision Care", "Hoya Vision Care", "Shamir Optical", "Younger Optics",
+    ),
     LookupClinic: ("Midtown", "Optical Lab", "Contact Lens Desk"),
     LookupOrderType: ORDER_TYPES + ("Contact Lens Supply",),
     LookupLensModel: ("Varilux XR", "SmartLife Individual 3", "Eyezen Start", "DriveSafe"),
     LookupColor: ("Tortoise", "Matte Black", "Crystal", "Olive", "Rose Gold", "Navy"),
-    LookupMaterial: ("Acetate", "Titanium", "Stainless Steel", "Silicone Hydrogel"),
+    LookupMaterial: ("Acetate", "Titanium", "Stainless Steel", "Memory Metal", "Nylon", "O Matter", "Silicone Hydrogel", "Hyper-Gel"),
     LookupCoating: ("Crizal Sapphire HR", "DuraVision Platinum", "BlueGuard", "Polarized"),
-    LookupManufacturer: ("Moscot", "Ray-Ban", "Oliver Peoples", "Lindberg", "Acuvue"),
+    LookupManufacturer: tuple(dict.fromkeys(item[0] for item in FRAME_CATALOG + CONTACT_CATALOG)),
     LookupFrameModel: tuple(item[1] for item in FRAME_CATALOG),
     LookupContactLensType: ("Daily", "Monthly", "Toric", "Multifocal"),
     LookupContactEyeLensType: ("Spherical", "Toric", "Multifocal"),
@@ -380,29 +422,34 @@ def _seed_company_and_staff(db: Session, rng: random.Random, today: date) -> tup
         address="245 Madison Avenue, New York, NY 10016",
         primary_theme_color="#166534",
         secondary_theme_color="#0f766e",
+        default_currency=DEMO_CURRENCY,
     )
     db.add(company)
     db.flush()
-    clinic = Clinic(
-        company_id=company.id,
-        name=DEMO_CLINIC_NAME,
-        clinic_name=DEMO_CLINIC_NAME,
-        location="Midtown Manhattan",
-        clinic_position="Suite 810",
-        clinic_address="245 Madison Avenue",
-        clinic_city="New York",
-        clinic_postal_code="10016",
-        clinic_directions="Enter through the Madison Avenue lobby and take the elevators to the eighth floor.",
-        clinic_website="https://northstaroptical.test",
-        phone_number="+1 212 555 0180",
-        email="midtown@northstaroptical.test",
-        manager_name="Mia Chen",
-        license_number="NY-OPT-44821",
-        unique_id="northstar-demo-midtown",
-        is_active=True,
-    )
-    db.add(clinic)
+    clinics = [
+        Clinic(
+            company_id=company.id,
+            name=name,
+            clinic_name=name,
+            location=location,
+            clinic_position=position,
+            clinic_address=address,
+            clinic_city=city,
+            clinic_postal_code=postal_code,
+            clinic_directions=f"Enter through the main entrance at {address}.",
+            clinic_website="https://northstaroptical.test",
+            phone_number=phone,
+            email=email,
+            manager_name=manager,
+            license_number=license_number,
+            unique_id=unique_id,
+            is_active=True,
+        )
+        for name, location, position, address, city, postal_code, phone, email, manager, license_number, unique_id in DEMO_CLINIC_SPECS
+    ]
+    _add_in_batches(db, clinics)
     db.flush()
+    clinic = clinics[0]
     staff_specs = [
         ("Jordan Blake", "northstar-demo-admin", DEMO_COMPANY_EMAIL, 4, None, "#166534"),
         ("Mia Chen", "mia.chen", "mia.chen@northstaroptical.test", 3, clinic.id, "#0f766e"),
@@ -441,33 +488,37 @@ def _seed_company_and_staff(db: Session, rng: random.Random, today: date) -> tup
         for index, (full_name, username, email, role, clinic_id, color) in enumerate(staff_specs)
     ]
     _add_in_batches(db, users)
-    db.add(
-        Settings(
-            clinic_id=clinic.id,
-            clinic_name=clinic.name,
-            clinic_email=clinic.email,
-            clinic_phone=clinic.phone_number,
-            clinic_address=clinic.clinic_address,
-            clinic_city=clinic.clinic_city,
-            clinic_postal_code=clinic.clinic_postal_code,
-            clinic_website=clinic.clinic_website,
-            manager_name=clinic.manager_name,
-            license_number=clinic.license_number,
-            primary_theme_color=company.primary_theme_color,
-            secondary_theme_color=company.secondary_theme_color,
-            work_start_time="08:30",
-            work_end_time="18:30",
-            appointment_duration=30,
-            break_start_time="13:00",
-            break_end_time="13:30",
-            max_appointments_per_day=42,
-            send_email_before_appointment=True,
-            email_days_before=2,
-            email_time="09:00",
-            working_days="Monday,Tuesday,Wednesday,Thursday,Friday",
-            va_test_distance=6,
+    settings_columns = {column["name"] for column in inspect(db.connection()).get_columns("settings")}
+    # Keep the demo seed compatible with staging until the unrelated Settings
+    # schema rollout reaches it; Settings are supplementary screenshot data.
+    if "default_currency" in settings_columns:
+        db.add(
+            Settings(
+                clinic_id=clinic.id,
+                clinic_name=clinic.name,
+                clinic_email=clinic.email,
+                clinic_phone=clinic.phone_number,
+                clinic_address=clinic.clinic_address,
+                clinic_city=clinic.clinic_city,
+                clinic_postal_code=clinic.clinic_postal_code,
+                clinic_website=clinic.clinic_website,
+                manager_name=clinic.manager_name,
+                license_number=clinic.license_number,
+                primary_theme_color=company.primary_theme_color,
+                secondary_theme_color=company.secondary_theme_color,
+                work_start_time="08:30",
+                work_end_time="18:30",
+                appointment_duration=30,
+                break_start_time="13:00",
+                break_end_time="13:30",
+                max_appointments_per_day=42,
+                send_email_before_appointment=True,
+                email_days_before=2,
+                email_time="09:00",
+                working_days="Monday,Tuesday,Wednesday,Thursday,Friday",
+                va_test_distance=6,
+            )
         )
-    )
     for lookup_model, names in LOOKUP_SEEDS.items():
         db.add_all([lookup_model(clinic_id=clinic.id, name=name) for name in names])
     db.flush()
@@ -475,56 +526,181 @@ def _seed_company_and_staff(db: Session, rng: random.Random, today: date) -> tup
 
 
 def _seed_layouts(db: Session, clinic_id: int) -> list[ExamLayout]:
+    def grid(items: list[dict[str, Any]]) -> str:
+        return json.dumps({"version": 2, "grid": {"columns": 24}, "items": items}, separators=(",", ":"))
+
+    annual_items = [
+        {"id": "uncorrected-demo", "type": "uncorrected-va", "showEyeLabels": True, "x": 0, "y": 0, "w": 6},
+        {"id": "old-ref-demo", "type": "old-refraction", "showEyeLabels": False, "x": 6, "y": 0, "w": 12},
+        {"id": "notes-1786493404412", "type": "notes", "x": 18, "y": 0, "w": 6, "showEyeLabels": False},
+        {"id": "final-subjective-demo", "type": "final-subjective", "showEyeLabels": True, "x": 0, "y": 1, "w": 14},
+        {"id": "addition-1786493394727", "type": "addition", "x": 14, "y": 1, "w": 10, "showEyeLabels": False},
+        {"id": "cover-test-v2-1786493354701", "type": "cover-test-v2", "x": 0, "y": 2, "w": 12, "showEyeLabels": True},
+        {"id": "final-prescription-1786493346396", "type": "final-prescription", "x": 12, "y": 2, "w": 12, "showEyeLabels": False},
+    ]
+    definitions = [
+        (
+            "Comprehensive Eye Exam", "global", True,
+            [
+                {"id": "anamnesis-comprehensive", "type": "anamnesis", "x": 0, "y": 0, "w": 8},
+                {"id": "uncorrected-comprehensive", "type": "uncorrected-va", "x": 8, "y": 0, "w": 6},
+                {"id": "old-ref-comprehensive", "type": "old-refraction", "x": 14, "y": 0, "w": 10},
+                {"id": "objective-comprehensive", "type": "objective", "x": 0, "y": 1, "w": 12},
+                {"id": "retinoscop-comprehensive", "type": "retinoscop", "x": 12, "y": 1, "w": 12},
+                {"id": "subjective-comprehensive", "type": "subjective", "x": 0, "y": 2, "w": 14},
+                {"id": "final-subjective-comprehensive", "type": "final-subjective", "x": 14, "y": 2, "w": 10},
+                {"id": "addition-comprehensive", "type": "addition", "x": 0, "y": 3, "w": 8},
+                {"id": "final-prescription-comprehensive", "type": "final-prescription", "x": 8, "y": 3, "w": 16},
+                {"id": "cover-comprehensive", "type": "cover-test-v2", "x": 0, "y": 4, "w": 12},
+                {"id": "notes-comprehensive", "type": "notes", "x": 12, "y": 4, "w": 12},
+            ],
+        ),
+        ("Annual Vision Check", "glass", False, annual_items),
+        (
+            "Contact Lens Comprehensive", "contact lens", False,
+            [
+                {"id": "anamnesis-contact", "type": "anamnesis", "x": 0, "y": 0, "w": 8},
+                {"id": "old-contact", "type": "old-contact-lenses", "x": 8, "y": 0, "w": 16},
+                {"id": "contact-details", "type": "contact-lens-details", "x": 0, "y": 1, "w": 12},
+                {"id": "kerato-contact", "type": "keratometer-contact-lens", "x": 12, "y": 1, "w": 12},
+                {"id": "contact-exam", "type": "contact-lens-exam", "x": 0, "y": 2, "w": 14},
+                {"id": "over-refraction-contact", "type": "over-refraction", "x": 14, "y": 2, "w": 10},
+                {"id": "topography-contact", "type": "corneal-topography", "x": 0, "y": 3, "w": 12},
+                {"id": "final-contact", "type": "final-prescription", "x": 12, "y": 3, "w": 12},
+                {"id": "notes-contact", "type": "notes", "x": 0, "y": 4, "w": 24},
+            ],
+        ),
+        (
+            "Contact Lens Fitting", "contact lens", False,
+            [
+                {"id": "anamnesis-fitting", "type": "anamnesis", "x": 0, "y": 0, "w": 10},
+                {"id": "diameters-fitting", "type": "contact-lens-diameters", "x": 10, "y": 0, "w": 7},
+                {"id": "kerato-fitting", "type": "keratometer-contact-lens", "x": 17, "y": 0, "w": 7},
+                {"id": "details-fitting", "type": "contact-lens-details", "x": 0, "y": 1, "w": 12},
+                {"id": "exam-fitting", "type": "contact-lens-exam", "x": 12, "y": 1, "w": 12},
+                {"id": "over-refraction-fitting", "type": "over-refraction", "x": 0, "y": 2, "w": 12},
+                {"id": "old-contact-fitting", "type": "old-contact-lenses", "x": 12, "y": 2, "w": 12},
+                {"id": "notes-fitting", "type": "notes", "x": 0, "y": 3, "w": 24},
+            ],
+        ),
+        (
+            "Dry Eye Evaluation", "global", False,
+            [
+                {"id": "anamnesis-dry", "type": "anamnesis", "x": 0, "y": 0, "w": 10},
+                {"id": "schirmer-dry", "type": "schirmer-test", "x": 10, "y": 0, "w": 7},
+                {"id": "diameters-dry", "type": "contact-lens-diameters", "x": 17, "y": 0, "w": 7},
+                {"id": "topography-dry", "type": "corneal-topography", "x": 0, "y": 1, "w": 12},
+                {"id": "objective-dry", "type": "objective", "x": 12, "y": 1, "w": 12},
+                {"id": "final-dry", "type": "final-prescription", "x": 0, "y": 2, "w": 12},
+                {"id": "notes-dry", "type": "notes", "x": 12, "y": 2, "w": 12},
+            ],
+        ),
+        (
+            "Pediatric & Binocular Vision", "global", False,
+            [
+                {"id": "anamnesis-pediatric", "type": "anamnesis", "x": 0, "y": 0, "w": 8},
+                {"id": "uncorrected-pediatric", "type": "uncorrected-va", "x": 8, "y": 0, "w": 8},
+                {"id": "stereo-pediatric", "type": "stereo-test", "x": 16, "y": 0, "w": 8},
+                {"id": "cover-pediatric", "type": "cover-test-v2", "x": 0, "y": 1, "w": 12},
+                {"id": "motor-pediatric", "type": "ocular-motor-assessment", "x": 12, "y": 1, "w": 12},
+                {"id": "npc-pediatric", "type": "npc", "x": 0, "y": 2, "w": 8},
+                {"id": "fusion-pediatric", "type": "fusion-range", "x": 8, "y": 2, "w": 8},
+                {"id": "maddox-pediatric", "type": "maddox-rod", "x": 16, "y": 2, "w": 8},
+                {"id": "final-pediatric", "type": "final-prescription", "x": 0, "y": 3, "w": 12},
+                {"id": "notes-pediatric", "type": "notes", "x": 12, "y": 3, "w": 12},
+            ],
+        ),
+        (
+            "Myopia Management Review", "global", False,
+            [
+                {"id": "old-ref-myopia", "type": "old-refraction", "x": 0, "y": 0, "w": 10},
+                {"id": "kerato-myopia", "type": "keratometer", "x": 10, "y": 0, "w": 7},
+                {"id": "topography-myopia", "type": "corneal-topography", "x": 17, "y": 0, "w": 7},
+                {"id": "objective-myopia", "type": "objective", "x": 0, "y": 1, "w": 12},
+                {"id": "subjective-myopia", "type": "subjective", "x": 12, "y": 1, "w": 12},
+                {"id": "final-myopia", "type": "final-prescription", "x": 0, "y": 2, "w": 14},
+                {"id": "notes-myopia", "type": "notes", "x": 14, "y": 2, "w": 10},
+            ],
+        ),
+        (
+            "Progressive Lens Consultation", "glass", False,
+            [
+                {"id": "old-ref-progressive", "type": "old-refraction", "x": 0, "y": 0, "w": 12},
+                {"id": "subjective-progressive", "type": "subjective", "x": 12, "y": 0, "w": 12},
+                {"id": "addition-progressive", "type": "addition", "x": 0, "y": 1, "w": 10},
+                {"id": "final-subjective-progressive", "type": "final-subjective", "x": 10, "y": 1, "w": 14},
+                {"id": "final-progressive", "type": "final-prescription", "x": 0, "y": 2, "w": 16},
+                {"id": "notes-progressive", "type": "notes", "x": 16, "y": 2, "w": 8},
+            ],
+        ),
+        (
+            "Computer Vision Assessment", "glass", False,
+            [
+                {"id": "anamnesis-computer", "type": "anamnesis", "x": 0, "y": 0, "w": 8},
+                {"id": "uncorrected-computer", "type": "uncorrected-va", "x": 8, "y": 0, "w": 8},
+                {"id": "npc-computer", "type": "npc", "x": 16, "y": 0, "w": 8},
+                {"id": "subjective-computer", "type": "subjective", "x": 0, "y": 1, "w": 14},
+                {"id": "addition-computer", "type": "addition", "x": 14, "y": 1, "w": 10},
+                {"id": "final-computer", "type": "final-prescription", "x": 0, "y": 2, "w": 14},
+                {"id": "notes-computer", "type": "notes", "x": 14, "y": 2, "w": 10},
+            ],
+        ),
+        (
+            "Dilated Refraction Review", "global", False,
+            [
+                {"id": "uncorrected-dilated", "type": "uncorrected-va", "x": 0, "y": 0, "w": 6},
+                {"id": "objective-dilated", "type": "objective", "x": 6, "y": 0, "w": 9},
+                {"id": "retinoscop-dilated", "type": "retinoscop-dilation", "x": 15, "y": 0, "w": 9},
+                {"id": "final-subjective-dilated", "type": "final-subjective", "x": 0, "y": 1, "w": 12},
+                {"id": "final-dilated", "type": "final-prescription", "x": 12, "y": 1, "w": 12},
+                {"id": "notes-dilated", "type": "notes", "x": 0, "y": 2, "w": 24},
+            ],
+        ),
+        (
+            "Low Vision Assessment", "global", False,
+            [
+                {"id": "anamnesis-lowvision", "type": "anamnesis", "x": 0, "y": 0, "w": 8},
+                {"id": "uncorrected-lowvision", "type": "uncorrected-va", "x": 8, "y": 0, "w": 8},
+                {"id": "old-ref-lowvision", "type": "old-refraction", "x": 16, "y": 0, "w": 8},
+                {"id": "subjective-lowvision", "type": "subjective", "x": 0, "y": 1, "w": 12},
+                {"id": "final-lowvision", "type": "final-prescription", "x": 12, "y": 1, "w": 12},
+                {"id": "notes-lowvision", "type": "notes", "x": 0, "y": 2, "w": 24},
+            ],
+        ),
+        (
+            "Keratoconus Lens Review", "contact lens", False,
+            [
+                {"id": "old-contact-keratoconus", "type": "old-contact-lenses", "x": 0, "y": 0, "w": 12},
+                {"id": "kerato-keratoconus", "type": "keratometer-contact-lens", "x": 12, "y": 0, "w": 12},
+                {"id": "topography-keratoconus", "type": "corneal-topography", "x": 0, "y": 1, "w": 12},
+                {"id": "contact-exam-keratoconus", "type": "contact-lens-exam", "x": 12, "y": 1, "w": 12},
+                {"id": "over-refraction-keratoconus", "type": "over-refraction", "x": 0, "y": 2, "w": 12},
+                {"id": "notes-keratoconus", "type": "notes", "x": 12, "y": 2, "w": 12},
+            ],
+        ),
+        (
+            "Post-Operative Follow-up", "global", False,
+            [
+                {"id": "anamnesis-postop", "type": "anamnesis", "x": 0, "y": 0, "w": 10},
+                {"id": "uncorrected-postop", "type": "uncorrected-va", "x": 10, "y": 0, "w": 7},
+                {"id": "schirmer-postop", "type": "schirmer-test", "x": 17, "y": 0, "w": 7},
+                {"id": "objective-postop", "type": "objective", "x": 0, "y": 1, "w": 12},
+                {"id": "final-postop", "type": "final-prescription", "x": 12, "y": 1, "w": 12},
+                {"id": "notes-postop", "type": "notes", "x": 0, "y": 2, "w": 24},
+            ],
+        ),
+    ]
     layouts = [
         ExamLayout(
             clinic_id=clinic_id,
-            name="Comprehensive Eye Exam",
-            type="global",
-            is_default=True,
+            name=name,
+            type=layout_type,
+            is_default=is_default,
             is_active=True,
-            sort_index=1,
-            layout_data='{"rows":[{"id":"history","cards":[{"id":"anamnesis-demo","type":"anamnesis"}]},{"id":"refraction","cards":[{"id":"subjective-demo","type":"subjective"},{"id":"final-demo","type":"final-prescription"}]},{"id":"notes","cards":[{"id":"notes-demo","type":"notes"}]}],"customWidths":{}}',
-        ),
-        ExamLayout(
-            clinic_id=clinic_id,
-            name="Annual Vision Check",
-            type="glass",
-            is_active=True,
-            sort_index=2,
-            layout_data='{"rows":[{"id":"vision","cards":[{"id":"uncorrected-demo","type":"uncorrected-va"},{"id":"old-ref-demo","type":"old-refraction"}]},{"id":"final","cards":[{"id":"final-subjective-demo","type":"final-subjective"}]}],"customWidths":{}}',
-        ),
-        ExamLayout(
-            clinic_id=clinic_id,
-            name="Contact Lens Follow-up",
-            type="contact lens",
-            is_active=True,
-            sort_index=3,
-            layout_data='{"rows":[{"id":"contact","cards":[{"id":"contact-details-demo","type":"contact-lens-details"},{"id":"contact-exam-demo","type":"contact-lens-exam"}]},{"id":"topography","cards":[{"id":"kerato-contact-demo","type":"keratometer-contact-lens"},{"id":"notes-contact-demo","type":"notes"}]}],"customWidths":{}}',
-        ),
-        ExamLayout(
-            clinic_id=clinic_id,
-            name="Dry Eye Evaluation",
-            type="global",
-            is_active=True,
-            sort_index=4,
-            layout_data='{"rows":[{"id":"dry-eye","cards":[{"id":"schirmer-demo","type":"schirmer-test"},{"id":"topography-demo","type":"corneal-topography"}]},{"id":"notes","cards":[{"id":"notes-dry-demo","type":"notes"}]}],"customWidths":{}}',
-        ),
-        ExamLayout(
-            clinic_id=clinic_id,
-            name="Pediatric Vision Assessment",
-            type="global",
-            is_active=True,
-            sort_index=5,
-            layout_data='{"rows":[{"id":"pediatric","cards":[{"id":"cover-demo","type":"cover-test-v2"},{"id":"stereo-demo","type":"stereo-test"}]},{"id":"final","cards":[{"id":"final-pediatric-demo","type":"final-prescription"}]}],"customWidths":{}}',
-        ),
-        ExamLayout(
-            clinic_id=clinic_id,
-            name="Myopia Management Review",
-            type="global",
-            is_active=True,
-            sort_index=6,
-            layout_data='{"rows":[{"id":"myopia","cards":[{"id":"kerato-demo","type":"keratometer"},{"id":"subjective-myopia-demo","type":"subjective"}]},{"id":"notes","cards":[{"id":"notes-myopia-demo","type":"notes"}]}],"customWidths":{}}',
-        ),
+            sort_index=index,
+            layout_data=grid(items),
+        )
+        for index, (name, layout_type, is_default, items) in enumerate(definitions, start=1)
     ]
     _add_in_batches(db, layouts)
     return layouts
@@ -731,9 +907,9 @@ def _seed_orders_and_billing(
     line_items: list[OrderLineItem] = []
     payments: list[BillingPayment] = []
     for index, order in enumerate(regular_orders):
-        frame_price = float((430, 520, 690, 880, 1_090)[index % 5])
-        lens_price = float((520, 680, 840, 1_120)[index % 4])
-        extras = float((0, 75, 125, 175)[index % 4])
+        frame_price = float((145, 185, 245, 310, 390)[index % 5])
+        lens_price = float((165, 220, 285, 360)[index % 4])
+        extras = float((0, 25, 45, 70)[index % 4])
         before_discount = frame_price + lens_price + extras
         discount_percent = float((0, 0, 5, 10)[index % 4])
         discount_amount = round(before_discount * discount_percent / 100, 2)
@@ -748,10 +924,11 @@ def _seed_orders_and_billing(
             prepayment_amount=round(total * payment_ratio, 2),
             installment_count=(1, 1, 2, 3)[index % 4],
             notes=("Insurance reimbursement pending." if index % 9 == 0 else None),
+            currency=DEMO_CURRENCY,
         )
         billings.append(billing)
     for index, order in enumerate(contact_orders):
-        unit_price = float((260, 310, 390, 460)[index % 4])
+        unit_price = float((55, 75, 105, 145)[index % 4])
         quantity = float((1, 1, 2, 4)[index % 4])
         before_discount = unit_price * quantity
         discount_percent = float((0, 5, 10)[index % 3])
@@ -768,14 +945,15 @@ def _seed_orders_and_billing(
                 prepayment_amount=round(total * payment_ratio, 2),
                 installment_count=(1, 1, 3)[index % 3],
                 notes=("Annual supply plan." if index % 7 == 0 else None),
+                currency=DEMO_CURRENCY,
             )
         )
     _add_in_batches(db, billings)
 
     for index, (order, billing) in enumerate(zip(regular_orders, billings[:len(regular_orders)])):
         frame_brand, frame_model, _ = FRAME_CATALOG[index % len(FRAME_CATALOG)]
-        frame_price = float((430, 520, 690, 880, 1_090)[index % 5])
-        lens_price = float((520, 680, 840, 1_120)[index % 4])
+        frame_price = float((145, 185, 245, 310, 390)[index % 5])
+        lens_price = float((165, 220, 285, 360)[index % 4])
         line_items.extend(
             [
                 OrderLineItem(
@@ -788,6 +966,7 @@ def _seed_orders_and_billing(
                     quantity=1,
                     discount=0,
                     line_total=frame_price,
+                    currency=DEMO_CURRENCY,
                 ),
                 OrderLineItem(
                     billings_id=billing.id,
@@ -799,13 +978,14 @@ def _seed_orders_and_billing(
                     quantity=1,
                     discount=0,
                     line_total=lens_price,
+                    currency=DEMO_CURRENCY,
                 ),
             ]
         )
     contact_billings = billings[len(regular_orders):]
     for index, (order, billing) in enumerate(zip(contact_orders, contact_billings)):
         quantity = float((1, 1, 2, 4)[index % 4])
-        unit_price = float((260, 310, 390, 460)[index % 4])
+        unit_price = float((55, 75, 105, 145)[index % 4])
         line_items.append(
             OrderLineItem(
                 billings_id=billing.id,
@@ -817,6 +997,7 @@ def _seed_orders_and_billing(
                 quantity=quantity,
                 discount=0,
                 line_total=unit_price * quantity,
+                currency=DEMO_CURRENCY,
             )
         )
     _add_in_batches(db, line_items)
@@ -834,6 +1015,7 @@ def _seed_orders_and_billing(
                     amount=first_payment,
                     paid_at=min(today, order_day + timedelta(days=index % 5)),
                     kind="payment",
+                    currency=DEMO_CURRENCY,
                 )
             )
             if paid > first_payment:
@@ -841,8 +1023,9 @@ def _seed_orders_and_billing(
                     BillingPayment(
                         billing_id=billing.id,
                         amount=round(paid - first_payment, 2),
-                        paid_at=min(today, order_day + timedelta(days=12 + index % 11)),
-                        kind="payment",
+                    paid_at=min(today, order_day + timedelta(days=12 + index % 11)),
+                    kind="payment",
+                    currency=DEMO_CURRENCY,
                     )
                 )
     _add_in_batches(db, payments)
@@ -906,48 +1089,114 @@ def _seed_appointments(
     return appointments
 
 
-def _exam_payload(index: int, layout_instance_id: int | None = None) -> dict[str, Any]:
-    instance = {"layout_instance_id": layout_instance_id} if layout_instance_id else {}
+def _prescription_values(index: int) -> dict[str, Any]:
+    """Return a varied, complete refraction shared by the relevant cards."""
+    r_sph = round(-4.5 + (index % 37) * 0.25, 2)
+    l_sph = round(r_sph + (-0.5, -0.25, 0, 0.25)[index % 4], 2)
+    r_cyl = round(-0.25 * (1 + index % 7), 2)
+    l_cyl = round(-0.25 * (1 + (index + 3) % 7), 2)
     return {
-        "anamnesis-anamnesis-demo": {
-            **instance,
+        "r_sph": r_sph,
+        "l_sph": l_sph,
+        "r_cyl": r_cyl,
+        "l_cyl": l_cyl,
+        "r_ax": (index * 13 + 5) % 180,
+        "l_ax": (index * 17 + 11) % 180,
+        "r_pris": 0 if index % 9 else 0.5,
+        "l_pris": 0 if index % 11 else 0.5,
+        "r_base": "Out" if index % 9 == 0 else "",
+        "l_base": "In" if index % 11 == 0 else "",
+        "r_va": ("6/6", "6/6-1", "6/7.5")[index % 3],
+        "l_va": ("6/6", "6/6-1", "6/7.5")[(index + 1) % 3],
+        "r_ad": (1.0, 1.25, 1.5, 1.75, 2.0)[index % 5],
+        "l_ad": (1.0, 1.25, 1.5, 1.75, 2.0)[index % 5],
+        "r_pd": (30.5, 31, 31.5, 32)[index % 4],
+        "l_pd": (30.5, 31, 31.5, 32)[(index + 1) % 4],
+        "comb_va": "6/6",
+        "comb_pd": (61.5, 62, 62.5, 63)[index % 4],
+    }
+
+
+def _component_payload(component_type: str, card_id: str, index: int) -> dict[str, Any]:
+    """Create renderer-compatible, populated clinical values for one layout card."""
+    rx = _prescription_values(index)
+    contact_brand, contact_model, lens_type, material = CONTACT_CATALOG[index % len(CONTACT_CATALOG)]
+    if component_type == "anamnesis":
+        return {
             "medications": "None reported" if index % 4 else "Seasonal allergy medication",
-            "allergies": "No known drug allergies",
-            "family_history": "No glaucoma history reported",
+            "allergies": "No known drug allergies" if index % 5 else "Latex sensitivity",
+            "family_history": ("Father treated for glaucoma" if index % 7 == 0 else "No glaucoma or macular degeneration reported"),
+            "previous_treatments": "Lubricating drops as needed" if index % 3 == 0 else "Routine annual eye examinations",
+            "lazy_eye": "No" if index % 8 else "Childhood patching, stable",
             "contact_lens_wear": index % 3 == 0,
-        },
-        "subjective-subjective-demo": {
-            **instance,
-            "r_sph": round(-3.25 + (index % 24) * 0.25, 2),
-            "l_sph": round(-3.0 + (index % 20) * 0.25, 2),
-            "r_cyl": round(-0.25 * (index % 7), 2),
-            "l_cyl": round(-0.25 * ((index + 2) % 7), 2),
-            "r_ax": (index * 13) % 180,
-            "l_ax": (index * 17) % 180,
-            "r_va": "6/6",
-            "l_va": "6/6",
-            "comb_va": "6/6",
-        },
-        "final-prescription-final-demo": {
-            **instance,
-            "r_sph": round(-3.0 + (index % 24) * 0.25, 2),
-            "l_sph": round(-2.75 + (index % 20) * 0.25, 2),
-            "r_cyl": round(-0.25 * (index % 7), 2),
-            "l_cyl": round(-0.25 * ((index + 2) % 7), 2),
-            "r_ax": (index * 13) % 180,
-            "l_ax": (index * 17) % 180,
-            "r_va": "6/6",
-            "l_va": "6/6",
-            "r_pd": 31.5,
-            "l_pd": 31.5,
-            "comb_va": "6/6",
-        },
-        "notes-notes-demo": {
-            **instance,
-            "card_instance_id": "notes-demo",
-            "title": "Clinical Notes",
-            "note": "Discussed visual habits, ergonomic screen distance, and the annual review plan.",
-        },
+            "contact_lens_type": lens_type if index % 3 == 0 else "",
+            "started_wearing_since": str(2010 + index % 13) if index % 3 == 0 else "",
+            "additional_notes": ("Reports increased screen use; discussed 20-20-20 breaks." if index % 2 else "Driving comfort and night glare reviewed."),
+        }
+    if component_type == "uncorrected-va":
+        return {"r_fv": ("6/18", "6/12", "6/9")[index % 3], "l_fv": ("6/18", "6/12", "6/9")[(index + 1) % 3], "r_iv": "6/9", "l_iv": "6/9", "r_nv_j": "J3", "l_nv_j": "J3"}
+    if component_type in {"old-refraction", "old-refraction-extension"}:
+        return {**rx, "r_sph": round(rx["r_sph"] - 0.25, 2), "l_sph": round(rx["l_sph"] - 0.25, 2), "r_j": "J1", "l_j": "J1", "r_pd_far": rx["r_pd"], "l_pd_far": rx["l_pd"], "r_pd_close": 29.5, "l_pd_close": 29.5, "comb_pd_far": rx["comb_pd"], "comb_pd_close": 59}
+    if component_type == "objective":
+        return {key: rx[key] for key in ("r_sph", "l_sph", "r_cyl", "l_cyl", "r_ax", "l_ax")} | {"r_se": round(rx["r_sph"] + rx["r_cyl"] / 2, 2), "l_se": round(rx["l_sph"] + rx["l_cyl"] / 2, 2)}
+    if component_type in {"retinoscop", "retinoscop-dilation"}:
+        return {key: rx[key] for key in ("r_sph", "l_sph", "r_cyl", "l_cyl", "r_ax", "l_ax")} | {"r_reflex": "Bright and neutral", "l_reflex": "Bright and neutral"}
+    if component_type == "subjective":
+        return {**rx, "r_fa": "6/6", "l_fa": "6/6", "r_fa_tuning": "Plano", "l_fa_tuning": "Plano", "r_ph": "6/6", "l_ph": "6/6", "r_pd_far": rx["r_pd"], "l_pd_far": rx["l_pd"], "r_pd_close": 29.5, "l_pd_close": 29.5, "comb_pd_far": rx["comb_pd"], "comb_pd_close": 59}
+    if component_type == "final-subjective":
+        return {**rx, "r_pr_h": rx["r_pris"], "l_pr_h": rx["l_pris"], "r_base_h": rx["r_base"], "l_base_h": rx["l_base"], "r_pr_v": 0, "l_pr_v": 0, "r_base_v": "", "l_base_v": "", "r_j": "J1", "l_j": "J1", "r_pd_far": rx["r_pd"], "l_pd_far": rx["l_pd"], "r_pd_close": 29.5, "l_pd_close": 29.5, "comb_pd_far": rx["comb_pd"], "comb_pd_close": 59}
+    if component_type == "final-prescription":
+        return {**rx, "r_high": 18, "l_high": 18, "r_diam": 65, "l_diam": 65, "comb_high": 18}
+    if component_type == "addition":
+        add = rx["r_ad"]
+        return {"r_fcc": add, "l_fcc": add, "r_read": add, "l_read": add, "r_int": round(add - 0.5, 2), "l_int": round(add - 0.5, 2), "r_bif": add, "l_bif": add, "r_mul": add, "l_mul": add, "r_j": "J1", "l_j": "J1", "r_iop": 14 + index % 5, "l_iop": 13 + index % 5}
+    if component_type == "keratometer":
+        return {"r_k1": 43.0 + (index % 8) * 0.1, "r_k2": 43.8 + (index % 7) * 0.1, "r_axis": (index * 11) % 180, "l_k1": 43.1 + (index % 8) * 0.1, "l_k2": 43.9 + (index % 7) * 0.1, "l_axis": (index * 13) % 180}
+    if component_type == "corneal-topography":
+        return {"title": "Corneal Topography", "r_note": "Regular central pattern; no ectatic change noted.", "l_note": "Regular central pattern; mild inferior steepening monitored."}
+    if component_type == "cover-test-v2":
+        return {"cc_far_horizontal_prism": 2, "cc_far_horizontal_deviation": "Exophoria", "cc_near_horizontal_prism": 4, "cc_near_horizontal_deviation": "Exophoria", "cc_far_vertical_prism": 0, "cc_far_vertical_deviation": "Iso", "cc_near_vertical_prism": 0, "cc_near_vertical_deviation": "Iso", "sc_far_horizontal_prism": 4, "sc_far_horizontal_deviation": "Exophoria", "sc_near_horizontal_prism": 6, "sc_near_horizontal_deviation": "Exophoria", "sc_far_vertical_prism": 0, "sc_far_vertical_deviation": "Iso", "sc_near_vertical_prism": 0, "sc_near_vertical_deviation": "Iso"}
+    if component_type == "stereo-test":
+        return {"fly_result": True, "circle_score": 8 + index % 2, "circle_max": 9}
+    if component_type == "ocular-motor-assessment":
+        return {"ocular_motility": "Full and smooth in all gazes", "acc_od": 10 + index % 4, "acc_os": 10 + index % 3, "npc_break": 6 + index % 3, "npc_recovery": 8 + index % 3}
+    if component_type == "npc":
+        return {"ocular_motility": "Full and smooth", "eye_out_at_break": "None", "npc_break": 6 + index % 3, "npc_recovery": 8 + index % 3}
+    if component_type == "fusion-range":
+        return {"fv_base_in": 12, "fv_base_in_recovery": 8, "fv_base_out": 18, "fv_base_out_recovery": 12, "nv_base_in": 16, "nv_base_in_recovery": 10, "nv_base_out": 24, "nv_base_out_recovery": 16}
+    if component_type == "maddox-rod":
+        return {"c_r_h": 1, "c_r_v": 0, "c_l_h": 1, "c_l_v": 0, "wc_r_h": 2, "wc_r_v": 0, "wc_l_h": 2, "wc_l_v": 0}
+    if component_type == "schirmer-test":
+        return {"r_mm": 10 + index % 8, "l_mm": 10 + (index + 2) % 8, "r_but": 7 + index % 5, "l_but": 7 + (index + 1) % 5}
+    if component_type == "contact-lens-diameters":
+        return {"pupil_diameter": 3.2 + (index % 4) * 0.1, "corneal_diameter": 11.7 + (index % 3) * 0.1, "eyelid_aperture": 10.5 + (index % 3) * 0.2}
+    if component_type == "keratometer-contact-lens":
+        return {"r_rh": 43.25, "r_rv": 43.75, "r_avg": 43.5, "r_cyl": -0.5, "r_ax": rx["r_ax"], "r_ecc": 0.52, "l_rh": 43.5, "l_rv": 44.0, "l_avg": 43.75, "l_cyl": -0.5, "l_ax": rx["l_ax"], "l_ecc": 0.53}
+    if component_type == "contact-lens-details":
+        values = {"lens_type": lens_type, "model": contact_model, "supplier": contact_brand, "material": material, "color": "Clear", "quantity": 6, "order_quantity": (3, 6, 12)[index % 3], "dx": False}
+        return {f"{eye}_{field}": value for eye in ("r", "l") for field, value in values.items()}
+    if component_type == "old-contact-lenses":
+        return {"r_bc": 8.6, "l_bc": 8.6, "r_diam": 14.0, "l_diam": 14.0, "r_sph": rx["r_sph"], "l_sph": rx["l_sph"], "r_cyl": rx["r_cyl"], "l_cyl": rx["l_cyl"], "r_ax": rx["r_ax"], "l_ax": rx["l_ax"], "r_va": "6/6", "l_va": "6/6", "r_j": "J1", "l_j": "J1", "r_lens_type": lens_type, "l_lens_type": lens_type, "r_model": contact_model, "l_model": contact_model, "r_supplier": contact_brand, "l_supplier": contact_brand, "comb_va": "6/6", "comb_j": "J1"}
+    if component_type == "contact-lens-exam":
+        return {"r_bc": 8.6, "l_bc": 8.6, "r_bc_2": 0, "l_bc_2": 0, "r_oz": 8.0, "l_oz": 8.0, "r_diam": 14.0, "l_diam": 14.0, "r_sph": rx["r_sph"], "l_sph": rx["l_sph"], "r_cyl": rx["r_cyl"], "l_cyl": rx["l_cyl"], "r_ax": rx["r_ax"], "l_ax": rx["l_ax"], "r_read_ad": rx["r_ad"], "l_read_ad": rx["l_ad"], "r_va": "6/6", "l_va": "6/6", "r_j": "J1", "l_j": "J1", "comb_va": "6/6"}
+    if component_type == "over-refraction":
+        return {**{key: rx[key] for key in ("r_sph", "l_sph", "r_cyl", "l_cyl", "r_ax", "l_ax", "r_va", "l_va")}, "r_j": "J1", "l_j": "J1", "comb_va": "6/6", "comb_j": "J1", "r_add": rx["r_ad"], "l_add": rx["l_ad"], "r_florescent": "Even alignment", "l_florescent": "Even alignment", "r_bio_m": "Clear cornea", "l_bio_m": "Clear cornea"}
+    if component_type == "notes":
+        notes = ("Reviewed updated prescription and visual ergonomics. Client is comfortable with the care plan.", "Discussed lens options, adaptation expectations, and a 12-month follow-up.", "Ocular health findings stable. Advised to return sooner for pain, flashes, or sudden visual change.")
+        return {"card_instance_id": card_id, "title": ("Clinical Assessment", "Treatment Plan", "Follow-up Notes")[index % 3], "note": notes[index % len(notes)]}
+    return {}
+
+
+def _exam_payload(index: int, layout_data: str) -> dict[str, Any]:
+    """Populate every card in a v2 layout using its real card ID as the data key."""
+    try:
+        items = json.loads(layout_data).get("items", [])
+    except (TypeError, json.JSONDecodeError):
+        items = []
+    return {
+        f"{item['type']}-{item['id']}": _component_payload(item["type"], item["id"], index)
+        for item in items
+        if item.get("type") and item.get("id")
     }
 
 
@@ -977,7 +1226,6 @@ def _seed_exams_and_clinical_history(
         for index in range(volume.exams)
     ]
     _add_in_batches(db, exams)
-    instance_count = max(1, int(volume.exams * 0.62))
     instances = [
         ExamLayoutInstance(
             exam_id=exams[index].id,
@@ -986,15 +1234,15 @@ def _seed_exams_and_clinical_history(
             order=0,
             # Layout-instance IDs are optional in persisted component payloads;
             # omitting them keeps this high-volume seed as insert-only.
-            exam_data=_exam_payload(index),
+            exam_data=_exam_payload(index, layouts[index % len(layouts)].layout_data),
             layout_data=layouts[index % len(layouts)].layout_data,
         )
-        for index in range(instance_count)
+        for index in range(len(exams))
     ]
     _add_in_batches(db, instances)
     search_rows: list[PrescriptionSearchIndex] = []
     for index, instance in enumerate(instances):
-        payload = instance.exam_data
+        prescription = _prescription_values(index)
         exam = exams[index]
         for eye in ("right", "left"):
             search_rows.append(
@@ -1008,9 +1256,9 @@ def _seed_exams_and_clinical_history(
                     card_type="final-prescription",
                     source_date=exam.exam_date,
                     eye=eye,
-                    sph=payload["final-prescription-final-demo"]["r_sph" if eye == "right" else "l_sph"],
-                    cyl=payload["final-prescription-final-demo"]["r_cyl" if eye == "right" else "l_cyl"],
-                    ax=payload["final-prescription-final-demo"]["r_ax" if eye == "right" else "l_ax"],
+                    sph=prescription["r_sph" if eye == "right" else "l_sph"],
+                    cyl=prescription["r_cyl" if eye == "right" else "l_cyl"],
+                    ax=prescription["r_ax" if eye == "right" else "l_ax"],
                     va="6/6",
                     pd=31.5,
                 )
@@ -1096,7 +1344,7 @@ def _create_catalog_variant(
         barcode=barcode,
         default_cost=cost,
         default_retail=retail,
-        currency="ILS",
+        currency=DEMO_CURRENCY,
         is_stockable=True,
     )
 
@@ -1117,12 +1365,13 @@ def _seed_inventory(
     variants: list[CatalogVariant] = []
     for index in range(volume.frames // 2):
         brand, model, material = FRAME_CATALOG[index % len(FRAME_CATALOG)]
+        supplier = FRAME_SUPPLIERS[index % len(FRAME_SUPPLIERS)]
         product_data = {
             "brand": brand,
             "model": f"{model} {1 + index // len(FRAME_CATALOG)}",
             "product_type": "Optical Frame",
             "material": material,
-            "preferred_supplier": "Northstar Frames",
+            "preferred_supplier": supplier,
             "replacement_schedule": None,
         }
         products.append(
@@ -1135,12 +1384,13 @@ def _seed_inventory(
         )
     for index in range(volume.contacts // 4):
         brand, model, lens_type, material = CONTACT_CATALOG[index % len(CONTACT_CATALOG)]
+        supplier = CONTACT_SUPPLIERS[index % len(CONTACT_SUPPLIERS)]
         product_data = {
             "brand": brand,
             "model": f"{model} {1 + index // len(CONTACT_CATALOG)}",
             "product_type": lens_type,
             "material": material,
-            "preferred_supplier": brand,
+            "preferred_supplier": supplier,
             "replacement_schedule": ("Daily" if lens_type == "Daily" else "Monthly"),
         }
         products.append(
@@ -1170,8 +1420,8 @@ def _seed_inventory(
                 attributes=attributes,
                 sku=f"NS-FRM-{index + 1:04d}",
                 barcode=f"810000{index + 1:06d}",
-                cost=float(190 + (index % 8) * 45),
-                retail=float(490 + (index % 8) * 120),
+                cost=float(55 + (index % 8) * 14),
+                retail=float(145 + (index % 8) * 42),
             )
         )
     sphere_values = (-6.0, -5.5, -4.5, -3.5, -2.5, -1.5, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0)
@@ -1193,8 +1443,8 @@ def _seed_inventory(
                 attributes=attributes,
                 sku=f"NS-CL-{index + 1:04d}",
                 barcode=f"820000{index + 1:06d}",
-                cost=float(75 + (index % 7) * 18),
-                retail=float(150 + (index % 7) * 45),
+                cost=float(22 + (index % 7) * 9),
+                retail=float(55 + (index % 7) * 22),
             )
         )
     _add_in_batches(db, variants)
@@ -1451,6 +1701,10 @@ def seed_demo_clinic(db: Session, volume: DemoVolume = DemoVolume()) -> dict[str
     """Replace the isolated demo account and return counts for verification/tests."""
     rng = random.Random(DEMO_RANDOM_SEED)
     today = date.today()
+    # Supabase staging can need several minutes to cascade-delete thousands of
+    # owned demo clients. Scope the longer timeout to this one seed transaction.
+    if db.bind and db.bind.dialect.name == "postgresql":
+        db.execute(text("SET LOCAL statement_timeout = '15min'"))
     delete_demo_company(db)
     company, clinic, staff = _seed_company_and_staff(db, rng, today)
     layouts = _seed_layouts(db, clinic.id)

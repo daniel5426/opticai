@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from auth import create_auth_session, get_password_hash, is_expired, new_secret_token, token_hash, utcnow
 from config import settings
+from currency import normalize_currency
 from database import get_db
 from models import AuthActionToken, Clinic, Company, PendingCompanySetup, Subscription, TermsAcceptance, User
 from services.default_exam_layouts import ensure_default_exam_layouts_for_clinic
@@ -225,6 +226,7 @@ def register_complete(payload: WebRegisterComplete, request: Request, db: Sessio
             contact_email=pending.email,
             contact_phone=company_data.get("contact_phone") or "",
             address=company_data.get("address") or "",
+            default_currency=normalize_currency(company_data.get("default_currency")),
         )
         db.add(company)
         db.flush()

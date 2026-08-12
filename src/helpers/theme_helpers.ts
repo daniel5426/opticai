@@ -11,6 +11,7 @@ const USER_COLOR_THEME_PREFIX = "user_color_theme_";
 
 export type ColorTheme =
   | "blue"
+  | "ice"
   | "neutral"
   | "forest"
   | "bronze"
@@ -25,6 +26,10 @@ const COLOR_THEMES: Record<ColorTheme, {
   blue: {
     primary: "#2256aa",
     sidebar: "#cce9ff",
+  },
+  ice: {
+    primary: "#3f3f46",
+    sidebar: "#e6f1f6",
   },
   neutral: {
     primary: "#3f3f46",

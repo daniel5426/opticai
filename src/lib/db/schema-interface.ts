@@ -10,6 +10,7 @@ export interface Company {
   address: string;
   primary_theme_color?: string;
   secondary_theme_color?: string;
+  default_currency?: "ILS" | "USD" | "EUR";
   whatsapp_access_token?: string;
   whatsapp_phone_number_id?: string;
   whatsapp_business_account_id?: string;
@@ -454,6 +455,7 @@ export interface Order {
   billing_id?: number;
   billing_total_after_discount?: number;
   billing_prepayment_amount?: number;
+  billing_currency?: "ILS" | "USD" | "EUR";
   order_data?: Record<string, unknown>;
 }
 
@@ -646,6 +648,7 @@ export interface ContactLensOrderEntity {
   billing_id?: number;
   billing_total_after_discount?: number;
   billing_prepayment_amount?: number;
+  billing_currency?: "ILS" | "USD" | "EUR";
 
 }
 
@@ -724,6 +727,7 @@ export interface Billing {
   prepayment_amount?: number;
   installment_count?: number;
   notes?: string;
+  currency?: "ILS" | "USD" | "EUR";
 }
 
 export interface BillingPayment {
@@ -733,6 +737,7 @@ export interface BillingPayment {
   paid_at: string;
   kind?: "payment" | "adjustment";
   created_at?: string;
+  currency?: "ILS" | "USD" | "EUR";
 }
 
 export interface OrderLineItem {
@@ -746,6 +751,7 @@ export interface OrderLineItem {
   quantity?: number;
   discount?: number;
   line_total?: number;
+  currency?: "ILS" | "USD" | "EUR";
 }
 
 export interface Settings {

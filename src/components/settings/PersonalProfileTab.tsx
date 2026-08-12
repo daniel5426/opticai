@@ -276,13 +276,13 @@ export function PersonalProfileTab({
 
       <Card className="">
         <CardHeader>
-          <CardTitle className="text-right">צבע אישי</CardTitle>
-          <p className="text-sm text-muted-foreground text-right">צבע אישי לסימון התורים שלך ביומן</p>
+          <CardTitle className="text-start">צבע אישי</CardTitle>
+          <p className="text-sm text-muted-foreground text-start">צבע אישי לסימון התורים שלך ביומן</p>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4" dir="rtl">
+          <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center" dir={direction}>
             <div className="flex flex-wrap items-center gap-2 flex-1">
-              <Label className="text-sm font-medium ml-2 shrink-0">בחר צבע:</Label>
+              <Label className="me-2 shrink-0 text-sm font-medium">בחר צבע:</Label>
               {PRESET_COLORS.map((color) => (
                 <button
                   key={color}
@@ -343,7 +343,7 @@ export function PersonalProfileTab({
               />
             </div>
           </div>
-          <p className="text-xs text-muted-foreground text-right mt-4">
+          <p className="mt-4 text-start text-xs text-muted-foreground">
             הצבע הזה ישמש לסימון התורים שלך באפליקציה וביומן Google Calendar
           </p>
         </CardContent>
@@ -351,55 +351,55 @@ export function PersonalProfileTab({
 
       <Card className="">
         <CardHeader>
-          <CardTitle className="text-right flex items-center gap-2 justify-end">
+          <CardTitle className="flex items-center justify-start gap-2 text-start">
             <IconAdjustmentsHorizontal className="h-5 w-5" />
             העדפות בדיקה
           </CardTitle>
-          <p className="text-sm text-muted-foreground text-right">הגדרות תצוגה עבור בדיקות אופטומטריה</p>
+          <p className="text-start text-sm text-muted-foreground">הגדרות תצוגה עבור בדיקות אופטומטריה</p>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="flex flex-col gap-2 items-end">
-              <Label className="text-right text-sm font-medium">שיטת הצגת חדות ראייה (VA)</Label>
+            <div className="flex flex-col items-start gap-2">
+              <Label className="text-start text-sm font-medium">שיטת הצגת חדות ראייה (VA)</Label>
               <Select
                 value={personalProfile.va_format || "meter"}
                 onValueChange={(val) => onProfileChange('va_format', val)}
               >
-                <SelectTrigger className="w-[200px] h-9" dir="rtl">
+                <SelectTrigger className="h-9 w-[200px] text-start" dir={direction}>
                   <SelectValue placeholder="בחר שיטה" />
                 </SelectTrigger>
-                <SelectContent align="end">
-                  <SelectItem value="meter" className="text-right">Meter (6/6)</SelectItem>
-                  <SelectItem value="decimal" className="text-right">Decimal (1.0)</SelectItem>
+                <SelectContent align={direction === "rtl" ? "end" : "start"}>
+                  <SelectItem value="meter" className="text-start">Meter (6/6)</SelectItem>
+                  <SelectItem value="decimal" className="text-start">Decimal (1.0)</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground text-right mt-1">
+              <p className="mt-1 text-start text-xs text-muted-foreground">
                 בחירה זו תקבע כיצד יוצגו ערכי חדות הראייה בכל טבלאות הבדיקה.
               </p>
             </div>
 
-            <div className="flex flex-col gap-2 items-end border-t pt-4">
-              <Label className="text-right text-sm font-medium">שיטת הצגת צילינדר (CYL)</Label>
+            <div className="flex flex-col items-start gap-2 border-t pt-4">
+              <Label className="text-start text-sm font-medium">שיטת הצגת צילינדר (CYL)</Label>
               <Select
                 value={personalProfile.cyl_format || "minus"}
                 onValueChange={(val) => onProfileChange('cyl_format', val)}
               >
-                <SelectTrigger className="w-[200px] h-9" dir="rtl">
+                <SelectTrigger className="h-9 w-[200px] text-start" dir={direction}>
                   <SelectValue placeholder="בחר שיטה" />
                 </SelectTrigger>
-                <SelectContent align="end">
-                  <SelectItem value="minus" className="text-right">Minus Cylinder (-)</SelectItem>
-                  <SelectItem value="plus" className="text-right">Plus Cylinder (+)</SelectItem>
+                <SelectContent align={direction === "rtl" ? "end" : "start"}>
+                  <SelectItem value="minus" className="text-start">Minus Cylinder (-)</SelectItem>
+                  <SelectItem value="plus" className="text-start">Plus Cylinder (+)</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground text-right mt-1">
+              <p className="mt-1 text-start text-xs text-muted-foreground">
                 בחירה זו תקבע את פורמט ברירת המחדל של הצילינדר. המערכת תבצע המרה (Transposition) אוטומטית במידת הצורך.
               </p>
             </div>
 
             <div className="flex flex-col items-start gap-2 border-t pt-4">
               <div className="flex items-center justify-start gap-2">
-                <Label htmlFor="sync-subjective" className="text-right text-sm font-medium cursor-pointer">
+                <Label htmlFor="sync-subjective" className="cursor-pointer text-start text-sm font-medium">
                   חבר אוטומטית בין בדיקה סובייקטיבית למרשם סופי
                 </Label>
                 <Switch
@@ -408,14 +408,14 @@ export function PersonalProfileTab({
                   onCheckedChange={(checked) => onProfileChange('sync_subjective_to_final_subjective', checked)}
                 />
               </div>
-              <p className="text-xs text-muted-foreground text-right w-full">
+              <p className="w-full text-start text-xs text-muted-foreground">
                 כאשר אפשרות זו פעילה, שינויים בבדיקה הסובייקטיבית יעודכנו אוטומטית במרשם הסופי באותו המפגש.
               </p>
             </div>
 
             <div className="flex flex-col items-start gap-2 border-t pt-4">
               <div className="flex items-center justify-start gap-2">
-                <Label htmlFor="import-order-to-old-refraction" className="text-right text-sm font-medium cursor-pointer">
+                <Label htmlFor="import-order-to-old-refraction" className="cursor-pointer text-start text-sm font-medium">
                   ייבא אוטומטית נתוני הזמנה אחרונה למרשם ישן
                 </Label>
                 <Switch
@@ -424,14 +424,14 @@ export function PersonalProfileTab({
                   onCheckedChange={(checked) => onProfileChange('import_order_to_old_refraction_default', checked)}
                 />
               </div>
-              <p className="text-xs text-muted-foreground text-right w-full">
+              <p className="w-full text-start text-xs text-muted-foreground">
                 כאשר אפשרות זו פעילה, בעת פתיחת בדיקה חדשה, נתוני ההזמנה האחרונה של הלקוח ייטענו אוטומטית לתוך כרטיס המרשם הישן.
               </p>
             </div>
 
             <div className="flex flex-col items-start gap-2 border-t pt-4">
               <div className="flex items-center justify-start gap-2">
-                <Label htmlFor="clinical-auto-advance" className="text-right text-sm font-medium cursor-pointer">
+                <Label htmlFor="clinical-auto-advance" className="cursor-pointer text-start text-sm font-medium">
                   מעבר אוטומטי בשדות בדיקה
                 </Label>
                 <Switch
@@ -440,7 +440,7 @@ export function PersonalProfileTab({
                   onCheckedChange={(checked) => onProfileChange('clinical_auto_advance_enabled', checked)}
                 />
               </div>
-              <p className="text-xs text-muted-foreground text-right w-full">
+              <p className="w-full text-start text-xs text-muted-foreground">
                 כאשר אפשרות זו פעילה, מילוי ערך יעבור אוטומטית לשדה הבא ויעצב ערכים עשרוניים בזמן ההקלדה. ניווט באמצעות המקלדת נשאר זמין תמיד.
               </p>
             </div>
@@ -449,12 +449,12 @@ export function PersonalProfileTab({
       </Card>
 
       <Card className="">
-        <CardHeader dir="rtl" className="text-right">
-          <CardTitle dir="rtl" className="w-full text-right flex items-center gap-2 justify-start">
+        <CardHeader dir={direction} className="text-start">
+          <CardTitle dir={direction} className="flex w-full items-center justify-start gap-2 text-start">
             <IconCalendar className="h-5 w-5" />
-            <span dir="rtl">חיבור ל-Google Calendar</span>
+            <span>חיבור ל-Google Calendar</span>
           </CardTitle>
-          <p dir="rtl" className="w-full text-sm text-muted-foreground text-right">
+          <p className="w-full text-start text-sm text-muted-foreground">
             סנכרן את התורים שלך עם Google Calendar
           </p>
         </CardHeader>
@@ -590,9 +590,16 @@ function GoogleCalendarConnected({
   autoSyncEnabled,
   onToggleAutoSync
 }: GoogleCalendarConnectedProps) {
+  const { direction } = useAppLocale()
+
   return (
-    <div className="space-y-4" dir="rtl">
-      <div className="flex items-center justify-between p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800" dir="rtl">
+    <div className="space-y-4" dir={direction}>
+      <div
+        className={cn(
+          "flex items-center justify-between rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950/20",
+          direction === "ltr" && "flex-row-reverse",
+        )}
+      >
         <div className="space-y-3">
           <div className="flex items-center gap-3">
             <Button
@@ -614,7 +621,7 @@ function GoogleCalendarConnected({
           </div>
         </div>
 
-        <div className="text-right">
+        <div className="text-start">
           <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -627,9 +634,9 @@ function GoogleCalendarConnected({
         </div>
       </div>
 
-      <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800" dir="rtl">
-        <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2 text-right">מידע על הסנכרון</h4>
-        <ul className="text-xs text-blue-700 dark:text-blue-300 text-right space-y-1" dir="rtl">
+      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950/20">
+        <h4 className="mb-2 text-start text-sm font-medium text-blue-800 dark:text-blue-200">מידע על הסנכרון</h4>
+        <ul className="space-y-1 text-start text-xs text-blue-700 dark:text-blue-300">
           <li>• התורים מהעמוד הראשי יסונכרנו עם Google Calendar שלך</li>
           <li>• שינויים בתורים יתעדכנו באופן אוטומטי ב-Google Calendar</li>
           <li>• ניתן לסנכרן באופן ידני או לקבוע סנכרון אוטומטי</li>
@@ -647,13 +654,20 @@ interface GoogleCalendarDisconnectedProps {
 function GoogleCalendarDisconnected({
   loading
 }: GoogleCalendarDisconnectedProps) {
+  const { direction } = useAppLocale()
+
   return (
-    <div className="space-y-4" dir="rtl">
-      <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border" dir="rtl">
+    <div className="space-y-4" dir={direction}>
+      <div
+        className={cn(
+          "flex items-center justify-between rounded-lg border bg-gray-50 p-4 dark:bg-gray-800",
+          direction === "ltr" && "flex-row-reverse",
+        )}
+      >
         <Button
           disabled
           className="flex items-center gap-2"
-          dir="rtl"
+          dir={direction}
         >
           {loading ? (
             <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
@@ -663,7 +677,7 @@ function GoogleCalendarDisconnected({
           {loading ? 'מתחבר...' : 'חבר חשבון Google (עם גישה ליומן)'}
         </Button>
 
-        <div className="text-right">
+        <div className="text-start">
           <div className="font-medium text-gray-700 dark:text-gray-300">לא מחובר ל-Google Calendar</div>
           <div className="text-sm text-muted-foreground mt-1">
             חיבור Google Calendar יגיע בקרוב
@@ -671,9 +685,9 @@ function GoogleCalendarDisconnected({
         </div>
       </div>
 
-      <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800" dir="rtl">
-        <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2 text-right">יתרונות החיבור ל-Google Calendar</h4>
-        <ul className="text-xs text-blue-700 dark:text-blue-300 text-right space-y-1" dir="rtl">
+      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950/20">
+        <h4 className="mb-2 text-start text-sm font-medium text-blue-800 dark:text-blue-200">יתרונות החיבור ל-Google Calendar</h4>
+        <ul className="space-y-1 text-start text-xs text-blue-700 dark:text-blue-300">
           <li>• סנכרון אוטומטי של כל התורים שלך</li>
           <li>• גישה לתורים מכל מכשיר דרך Google Calendar</li>
           <li>• התראות ותזכורות מ-Google על תורים קרובים</li>

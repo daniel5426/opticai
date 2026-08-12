@@ -1393,7 +1393,10 @@ class ApiClient {
     });
   }
 
-  async getInventoryInsights(clinicId: number, range?: AnalyticsRange) {
+  async getInventoryInsights(
+    clinicId: number,
+    range?: AnalyticsRange,
+  ) {
     const params = new URLSearchParams({ clinic_id: String(clinicId) });
     if (range) {
       params.set("start_date", range.startDate);
@@ -2044,7 +2047,11 @@ class ApiClient {
     return this.request(`/control-center/dashboard/${companyId}`);
   }
 
-  async getControlCenterAnalytics(companyId: number, range: AnalyticsRange, clinicId?: number) {
+  async getControlCenterAnalytics(
+    companyId: number,
+    range: AnalyticsRange,
+    clinicId?: number,
+  ) {
     const params = new URLSearchParams({
       start_date: range.startDate,
       end_date: range.endDate,

@@ -136,12 +136,24 @@ def test_company_analytics_uses_weighted_aov_net_payments_and_as_of_outstanding(
                 ),
             ]
         )
+        usd_billing = Billing(
+            order_id=regular_order.id,
+            total_after_discount=250,
+            currency="USD",
+        )
+        db.add(usd_billing)
         db.commit()
 
         result = build_company_analytics(
             db,
             company_id=company.id,
             window=resolve_analytics_window(date(2026, 8, 1), date(2026, 8, 7)),
+        )
+        usd_result = build_company_analytics(
+            db,
+            company_id=company.id,
+            window=resolve_analytics_window(date(2026, 8, 1), date(2026, 8, 7)),
+            currency="USD",
         )
 
     metrics = {metric["key"]: metric for metric in result["metrics"]}
@@ -151,3 +163,7 @@ def test_company_analytics_uses_weighted_aov_net_payments_and_as_of_outstanding(
     assert metrics["aov"]["value"] == 200
     assert metrics["outstanding"]["value"] == 390
     assert metrics["outstanding"]["previous"] == 50
+    usd_metrics = {metric["key"]: metric for metric in usd_result["metrics"]}
+    assert usd_result["currency"] == "USD"
+    assert usd_metrics["sales"]["value"] == 250
+    assert usd_metrics["sales"]["previous"] == 0
