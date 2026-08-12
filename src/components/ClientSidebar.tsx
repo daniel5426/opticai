@@ -573,7 +573,7 @@ export function ClientSidebar() {
           aria-valuemax={MAX_CLIENT_SIDEBAR_WIDTH}
           aria-valuemin={MIN_CLIENT_SIDEBAR_WIDTH}
           aria-valuenow={sidebarWidth}
-          className={`absolute inset-y-0 z-20 w-2 cursor-col-resize touch-none outline-none focus-visible:bg-primary/20 ${direction === 'rtl' ? 'end-0' : 'start-0'}`}
+          className={`absolute inset-y-0 z-20 w-2 cursor-col-resize touch-none outline-none focus-visible:bg-primary/20 ${direction === 'rtl' ? 'right-0' : 'left-0'}`}
           onKeyDown={handleResizeKeyDown}
           onPointerDown={handleResizePointerDown}
           role="separator"

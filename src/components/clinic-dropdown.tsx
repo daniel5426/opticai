@@ -172,7 +172,7 @@ export function ClinicDropdown({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        className="w-64"
+        className="w-[22rem] max-w-[calc(100vw-1rem)]"
         align="end"
         side="bottom"
         sideOffset={4}
@@ -198,12 +198,29 @@ export function ClinicDropdown({
             <DropdownMenuSeparator />
             <DropdownMenuItem
               dir={direction}
-              className="bg-muted/50 flex cursor-pointer items-center gap-2"
+              className="bg-muted/50 grid min-h-14 cursor-pointer grid-cols-[1rem_minmax(0,1fr)_auto] items-center gap-x-3 px-3 py-2"
               disabled
             >
               <IconBuilding className="h-4 w-4" />
-              <span className="font-medium">{currentClinic.name}</span>
-              <span className="text-muted-foreground text-xs">(נוכחי)</span>
+              <div className="min-w-0 text-start">
+                <span
+                  className="block truncate font-medium"
+                  title={currentClinic.name}
+                >
+                  {currentClinic.name}
+                </span>
+                {currentClinic.location && (
+                  <span
+                    className="text-muted-foreground block truncate text-xs"
+                    title={currentClinic.location}
+                  >
+                    {currentClinic.location}
+                  </span>
+                )}
+              </div>
+              <span className="text-muted-foreground text-xs whitespace-nowrap">
+                (נוכחי)
+              </span>
             </DropdownMenuItem>
           </>
         )}
@@ -221,20 +238,30 @@ export function ClinicDropdown({
                     <span>טוען מרפאות...</span>
                   </DropdownMenuItem>
                 ) : (
-                  otherClinics.map((clinic, index) => (
+                  otherClinics.map((clinic) => (
                     <DropdownMenuItem
                       key={clinic.id}
                       onSelect={() => handleClinicSelect(clinic)}
                       dir={direction}
-                      className="flex cursor-pointer items-center gap-2"
+                      className="grid min-h-14 cursor-pointer grid-cols-[1rem_minmax(0,1fr)] items-center gap-x-3 px-3 py-2"
                     >
                       <IconBuilding className="h-4 w-4" />
-                      <span>{clinic.name}</span>
-                      {clinic.location && (
-                        <span className="text-muted-foreground text-xs">
-                          ({clinic.location})
+                      <div className="min-w-0 text-start">
+                        <span
+                          className="block truncate font-medium"
+                          title={clinic.name}
+                        >
+                          {clinic.name}
                         </span>
-                      )}
+                        {clinic.location && (
+                          <span
+                            className="text-muted-foreground block truncate text-xs"
+                            title={clinic.location}
+                          >
+                            {clinic.location}
+                          </span>
+                        )}
+                      </div>
                     </DropdownMenuItem>
                   ))
                 )}
