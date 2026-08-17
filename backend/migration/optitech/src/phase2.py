@@ -293,7 +293,9 @@ def user_payload_from_seed(
         "username": build_username(seed, source_fingerprint),
         "email": None,
         "phone": seed.phone_mobile or seed.phone_home,
-        "password": None,
+        # Legacy credentials are intentionally not migrated.  The current
+        # User model stores this field as password_hash, not password.
+        "password_hash": None,
         "role_level": map_user_role(seed.role_level),
         "is_active": False,
         "auth_provider": "email",

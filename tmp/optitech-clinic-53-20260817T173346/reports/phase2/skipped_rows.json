@@ -1,0 +1,7 @@
+[
+  {
+    "domain": "users",
+    "reason": "sentinel_user_id_zero",
+    "source_user_id": 0
+  }
+]

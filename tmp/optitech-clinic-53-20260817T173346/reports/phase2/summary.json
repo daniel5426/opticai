@@ -1,0 +1,35 @@
+{
+  "cleanup_phase2": false,
+  "clients": {
+    "created": 47262,
+    "processed": 47262,
+    "recreated": 0,
+    "skipped": 0,
+    "updated": 0
+  },
+  "clients_only": false,
+  "dry_run": false,
+  "expected_client_source_rows": 47262,
+  "expected_family_source_rows": 2341,
+  "expected_user_source_rows": 51,
+  "families": {
+    "created": 2341,
+    "processed": 2341,
+    "recreated": 0,
+    "skipped": 0,
+    "updated": 0
+  },
+  "mapping_version": 2,
+  "skipped_rows_count": 1,
+  "source_system": "optitech",
+  "target_clinic_id": 53,
+  "target_company_id": 26,
+  "users": {
+    "created": 51,
+    "processed": 51,
+    "recreated": 0,
+    "skipped": 1,
+    "updated": 0
+  },
+  "users_only": false
+}

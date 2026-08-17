@@ -1,0 +1,410 @@
+[
+  {
+    "full_name": "ראשונה הפעלה",
+    "is_active": false,
+    "role_level": 4,
+    "source_user_id": 203,
+    "target_user_id": 258,
+    "username": "optitech-localcopiedo-user-203"
+  },
+  {
+    "full_name": "מירב",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 204,
+    "target_user_id": 259,
+    "username": "optitech-localcopiedo-user-204"
+  },
+  {
+    "full_name": "גתית",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 205,
+    "target_user_id": 260,
+    "username": "optitech-localcopiedo-user-205"
+  },
+  {
+    "full_name": "מרב פינפטר",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 206,
+    "target_user_id": 261,
+    "username": "optitech-localcopiedo-user-206"
+  },
+  {
+    "full_name": "ד\"ר יצחק סוויד",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 207,
+    "target_user_id": 262,
+    "username": "optitech-localcopiedo-user-207"
+  },
+  {
+    "full_name": "חיה",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 208,
+    "target_user_id": 263,
+    "username": "optitech-localcopiedo-user-208"
+  },
+  {
+    "full_name": "נועם",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 209,
+    "target_user_id": 264,
+    "username": "optitech-localcopiedo-user-209"
+  },
+  {
+    "full_name": "אנאל",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 210,
+    "target_user_id": 265,
+    "username": "optitech-localcopiedo-user-210"
+  },
+  {
+    "full_name": "בדיקת מחשב",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 211,
+    "target_user_id": 266,
+    "username": "optitech-localcopiedo-user-211"
+  },
+  {
+    "full_name": "בוריס",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 212,
+    "target_user_id": 267,
+    "username": "optitech-localcopiedo-user-212"
+  },
+  {
+    "full_name": "דורון",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 213,
+    "target_user_id": 268,
+    "username": "optitech-localcopiedo-user-213"
+  },
+  {
+    "full_name": "אירה מזרחי",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 214,
+    "target_user_id": 269,
+    "username": "optitech-localcopiedo-user-214"
+  },
+  {
+    "full_name": "הדסה",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 215,
+    "target_user_id": 270,
+    "username": "optitech-localcopiedo-user-215"
+  },
+  {
+    "full_name": "הסטוריה",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 216,
+    "target_user_id": 271,
+    "username": "optitech-localcopiedo-user-216"
+  },
+  {
+    "full_name": "ישראלה הירש",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 217,
+    "target_user_id": 272,
+    "username": "optitech-localcopiedo-user-217"
+  },
+  {
+    "full_name": "לא ידוע",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 218,
+    "target_user_id": 273,
+    "username": "optitech-localcopiedo-user-218"
+  },
+  {
+    "full_name": "לפי בקשה",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 219,
+    "target_user_id": 274,
+    "username": "optitech-localcopiedo-user-219"
+  },
+  {
+    "full_name": "לפי מרשם קודם",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 220,
+    "target_user_id": 275,
+    "username": "optitech-localcopiedo-user-220"
+  },
+  {
+    "full_name": "לפי קיים",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 221,
+    "target_user_id": 276,
+    "username": "optitech-localcopiedo-user-221"
+  },
+  {
+    "full_name": "מרשם רופא",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 222,
+    "target_user_id": 277,
+    "username": "optitech-localcopiedo-user-222"
+  },
+  {
+    "full_name": "נויפלד",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 223,
+    "target_user_id": 278,
+    "username": "optitech-localcopiedo-user-223"
+  },
+  {
+    "full_name": "ניב",
+    "is_active": false,
+    "role_level": 4,
+    "source_user_id": 224,
+    "target_user_id": 279,
+    "username": "optitech-localcopiedo-user-224"
+  },
+  {
+    "full_name": "ס. בוריס",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 225,
+    "target_user_id": 280,
+    "username": "optitech-localcopiedo-user-225"
+  },
+  {
+    "full_name": "סיגל",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 226,
+    "target_user_id": 281,
+    "username": "optitech-localcopiedo-user-226"
+  },
+  {
+    "full_name": "סנדורי יוני",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 227,
+    "target_user_id": 282,
+    "username": "optitech-localcopiedo-user-227"
+  },
+  {
+    "full_name": "ע. רון",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 228,
+    "target_user_id": 283,
+    "username": "optitech-localcopiedo-user-228"
+  },
+  {
+    "full_name": "דבורה",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 229,
+    "target_user_id": 284,
+    "username": "optitech-localcopiedo-user-229"
+  },
+  {
+    "full_name": "עירית",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 230,
+    "target_user_id": 285,
+    "username": "optitech-localcopiedo-user-230"
+  },
+  {
+    "full_name": "עליזה פראנק",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 231,
+    "target_user_id": 286,
+    "username": "optitech-localcopiedo-user-231"
+  },
+  {
+    "full_name": "עליזה רון",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 232,
+    "target_user_id": 287,
+    "username": "optitech-localcopiedo-user-232"
+  },
+  {
+    "full_name": "רותי זדה",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 233,
+    "target_user_id": 288,
+    "username": "optitech-localcopiedo-user-233"
+  },
+  {
+    "full_name": "בודק חיצוני חדש",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 234,
+    "target_user_id": 289,
+    "username": "optitech-localcopiedo-user-234"
+  },
+  {
+    "full_name": "פול כהן",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 235,
+    "target_user_id": 290,
+    "username": "optitech-localcopiedo-user-235"
+  },
+  {
+    "full_name": "מחיר הצעת",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 236,
+    "target_user_id": 291,
+    "username": "optitech-localcopiedo-user-236"
+  },
+  {
+    "full_name": "מרב פינפטר",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 237,
+    "target_user_id": 292,
+    "username": "optitech-localcopiedo-user-237"
+  },
+  {
+    "full_name": "גתית ספרא",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 238,
+    "target_user_id": 293,
+    "username": "optitech-localcopiedo-user-238"
+  },
+  {
+    "full_name": "אייל פיליפסבורן",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 239,
+    "target_user_id": 294,
+    "username": "optitech-localcopiedo-user-239"
+  },
+  {
+    "full_name": "אילן פיליפסבורן",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 240,
+    "target_user_id": 295,
+    "username": "optitech-localcopiedo-user-240"
+  },
+  {
+    "full_name": "קרשאי  אילנה",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 241,
+    "target_user_id": 296,
+    "username": "optitech-localcopiedo-user-241"
+  },
+  {
+    "full_name": "נועם שוחט",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 242,
+    "target_user_id": 297,
+    "username": "optitech-localcopiedo-user-242"
+  },
+  {
+    "full_name": "אילה שטרן",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 243,
+    "target_user_id": 298,
+    "username": "optitech-localcopiedo-user-243"
+  },
+  {
+    "full_name": "שרה",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 244,
+    "target_user_id": 299,
+    "username": "optitech-localcopiedo-user-244"
+  },
+  {
+    "full_name": "שרה בארי",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 245,
+    "target_user_id": 300,
+    "username": "optitech-localcopiedo-user-245"
+  },
+  {
+    "full_name": "אורטל טנג'יר",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 246,
+    "target_user_id": 301,
+    "username": "optitech-localcopiedo-user-246"
+  },
+  {
+    "full_name": "לנה צרניאקוב",
+    "is_active": false,
+    "role_level": 3,
+    "source_user_id": 248,
+    "target_user_id": 302,
+    "username": "optitech-localcopiedo-user-248"
+  },
+  {
+    "full_name": "טלי רבני",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 249,
+    "target_user_id": 303,
+    "username": "optitech-localcopiedo-user-249"
+  },
+  {
+    "full_name": "לנה",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 250,
+    "target_user_id": 304,
+    "username": "optitech-localcopiedo-user-250"
+  },
+  {
+    "full_name": "סבינה",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 251,
+    "target_user_id": 305,
+    "username": "optitech-localcopiedo-user-251"
+  },
+  {
+    "full_name": "אירינה קלינינה",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 252,
+    "target_user_id": 306,
+    "username": "optitech-localcopiedo-user-252"
+  },
+  {
+    "full_name": "יוליה נייאזוב",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 253,
+    "target_user_id": 307,
+    "username": "optitech-localcopiedo-user-253"
+  },
+  {
+    "full_name": "אורליה וקנין",
+    "is_active": false,
+    "role_level": 2,
+    "source_user_id": 254,
+    "target_user_id": 308,
+    "username": "optitech-localcopiedo-user-254"
+  }
+]

@@ -103,10 +103,10 @@ def test_user_payload_mapping_applies_role_and_inactive_rules():
     assert inactive_payload["username"] == "optitech-clinica2026-user-203"
     assert inactive_payload["role_level"] == 4
     assert inactive_payload["is_active"] is False
-    assert inactive_payload["password"] is None
+    assert inactive_payload["password_hash"] is None
     assert active_payload["role_level"] == 3
     assert active_payload["is_active"] is False
-    assert active_payload["password"] is None
+    assert active_payload["password_hash"] is None
     assert active_payload["phone"] == "050"
 
 

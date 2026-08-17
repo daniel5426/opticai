@@ -1,0 +1,170 @@
+{
+  "fallback_name_count": 0,
+  "head_name_match_count": 0,
+  "mixed_last_name_family_sample": [
+    {
+      "family_name": "הלל",
+      "legacy_family_id": 62,
+      "member_last_names": [
+        "דיאמנט",
+        "הלל"
+      ]
+    },
+    {
+      "family_name": "אשכנזי",
+      "legacy_family_id": 270,
+      "member_last_names": [
+        "אברהמי",
+        "אשכנזי"
+      ]
+    },
+    {
+      "family_name": "יהודה",
+      "legacy_family_id": 362,
+      "member_last_names": [
+        "יהודה",
+        "משה"
+      ]
+    },
+    {
+      "family_name": "כהן",
+      "legacy_family_id": 363,
+      "member_last_names": [
+        "גן רוה",
+        "כהן"
+      ]
+    },
+    {
+      "family_name": "אספר",
+      "legacy_family_id": 374,
+      "member_last_names": [
+        "אבלוב",
+        "אספר"
+      ]
+    },
+    {
+      "family_name": "בן שטרית",
+      "legacy_family_id": 382,
+      "member_last_names": [
+        "אהרוני",
+        "בן שטרית"
+      ]
+    },
+    {
+      "family_name": "בן דוד",
+      "legacy_family_id": 393,
+      "member_last_names": [
+        "אלון",
+        "בן דוד",
+        "בן צבי"
+      ]
+    },
+    {
+      "family_name": "בראל",
+      "legacy_family_id": 398,
+      "member_last_names": [
+        "בן לולו",
+        "בראל"
+      ]
+    },
+    {
+      "family_name": "עדיקה",
+      "legacy_family_id": 529,
+      "member_last_names": [
+        "עדיקא",
+        "עדיקה",
+        "פרטוש"
+      ]
+    },
+    {
+      "family_name": "בן עזרא",
+      "legacy_family_id": 546,
+      "member_last_names": [
+        "בן עזרא",
+        "מוטעיבן עזרא"
+      ]
+    },
+    {
+      "family_name": "לב",
+      "legacy_family_id": 604,
+      "member_last_names": [
+        "כלב",
+        "לב"
+      ]
+    },
+    {
+      "family_name": "מנצורי",
+      "legacy_family_id": 694,
+      "member_last_names": [
+        "מנצור",
+        "מנצורי"
+      ]
+    },
+    {
+      "family_name": "שקיר",
+      "legacy_family_id": 869,
+      "member_last_names": [
+        "יעקובי",
+        "שקיר"
+      ]
+    },
+    {
+      "family_name": "בסנובטי",
+      "legacy_family_id": 920,
+      "member_last_names": [
+        "בסנובטי",
+        "זמיר"
+      ]
+    },
+    {
+      "family_name": "חיותין",
+      "legacy_family_id": 925,
+      "member_last_names": [
+        "חיותין",
+        "תמיר"
+      ]
+    },
+    {
+      "family_name": "טרזי",
+      "legacy_family_id": 989,
+      "member_last_names": [
+        "ארזי",
+        "טרזי"
+      ]
+    },
+    {
+      "family_name": "כהן",
+      "legacy_family_id": 996,
+      "member_last_names": [
+        "יעקב",
+        "יעקוב",
+        "כהן"
+      ]
+    },
+    {
+      "family_name": "חיומי",
+      "legacy_family_id": 1036,
+      "member_last_names": [
+        "חיומי",
+        "חיוני"
+      ]
+    },
+    {
+      "family_name": "קרייתי",
+      "legacy_family_id": 1074,
+      "member_last_names": [
+        "קרייתי",
+        "קריתי"
+      ]
+    },
+    {
+      "family_name": "מרזל",
+      "legacy_family_id": 1217,
+      "member_last_names": [
+        "ממרזל",
+        "מרזל"
+      ]
+    }
+  ],
+  "source_family_count": 2341
+}

@@ -1,0 +1,279 @@
+{
+  "clients": {
+    "city_id": {
+      "non_null_count": 47262,
+      "samples": [
+        "545",
+        "162",
+        "796",
+        "772",
+        "269",
+        "0",
+        "714",
+        "1041",
+        "701",
+        "561",
+        "68",
+        "576",
+        "258",
+        "110",
+        "494",
+        "1190",
+        "580",
+        "1305",
+        "1067",
+        "638",
+        "559",
+        "1134",
+        "284",
+        "106",
+        "1260"
+      ]
+    },
+    "discount_id": {
+      "non_null_count": 47262,
+      "samples": [
+        "0"
+      ]
+    },
+    "group_id": {
+      "non_null_count": 47262,
+      "samples": [
+        "0"
+      ]
+    },
+    "laser_date": {
+      "non_null_count": 1,
+      "samples": [
+        "2004-10-22"
+      ]
+    },
+    "legacy_family_id": {
+      "non_null_count": 4062,
+      "samples": [
+        "785",
+        "69",
+        "1836",
+        "12",
+        "782",
+        "41",
+        "119",
+        "2358",
+        "42",
+        "2557",
+        "4435",
+        "59",
+        "60",
+        "94",
+        "109",
+        "139",
+        "55",
+        "7294",
+        "5137",
+        "20271",
+        "192",
+        "181",
+        "161",
+        "3847",
+        "6692"
+      ]
+    },
+    "mailing_list": {
+      "non_null_count": 47262,
+      "samples": [
+        "True",
+        "False"
+      ]
+    },
+    "referral_id": {
+      "non_null_count": 47262,
+      "samples": [
+        "0",
+        "1"
+      ]
+    },
+    "referral_sub1_id": {
+      "non_null_count": 47262,
+      "samples": [
+        "0"
+      ]
+    },
+    "referral_sub2_id": {
+      "non_null_count": 47262,
+      "samples": [
+        "0"
+      ]
+    },
+    "source_user_id": {
+      "non_null_count": 47262,
+      "samples": [
+        "0",
+        "214",
+        "224",
+        "243",
+        "203"
+      ]
+    },
+    "wants_laser": {
+      "non_null_count": 47262,
+      "samples": [
+        "False",
+        "True"
+      ]
+    }
+  },
+  "families": {
+    "legacy_family_id": {
+      "non_null_count": 2341,
+      "samples": [
+        "12",
+        "32",
+        "33",
+        "41",
+        "42",
+        "55",
+        "59",
+        "60",
+        "62",
+        "69",
+        "86",
+        "94",
+        "109",
+        "119",
+        "139",
+        "159",
+        "161",
+        "181",
+        "192",
+        "206",
+        "217",
+        "218",
+        "236",
+        "260",
+        "270"
+      ]
+    },
+    "member_source_per_ids": {
+      "non_null_count": 2341,
+      "samples": [
+        "[18]",
+        "[349]",
+        "[1407]",
+        "[31]",
+        "[43, 63, 102]",
+        "[108]",
+        "[89, 144]",
+        "[95]",
+        "[5011, 7267]",
+        "[9, 49]",
+        "[13389, 13452]",
+        "[101]",
+        "[105]",
+        "[36]",
+        "[106]",
+        "[15773]",
+        "[196]",
+        "[186]",
+        "[185]",
+        "[6238]",
+        "[4566]",
+        "[790]",
+        "[1843]",
+        "[10554]",
+        "[3134, 10096, 10589]"
+      ]
+    }
+  },
+  "users": {
+    "address": {
+      "non_null_count": 1,
+      "samples": [
+        "אריה בן אליעזר 47/12"
+      ]
+    },
+    "birth_date": {
+      "non_null_count": 2,
+      "samples": [
+        "1974-03-25",
+        "1985-01-29"
+      ]
+    },
+    "city_id": {
+      "non_null_count": 51,
+      "samples": [
+        "0",
+        "545",
+        "977",
+        "361"
+      ]
+    },
+    "is_diagnostic_user": {
+      "non_null_count": 51,
+      "samples": [
+        "True",
+        "False"
+      ]
+    },
+    "is_employee": {
+      "non_null_count": 51,
+      "samples": [
+        "True",
+        "False"
+      ]
+    },
+    "legacy_password_present": {
+      "non_null_count": 51,
+      "samples": [
+        "False"
+      ]
+    },
+    "legacy_role_level": {
+      "non_null_count": 51,
+      "samples": [
+        "5",
+        "2",
+        "4"
+      ]
+    },
+    "phone_home": {
+      "non_null_count": 1,
+      "samples": [
+        "02-6767316"
+      ]
+    },
+    "phone_mobile": {
+      "non_null_count": 1,
+      "samples": [
+        "0544710407"
+      ]
+    },
+    "postal_code": {
+      "non_null_count": 1,
+      "samples": [
+        "93826"
+      ]
+    },
+    "user_tz": {
+      "non_null_count": 17,
+      "samples": [
+        "5",
+        "1408",
+        "1",
+        "33",
+        "1234",
+        "0123",
+        "02731429",
+        "5242748",
+        "5055",
+        "039822366",
+        "1786",
+        "2468",
+        "5555",
+        "305805970",
+        "9876",
+        "2525",
+        "1983"
+      ]
+    }
+  }
+}
