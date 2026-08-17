@@ -591,9 +591,25 @@ export const ensureLayoutDataForRows = (
   });
 
   Object.entries(firstCardKeyByType).forEach(([type, key]) => {
-    if (next[type]) return;
-    ensureMutable();
-    next[type] = next[key];
+    const canonicalCardData = next[key];
+    const legacyAlias = next[type];
+    if (!legacyAlias) {
+      ensureMutable();
+      next[type] = canonicalCardData;
+      return;
+    }
+    if (
+      typeof legacyAlias === "object" &&
+      typeof canonicalCardData === "object" &&
+      !legacyAlias.card_instance_id &&
+      canonicalCardData.card_instance_id
+    ) {
+      ensureMutable();
+      next[type] = {
+        ...legacyAlias,
+        card_instance_id: canonicalCardData.card_instance_id,
+      };
+    }
   });
 
   return { examData: next, changed };

@@ -567,6 +567,10 @@ def build_glasses_exam_data(
         exam_data["addition"] = addition
     if notes:
         exam_data["notes-notes-1"] = notes
+    for component_type in ("objective", "uncorrected-va", "final-prescription", "addition"):
+        payload = exam_data.get(component_type)
+        if isinstance(payload, dict):
+            payload["card_instance_id"] = f"{component_type}-1"
     return exam_data
 
 
@@ -907,6 +911,17 @@ def build_contact_lens_exam_data(
     )
     if notes:
         exam_data["notes-notes-1"] = notes
+    for component_type in (
+        "schirmer-test",
+        "contact-lens-diameters",
+        "keratometer-contact-lens",
+        "contact-lens-details",
+        "contact-lens-exam",
+        "contact-lens-order",
+    ):
+        payload = exam_data.get(component_type)
+        if isinstance(payload, dict):
+            payload["card_instance_id"] = f"{component_type}-1"
     return exam_data
 
 
@@ -966,7 +981,7 @@ def classify_work_type(
     source_per_id: Optional[int],
     source_user_id: Optional[int],
 ) -> Tuple[str, str]:
-    work_type_name = resolve_lookup_value(
+    resolve_lookup_value(
         catalog,
         table_name="tblCrdBuysWorkTypes",
         key=work_type_id,
@@ -981,7 +996,53 @@ def classify_work_type(
         return "ContactLensOrder", "contact-lens"
     if work_type_id == 2:
         return "Order", "service"
-    return "Order", "glasses" if work_type_name or work_type_id == 0 else "glasses"
+    if work_type_id == 0:
+        return "Order", "glasses"
+    # An unknown legacy work type must never be presented as glasses.  It is
+    # still imported and traceable, but surfaced as a generic service order so
+    # it cannot be mistaken for an optical prescription order.
+    record_unresolved(
+        unresolved_dependencies,
+        domain="orders",
+        dependency="unsupported_work_type",
+        raw_row_ref=raw_row_ref,
+        source_per_id=source_per_id,
+        source_user_id=source_user_id,
+        source_value=work_type_id,
+    )
+    return "Order", "service"
+
+
+def build_legacy_order_source(
+    seed: NormalizedOrderSeed,
+    *,
+    resolved_lookups: Mapping[str, Optional[str]],
+) -> Dict[str, Any]:
+    """Preserve OptiTech fields without overloading unrelated live UI fields."""
+    return strip_none(
+        {
+            "source_system": "optitech",
+            "legacy_order_id": seed.legacy_order_id,
+            "work": strip_none(
+                {
+                    "work_date": iso_date(seed.work_date),
+                    "related_exam_date": iso_date(seed.related_exam_date),
+                    "promise_date": iso_date(seed.promise_date),
+                    "delivery_date": iso_date(seed.delivery_date),
+                    "work_type_id": seed.work_type_id,
+                    "work_status_id": seed.work_status_id,
+                    "work_supply_id": seed.work_supply_id,
+                    "lab_id": seed.lab_id,
+                    "supplier_id": seed.supplier_id,
+                    "bag_number": seed.bag_number,
+                    "comment": seed.comment,
+                }
+            ),
+            "frame": seed.frame or None,
+            "lens": seed.lens or None,
+            "resolved_lookups": strip_none(resolved_lookups),
+        }
+    )
 
 
 def build_regular_order_data(
@@ -1146,15 +1207,24 @@ def build_regular_order_data(
         order_data["frame"] = frame
     if details:
         order_data["details"] = details
-    unmapped_fields = {
-        "frame_size_raw": seed.frame.get("frame_size"),
-        "frame_sold": seed.frame.get("frame_sold"),
-        "diameter": seed.lens.get("diameter"),
-        "segment": seed.lens.get("segment"),
-        "glass_brand": lens_brand,
-        "glass_role": lens_role,
-        "work_type_id": seed.work_type_id,
-    }
+    order_data["legacy_source"] = build_legacy_order_source(
+        seed,
+        resolved_lookups={
+            "glass_brand": lens_brand,
+            "glass_role": lens_role,
+            "lens_model": lens_model,
+            "lens_color": lens_color,
+            "lens_coating": lens_coating,
+            "lens_material": lens_material,
+            "lens_supplier": lens_supplier,
+            "frame_supplier": frame.get("supplier"),
+            "frame_label": frame.get("manufacturer"),
+            "work_supply": details.get("supplier_status"),
+            "work_lab": details.get("manufacturing_lab"),
+            "work_status": details.get("order_status"),
+        },
+    )
+    unmapped_fields: Dict[str, Any] = {}
     return order_data, unmapped_fields
 
 
@@ -1176,6 +1246,39 @@ def build_contact_lens_order_payloads(
         source_per_id=seed.source_per_id,
         source_user_id=seed.source_user_id,
         dependency_name="work_status",
+    )
+    supply_name = resolve_lookup_value(
+        catalog,
+        table_name="tblCrdBuysWorkSupply",
+        key=seed.work_supply_id,
+        unresolved_dependencies=unresolved_dependencies,
+        domain="orders",
+        raw_row_ref=seed.source_ref.raw_row_ref,
+        source_per_id=seed.source_per_id,
+        source_user_id=seed.source_user_id,
+        dependency_name="work_supply",
+    )
+    lab_name = resolve_lookup_value(
+        catalog,
+        table_name="tblCrdBuysWorkLabs",
+        key=seed.lab_id,
+        unresolved_dependencies=unresolved_dependencies,
+        domain="orders",
+        raw_row_ref=seed.source_ref.raw_row_ref,
+        source_per_id=seed.source_per_id,
+        source_user_id=seed.source_user_id,
+        dependency_name="work_lab",
+    )
+    supplier_name = resolve_lookup_value(
+        catalog,
+        table_name="tblCrdBuysWorkSapaks",
+        key=seed.supplier_id,
+        unresolved_dependencies=unresolved_dependencies,
+        domain="orders",
+        raw_row_ref=seed.source_ref.raw_row_ref,
+        source_per_id=seed.source_per_id,
+        source_user_id=seed.source_user_id,
+        dependency_name="work_supplier",
     )
     scalar_payload = {
         "client_id": None,
@@ -1221,14 +1324,17 @@ def build_contact_lens_order_payloads(
     )
     if order_block:
         order_data["contact-lens-order"] = order_block
+    order_data["legacy_source"] = build_legacy_order_source(
+        seed,
+        resolved_lookups={
+            "work_status": status_name,
+            "work_supply": supply_name,
+            "work_lab": lab_name,
+            "work_supplier": supplier_name,
+        },
+    )
     scalar_payload["order_data"] = order_data
-    unmapped_fields = {
-        "bag_number": seed.bag_number,
-        "work_supply_id": seed.work_supply_id,
-        "work_type_id": seed.work_type_id,
-        "frame_fields": seed.frame,
-        "lens_fields": seed.lens,
-    }
+    unmapped_fields: Dict[str, Any] = {}
     return scalar_payload, order_data, unmapped_fields
 
 

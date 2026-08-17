@@ -37,7 +37,8 @@ type WorkShiftStatsResponse = {
 };
 
 const workerStatsQueryKeys = {
-  users: ["worker-stats", "users"] as const,
+  users: (clinicId: number | null | undefined) =>
+    ["worker-stats", "users", clinicId ?? "none"] as const,
   dayShifts: (userId: number | null, date: string) =>
     ["worker-stats", "day-shifts", userId, date] as const,
   monthlyStats: (userId: number | null, year: number, month: number) =>
@@ -60,12 +61,14 @@ const emptyWorkerStats: WorkerStats = {
   averageMinutes: 0,
 };
 
-const getWorkerUsers = async () => {
-  const response = await apiClient.getUsers();
+const getWorkerUsers = async (clinicId: number) => {
+  const response = await apiClient.getUsersByClinic(clinicId);
   if (response.error) throw new Error(response.error);
 
-  return (response.data || []).filter((user) =>
-    isRoleAtLeast(user.role_level, ROLE_LEVELS.worker),
+  return (response.data || []).filter(
+    (user) =>
+      user.clinic_id === clinicId &&
+      isRoleAtLeast(user.role_level, ROLE_LEVELS.worker),
   );
 };
 
@@ -97,7 +100,8 @@ const getMonthlyStats = async (
 export default function WorkerStatsPage() {
   const { direction, locale } = useAppLocale();
   const { t } = useTranslation();
-  const { currentUser } = useUser();
+  const { currentUser, currentClinic } = useUser();
+  const clinicId = currentClinic?.id;
   const queryClient = useQueryClient();
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(
@@ -118,8 +122,9 @@ export default function WorkerStatsPage() {
   });
 
   const usersQuery = useQuery({
-    queryKey: workerStatsQueryKeys.users,
-    queryFn: getWorkerUsers,
+    queryKey: workerStatsQueryKeys.users(clinicId),
+    queryFn: () => getWorkerUsers(clinicId!),
+    enabled: !!clinicId,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
     refetchInterval: 60_000,

@@ -51,6 +51,8 @@ def _minimal_lookup_catalog():
         "tblCrdGlassColor": {0: None, 3: "חום"},
         "tblCrdGlassCoat": {0: None, 1: "A/R"},
         "tblCrdGlassMater": {0: None, 5: "פלסטיק"},
+        "tblCrdGlassBrand": {0: None, 7: "Essilor"},
+        "tblCrdGlassRole": {0: None, 8: "Distance"},
         "tblCrdClensTypes": {0: None, 1: "DISPO"},
         "tblCrdClensBrands": {0: None, 1: "oasys"},
         "tblCrdClensManuf": {0: None, 4: "J&J"},
@@ -71,6 +73,129 @@ def test_classify_work_type_routes_orders():
     assert phase3.classify_work_type(2, catalog, unresolved_dependencies=unresolved, raw_row_ref="c", source_per_id=1, source_user_id=2) == ("Order", "service")
 
 
+def test_unknown_work_type_becomes_service_and_is_reported():
+    unresolved = []
+
+    assert phase3.classify_work_type(
+        99,
+        _minimal_lookup_catalog(),
+        unresolved_dependencies=unresolved,
+        raw_row_ref="order-99",
+        source_per_id=1,
+        source_user_id=2,
+    ) == ("Order", "service")
+    assert any(item["dependency"] == "unsupported_work_type" for item in unresolved)
+
+
+def test_regular_order_preserves_extended_optitech_fields():
+    seed = records.normalize_order_row(
+        {
+            "WorkId": "10",
+            "WorkDate": "05/13/97 00:00:00",
+            "PerId": "33",
+            "UserId": "224",
+            "WorkTypeId": "0",
+            "CheckDate": "05/13/97 00:00:00",
+            "WorkStatId": "3",
+            "WorkSupplyId": "1",
+            "LabId": "1",
+            "SapakId": "3",
+            "BagNum": "B-55",
+            "FSapakId": "3",
+            "FLabelId": "2",
+            "FModel": "Aviator",
+            "FColor": "Black",
+            "FSize": "52-18-140",
+            "FrameSold": "0",
+            "RoleId": "8",
+            "MaterId": "5",
+            "BrandId": "7",
+            "CoatId": "1",
+            "ModelId": "2",
+            "ColorId": "3",
+            "Diam": "70",
+            "Segment": "28",
+        }
+    )
+
+    order_data, unmapped = phase3.build_regular_order_data(
+        seed,
+        catalog=_minimal_lookup_catalog(),
+        clinic_name="Clinic",
+        unresolved_dependencies=[],
+        matched_exam=None,
+    )
+
+    assert order_data["lens"]["right_diameter"] == "70"
+    assert order_data["frame"] == {
+        "color": "Black",
+        "supplier": "אופליין",
+        "model": "Aviator",
+        "manufacturer": "OGA",
+        "supplied_by": "אופליין",
+        "bridge": 18,
+        "width": 52,
+        "length": 140,
+    }
+    assert order_data["details"]["bag_number"] == "B-55"
+    assert order_data["legacy_source"]["frame"]["frame_sold"] is False
+    assert order_data["legacy_source"]["lens"]["segment"] == 28.0
+    assert order_data["legacy_source"]["resolved_lookups"] == {
+        "glass_brand": "Essilor",
+        "glass_role": "Distance",
+        "lens_model": "1.6",
+        "lens_color": "חום",
+        "lens_coating": "A/R",
+        "lens_material": "פלסטיק",
+        "lens_supplier": "אופליין",
+        "frame_supplier": "אופליין",
+        "frame_label": "OGA",
+        "work_supply": "במלאי",
+        "work_lab": "אורי",
+        "work_status": "נמסרה",
+    }
+    assert unmapped == {}
+
+
+def test_contact_order_preserves_optitech_work_fields():
+    seed = records.normalize_order_row(
+        {
+            "WorkId": "11",
+            "WorkDate": "05/13/97 00:00:00",
+            "PerId": "33",
+            "UserId": "224",
+            "WorkTypeId": "1",
+            "WorkStatId": "3",
+            "WorkSupplyId": "1",
+            "LabId": "1",
+            "SapakId": "3",
+            "BagNum": "CL-9",
+            "FModel": "Legacy frame",
+            "BrandId": "7",
+        }
+    )
+
+    payload, order_data, unmapped = phase3.build_contact_lens_order_payloads(
+        seed,
+        clinic=type("ClinicStub", (), {"id": 5, "name": "Clinic"})(),
+        catalog=_minimal_lookup_catalog(),
+        unresolved_dependencies=[],
+        matched_exam=None,
+    )
+
+    assert payload["order_status"] == "נמסרה"
+    assert order_data["legacy_source"]["work"]["bag_number"] == "CL-9"
+    assert order_data["legacy_source"]["frame"]["frame_model"] == "Legacy frame"
+    assert order_data["legacy_source"]["lens"]["lens_brand_id"] == 7
+    assert order_data["legacy_source"]["resolved_lookups"] == {
+        "work_status": "נמסרה",
+        "work_supply": "במלאי",
+        "work_lab": "אורי",
+        "work_supplier": "אופליין",
+    }
+    assert unmapped == {}
+
+
 def test_build_glasses_exam_data_uses_canonical_keys():
     seed = records.normalize_glasses_exam_row(
         {
@@ -83,6 +208,7 @@ def test_build_glasses_exam_data_uses_canonical_keys():
             "CylR": "-0.50",
             "AxR": "180",
             "PVAR": "6",
+            "ReadR": "1.25",
             "PSphR": "-1.50",
             "PCylR": "-0.75",
             "PAxR": "175",
@@ -102,6 +228,9 @@ def test_build_glasses_exam_data_uses_canonical_keys():
     assert "notes-notes-1" in exam_data
     assert "objective-objective-1" not in exam_data
     assert exam_data["objective"]["layout_instance_id"] == 77
+    assert exam_data["objective"]["card_instance_id"] == "objective-1"
+    assert exam_data["final-prescription"]["card_instance_id"] == "final-prescription-1"
+    assert exam_data["addition"]["card_instance_id"] == "addition-1"
     assert exam_data["notes-notes-1"]["card_instance_id"] == "notes-1"
 
 
@@ -232,6 +361,7 @@ def test_build_contact_lens_exam_data_uses_canonical_keys():
     assert "contact-lens-exam" in exam_data
     assert "contact-lens-order" in exam_data
     assert exam_data["contact-lens-details"]["r_supplier"] == "J&J"
+    assert exam_data["contact-lens-details"]["card_instance_id"] == "contact-lens-details-1"
     assert exam_data["contact-lens-order"]["branch"] == "Clinic"
     assert exam_data["contact-lens-exam"]["r_va"] == "6"
     assert "r_bc_2" not in exam_data["contact-lens-exam"]

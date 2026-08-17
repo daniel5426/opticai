@@ -143,3 +143,4 @@ test-x64/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+/tmp/

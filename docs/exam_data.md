@@ -277,6 +277,8 @@ Top-level keys used by the app:
   - `"lens"`: Lens details block
   - `"frame"`: Frame details block
   - `"details"`: Order-level logistics/details block
+  - `"legacy_source"`: additive source-system data retained by migrations when no
+    equivalent live order field exists. It must be preserved when an order is edited.
 
 - Contact lens orders
   - `"contact-lens-details"`: ContactLensDetails
@@ -284,6 +286,8 @@ Top-level keys used by the app:
   - `"keratometer-contact-lens"`: KeratometerContactLens
   - `"schirmer-test"`: SchirmerTestExam
   - `"contact-lens-diameters"`: ContactLensDiameters
+  - `"legacy_source"`: additive source-system data retained by migrations when no
+    equivalent live order field exists. It must be preserved when an order is edited.
 
 Component payload schemas
 

@@ -183,7 +183,35 @@ describe("exam ui metadata", () => {
       layout_instance_id: 42,
       card_instance_id: "objective-2",
     });
-    expect(normalized.examData.objective).toBe(legacyBase);
+    expect(normalized.examData.objective).toEqual({
+      ...legacyBase,
+      card_instance_id: "objective-1",
+    });
+  });
+
+  test("binds a legacy base alias to its generated card identity", () => {
+    const normalized = ensureLayoutDataForRows(
+      {
+        "final-prescription": {
+          layout_instance_id: 42,
+          r_sph: "-1.00",
+        },
+      },
+      [
+        {
+          id: "row-1",
+          cards: [{ id: "final-prescription-1", type: "final-prescription" }],
+        },
+      ],
+      42,
+    );
+
+    expect(normalized.examData["final-prescription"]).toMatchObject({
+      card_instance_id: "final-prescription-1",
+      r_sph: "-1.00",
+    });
+    expect(normalized.examData["final-prescription-final-prescription-1"])
+      .toMatchObject({ card_instance_id: "final-prescription-1" });
   });
 
   test("creates default old-refraction tab data for untouched cards", () => {
