@@ -50,7 +50,7 @@ def _resolve_scoped_target(
 
 
 def _raw_links(db: Session, *, target_model: str, target_id: int, clinic_id: int) -> list[MigrationSourceLink]:
-    return (
+    links = (
         db.query(MigrationSourceLink)
         .filter(MigrationSourceLink.target_model == target_model)
         .filter(MigrationSourceLink.target_id == target_id)
@@ -59,6 +59,7 @@ def _raw_links(db: Session, *, target_model: str, target_id: int, clinic_id: int
         .order_by(MigrationSourceLink.raw_captured_at.desc(), MigrationSourceLink.id.desc())
         .all()
     )
+    return [link for link in links if isinstance(link.raw_payload, dict)]
 
 
 @router.get("/{record_type}/{record_id}/summary")

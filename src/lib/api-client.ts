@@ -2426,6 +2426,7 @@ class ApiClient {
     sourceMetadata: Record<string, any>;
     exportSummary: Record<string, any>;
     includeDocuments: boolean;
+    importUsers?: boolean;
     clientImportLimit?: number | null;
     bundleFormatVersion?: number | null;
     sourceFingerprint?: string | null;
@@ -2441,6 +2442,7 @@ class ApiClient {
         source_fingerprint: data.sourceFingerprint ?? null,
         options: {
           include_documents: data.includeDocuments,
+          import_users: data.importUsers ?? false,
           client_import_limit: data.clientImportLimit ?? null,
         },
       }),

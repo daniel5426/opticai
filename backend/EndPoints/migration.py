@@ -66,7 +66,11 @@ def create_import(
     source_metadata = payload.get("source_metadata") if isinstance(payload.get("source_metadata"), dict) else {}
     export_summary = payload.get("export_summary") if isinstance(payload.get("export_summary"), dict) else {}
     if source_system == "optitech":
-        source_metadata = {**source_metadata, "mapping_version": 2}
+        source_metadata = {
+            **source_metadata,
+            "mapping_version": 2,
+            "import_users": bool(options.get("import_users", False)),
+        }
         export_summary = {**export_summary, "mapping_version": 2}
     try:
         job = create_job(

@@ -280,6 +280,35 @@ def test_ensure_phase3_exam_layouts_creates_scoped_layouts():
     assert contact_layout.type == "contact lens"
 
 
+def test_upsert_glasses_exam_keeps_full_instance_data_without_a_default_layout():
+    db = _build_session()
+    company, clinic = _create_company_and_clinic(db)
+    fallback_user = _create_user(db, company.id, clinic.id)
+    seed = records.normalize_glasses_exam_row(
+        {"PerId": "123", "CheckDate": "2026-01-01", "UserId": "224", "SphR": "-1.25"}
+    )
+
+    counters, _, unresolved, _ = phase3.upsert_glasses_exams(
+        db,
+        seeds=[seed],
+        clinic=clinic,
+        client_map={123: 9001},
+        user_map={-1: fallback_user.id},
+        layout_id=None,
+        layout_data="",
+        unmapped_report={},
+        migration_job_id="job-1",
+    )
+    db.commit()
+
+    instance = db.query(ExamLayoutInstance).one()
+    assert counters.created == 1
+    assert unresolved == []
+    assert instance.layout_id is None
+    assert instance.layout_data
+    assert instance.exam_data["final-prescription"]["r_sph"] == -1.25
+
+
 def test_upsert_glasses_exams_rerun_updates_and_keeps_dual_trace():
     db = _build_session()
     company, clinic = _create_company_and_clinic(db)

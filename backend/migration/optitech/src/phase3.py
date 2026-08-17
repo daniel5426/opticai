@@ -46,12 +46,8 @@ except ModuleNotFoundError:
     )
     from backend.services.prescription_search_index import rebuild_clinic_prescription_search_index
 
-from .exam_layouts import (
-    CONTACT_LENS_COMPONENTS,
-    GLASSES_COMPONENTS,
-    build_instance_layout_data,
-    ensure_phase3_exam_layouts,
-)
+from .exam_layouts import CONTACT_LENS_COMPONENTS, GLASSES_COMPONENTS, build_instance_layout_data
+from migration.pipeline.common import get_or_create_admin_user
 from .lookups import LookupCatalog, ensure_lookup_extracts, load_lookup_catalog, lookup_name
 from .phase2 import apply_payload, batched, resolve_target_binding
 from .reader import WORKSPACE_ROOT, current_scans_dir, iter_exported_rows
@@ -248,9 +244,10 @@ def resolve_user_target_id(
     source_per_id: Optional[int],
 ) -> Optional[int]:
     if source_user_id in (None, 0):
-        return None
+        return user_map.get(-1)
     target_user_id = user_map.get(source_user_id)
-    if target_user_id is None:
+    fallback_user_id = user_map.get(-1)
+    if target_user_id is None and fallback_user_id is None:
         record_unresolved(
             unresolved_dependencies,
             domain=domain,
@@ -260,7 +257,7 @@ def resolve_user_target_id(
             source_user_id=source_user_id,
             source_value=source_user_id,
         )
-    return target_user_id
+    return target_user_id if target_user_id is not None else fallback_user_id
 
 
 def resolve_lookup_value(
@@ -1422,7 +1419,7 @@ def upsert_glasses_exams(
     clinic: Clinic,
     client_map: Mapping[int, int],
     user_map: Mapping[int, int],
-    layout_id: int,
+    layout_id: Optional[int],
     layout_data: str,
     unmapped_report: Dict[str, Dict[str, Dict[str, Any]]],
     migration_job_id: Optional[str] = None,
@@ -1666,7 +1663,7 @@ def upsert_contact_lens_exams(
     clinic: Clinic,
     client_map: Mapping[int, int],
     user_map: Mapping[int, int],
-    layout_id: int,
+    layout_id: Optional[int],
     layout_data: str,
     catalog: LookupCatalog,
     unmapped_report: Dict[str, Dict[str, Dict[str, Any]]],
@@ -2645,7 +2642,7 @@ def upsert_work_shifts(
                     source_user_id=seed.source_user_id,
                 )
                 continue
-            target_user_id = user_map.get(seed.source_user_id or -1)
+            target_user_id = user_map.get(seed.source_user_id or -1) or user_map.get(-1)
             if target_user_id is None or seed.work_date is None:
                 counters.skipped += 1
                 record_skip(
@@ -2729,7 +2726,7 @@ def execute_phase3(
         catalog = load_lookup_catalog()
         client_map = load_phase2_client_identity_map(db, clinic_id=clinic.id)
         user_map = load_phase2_user_identity_map(db, clinic_id=clinic.id)
-        glasses_layout, contact_lens_layout = ensure_phase3_exam_layouts(db, clinic)
+        user_map.setdefault(-1, get_or_create_admin_user(db, clinic.company, clinic).id)
 
         summary: Dict[str, Any] = {
             "source_system": OPTITECH_SOURCE_SYSTEM,
@@ -2753,8 +2750,8 @@ def execute_phase3(
                 clinic=clinic,
                 client_map=client_map,
                 user_map=user_map,
-                layout_id=glasses_layout.id,
-                layout_data=glasses_layout.layout_data,
+                layout_id=None,
+                layout_data="",
                 unmapped_report=unmapped_report,
                 migration_job_id=migration_job_id,
                 commit_each_batch=not dry_run,
@@ -2771,8 +2768,8 @@ def execute_phase3(
                 clinic=clinic,
                 client_map=client_map,
                 user_map=user_map,
-                layout_id=contact_lens_layout.id,
-                layout_data=contact_lens_layout.layout_data,
+                layout_id=None,
+                layout_data="",
                 catalog=catalog,
                 unmapped_report=unmapped_report,
                 migration_job_id=migration_job_id,

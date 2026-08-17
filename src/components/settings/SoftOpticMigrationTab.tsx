@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
 import { apiClient } from "@/lib/api-client"
 
 type SoftOpticCandidate = {
@@ -71,6 +72,7 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
   const [exportSummary, setExportSummary] = useState<Record<string, any> | null>(null)
   const [zipPath, setZipPath] = useState<string | null>(null)
   const [includeDocuments, setIncludeDocuments] = useState<boolean | null>(null)
+  const [importUsers, setImportUsers] = useState(false)
   const [clientImportLimit, setClientImportLimit] = useState("")
   const [exportJobId, setExportJobId] = useState<string | null>(null)
   const [job, setJob] = useState<any>(null)
@@ -374,6 +376,7 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
           },
           exportSummary: safeExportSummary,
           includeDocuments,
+          importUsers,
           clientImportLimit: effectiveLimit,
           bundleFormatVersion: Number(exportSummary?.manifest?.format_version || 0) || null,
           sourceFingerprint: exportSummary?.sourceFingerprint || exportSummary?.manifest?.source_fingerprint || null,
@@ -448,6 +451,7 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
     setExportSummary(null)
     setZipPath(null)
     setIncludeDocuments(null)
+    setImportUsers(false)
     setClientImportLimit("")
     setExportJobId(null)
     setJob(null)
@@ -621,6 +625,18 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
               />
             </div>}
           </div>
+
+          {sourceSystem === "optitech" && <label className="flex cursor-pointer items-start gap-3 rounded-md border p-3 text-start">
+            <Checkbox
+              checked={importUsers}
+              onCheckedChange={checked => setImportUsers(checked === true)}
+              className="mt-0.5"
+            />
+            <span>
+              <span className="block font-medium">ייבוא משתמשים ישנים</span>
+              <span className="mt-1 block text-xs text-muted-foreground">כבוי כברירת מחדל. ללא ייבוא, הרשומות ישויכו למשתמש ההסבה בלבד.</span>
+            </span>
+          </label>}
 
           <div className="grid gap-3 rounded-md border p-3 md:grid-cols-2">
             <button

@@ -24,10 +24,6 @@ export const legacyStaticCopy = {
     "en": "(cannot be changed)",
     "fr": "(ne peut pas être modifié)"
   },
-  "(מנהל)": {
-    "en": "(Manager)",
-    "fr": "(Gérant)"
-  },
   "(מנכ\"ל יחיד)": {
     "en": "(sole CEO)",
     "fr": "(PDG unique)"
@@ -35,10 +31,6 @@ export const legacyStaticCopy = {
   "(נוכחי)": {
     "en": "(current)",
     "fr": "(actuel)"
-  },
-  "(עובד)": {
-    "en": "(working)",
-    "fr": "(fonctionnant)"
   },
   "* הזמנה מס'": {
     "en": "* order no.",
@@ -53,7 +45,7 @@ export const legacyStaticCopy = {
     "fr": "% des ventes"
   },
   "• אפשרות לשתף את לוח הזמנים עם חברי צוות": {
-    "en": "• Option to share the schedule with team members",
+    "en": "• Possibility to share the schedule with team members",
     "fr": "• Possibilité de partager le planning avec les membres de l'équipe"
   },
   "• גישה לתורים מכל מכשיר דרך Google Calendar": {
@@ -145,8 +137,8 @@ export const legacyStaticCopy = {
     "fr": "Sécurité"
   },
   "אבטחת כניסה למרפאה": {
-    "en": "Clinic entrance security",
-    "fr": "Sécurité de l'entrée de la clinique"
+    "en": "Security of entrance to the clinic",
+    "fr": "Sécurité de l'entrée à la clinique"
   },
   "או": {
     "en": "Or",
@@ -196,10 +188,6 @@ export const legacyStaticCopy = {
     "en": "Out of stock",
     "fr": "En rupture de stock"
   },
-  "אזל מהמלאי": {
-    "en": "Out of stock",
-    "fr": "En rupture de stock"
-  },
   "אח": {
     "en": "brother",
     "fr": "frère"
@@ -217,7 +205,7 @@ export const legacyStaticCopy = {
     "fr": "Infirmière"
   },
   "אחר": {
-    "en": "other",
+    "en": "Other",
     "fr": "autre"
   },
   "אחרי": {
@@ -229,8 +217,8 @@ export const legacyStaticCopy = {
     "fr": "Après remise"
   },
   "איך אפשר לעזור היום בניהול המרפאה?": {
-    "en": "How can you help today in the management of the clinic?",
-    "fr": "Comment pouvez-vous aider aujourd'hui dans la gestion de la clinique ?"
+    "en": "How can you help in the management of the clinic today?",
+    "fr": "Comment pouvez-vous aider à la gestion de la clinique aujourd'hui ?"
   },
   "איך זה עובד?": {
     "en": "How does it work?",
@@ -312,6 +300,10 @@ export const legacyStaticCopy = {
     "en": "There are no shifts for this date",
     "fr": "Il n'y a pas d'équipe pour cette date"
   },
+  "אין משפחות להצגה": {
+    "en": "There are no families to display",
+    "fr": "Il n'y a aucune famille à afficher"
+  },
   "אין משתמשים במערכת": {
     "en": "There are no users in the system",
     "fr": "Il n'y a aucun utilisateur dans le système"
@@ -352,13 +344,21 @@ export const legacyStaticCopy = {
     "en": "There are no active test types",
     "fr": "Il n'y a aucun type de test actif"
   },
+  "אין ספקים התואמים לסינון הנוכחי.": {
+    "en": "There are no providers matching the current filter.",
+    "fr": "Aucun fournisseur ne correspond au filtre actuel."
+  },
+  "אין עדיין הוספות או הפחתות מלאי.": {
+    "en": "No inventory additions or reductions yet.",
+    "fr": "Aucun ajout ou réduction de stock pour l'instant."
+  },
   "אין עובדים במערכת": {
     "en": "There are no employees in the system",
     "fr": "Il n'y a aucun employé dans le système"
   },
   "אין עוד שיחות": {
-    "en": "No more conversations",
-    "fr": "Plus de conversations"
+    "en": "No more calls",
+    "fr": "Plus d'appels"
   },
   "אין פרטי יצירת קשר": {
     "en": "No contact details",
@@ -710,7 +710,7 @@ export const legacyStaticCopy = {
   },
   "בוחרים או יוצרים חשבון Meta Business": {
     "en": "Choose or create a Meta Business account",
-    "fr": "Choisissez ou créez un compte Meta Business"
+    "fr": "Choisir ou créer un compte Meta Business"
   },
   "בוטל": {
     "en": "Cancelled",
@@ -764,6 +764,10 @@ export const legacyStaticCopy = {
     "en": "Select or type material...",
     "fr": "Sélectionner ou saisir un matériau..."
   },
+  "בחר או הקלד יצרן...": {
+    "en": "Choose or type a manufacturer...",
+    "fr": "Choisissez ou saisissez un fabricant..."
+  },
   "בחר או הקלד מותג...": {
     "en": "Choose or type a brand...",
     "fr": "Choisissez ou saisissez une marque..."
@@ -771,6 +775,10 @@ export const legacyStaticCopy = {
   "בחר או הקלד מעבדה...": {
     "en": "Choose or type lab...",
     "fr": "Choisissez ou saisissez laboratoire..."
+  },
+  "בחר או הקלד סוג עדשה...": {
+    "en": "Select or type a lens type...",
+    "fr": "Sélectionnez ou saisissez un type d'objectif..."
   },
   "בחר או הקלד ספק...": {
     "en": "Choose or type provider...",
@@ -853,8 +861,8 @@ export const legacyStaticCopy = {
     "fr": "Choisissez un utilisateur"
   },
   "בחר סוג": {
-    "en": "Choose a type",
-    "fr": "Choisissez un type"
+    "en": "Choose type",
+    "fr": "Choisir le type"
   },
   "בחר סוג בדיקה": {
     "en": "Select a test type",
@@ -901,8 +909,8 @@ export const legacyStaticCopy = {
     "fr": "Sélectionnez un fichier CSV"
   },
   "בחר קופת חולים": {
-    "en": "Choose a health fund",
-    "fr": "Choisissez une caisse de santé"
+    "en": "Choose a health insurance fund",
+    "fr": "Choisir une mutuelle"
   },
   "בחר קופת חולים תחילה": {
     "en": "Choose a health insurance company first",
@@ -937,16 +945,16 @@ export const legacyStaticCopy = {
     "fr": "Choisir une image"
   },
   "בחר תמיסת חיטוי": {
-    "en": "Choose an antiseptic solution",
-    "fr": "Choisir une solution antiseptique"
+    "en": "Select Disinfectant Solution",
+    "fr": "Sélectionner une solution désinfectante"
   },
   "בחר תמיסת ניקוי": {
     "en": "Choose a cleaning solution",
     "fr": "Choisissez une solution de nettoyage"
   },
   "בחר תמיסת שטיפה": {
-    "en": "Choose a wash solution",
-    "fr": "Choisir une solution de lavage"
+    "en": "Choose a rinse solution",
+    "fr": "Choisir une solution de rinçage"
   },
   "בחר תפקיד": {
     "en": "Choose a role",
@@ -1012,6 +1020,10 @@ export const legacyStaticCopy = {
     "en": "in stock",
     "fr": "en stock"
   },
+  "במלאי / משוריין": {
+    "en": "in stock / armored",
+    "fr": "en stock / blindé"
+  },
   "בן": {
     "en": "Son",
     "fr": "Fils"
@@ -1030,15 +1042,11 @@ export const legacyStaticCopy = {
   },
   "ברוכים הבאים למערכת ניהול המרפאה": {
     "en": "Welcome to the clinic management system",
-    "fr": "Bienvenue dans le système de gestion de la clinique"
+    "fr": "Bienvenue dans le système de gestion de clinique"
   },
   "ברוכים הבאים לעוזר החכם שלך": {
     "en": "Welcome to your smart assistant",
     "fr": "Bienvenue dans votre assistant intelligent"
-  },
-  "ברונזה": {
-    "en": "Bronze",
-    "fr": "Bronze"
   },
   "ברקוד": {
     "en": "Barcode",
@@ -1053,8 +1061,8 @@ export const legacyStaticCopy = {
     "fr": "grand"
   },
   "גבוהה": {
-    "en": "tall",
-    "fr": "grand"
+    "en": "high",
+    "fr": "élevé"
   },
   "גבייה": {
     "en": "collection",
@@ -1065,7 +1073,7 @@ export const legacyStaticCopy = {
     "fr": "supérieur ou égal à"
   },
   "גדול מ": {
-    "en": "large m",
+    "en": "big m",
     "fr": "grand m"
   },
   "גובה": {
@@ -1127,10 +1135,6 @@ export const legacyStaticCopy = {
   "גרסה:": {
     "en": "Version:",
     "fr": "Version :"
-  },
-  "גרפיט": {
-    "en": "graphite",
-    "fr": "graphite"
   },
   "גשר": {
     "en": "bridge",
@@ -1341,12 +1345,12 @@ export const legacyStaticCopy = {
     "fr": "Les paramètres de messagerie sont indéfinis ou incorrects. Les paramètres de messagerie doivent être configurés sur la page des paramètres."
   },
   "הגדרות האימייל לא מוגדרות. יש להגדיר הגדרות אימייל בעמוד ההגדרות.": {
-    "en": "Email settings not configured. Email settings must be configured on the settings page.",
-    "fr": "Paramètres de messagerie non configurés. Les paramètres de messagerie doivent être configurés sur la page des paramètres."
+    "en": "Email settings are not configured. Email settings must be configured on the settings page.",
+    "fr": "Les paramètres de messagerie ne sont pas configurés. Les paramètres de messagerie doivent être configurés sur la page des paramètres."
   },
   "הגדרות זמנים ומגבלות תורים": {
-    "en": "Time definitions and queue limits",
-    "fr": "Définitions de temps et limites de file d'attente"
+    "en": "time definitions and queue limits",
+    "fr": "définitions de temps et limites de file d'attente"
   },
   "הגדרות חיבור לשרת": {
     "en": "Server connection settings",
@@ -1357,7 +1361,7 @@ export const legacyStaticCopy = {
     "fr": "Paramètres système"
   },
   "הגדרות מרכז הבקרה": {
-    "en": "Control Center settings",
+    "en": "Control Center Settings",
     "fr": "Paramètres du centre de contrôle"
   },
   "הגדרות שליחת הזכרות ללקוחות": {
@@ -1386,7 +1390,7 @@ export const legacyStaticCopy = {
   },
   "הגדרת מרפאה ראשונה": {
     "en": "Setting up a first clinic",
-    "fr": "Mise en place d'une première clinique"
+    "fr": "Création d'une première clinique"
   },
   "הגרסה שלך היא העדכנית ביותר": {
     "en": "Your version is the latest",
@@ -1456,6 +1460,10 @@ export const legacyStaticCopy = {
     "en": "Add tab",
     "fr": "Ajouter un onglet"
   },
+  "הוסף למלאי": {
+    "en": "Add to inventory",
+    "fr": "Ajouter à l'inventaire"
+  },
   "הוסף משתמש חדש": {
     "en": "Add new user",
     "fr": "Ajouter un nouvel utilisateur"
@@ -1468,8 +1476,12 @@ export const legacyStaticCopy = {
     "en": "Add item",
     "fr": "Ajouter un élément"
   },
+  "הוסף פריט לספק": {
+    "en": "Add item to supplier",
+    "fr": "Ajouter un article au fournisseur"
+  },
   "הוסף רכיב": {
-    "en": "Add component",
+    "en": "Add a component",
     "fr": "Ajouter un composant"
   },
   "הוסף שורה": {
@@ -1505,8 +1517,8 @@ export const legacyStaticCopy = {
     "fr": "ajout d'une condition"
   },
   "הופעות": {
-    "en": "Performances",
-    "fr": "Représentations"
+    "en": "appearances",
+    "fr": "apparitions"
   },
   "הופעל": {
     "en": "activated",
@@ -1514,7 +1526,7 @@ export const legacyStaticCopy = {
   },
   "הוראות הגעה": {
     "en": "Directions",
-    "fr": "Itinéraire"
+    "fr": "Itinéraires"
   },
   "הוראות עבור": {
     "en": "instructions for",
@@ -1581,16 +1593,16 @@ export const legacyStaticCopy = {
     "fr": "invitations"
   },
   "הזמנות וחיובים": {
-    "en": "Orders and billing",
-    "fr": "Commandes et facturation"
+    "en": "Orders and charges",
+    "fr": "Ordonnances et frais"
   },
   "הזמנות ללא בדיקה תואמת": {
     "en": "Orders without matching check",
     "fr": "Commandes sans chèque de correspondance"
   },
   "הזמנות משקפיים": {
-    "en": "glass orders",
-    "fr": "commandes de verre"
+    "en": "Glasses orders",
+    "fr": "Commandes de lunettes"
   },
   "הזמנות נסרקו": {
     "en": "Orders scanned",
@@ -1601,8 +1613,8 @@ export const legacyStaticCopy = {
     "fr": "Commandes de lentilles de contact"
   },
   "הזמנת עדשות": {
-    "en": "Ordering lenses",
-    "fr": "Commande d'objectifs"
+    "en": "Order lenses",
+    "fr": "Commander des objectifs"
   },
   "הזמנת עדשות מגע": {
     "en": "Order contact lenses",
@@ -1680,10 +1692,6 @@ export const legacyStaticCopy = {
     "en": "Apply range",
     "fr": "Appliquer la plage"
   },
-  "הטקסט המלא שנשמר עבור תנועת המלאי.": {
-    "en": "The full text saved for the inventory movement.",
-    "fr": "Le texte intégral enregistré pour le mouvement de stock."
-  },
   "היום": {
     "en": "Today",
     "fr": "Aujourd'hui"
@@ -1720,6 +1728,10 @@ export const legacyStaticCopy = {
     "en": "Order history",
     "fr": "Historique des commandes"
   },
+  "היסטוריית מלאי": {
+    "en": "Inventory history",
+    "fr": "Historique des stocks"
+  },
   "היסטוריית תשלומים": {
     "en": "Payment history",
     "fr": "Historique des paiements"
@@ -1741,7 +1753,7 @@ export const legacyStaticCopy = {
     "fr": "Entrez l'e-mail"
   },
   "הכנס את מזהה המרפאה כדי להיכנס": {
-    "en": "Enter the Clinic ID to login",
+    "en": "Enter clinic ID to login",
     "fr": "Entrez l'ID de la clinique pour vous connecter"
   },
   "הכנס את תוכן ה-SMS כאן...": {
@@ -1768,10 +1780,6 @@ export const legacyStaticCopy = {
     "en": "Insert home phone",
     "fr": "Insérer le téléphone fixe"
   },
-  "הכנס טלפון נוסף": {
-    "en": "Insert another phone",
-    "fr": "Insérer un autre téléphone"
-  },
   "הכנס טלפון נייד": {
     "en": "Insert mobile phone",
     "fr": "Insérer le téléphone portable"
@@ -1793,8 +1801,8 @@ export const legacyStaticCopy = {
     "fr": "Entrez le numéro de la maison/de l'appartement"
   },
   "הכנס קבוצת מיון": {
-    "en": "Insert sort group",
-    "fr": "Insérer un groupe de tri"
+    "en": "Enter a sort group",
+    "fr": "Entrez un groupe de tri"
   },
   "הכנס קוד PIN": {
     "en": "Enter PIN code",
@@ -1844,13 +1852,17 @@ export const legacyStaticCopy = {
     "en": "The information is based on AI and is not a substitute for professional judgment.",
     "fr": "Les informations sont basées sur l'IA et ne remplacent pas le jugement professionnel."
   },
+  "המלאי הופחת": {
+    "en": "Inventory reduced",
+    "fr": "Inventaire réduit"
+  },
   "המלאי השתנה ואין עוד כמות זמינה. פתח את בחירת הקטלוג ובחר הזמנה מספק.": {
     "en": "The inventory has changed and there is no more quantity available. Open the catalog selection and choose an order from a supplier.",
     "fr": "L'inventaire a changé et il n'y a plus de quantité disponible. Ouvrez la sélection du catalogue et choisissez une commande auprès d'un fournisseur."
   },
-  "המלאי עודכן": {
-    "en": "The inventory has been updated",
-    "fr": "L'inventaire a été mis à jour"
+  "המלאי נוסף": {
+    "en": "Inventory added",
+    "fr": "Inventaire ajouté"
   },
   "המלצות": {
     "en": "recommendations",
@@ -1920,10 +1932,6 @@ export const legacyStaticCopy = {
     "en": "discount (%)",
     "fr": "remise (%)"
   },
-  "הנחה (₪)": {
-    "en": "discount",
-    "fr": "remise"
-  },
   "הנחה באחוזים": {
     "en": "Percentage discount",
     "fr": "Pourcentage de remise"
@@ -1937,7 +1945,7 @@ export const legacyStaticCopy = {
     "fr": "Les données sont basées sur les commandes confirmées et les transactions de consommation non associées à cette commande. Niveau de sécurité :"
   },
   "הנתונים מוצגים כפי שנקלטו בקובץ המקור בזמן ההסבה. אי אפשר לערוך אותם כאן.": {
-    "en": "The data is displayed as it was captured in the source file at the time of conversion. They cannot be edited here.",
+    "en": "The data is displayed as captured in the source file at the time of conversion. They cannot be edited here.",
     "fr": "Les données sont affichées telles qu'elles ont été capturées dans le fichier source au moment de la conversion. Ils ne peuvent pas être modifiés ici."
   },
   "הסבר:": {
@@ -2017,8 +2025,8 @@ export const legacyStaticCopy = {
     "fr": "L'assistant intelligent peut commettre des erreurs, assurez-vous de vérifier les informations importantes."
   },
   "העיניים": {
-    "en": "the eyes",
-    "fr": "les yeux"
+    "en": "The eyes",
+    "fr": "Les yeux"
   },
   "העלאה": {
     "en": "Upload",
@@ -2042,7 +2050,7 @@ export const legacyStaticCopy = {
   },
   "הערה נסתרת": {
     "en": "hidden note",
-    "fr": "note masquée"
+    "fr": "note cachée"
   },
   "הערות": {
     "en": "Notes",
@@ -2065,8 +2073,8 @@ export const legacyStaticCopy = {
     "fr": "Notes au fournisseur"
   },
   "הערות לספק...": {
-    "en": "Comments to provide...",
-    "fr": "Commentaires à fournir..."
+    "en": "Notes to provider...",
+    "fr": "Notes au fournisseur..."
   },
   "הערות מרשם": {
     "en": "Prescription notes",
@@ -2131,6 +2139,14 @@ export const legacyStaticCopy = {
   "העתקה לא נתמכת": {
     "en": "Copy not supported",
     "fr": "Copie non prise en charge"
+  },
+  "הפחת מהמלאי": {
+    "en": "Deduct from inventory",
+    "fr": "Déduire de l'inventaire"
+  },
+  "הפחתה": {
+    "en": "Reduction",
+    "fr": "Réduction"
   },
   "הפלטפורמה אינה זמינה כרגע": {
     "en": "The platform is currently unavailable",
@@ -2225,12 +2241,12 @@ export const legacyStaticCopy = {
     "fr": "mise en page introuvable"
   },
   "הפריסה נמחקה": {
-    "en": "The layout has been deleted",
-    "fr": "La mise en page a été supprimée"
+    "en": "Layout deleted",
+    "fr": "Mise en page supprimée"
   },
   "הפריסה עודכנה בהצלחה": {
     "en": "Layout updated successfully",
-    "fr": "Mise à jour réussie"
+    "fr": "Mise en page mise à jour avec succès"
   },
   "הפריסות שנבחרו הוסרו": {
     "en": "The selected layouts have been removed",
@@ -2239,10 +2255,6 @@ export const legacyStaticCopy = {
   "הצבע הזה ישמש לסימון התורים שלך באפליקציה וביומן Google Calendar": {
     "en": "This color will be used to mark your appointments in the app and in the Google Calendar",
     "fr": "Cette couleur sera utilisée pour marquer vos rendez-vous dans l'application et dans Google Agenda"
-  },
-  "הצג את סיבת התנועה המלאה": {
-    "en": "View full traffic reason",
-    "fr": "Afficher la raison complète du trafic"
   },
   "הצג הכל": {
     "en": "Show all",
@@ -2285,7 +2297,7 @@ export const legacyStaticCopy = {
     "fr": "Le fichier est vérifié en premier. Rien n'a été écrit jusqu'à ce que le résumé soit approuvé."
   },
   "הקובץ נמחק בהצלחה": {
-    "en": "The file was deleted successfully",
+    "en": "The file was successfully deleted",
     "fr": "Le fichier a été supprimé avec succès"
   },
   "הקוד מאשר את המכשיר לכניסה למרפאה. אחרי שינוי הקוד, מכשירים קיימים יצטרכו אימות מחדש.": {
@@ -2333,8 +2345,8 @@ export const legacyStaticCopy = {
     "fr": "Lancer la campagne maintenant"
   },
   "הרצות קמפיין": {
-    "en": "campaign speeches",
-    "fr": "discours de campagne"
+    "en": "Campaign speeches",
+    "fr": "Discours de campagne"
   },
   "הרשאות Google Calendar עודכנו בהצלחה!": {
     "en": "Google Calendar permissions updated successfully!",
@@ -2403,18 +2415,6 @@ export const legacyStaticCopy = {
   "התאם את צבעי המערכת עבור כל משתמשי החברה": {
     "en": "Adjust the system colors for all company users",
     "fr": "Ajuster les couleurs du système pour tous les utilisateurs de l'entreprise"
-  },
-  "התאם מלאי": {
-    "en": "Adjust inventory",
-    "fr": "Ajuster l'inventaire"
-  },
-  "התאמה": {
-    "en": "adjustment",
-    "fr": "ajustement"
-  },
-  "התאמת מלאי": {
-    "en": "Inventory adjustment",
-    "fr": "Ajustement des stocks"
   },
   "התור הודבק בהצלחה": {
     "en": "Queue successfully pasted",
@@ -2556,10 +2556,6 @@ export const legacyStaticCopy = {
     "en": "variant",
     "fr": "variante"
   },
-  "וריאנטים פעילים": {
-    "en": "active variants",
-    "fr": "variantes actives"
-  },
   "זהב": {
     "en": "gold",
     "fr": "or"
@@ -2580,13 +2576,9 @@ export const legacyStaticCopy = {
     "en": "Available",
     "fr": "Disponible"
   },
-  "זמין למכירה": {
-    "en": "available for sale",
-    "fr": "disponible à la vente"
-  },
   "זמן פנוי": {
-    "en": "Free time",
-    "fr": "Temps libre"
+    "en": "free time",
+    "fr": "temps libre"
   },
   "חבר אוטומטית בין בדיקה סובייקטיבית למרשם סופי": {
     "en": "Automatically connect a subjective test to a final prescription",
@@ -2700,13 +2692,9 @@ export const legacyStaticCopy = {
     "en": "next renewal",
     "fr": "prochain renouvellement"
   },
-  "חיובי להוספה, שלילי להסרה": {
-    "en": "Positive to add, negative to remove",
-    "fr": "Positif à ajouter, négatif à supprimer"
-  },
   "חיובים": {
-    "en": "Billing",
-    "fr": "Facturation"
+    "en": "charges",
+    "fr": "accusations"
   },
   "חיטוי": {
     "en": "disinfection",
@@ -2753,16 +2741,16 @@ export const legacyStaticCopy = {
     "fr": "Recherche de clients…"
   },
   "חיפוש מסמכים…": {
-    "en": "Search documents…",
-    "fr": "Rechercher des documents…"
+    "en": "Search for documents…",
+    "fr": "Recherche de documents…"
   },
   "חיפוש משפחות...": {
     "en": "Family search...",
     "fr": "Recherche de famille..."
   },
   "חיפוש משפחות…": {
-    "en": "Family search...",
-    "fr": "Recherche de famille..."
+    "en": "Family search…",
+    "fr": "Recherche de famille…"
   },
   "חיפוש משתמשים…": {
     "en": "Search users…",
@@ -2793,23 +2781,23 @@ export const legacyStaticCopy = {
     "fr": "La répartition des commandes validées dans la gamme"
   },
   "חנות": {
-    "en": "shop",
-    "fr": "boutique"
+    "en": "store",
+    "fr": "Boutique"
   },
   "חסום": {
     "en": "blocked",
     "fr": "bloqué"
   },
   "חסום לאשראי": {
-    "en": "Blocked for credit",
-    "fr": "Bloqué pour crédit"
+    "en": "blocked for credit",
+    "fr": "bloqué pour crédit"
   },
   "חסום לצ'קים": {
-    "en": "Blocked to checks",
-    "fr": "Bloqué aux chèques"
+    "en": "Block to checks",
+    "fr": "Bloquer les chèques"
   },
   "חסר מזהה הזמנה להדפסה": {
-    "en": "Missing Print Order ID",
+    "en": "Missing print order ID",
     "fr": "ID de commande d'impression manquant"
   },
   "חסר מזהה הזמנה לייצוא": {
@@ -2821,7 +2809,7 @@ export const legacyStaticCopy = {
     "fr": "ID de référence d'impression manquant"
   },
   "חסר מזהה הפניה לייצוא": {
-    "en": "Missing export reference ID",
+    "en": "Missing Export Reference ID",
     "fr": "ID de référence d'exportation manquant"
   },
   "חסר Axis": {
@@ -2892,6 +2880,10 @@ export const legacyStaticCopy = {
     "en": "Loading clinics...",
     "fr": "Chargement des cliniques..."
   },
+  "טוען משפחות...": {
+    "en": "Loading families...",
+    "fr": "Chargement des familles..."
+  },
   "טוען משתמשים...": {
     "en": "Loading users...",
     "fr": "Chargement des utilisateurs..."
@@ -2944,10 +2936,6 @@ export const legacyStaticCopy = {
     "en": "The phone of the clinic",
     "fr": "Le téléphone de la clinique"
   },
-  "טלפון נוסף": {
-    "en": "Another phone",
-    "fr": "Un autre téléphone"
-  },
   "טלפון נייד": {
     "en": "mobile phone",
     "fr": "téléphone portable"
@@ -2959,6 +2947,10 @@ export const legacyStaticCopy = {
   "טלפון:": {
     "en": "Phone:",
     "fr": "Téléphone :"
+  },
+  "טעינת היסטוריית המלאי נכשלה": {
+    "en": "Failed to load inventory history",
+    "fr": "Échec du chargement de l'historique de l'inventaire"
   },
   "טעינת הנתונים נכשלה": {
     "en": "Failed to load data",
@@ -3028,9 +3020,13 @@ export const legacyStaticCopy = {
     "en": "import from Optic-Soft",
     "fr": "importer depuis Optic-Soft"
   },
+  "ייבוא משתמשים ישנים": {
+    "en": "Import old users",
+    "fr": "Importer les anciens utilisateurs"
+  },
   "ייבוא נתונים + מסמכים מותאמים": {
-    "en": "Data import + adapted documents",
-    "fr": "Import de données + documents adaptés"
+    "en": "data import + adapted documents",
+    "fr": "import de données + documents adaptés"
   },
   "ייבוא נתונים בלבד": {
     "en": "Import data only",
@@ -3085,8 +3081,8 @@ export const legacyStaticCopy = {
     "fr": "Jours de vacances ajoutés"
   },
   "ימי כיסוי": {
-    "en": "Days of coverage",
-    "fr": "Jours de couverture"
+    "en": "days of coverage",
+    "fr": "jours de couverture"
   },
   "ימים": {
     "en": "days",
@@ -3107,10 +3103,6 @@ export const legacyStaticCopy = {
   "ימין": {
     "en": "right",
     "fr": "à droite"
-  },
-  "יער": {
-    "en": "forest",
-    "fr": "forêt"
   },
   "יציבות": {
     "en": "stability",
@@ -3133,7 +3125,7 @@ export const legacyStaticCopy = {
     "fr": "Création d'un nouveau client"
   },
   "יצירת פעולת הייבוא נכשלה": {
-    "en": "Failed to create the import operation",
+    "en": "Failed to create import operation",
     "fr": "Échec de la création de l'opération d'importation"
   },
   "יצירת קבוצה": {
@@ -3141,8 +3133,8 @@ export const legacyStaticCopy = {
     "fr": "Création d'un groupe"
   },
   "יצרן": {
-    "en": "manufacturer",
-    "fr": "fabricant"
+    "en": "Manufacturer",
+    "fr": "Fabricant"
   },
   "יצרנים": {
     "en": "manufacturers",
@@ -3170,7 +3162,7 @@ export const legacyStaticCopy = {
   },
   "יש לבחור מרפאה כדי לצפות במלאי.": {
     "en": "You must select a clinic to view the inventory.",
-    "fr": "Vous devez sélectionner une clinique pour voir l'inventaire."
+    "fr": "Vous devez sélectionner une clinique pour afficher l'inventaire."
   },
   "יש לבחור סוג בדיקה": {
     "en": "A test type must be selected",
@@ -3179,6 +3171,10 @@ export const legacyStaticCopy = {
   "יש לבחור סוג בדיקה לפני התחלת בדיקה": {
     "en": "A test type must be selected before starting a test",
     "fr": "Un type de test doit être sélectionné avant de démarrer un test"
+  },
+  "יש להזין כמות שלמה הגדולה מאפס": {
+    "en": "An integer greater than zero must be entered",
+    "fr": "Un entier supérieur à zéro doit être saisi"
   },
   "יש להזין לפחות שדה מרשם אחד": {
     "en": "At least one prescription field must be entered",
@@ -3192,28 +3188,24 @@ export const legacyStaticCopy = {
     "en": "A positive payment amount must be entered",
     "fr": "Un montant de paiement positif doit être saisi"
   },
-  "יש להזין שינוי כמות וסיבה": {
-    "en": "A quantity change and a reason must be entered",
-    "fr": "Un changement de quantité et un motif doivent être renseignés"
-  },
   "יש להזין שם ולבחור לפחות שתי פריסות": {
     "en": "You must enter a name and select at least two layouts",
     "fr": "Vous devez saisir un nom et sélectionner au moins deux mises en page"
   },
   "יש להזין PIN למרפאה באורך 4 תווים לפחות": {
-    "en": "A PIN for the clinic must be at least 4 characters long",
-    "fr": "Un code PIN pour la clinique doit comporter au moins 4 caractères"
+    "en": "You must enter a PIN for the clinic that is at least 4 characters long",
+    "fr": "Vous devez saisir un code PIN pour la clinique d'au moins 4 caractères."
   },
   "יש להפעיל אימייל או SMS": {
     "en": "Email or SMS must be activated",
-    "fr": "L'email ou le SMS doivent être activés"
+    "fr": "L'email ou le SMS doit être activé"
   },
   "יש להשלים פרטים חסרים": {
     "en": "Missing details must be completed",
     "fr": "Les détails manquants doivent être complétés"
   },
   "יש למלא מותג ודגם": {
-    "en": "Make and model must be filled",
+    "en": "Brand and model must be filled in",
     "fr": "La marque et le modèle doivent être renseignés"
   },
   "יש לשמור את ההזמנה לפני הוספת תשלום": {
@@ -3226,7 +3218,7 @@ export const legacyStaticCopy = {
   },
   "יש קמפיינים עם אימייל מופעל אך הגדרות האימייל לא מוגדרות. יש להגדיר הגדרות אימייל בעמוד ההגדרות.": {
     "en": "There are campaigns with email enabled but the email settings are not configured. Email settings must be configured on the settings page.",
-    "fr": "Il existe des campagnes pour lesquelles la messagerie électronique est activée, mais les paramètres de messagerie ne sont pas configurés. Les paramètres de messagerie doivent être configurés sur la page des paramètres."
+    "fr": "Il existe des campagnes avec la messagerie électronique activée, mais les paramètres de messagerie ne sont pas configurés. Les paramètres de messagerie doivent être configurés sur la page des paramètres."
   },
   "יש שינויים שלא נשמרו": {
     "en": "There are unsaved changes",
@@ -3237,8 +3229,8 @@ export const legacyStaticCopy = {
     "fr": "Il y a des files d'attente"
   },
   "יתרה": {
-    "en": "Balance",
-    "fr": "Solde"
+    "en": "balance",
+    "fr": "solde"
   },
   "יתרה לתשלום": {
     "en": "Balance due",
@@ -3264,6 +3256,10 @@ export const legacyStaticCopy = {
     "en": "When this option is active, changes to the subjective test will be automatically updated in the final register at that session.",
     "fr": "Lorsque cette option est active, les modifications apportées au test subjectif seront automatiquement mises à jour dans le registre final de cette session."
   },
+  "כבוי כברירת מחדל. ללא ייבוא, הרשומות ישויכו למשתמש ההסבה בלבד.": {
+    "en": "Off by default. Without import, the records will be associated with the conversion user only.",
+    "fr": "Désactivé par défaut. Sans importation, les enregistrements seront associés uniquement à l'utilisateur de conversion."
+  },
   "כדי להתחבר": {
     "en": "to connect",
     "fr": "pour se connecter"
@@ -3271,10 +3267,6 @@ export const legacyStaticCopy = {
   "כדי לחזור": {
     "en": "to return",
     "fr": "pour revenir"
-  },
-  "כחול קלאסי": {
-    "en": "Classic blue",
-    "fr": "Bleu classique"
   },
   "כל הבדיקות": {
     "en": "All tests",
@@ -3285,7 +3277,7 @@ export const legacyStaticCopy = {
     "fr": "Toutes les urgences"
   },
   "כל ההגדרות נשמרו בהצלחה": {
-    "en": "All settings were saved successfully",
+    "en": "All settings were successfully saved",
     "fr": "Tous les paramètres ont été enregistrés avec succès"
   },
   "כל ההזמנות": {
@@ -3364,13 +3356,13 @@ export const legacyStaticCopy = {
     "en": "Quantity in package",
     "fr": "Quantité par colis"
   },
-  "כמות זמינה כעת": {
-    "en": "Quantity available now",
-    "fr": "Quantité disponible maintenant"
+  "כמות היעד לא יכולה להיות נמוכה מנקודת ההזמנה מחדש": {
+    "en": "The target quantity cannot be lower than the reorder point",
+    "fr": "La quantité cible ne peut pas être inférieure au point de réapprovisionnement"
   },
   "כמות יעד": {
-    "en": "target quantity",
-    "fr": "quantité cible"
+    "en": "Target quantity",
+    "fr": "Quantité cible"
   },
   "כמות להזמנה": {
     "en": "Quantity to order",
@@ -3513,8 +3505,8 @@ export const legacyStaticCopy = {
     "fr": "Impossible d'imprimer la commande avant de l'enregistrer"
   },
   "לא ניתן להדפיס הפניה ללא מזהה": {
-    "en": "Unable to print reference without ID",
-    "fr": "Impossible d'imprimer la référence sans ID"
+    "en": "Unable to print a reference without an ID",
+    "fr": "Impossible d'imprimer une référence sans ID"
   },
   "לא ניתן להדפיס הפניה לפני שמירה": {
     "en": "Unable to print reference before saving",
@@ -3529,8 +3521,8 @@ export const legacyStaticCopy = {
     "fr": "Impossible de supprimer le dernier onglet"
   },
   "לא ניתן להעביר תור ליום חופשה של המשתמש": {
-    "en": "It is not possible to transfer an appointment to a vacation day of the user",
-    "fr": "Il n'est pas possible de transférer un rendez-vous vers un jour de vacances de l'utilisateur"
+    "en": "It is not possible to transfer an appointment to the user's vacation day",
+    "fr": "Il n'est pas possible de transférer un rendez-vous sur le jour de vacances de l'utilisateur"
   },
   "לא ניתן לטעון את נתוני המקור כרגע.": {
     "en": "The source data cannot be loaded at this time.",
@@ -3605,8 +3597,8 @@ export const legacyStaticCopy = {
     "fr": "Introuvable"
   },
   "לא נמצאו אפשרויות מתאימות": {
-    "en": "No suitable options found",
-    "fr": "Aucune option appropriée trouvée"
+    "en": "No suitable options were found",
+    "fr": "Aucune option appropriée n'a été trouvée"
   },
   "לא נמצאו בדיקות לתצוגה": {
     "en": "No tests found to display",
@@ -3796,13 +3788,17 @@ export const legacyStaticCopy = {
     "en": "No password",
     "fr": "Pas de mot de passe"
   },
+  "ללא ספק": {
+    "en": "Without a doubt",
+    "fr": "Sans aucun doute"
+  },
   "ללא צורך במפתחים או בהגדרות מורכבות": {
     "en": "Without the need for keys or complex settings",
     "fr": "Sans avoir besoin de clés ou de paramètres complexes"
   },
   "ללא שם": {
-    "en": "unnamed",
-    "fr": "sans nom"
+    "en": "No name",
+    "fr": "Aucun nom"
   },
   "ללא תנועה": {
     "en": "without movement",
@@ -3948,6 +3944,10 @@ export const legacyStaticCopy = {
     "en": "Privacy Policy",
     "fr": "Politique de confidentialité"
   },
+  "מדיניות מלאי": {
+    "en": "Inventory policy",
+    "fr": "Politique d'inventaire"
+  },
   "מה הקוד עושה?": {
     "en": "What does the code do?",
     "fr": "Que fait le code ?"
@@ -3971,10 +3971,6 @@ export const legacyStaticCopy = {
   "מולטיפוקל": {
     "en": "multifocal",
     "fr": "multifocale"
-  },
-  "מונוכרום": {
-    "en": "Monochrome",
-    "fr": "Monochrome"
   },
   "מוסר עבודה": {
     "en": "work ethic",
@@ -4049,7 +4045,7 @@ export const legacyStaticCopy = {
     "fr": "ID de clinique"
   },
   "מזהה המרפאה או קוד ה-PIN שגויים": {
-    "en": "Clinic ID or PIN code is incorrect",
+    "en": "The clinic ID or PIN code is incorrect",
     "fr": "L'ID de la clinique ou le code PIN est incorrect"
   },
   "מזהה המרפאה לא נמצא במערכת": {
@@ -4145,7 +4141,7 @@ export const legacyStaticCopy = {
     "fr": "prix de vente"
   },
   "מחיר מכירה מוצע": {
-    "en": "Suggested sale price",
+    "en": "Suggested selling price",
     "fr": "Prix de vente suggéré"
   },
   "מחירון": {
@@ -4193,7 +4189,7 @@ export const legacyStaticCopy = {
     "fr": "Informations personnelles"
   },
   "מידע אישי ופרטי התחברות": {
-    "en": "Personal information and login information",
+    "en": "Personal information and login details",
     "fr": "Informations personnelles et informations de connexion"
   },
   "מידע כללי על החברה והבעלים": {
@@ -4241,8 +4237,8 @@ export const legacyStaticCopy = {
     "fr": "Code postal"
   },
   "מיקום במבנה": {
-    "en": "Position in the structure",
-    "fr": "Position dans la structure"
+    "en": "Position in the building",
+    "fr": "Position dans le bâtiment"
   },
   "מיקום המרפאה": {
     "en": "clinic location",
@@ -4287,10 +4283,6 @@ export const legacyStaticCopy = {
   "מלאי ללא תנועה": {
     "en": "Inventory without movement",
     "fr": "Inventaire sans mouvement"
-  },
-  "מלאי נמוך": {
-    "en": "Low stock",
-    "fr": "Stock faible"
   },
   "מלאי קיים לעומת הזמנת ספק": {
     "en": "Existing stock vs supplier order",
@@ -4396,13 +4388,9 @@ export const legacyStaticCopy = {
     "en": "finishes upload",
     "fr": "termine le téléchargement"
   },
-  "מסירה ללקוח": {
-    "en": "Delivery to the customer",
-    "fr": "Livraison chez le client"
-  },
   "מסך מלא": {
-    "en": "full screen",
-    "fr": "plein écran"
+    "en": "Full screen",
+    "fr": "Plein écran"
   },
   "מסך פתיחה": {
     "en": "Opening screen",
@@ -4433,16 +4421,16 @@ export const legacyStaticCopy = {
     "fr": "filtres"
   },
   "מספר בית/דירה": {
-    "en": "Address no.",
-    "fr": "N° d’adresse"
+    "en": "House/apartment number",
+    "fr": "Numéro de maison/appartement"
   },
   "מספר חברים": {
     "en": "number of members",
     "fr": "nombre de membres"
   },
   "מספר טלפון": {
-    "en": "Phone number",
-    "fr": "Numéro de téléphone"
+    "en": "phone number",
+    "fr": "numéro de téléphone"
   },
   "מספר טלפון מזהה:": {
     "en": "ID phone number:",
@@ -4505,7 +4493,7 @@ export const legacyStaticCopy = {
     "fr": "haut..."
   },
   "מערכת מקור:": {
-    "en": "Source System:",
+    "en": "Source system:",
     "fr": "Système source :"
   },
   "מערכת ניהול לאופטיקאים": {
@@ -4513,8 +4501,8 @@ export const legacyStaticCopy = {
     "fr": "Un système de gestion pour les opticiens"
   },
   "מפתח עפעף": {
-    "en": "Eyelid Key",
-    "fr": "Clé des paupières"
+    "en": "Eyelid key",
+    "fr": "Clé paupière"
   },
   "מצב": {
     "en": "state",
@@ -4568,10 +4556,6 @@ export const legacyStaticCopy = {
     "en": "Maximum queues per day",
     "fr": "Files d'attente maximales par jour"
   },
-  "מראה צבע": {
-    "en": "shows color",
-    "fr": "affiche la couleur"
-  },
   "מרחק בדיקת VA": {
     "en": "VA test distance",
     "fr": "Distance d'essai VA"
@@ -4589,8 +4573,8 @@ export const legacyStaticCopy = {
     "fr": "clinique"
   },
   "מרפאה הופעלה": {
-    "en": "A clinic has been activated",
-    "fr": "Une clinique a été activée"
+    "en": "Clinic has been activated",
+    "fr": "La clinique a été activée"
   },
   "מרפאה הושבתה": {
     "en": "Clinic has been shut down",
@@ -4609,8 +4593,8 @@ export const legacyStaticCopy = {
     "fr": "Clinique non sélectionnée"
   },
   "מרפאה לפי ביצועים": {
-    "en": "clinic by performance",
-    "fr": "clinique par performance"
+    "en": "Clinic by performance",
+    "fr": "Clinique par performance"
   },
   "מרפאה נבחרת": {
     "en": "Selected clinic",
@@ -4625,7 +4609,7 @@ export const legacyStaticCopy = {
     "fr": "Clinique créée avec succès"
   },
   "מרפאה עודכנה בהצלחה": {
-    "en": "Clinic has been successfully updated",
+    "en": "Clinic has been updated successfully",
     "fr": "La clinique a été mise à jour avec succès"
   },
   "מרפאות": {
@@ -4642,7 +4626,7 @@ export const legacyStaticCopy = {
   },
   "מרפאות/סניפים": {
     "en": "clinics/branches",
-    "fr": "cliniques/agences"
+    "fr": "cliniques/branches"
   },
   "מרפאת העיניים": {
     "en": "The eye clinic",
@@ -4676,10 +4660,6 @@ export const legacyStaticCopy = {
     "en": "Armored",
     "fr": "Blindé"
   },
-  "משוריין להזמנות": {
-    "en": "armored for orders",
-    "fr": "blindé pour les commandes"
-  },
   "משך המשמרת": {
     "en": "The duration of the shift",
     "fr": "La durée du quart de travail"
@@ -4697,8 +4677,8 @@ export const legacyStaticCopy = {
     "fr": "équipes du mois"
   },
   "משמרות ששוחזרו": {
-    "en": "restored shifts",
-    "fr": "équipes restaurées"
+    "en": "Restored shifts",
+    "fr": "Equipes restaurées"
   },
   "משמרת": {
     "en": "shift",
@@ -4729,8 +4709,8 @@ export const legacyStaticCopy = {
     "fr": "familles"
   },
   "משקפיים": {
-    "en": "glasses",
-    "fr": "lunettes"
+    "en": "Glasses",
+    "fr": "Lunettes"
   },
   "משתמש זה חייב להתחבר עם סיסמה או Google": {
     "en": "This user must log in with a password or Google",
@@ -4809,12 +4789,12 @@ export const legacyStaticCopy = {
     "fr": "collectés"
   },
   "נדרש לאישור מכשירים ולכניסה ללא סיסמה למשתמשים שהוגדרו כך": {
-    "en": "Required for device authorization and passwordless login for users defined as such",
-    "fr": "Obligatoire pour l'autorisation du périphérique et la connexion sans mot de passe pour les utilisateurs définis comme tels"
+    "en": "Required for device authorization and passwordless login for users so configured",
+    "fr": "Obligatoire pour l'autorisation du périphérique et la connexion sans mot de passe pour les utilisateurs ainsi configurés"
   },
   "נדרשת הרשאה ליומן Google - מתחיל תהליך הרשאה...": {
-    "en": "Permission required for Google Calendar - authorization process is starting...",
-    "fr": "Autorisation requise pour Google Agenda - le processus d'autorisation démarre..."
+    "en": "Permission required for Google Calendar - authorization process begins...",
+    "fr": "Autorisation requise pour Google Agenda - le processus d'autorisation commence..."
   },
   "נדרשת תשומת לב לחיוב": {
     "en": "Attention to the charge is required",
@@ -4850,7 +4830,7 @@ export const legacyStaticCopy = {
   },
   "נוצר על ידי מערכת ניהול המרפאה (Web)": {
     "en": "Created by the clinic management system (Web)",
-    "fr": "Créé par le système de gestion de la clinique (Web)"
+    "fr": "Créé par le système de gestion de clinique (Web)"
   },
   "ניהול חיוב": {
     "en": "billing management",
@@ -4905,7 +4885,7 @@ export const legacyStaticCopy = {
     "fr": "Le nettoyage de la clinique n'a pas commencé"
   },
   "ניקוי מלא של נתוני המרפאה": {
-    "en": "Full cleaning of the clinic data",
+    "en": "Complete cleaning of the clinic data",
     "fr": "Nettoyage complet des données de la clinique"
   },
   "ניקוי נתוני המרפאה": {
@@ -4917,8 +4897,8 @@ export const legacyStaticCopy = {
     "fr": "La suppression des données de la clinique est terminée"
   },
   "נלכד בתאריך:": {
-    "en": "Captured on:",
-    "fr": "Capturé le :"
+    "en": "captured on:",
+    "fr": "capturé sur :"
   },
   "נמוך": {
     "en": "low",
@@ -4969,16 +4949,16 @@ export const legacyStaticCopy = {
     "fr": "J'ai trouvé un client avec des détails similaires"
   },
   "נמצא לקוח עם פרטים דומים (שם, טלפון או אימייל)": {
-    "en": "A customer was found with similar details (name, phone or email)",
-    "fr": "Un client a été trouvé avec des informations similaires (nom, téléphone ou e-mail)"
+    "en": "Found a customer with similar details (name, phone or email)",
+    "fr": "J'ai trouvé un client avec des informations similaires (nom, téléphone ou e-mail)"
   },
   "נמצא לקוח עם שם דומה": {
     "en": "Found a customer with a similar name",
     "fr": "J'ai trouvé un client avec un nom similaire"
   },
   "נמצא DSN בשם RRDB": {
-    "en": "Found a DSN named RRDB",
-    "fr": "Un DSN nommé RRDB a été trouvé"
+    "en": "Found DSN named RRDB",
+    "fr": "DSN trouvé nommé RRDB"
   },
   "נסה העלאה שוב": {
     "en": "Try uploading again",
@@ -5003,6 +4983,14 @@ export const legacyStaticCopy = {
   "נקה נתונים": {
     "en": "Clear data",
     "fr": "Effacer les données"
+  },
+  "נקה סינון ספק": {
+    "en": "Clear vendor filtering",
+    "fr": "Effacer le filtrage des fournisseurs"
+  },
+  "נקה סינון ספק וחזור לתצוגת ספקים": {
+    "en": "Clear provider filtering and return to provider view",
+    "fr": "Effacer le filtrage des fournisseurs et revenir à la vue des fournisseurs"
   },
   "נקודת הזמנה מחדש": {
     "en": "reorder point",
@@ -5033,12 +5021,12 @@ export const legacyStaticCopy = {
     "fr": "Les données de prescription ont été copiées"
   },
   "נתוני המרפאה נמחקו בהצלחה": {
-    "en": "Clinic data has been successfully deleted",
+    "en": "The clinic data has been successfully deleted",
     "fr": "Les données de la clinique ont été supprimées avec succès"
   },
   "נתוני המרשם הועתקו": {
-    "en": "Registration data copied",
-    "fr": "Données d'enregistrement copiées"
+    "en": "The registry data has been copied",
+    "fr": "Les données du registre ont été copiées"
   },
   "נתוני מקור": {
     "en": "source data",
@@ -5109,16 +5097,16 @@ export const legacyStaticCopy = {
     "fr": "final subjectif"
   },
   "סוג": {
-    "en": "Type",
-    "fr": "Type"
+    "en": "type",
+    "fr": "type"
   },
   "סוג בדיקה": {
     "en": "test type",
     "fr": "type de test"
   },
   "סוג ההפניה": {
-    "en": "The reference type",
-    "fr": "Le type de référence"
+    "en": "Reference type",
+    "fr": "Type de référence"
   },
   "סוג הזמנה": {
     "en": "order type",
@@ -5133,12 +5121,16 @@ export const legacyStaticCopy = {
     "fr": "type de référence"
   },
   "סוג טאב": {
-    "en": "type Tab",
+    "en": "type tab",
     "fr": "onglet type"
   },
   "סוג מסגרת": {
     "en": "frame type",
     "fr": "type de trame"
+  },
+  "סוג עדכון מלאי": {
+    "en": "Inventory update type",
+    "fr": "Type de mise à jour de l'inventaire"
   },
   "סוג עדשה": {
     "en": "Type of lens",
@@ -5157,7 +5149,7 @@ export const legacyStaticCopy = {
     "fr": "Tapez :"
   },
   "סוגי הזמנות": {
-    "en": "order types",
+    "en": "types of orders",
     "fr": "types de commandes"
   },
   "סוגי הפניות": {
@@ -5169,8 +5161,8 @@ export const legacyStaticCopy = {
     "fr": "types de lentilles"
   },
   "סוגי עדשות מגע": {
-    "en": "Types of contact lenses",
-    "fr": "Types de lentilles de contact"
+    "en": "types of contact lenses",
+    "fr": "types de lentilles de contact"
   },
   "סוגי עדשות מגע לעין": {
     "en": "Types of eye contact lenses",
@@ -5181,8 +5173,8 @@ export const legacyStaticCopy = {
     "fr": "fourni"
   },
   "סופק על ידי": {
-    "en": "provided by",
-    "fr": "fourni par"
+    "en": "Provided by",
+    "fr": "Fourni par"
   },
   "סטטוס": {
     "en": "Status",
@@ -5202,30 +5194,18 @@ export const legacyStaticCopy = {
   },
   "סטטוס ייבוא": {
     "en": "Import status",
-    "fr": "État de l'importation"
+    "fr": "Statut de l'importation"
   },
   "סטטוס תשלום": {
     "en": "Payment Status",
     "fr": "Statut du paiement"
-  },
-  "סיבה": {
-    "en": "reason",
-    "fr": "raison"
-  },
-  "סיבת ההתאמה": {
-    "en": "The reason for the adjustment",
-    "fr": "La raison de l'ajustement"
-  },
-  "סיבת התנועה": {
-    "en": "The reason for the movement",
-    "fr": "La raison du mouvement"
   },
   "סיום": {
     "en": "end",
     "fr": "fin"
   },
   "סיום הגדרה": {
-    "en": "Definition end",
+    "en": "End definition",
     "fr": "Fin de la définition"
   },
   "סיום ניסיון": {
@@ -5245,12 +5225,8 @@ export const legacyStaticCopy = {
     "fr": "Résumé"
   },
   "סיכום כספי": {
-    "en": "financial summary",
-    "fr": "résumé financier"
-  },
-  "סיכום מלאי": {
-    "en": "Inventory summary",
-    "fr": "Résumé de l'inventaire"
+    "en": "Financial summary",
+    "fr": "Résumé financier"
   },
   "סיכום שנמצא": {
     "en": "summary found",
@@ -5316,17 +5292,13 @@ export const legacyStaticCopy = {
     "en": "Synchronizing now",
     "fr": "Synchronisation maintenant"
   },
-  "ספירה": {
-    "en": "Count",
-    "fr": "Compte"
-  },
   "ספירת המלאי נשמרה": {
     "en": "Inventory count saved",
     "fr": "Inventaire enregistré"
   },
   "ספירת מלאי": {
-    "en": "stock count",
-    "fr": "inventaire"
+    "en": "Inventory count",
+    "fr": "Inventaire"
   },
   "ספירת מלאי פיזית": {
     "en": "Physical inventory count",
@@ -5353,12 +5325,12 @@ export const legacyStaticCopy = {
     "fr": "analyser l'ordinateur"
   },
   "סריקות חסרות": {
-    "en": "missing scans",
-    "fr": "analyses manquantes"
+    "en": "Missing scans",
+    "fr": "Analyses manquantes"
   },
   "סריקות ללא הפניה": {
-    "en": "unreferenced scans",
-    "fr": "analyses non référencées"
+    "en": "Unreferenced scans",
+    "fr": "Analyses non référencées"
   },
   "עבודה יומיומית במרפאה": {
     "en": "Daily work in the clinic",
@@ -5376,13 +5348,9 @@ export const legacyStaticCopy = {
     "en": "There is still no sufficient history.",
     "fr": "Il n'y a toujours pas d'historique suffisant."
   },
-  "עדיין אין תנועות מלאי.": {
-    "en": "No inventory movements yet.",
-    "fr": "Aucun mouvement de stock pour l'instant."
-  },
   "עדיף": {
-    "en": "better",
-    "fr": "mieux"
+    "en": "Better",
+    "fr": "Mieux"
   },
   "עדיפות": {
     "en": "priority",
@@ -5413,20 +5381,24 @@ export const legacyStaticCopy = {
     "fr": "Mise à jour manuelle requise"
   },
   "עדכון מוכן": {
-    "en": "update ready",
-    "fr": "mise à jour prête"
+    "en": "Update ready",
+    "fr": "Mise à jour prête"
   },
   "עדכון מוכן להתקנה": {
     "en": "Update ready to install",
     "fr": "Mise à jour prête à installer"
   },
+  "עדכון מלאי": {
+    "en": "Inventory update",
+    "fr": "Mise à jour de l'inventaire"
+  },
+  "עדכון מלאי ידני": {
+    "en": "Manual inventory update",
+    "fr": "Mise à jour manuelle de l'inventaire"
+  },
   "עדכן": {
     "en": "update",
     "fr": "mise à jour"
-  },
-  "עדכן מלאי": {
-    "en": "Update inventory",
-    "fr": "Mettre à jour l'inventaire"
   },
   "עדכן משפחה": {
     "en": "Update family",
@@ -5469,8 +5441,8 @@ export const legacyStaticCopy = {
     "fr": "copie de sécurité en lecture seule"
   },
   "עזיבה ללא שמירה": {
-    "en": "Departure without guarding",
-    "fr": "Départ sans gardiennage"
+    "en": "Leaving without saving",
+    "fr": "Quitter sans sauvegarder"
   },
   "עין": {
     "en": "Eye",
@@ -5490,10 +5462,10 @@ export const legacyStaticCopy = {
   },
   "עין שמאל": {
     "en": "left eye",
-    "fr": "oeil gauche"
+    "fr": "œil gauche"
   },
   "עיני הפניה": {
-    "en": "eyes of reference",
+    "en": "reference eyes",
     "fr": "yeux de référence"
   },
   "עיצוב מולטיפוקל": {
@@ -5501,8 +5473,8 @@ export const legacyStaticCopy = {
     "fr": "Conception multifocale"
   },
   "עיר": {
-    "en": "city",
-    "fr": "ville"
+    "en": "City",
+    "fr": "Ville"
   },
   "עלות": {
     "en": "cost",
@@ -5554,7 +5526,7 @@ export const legacyStaticCopy = {
   },
   "עריכת מרפאה": {
     "en": "editing a clinic",
-    "fr": "modifier une clinique"
+    "fr": "modification d'une clinique"
   },
   "עריכת משפחה": {
     "en": "editing a family",
@@ -5573,8 +5545,8 @@ export const legacyStaticCopy = {
     "fr": "Modification d'une file d'attente"
   },
   "ערך": {
-    "en": "value",
-    "fr": "valeur"
+    "en": "entry",
+    "fr": "entrée"
   },
   "ערך מקורי": {
     "en": "original value",
@@ -5591,10 +5563,6 @@ export const legacyStaticCopy = {
   "פנל תיקון דיופטר": {
     "en": "Diopter correction panel",
     "fr": "Panneau de correction dioptrique"
-  },
-  "פעולה": {
-    "en": "action",
-    "fr": "actions"
   },
   "פעולה מהירה": {
     "en": "fast action",
@@ -5657,7 +5625,7 @@ export const legacyStaticCopy = {
     "fr": "détails de la commande"
   },
   "פרטי ההזמנה עודכנו בהצלחה": {
-    "en": "Order details have been successfully updated",
+    "en": "The order details have been successfully updated",
     "fr": "Les détails de la commande ont été mis à jour avec succès"
   },
   "פרטי הזמנה": {
@@ -5677,8 +5645,8 @@ export const legacyStaticCopy = {
     "fr": "Détails de la référence"
   },
   "פרטי התחברות שגויים": {
-    "en": "Wrong login details",
-    "fr": "Informations de connexion erronées"
+    "en": "Login details are incorrect",
+    "fr": "Les informations de connexion sont incorrectes"
   },
   "פרטי התקשרות": {
     "en": "Contact details",
@@ -5713,8 +5681,8 @@ export const legacyStaticCopy = {
     "fr": "Détails de l'utilisateur"
   },
   "פרטי עדשה": {
-    "en": "Lens details",
-    "fr": "Détails de l'objectif"
+    "en": "lens details",
+    "fr": "détails de l'objectif"
   },
   "פרטי עדשות": {
     "en": "lens details",
@@ -5740,10 +5708,6 @@ export const legacyStaticCopy = {
     "en": "basic details",
     "fr": "détails de base"
   },
-  "פריט": {
-    "en": "item",
-    "fr": "élément"
-  },
   "פריט חדש נוצר בהצלחה": {
     "en": "New item successfully created",
     "fr": "Nouvel élément créé avec succès"
@@ -5766,7 +5730,7 @@ export const legacyStaticCopy = {
   },
   "פריטים הדורשים פעולה לפי מלאי זמין וקצב צריכה": {
     "en": "Items requiring action according to available stock and rate of consumption",
-    "fr": "Articles nécessitant une action en fonction du stock disponible et du rythme de consommation"
+    "fr": "Articles nécessitant une action en fonction du stock disponible et du taux de consommation"
   },
   "פריטים יובאו": {
     "en": "Items will be imported",
@@ -5778,7 +5742,7 @@ export const legacyStaticCopy = {
   },
   "פריטים מובילים בצריכה": {
     "en": "top items in consumption",
-    "fr": "principaux articles de consommation"
+    "fr": "produits les plus consommés"
   },
   "פריטים נמצאו": {
     "en": "items found",
@@ -5793,8 +5757,8 @@ export const legacyStaticCopy = {
     "fr": "Nouvelle mise en page créée avec succès"
   },
   "פריסה לא פעילה": {
-    "en": "layout not active",
-    "fr": "mise en page non active"
+    "en": "deployment inactive",
+    "fr": "déploiement inactif"
   },
   "פריסה פעילה": {
     "en": "active deployment",
@@ -5805,8 +5769,8 @@ export const legacyStaticCopy = {
     "fr": "mises en page"
   },
   "פריסות בדיקה": {
-    "en": "test layouts",
-    "fr": "dispositions de test"
+    "en": "Test layouts",
+    "fr": "Tester les mises en page"
   },
   "פריסות שנבחרו": {
     "en": "selected layouts",
@@ -5825,8 +5789,8 @@ export const legacyStaticCopy = {
     "fr": "Chèque bloqué"
   },
   "צבע": {
-    "en": "Color",
-    "fr": "Couleur"
+    "en": "color",
+    "fr": "couleur"
   },
   "צבע אישי": {
     "en": "personal color",
@@ -5873,8 +5837,8 @@ export const legacyStaticCopy = {
     "fr": "Zur"
   },
   "צור \"": {
-    "en": "Create \"",
-    "fr": "Créer \""
+    "en": "create \"",
+    "fr": "créer \""
   },
   "צור לקוח חדש בכל זאת": {
     "en": "Create a new customer anyway",
@@ -5921,8 +5885,8 @@ export const legacyStaticCopy = {
     "fr": "Revêtement"
   },
   "ציפויים": {
-    "en": "Coatings",
-    "fr": "Revêtements"
+    "en": "coatings",
+    "fr": "revêtements"
   },
   "צפה בנתוני נוכחות ומשמרות של העובדים": {
     "en": "View employee attendance and shift data",
@@ -5989,8 +5953,8 @@ export const legacyStaticCopy = {
     "fr": "Diamètre de la pupille"
   },
   "קוטר עדשות מגע": {
-    "en": "Diameter of contact lenses",
-    "fr": "Diamètre des lentilles de contact"
+    "en": "diameter of contact lenses",
+    "fr": "diamètre des lentilles de contact"
   },
   "קוטר קרנית": {
     "en": "corneal diameter",
@@ -6017,7 +5981,7 @@ export const legacyStaticCopy = {
     "fr": "inférieur ou égal à"
   },
   "קטן מ": {
-    "en": "little m",
+    "en": "small m",
     "fr": "petit m"
   },
   "קישורי מקור ממיגרציה": {
@@ -6053,12 +6017,12 @@ export const legacyStaticCopy = {
     "fr": "Campagne mise à jour avec succès"
   },
   "קמפיין פעיל": {
-    "en": "active campaign",
-    "fr": "campagne active"
+    "en": "Active campaign",
+    "fr": "Campagne active"
   },
   "קמפיין רץ...": {
-    "en": "campaign running...",
-    "fr": "campagne en cours..."
+    "en": "Campaign running...",
+    "fr": "Campagne en cours..."
   },
   "קמפיינים": {
     "en": "campaigns",
@@ -6153,8 +6117,8 @@ export const legacyStaticCopy = {
     "fr": "Dossier médical"
   },
   "רכיב נבחר": {
-    "en": "component selected",
-    "fr": "composant sélectionné"
+    "en": "Element selected",
+    "fr": "Élément sélectionné"
   },
   "רמת דחיפות": {
     "en": "urgency level",
@@ -6173,8 +6137,8 @@ export const legacyStaticCopy = {
     "fr": "Une autre réfraction"
   },
   "רק מסמכים שניתן לשייך בוודאות ללקוח יועלו.": {
-    "en": "Only documents that can be definitely attributed to the customer will be uploaded.",
-    "fr": "Seuls les documents pouvant être définitivement attribués au client seront téléchargés."
+    "en": "Only documents that can be associated with certainty to the client will be uploaded.",
+    "fr": "Seuls les documents pouvant être associés avec certitude au client seront téléchargés."
   },
   "רשומה חדשה": {
     "en": "New record",
@@ -6330,7 +6294,7 @@ export const legacyStaticCopy = {
   },
   "שגיאה בטעינת הנתונים": {
     "en": "Error loading data",
-    "fr": "Erreur lors du chargement des données"
+    "fr": "Erreur de chargement des données"
   },
   "שגיאה בטעינת הפריסה": {
     "en": "Error loading layout",
@@ -6401,8 +6365,8 @@ export const legacyStaticCopy = {
     "fr": "Erreur lors de la création du lien de téléchargement"
   },
   "שגיאה ביצירת תור עם לקוח קיים": {
-    "en": "Error creating queue with existing customer",
-    "fr": "Erreur lors de la création de la file d'attente avec un client existant"
+    "en": "Error creating a queue with an existing customer",
+    "fr": "Erreur lors de la création d'une file d'attente avec un client existant"
   },
   "שגיאה ביצירת PDF": {
     "en": "Error creating PDF",
@@ -6421,7 +6385,7 @@ export const legacyStaticCopy = {
     "fr": "Erreur lors de la suppression de l'élément"
   },
   "שגיאה במחיקת הקובץ": {
-    "en": "Error deleting the file",
+    "en": "Error deleting file",
     "fr": "Erreur lors de la suppression du fichier"
   },
   "שגיאה במחיקת הקובץ. מרענן נתונים...": {
@@ -6433,7 +6397,7 @@ export const legacyStaticCopy = {
     "fr": "Erreur lors de la suppression de la campagne"
   },
   "שגיאה במחיקת הרשומה": {
-    "en": "Error deleting record",
+    "en": "Error deleting the record",
     "fr": "Erreur lors de la suppression de l'enregistrement"
   },
   "שגיאה במחיקת התור": {
@@ -6557,8 +6521,8 @@ export const legacyStaticCopy = {
     "fr": "Erreur lors de l'enregistrement de l'utilisateur"
   },
   "שגיאה בשמירת הסדר": {
-    "en": "error in maintaining order",
-    "fr": "erreur de maintien de l'ordre"
+    "en": "Error in maintaining order",
+    "fr": "Erreur de maintien de l'ordre"
   },
   "שגיאה בשמירת הפריט": {
     "en": "Error saving item",
@@ -6585,7 +6549,7 @@ export const legacyStaticCopy = {
     "fr": "Erreur lors de l'enregistrement des détails du compte Google"
   },
   "שגיאה בתהליך הרשאה Google": {
-    "en": "Error in Google authorization process",
+    "en": "Error in the Google authorization process",
     "fr": "Erreur dans le processus d'autorisation Google"
   },
   "שגיאה בתחילת המשמרת": {
@@ -6601,24 +6565,20 @@ export const legacyStaticCopy = {
     "fr": "Erreur inconnue"
   },
   "שגרתי": {
-    "en": "Ordinary",
-    "fr": "Ordinaire\nChamp"
+    "en": "routine",
+    "fr": "routine\nChamp"
   },
   "שדה במקור": {
     "en": "field in the original",
     "fr": "dans l'original"
   },
   "שדות המסומנים ב": {
-    "en": "Fields marked with",
-    "fr": "Champs marqués d'un"
+    "en": "Fields marked b",
+    "fr": "Champs marqués b"
   },
   "שווה ל": {
     "en": "equal to",
     "fr": "égal à"
-  },
-  "שווי מלאי בעלות": {
-    "en": "Value of ownership stock",
-    "fr": "Valeur du titre de propriété"
   },
   "שווי עלות": {
     "en": "cost value",
@@ -6660,17 +6620,9 @@ export const legacyStaticCopy = {
     "en": "Normal lines",
     "fr": "Lignes normales"
   },
-  "שזיף": {
-    "en": "Plum",
-    "fr": "Prune"
-  },
   "שחזר מהארכיון": {
     "en": "restored from the archive",
     "fr": "restauré à partir des archives"
-  },
-  "שחרור שריון": {
-    "en": "Disarmament",
-    "fr": "Désarmement"
   },
   "שחרר כדי להעלות מסמכים": {
     "en": "Release to upload documents",
@@ -6685,16 +6637,16 @@ export const legacyStaticCopy = {
     "fr": "enregistrement"
   },
   "שיחה חדשה": {
-    "en": "New conversation",
-    "fr": "Nouvelle conversation"
+    "en": "New call",
+    "fr": "Nouvel appel"
   },
   "שיחות": {
     "en": "conversations",
     "fr": "conversations"
   },
   "שיחות קודמות": {
-    "en": "previous conversations",
-    "fr": "conversations précédentes"
+    "en": "previous talks",
+    "fr": "entretiens précédents"
   },
   "שיטת הצגת חדות ראייה (VA)": {
     "en": "Visual acuity display method (VA)",
@@ -6720,10 +6672,6 @@ export const legacyStaticCopy = {
     "en": "Changing or removing the code will invalidate existing device certifications.",
     "fr": "La modification ou la suppression du code invalidera les certifications existantes de l'appareil."
   },
-  "שינוי כמות": {
-    "en": "Quantity change",
-    "fr": "Changement de quantité"
-  },
   "שינוי שם": {
     "en": "Change of name",
     "fr": "Changement de nom"
@@ -6731,10 +6679,6 @@ export const legacyStaticCopy = {
   "שינוי שם קובץ": {
     "en": "Rename file",
     "fr": "Renommer le fichier"
-  },
-  "שינוי שריון": {
-    "en": "Change armor",
-    "fr": "Changer d'armure"
   },
   "שינויים שלא נשמרו": {
     "en": "Unsaved changes",
@@ -6797,7 +6741,7 @@ export const legacyStaticCopy = {
     "fr": "Nom du vendeur..."
   },
   "שם המנהל": {
-    "en": "Manager's name",
+    "en": "Name of manager",
     "fr": "Nom du gérant"
   },
   "שם המרפאה *": {
@@ -6841,11 +6785,11 @@ export const legacyStaticCopy = {
     "fr": "nom de la mise en page"
   },
   "שם הקבוצה": {
-    "en": "group name",
-    "fr": "nom du groupe"
+    "en": "Name of the group",
+    "fr": "Nom du groupe"
   },
   "שם הקובץ": {
-    "en": "The filename",
+    "en": "The name of the file",
     "fr": "Le nom du fichier"
   },
   "שם הקובץ לא יכול להיות ריק": {
@@ -6889,8 +6833,8 @@ export const legacyStaticCopy = {
     "fr": "Le nom complet est un champ obligatoire"
   },
   "שם משפחה": {
-    "en": "Surname",
-    "fr": "Nom de famille"
+    "en": "surname",
+    "fr": "nom de famille"
   },
   "שם משפחה *": {
     "en": "Surname *",
@@ -6921,8 +6865,8 @@ export const legacyStaticCopy = {
     "fr": "prénom"
   },
   "שם פרטי *": {
-    "en": "first name *",
-    "fr": "prénom *"
+    "en": "First name *",
+    "fr": "Prénom *"
   },
   "שם פרטי הוא שדה חובה": {
     "en": "First name is a required field",
@@ -7024,10 +6968,6 @@ export const legacyStaticCopy = {
     "en": "Sending time",
     "fr": "Heure d'envoi"
   },
-  "שריון להזמנה": {
-    "en": "Armor to order",
-    "fr": "Armure sur commande"
-  },
   "שרת מחובר:": {
     "en": "Server connected:",
     "fr": "Serveur connecté :"
@@ -7069,8 +7009,8 @@ export const legacyStaticCopy = {
     "fr": "date d'approbation"
   },
   "תאריך בדיקה": {
-    "en": "date of inspection",
-    "fr": "date d'inspection"
+    "en": "date of examination",
+    "fr": "date de l'examen"
   },
   "תאריך הוא שדה חובה": {
     "en": "Date is a required field",
@@ -7093,12 +7033,12 @@ export const legacyStaticCopy = {
     "fr": "date de création"
   },
   "תאריך יצירת תיק": {
-    "en": "date of file creation",
-    "fr": "date de création du fichier"
+    "en": "Case creation date",
+    "fr": "Date de création du dossier"
   },
   "תאריך לא זמין": {
-    "en": "date not available",
-    "fr": "date non disponible"
+    "en": "Date not available",
+    "fr": "Date non disponible"
   },
   "תאריך לא ידוע": {
     "en": "unknown date",
@@ -7109,7 +7049,7 @@ export const legacyStaticCopy = {
     "fr": "date de naissance"
   },
   "תאריך מסירה": {
-    "en": "Date of Delivery",
+    "en": "Date of delivery",
     "fr": "Date de livraison"
   },
   "תאריך משלוח": {
@@ -7133,8 +7073,8 @@ export const legacyStaticCopy = {
     "fr": "dates"
   },
   "תדירות ביצוע": {
-    "en": "Performance frequency",
-    "fr": "Fréquence de représentation"
+    "en": "Frequency of execution",
+    "fr": "Fréquence d'exécution"
   },
   "תדירות החלפה": {
     "en": "replacement frequency",
@@ -7210,7 +7150,7 @@ export const legacyStaticCopy = {
   },
   "תורים ולקוחות חדשים לאורך הטווח": {
     "en": "new queues and customers throughout the range",
-    "fr": "nouvelles files d'attente et nouveaux clients sur toute la plage"
+    "fr": "nouvelles files d'attente et nouveaux clients sur toute la gamme"
   },
   "תזכורת נשלחה בהצלחה": {
     "en": "Reminder sent successfully",
@@ -7312,10 +7252,6 @@ export const legacyStaticCopy = {
     "en": "movement",
     "fr": "mouvement"
   },
-  "תנועות": {
-    "en": "vowels",
-    "fr": "voyelles"
-  },
   "תעודת זהות": {
     "en": "identity card",
     "fr": "carte d'identité"
@@ -7329,16 +7265,16 @@ export const legacyStaticCopy = {
     "fr": "Emploi"
   },
   "תפוסה אישית": {
-    "en": "personal occupation",
-    "fr": "occupation personnelle"
+    "en": "Personally occupied",
+    "fr": "Occupé personnellement"
   },
   "תפקיד": {
     "en": "position",
     "fr": "poste"
   },
   "תפקיד *": {
-    "en": "Position *",
-    "fr": "Position *"
+    "en": "position *",
+    "fr": "poste *"
   },
   "תפקיד במשפחה": {
     "en": "role in the family",
@@ -7380,6 +7316,18 @@ export const legacyStaticCopy = {
     "en": "View contact lens order",
     "fr": "Afficher la commande de lentilles de contact"
   },
+  "תצוגת טבלה": {
+    "en": "Table view",
+    "fr": "Vue Tableau"
+  },
+  "תצוגת מלאי": {
+    "en": "stock display",
+    "fr": "affichage des stocks"
+  },
+  "תצוגת ספקים": {
+    "en": "display vendors",
+    "fr": "vendeurs d'affichage"
+  },
   "תקופת שימוש": {
     "en": "Period of use",
     "fr": "Période d'utilisation"
@@ -7393,8 +7341,8 @@ export const legacyStaticCopy = {
     "fr": "propriété"
   },
   "תקשורת וקמפיינים": {
-    "en": "Communication and Campaigns",
-    "fr": "Communication et Campagnes"
+    "en": "Communications and Campaigns",
+    "fr": "Communications et campagnes"
   },
   "תרופות": {
     "en": "medicines",
@@ -7467,114 +7415,6 @@ export const legacyStaticCopy = {
   "VA משולב": {
     "en": "VA incorporated",
     "fr": "VA incorporée"
-  },
-  "אין משפחות להצגה": {
-    "en": "No families to display",
-    "fr": "Aucune famille à afficher"
-  },
-  "אין ספקים התואמים לסינון הנוכחי.": {
-    "en": "No suppliers match the current filter.",
-    "fr": "Aucun fournisseur ne correspond au filtre actuel."
-  },
-  "אין עדיין הוספות או הפחתות מלאי.": {
-    "en": "No inventory additions or reductions yet.",
-    "fr": "Aucun ajout ou retrait de stock pour le moment."
-  },
-  "בחר או הקלד יצרן...": {
-    "en": "Select or type a manufacturer…",
-    "fr": "Sélectionnez ou saisissez un fabricant…"
-  },
-  "בחר או הקלד סוג עדשה...": {
-    "en": "Select or type a lens type…",
-    "fr": "Sélectionnez ou saisissez un type de lentille…"
-  },
-  "במלאי / משוריין": {
-    "en": "In stock / reserved",
-    "fr": "En stock / réservé"
-  },
-  "הוסף למלאי": {
-    "en": "Add to inventory",
-    "fr": "Ajouter au stock"
-  },
-  "הוסף פריט לספק": {
-    "en": "Add item to supplier",
-    "fr": "Ajouter un article au fournisseur"
-  },
-  "היסטוריית מלאי": {
-    "en": "Inventory history",
-    "fr": "Historique des stocks"
-  },
-  "המלאי הופחת": {
-    "en": "Inventory reduced",
-    "fr": "Stock réduit"
-  },
-  "המלאי נוסף": {
-    "en": "Inventory added",
-    "fr": "Stock ajouté"
-  },
-  "הפחת מהמלאי": {
-    "en": "Remove from inventory",
-    "fr": "Retirer du stock"
-  },
-  "הפחתה": {
-    "en": "Reduction",
-    "fr": "Retrait"
-  },
-  "טוען משפחות...": {
-    "en": "Loading families…",
-    "fr": "Chargement des familles…"
-  },
-  "טעינת היסטוריית המלאי נכשלה": {
-    "en": "Failed to load inventory history",
-    "fr": "Échec du chargement de l’historique des stocks"
-  },
-  "יש להזין כמות שלמה הגדולה מאפס": {
-    "en": "Enter a whole quantity greater than zero",
-    "fr": "Saisissez une quantité entière supérieure à zéro"
-  },
-  "כמות היעד לא יכולה להיות נמוכה מנקודת ההזמנה מחדש": {
-    "en": "Target quantity cannot be lower than the reorder point",
-    "fr": "La quantité cible ne peut pas être inférieure au point de commande"
-  },
-  "ללא ספק": {
-    "en": "No supplier",
-    "fr": "Aucun fournisseur"
-  },
-  "מדיניות מלאי": {
-    "en": "Inventory policy",
-    "fr": "Politique de stock"
-  },
-  "נקה סינון ספק": {
-    "en": "Clear supplier filter",
-    "fr": "Effacer le filtre fournisseur"
-  },
-  "נקה סינון ספק וחזור לתצוגת ספקים": {
-    "en": "Clear the supplier filter and return to supplier view",
-    "fr": "Effacer le filtre fournisseur et revenir à la vue fournisseurs"
-  },
-  "סוג עדכון מלאי": {
-    "en": "Inventory update type",
-    "fr": "Type de mise à jour du stock"
-  },
-  "עדכון מלאי": {
-    "en": "Update inventory",
-    "fr": "Mettre à jour le stock"
-  },
-  "עדכון מלאי ידני": {
-    "en": "Manual inventory update",
-    "fr": "Mise à jour manuelle du stock"
-  },
-  "תצוגת טבלה": {
-    "en": "Table view",
-    "fr": "Vue tableau"
-  },
-  "תצוגת מלאי": {
-    "en": "Stock view",
-    "fr": "Vue du stock"
-  },
-  "תצוגת ספקים": {
-    "en": "Suppliers view",
-    "fr": "Vue fournisseurs"
   },
   "WhatsApp חובק בהצלחה!": {
     "en": "WhatsApp hugs success!",

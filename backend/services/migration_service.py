@@ -196,6 +196,7 @@ def run_optitech_import(
             "unreferenced_scans": manifest_documents.get("unreferenced_file_count", 0),
         }
 
+        import_users = bool((job.source_metadata or {}).get("import_users", False))
         with use_bundle_paths(tables_dir, documents_dir if documents_dir.exists() else None):
             if "optitech_phase2" not in completed:
                 on_progress(
@@ -225,6 +226,7 @@ def run_optitech_import(
                     report_dir=reports_dir / "phase2",
                     migration_job_id=job.id,
                     source_fingerprint=job.source_fingerprint or manifest_fingerprint,
+                    import_users=import_users,
                     on_batch_progress=on_foundation_batch,
                 )
                 summaries["phase2"] = result["summary"]

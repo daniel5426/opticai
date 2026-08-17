@@ -132,7 +132,10 @@ def test_existing_trace_link_without_raw_snapshot_is_not_viewable():
         legacy = Client(company_id=1, clinic_id=1, first_name="Existing")
         db.add(legacy)
         db.flush()
-        db.add(MigrationSourceLink(source_system="softoptic", source_table="account.csv", raw_row_ref="legacy", source_primary_key_parts=[], target_model="Client", target_id=legacy.id, clinic_id=1, company_id=1, payload={}))
+        db.add_all([
+            MigrationSourceLink(source_system="softoptic", source_table="account.csv", raw_row_ref="legacy", source_primary_key_parts=[], target_model="Client", target_id=legacy.id, clinic_id=1, company_id=1, payload={}),
+            MigrationSourceLink(source_system="optitech", source_table="tblPerData", raw_row_ref="legacy-json-null", source_primary_key_parts=[], target_model="Client", target_id=legacy.id, clinic_id=1, company_id=1, payload={}, raw_payload=None),
+        ])
         db.commit()
         legacy_id = legacy.id
 

@@ -89,7 +89,7 @@ export function ImportedSourceDataDialog({
   const visibleFields = useMemo(() => {
     if (!activeRow) return [];
     const normalizedQuery = query.trim().toLocaleLowerCase();
-    return Object.entries(activeRow.raw_payload).filter(([field, value]) => {
+    return Object.entries(activeRow.raw_payload ?? {}).filter(([field, value]) => {
       if (!isVisibleValue(value)) return false;
       if (!normalizedQuery) return true;
       return `${field} ${formatValue(value)}`.toLocaleLowerCase().includes(normalizedQuery);
@@ -222,7 +222,7 @@ export function ImportedSourceDataDialog({
             <details className="rounded-md border px-3 py-2">
               <summary className="cursor-pointer text-sm font-medium">JSON מקורי (מתקדם)</summary>
               <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-3 text-left text-xs" dir="ltr">
-                {JSON.stringify(activeRow.raw_payload, null, 2)}
+                {JSON.stringify(activeRow.raw_payload ?? {}, null, 2)}
               </pre>
             </details>
           </div>

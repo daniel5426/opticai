@@ -100,6 +100,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--clients-only", action="store_true")
     parser.add_argument("--users-only", action="store_true")
+    parser.add_argument("--import-users", action="store_true")
     parser.add_argument("--cleanup-phase2", action="store_true")
     parser.add_argument("--report-dir", type=Path, default=default_report_dir())
     return parser.parse_args(argv)
@@ -293,9 +294,6 @@ def user_payload_from_seed(
         "username": build_username(seed, source_fingerprint),
         "email": None,
         "phone": seed.phone_mobile or seed.phone_home,
-        # Legacy credentials are intentionally not migrated.  The current
-        # User model stores this field as password_hash, not password.
-        "password_hash": None,
         "role_level": map_user_role(seed.role_level),
         "is_active": False,
         "auth_provider": "email",
@@ -641,6 +639,7 @@ def execute_phase2(
     dry_run: bool = False,
     clients_only: bool = False,
     users_only: bool = False,
+    import_users: bool = False,
     cleanup_only: bool = False,
     report_dir: Optional[Path] = None,
     migration_job_id: Optional[str] = None,
@@ -665,6 +664,7 @@ def execute_phase2(
             "dry_run": dry_run,
             "clients_only": clients_only,
             "users_only": users_only,
+            "import_users": import_users,
             "cleanup_phase2": cleanup_only,
         }
 
@@ -722,7 +722,7 @@ def execute_phase2(
             summary["expected_client_source_rows"] = 0
             summary["expected_family_source_rows"] = 0
 
-        if not clients_only:
+        if not clients_only and import_users:
             user_seeds = load_user_seeds()
             user_counters, user_skipped_rows, user_username_map = upsert_users(
                 db,
@@ -775,6 +775,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         dry_run=args.dry_run,
         clients_only=args.clients_only,
         users_only=args.users_only,
+        import_users=args.import_users,
         cleanup_only=args.cleanup_phase2,
         report_dir=args.report_dir,
     )
