@@ -24,13 +24,17 @@ pushd "$MDBTOOLS_DIR" >/dev/null
 # spawnv alias and supply the MinGW locale_t spelling before generating files.
 perl -0pi -e 's/-D_spawnv=spawnv/-D_spawnv=_spawnv/' configure.ac
 perl -0pi -e 's{(#define MDB_DEPRECATED\(type, funcname\) type __attribute__\(\(deprecated\)\) funcname\n)}{$1\n#ifdef __MINGW32__\n  #include <stdlib.h>\n  #ifndef locale_t\n    typedef _locale_t locale_t;\n  #endif\n#endif\n}' include/mdbtools.h.in
+perl -pi -e 's/CFLAGS="\$CFLAGS -D_spawnv=_spawnv"/CFLAGS="\$CFLAGS -D_spawnv=_spawnv -DHAVE_ICONV" LIBS="\$LIBS -liconv"/' configure.ac
+perl -0pi -e 's/HAVE_ICONV_H=0\n/HAVE_ICONV_H=0\nAS_CASE([\$host], [*mingw*], [HAVE_ICONV_H=1], [])\n/' configure.ac
 grep -F -- '-D_spawnv=_spawnv' configure.ac >/dev/null
 grep -F -- 'typedef _locale_t locale_t;' include/mdbtools.h.in >/dev/null
+grep -F -- '-DHAVE_ICONV' configure.ac >/dev/null
 autoreconf -i -f
-# MinGW provides iconv in libiconv rather than the C runtime. Without this,
-# MDB Tools falls back to locale conversion and corrupts Jet Unicode fields.
-LIBS="${LIBS:-} -liconv" ./configure --prefix="$PREFIX" --disable-static --enable-shared
+# MinGW provides iconv in libiconv rather than the C runtime. MDB Tools v1.0.1
+# cannot detect it reliably there, so the source patch enables the known DLL.
+./configure --prefix="$PREFIX" --disable-static --enable-shared
 grep -F -- '#define MDBTOOLS_H_HAVE_ICONV_H 1' include/mdbtools.h >/dev/null
+grep -F -- '-liconv' src/libmdb/Makefile >/dev/null
 make -j"$(nproc)"
 make install
 popd >/dev/null

@@ -139,5 +139,6 @@ def test_windows_native_reader_build_requires_iconv_for_unicode_text():
         / "build-optitech-reader.sh"
     ).read_text(encoding="utf-8")
 
-    assert 'LIBS="${LIBS:-} -liconv" ./configure' in build_script
+    assert "-liconv" in build_script
+    assert "-DHAVE_ICONV" in build_script
     assert "#define MDBTOOLS_H_HAVE_ICONV_H 1" in build_script
