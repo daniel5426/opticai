@@ -152,6 +152,9 @@ export interface ElectronAPI {
     jobId: string;
   }) => Promise<Record<string, any> | null>;
   migrationScan: (payload: { sourceSystem: "softoptic" | "optitech" }) => Promise<any>;
+  migrationStartFullScan: (payload: { sourceSystem: "optitech" }) => Promise<{ success: boolean; jobId?: string; error?: string }>;
+  migrationFullScanStatus: (payload: { jobId: string }) => Promise<Record<string, any> | null>;
+  migrationCancelFullScan: (payload: { jobId: string }) => Promise<{ success: boolean; error?: string }>;
   migrationStartExport: (payload: {
     sourceSystem: "softoptic" | "optitech";
     clinicId?: number;

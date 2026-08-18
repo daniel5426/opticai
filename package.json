@@ -1,7 +1,7 @@
 {
   "name": "opticai",
   "productName": "Prysm",
-  "version": "1.0.83",
+  "version": "1.0.84",
   "description": "Multi-clinic management system for optical clinics",
   "main": "dist-electron/main.js",
   "private": true,
@@ -13,6 +13,7 @@
     "dev": "vite",
     "build": "vite build && electron-builder --dir",
     "build:web": "vite build --config vite.renderer.config.mts",
+    "build:optitech-reader": "bash scripts/build-optitech-reader.sh",
     "build:mac": "vite build && electron-builder --mac",
     "build:mac:arm64": "vite build && electron-builder --mac --arm64",
     "build:mac:x64": "vite build && electron-builder --mac --x64",
@@ -195,10 +196,6 @@
       {
         "from": "docs/migration_wizzard_doc/export_opticsoft_csv.ps1",
         "to": "migration_wizard/export_opticsoft_csv.ps1"
-      },
-      {
-        "from": "docs/migration_wizzard_doc/export_optitech_csv.ps1",
-        "to": "migration_wizard/export_optitech_csv.ps1"
       }
     ],
     "mac": {
@@ -245,6 +242,13 @@
         {
           "from": ".env.windows.production",
           "to": ".env.windows.production"
+        },
+        {
+          "from": "native/optitech-mdb-exporter/dist/win-x64",
+          "to": "optitech_reader",
+          "filter": [
+            "**/*"
+          ]
         }
       ],
       "target": [

@@ -74,19 +74,27 @@ def test_client_selection_rejects_dependent_rows_outside_limit(tmp_path):
         )
 
 
-def test_exporter_uses_explicit_allowlists_and_excludes_sensitive_fields():
-    script = (
+def test_native_exporter_uses_explicit_allowlists_and_excludes_sensitive_fields():
+    reader = (
         Path(__file__).parents[2]
-        / "docs"
-        / "migration_wizzard_doc"
-        / "export_optitech_csv.ps1"
+        / "native"
+        / "optitech-mdb-exporter"
+        / "main.c"
+    ).read_text(encoding="utf-8")
+    plan = (
+        Path(__file__).parents[2]
+        / "native"
+        / "optitech-mdb-exporter"
+        / "export-plan.h"
     ).read_text(encoding="utf-8")
 
-    assert "$allowedTables" in script
-    assert "$allowedColumns" in script
-    assert "SELECT *" not in script.upper()
-    assert " Salary " not in script
-    assert " Password " not in script
-    assert " Pass " not in script
-    assert 'New-Item -ItemType Directory -Force -Path $documentsDir' in script
-    assert "Get-FileHash -Algorithm SHA256" in script
+    assert "#include <mdbtools.h>" in reader
+    assert "mdb_open" in reader
+    assert "EXPORT_PLAN" in reader
+    assert "tblPerData" in plan
+    assert "tblCrdGlassChecks" in plan
+    assert " Salary " not in plan
+    assert " Password " not in plan
+    assert " Pass " not in plan
+    assert "Microsoft.Jet" not in reader
+    assert "Microsoft.ACE" not in reader

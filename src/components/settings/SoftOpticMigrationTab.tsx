@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react"
 import { AlertTriangle, CheckCircle2, Database, Download, FileArchive, FolderSearch, Pause, Play, RefreshCw, UploadCloud, XCircle } from "lucide-react"
 import { toast } from "sonner"
+import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,7 +14,7 @@ import { apiClient } from "@/lib/api-client"
 
 type SoftOpticCandidate = {
   id: string
-  kind: "dsn" | "db-file"
+  kind: "dsn" | "db-file" | "access-db"
   label: string
   dsn?: string
   dbFile?: string
@@ -62,6 +63,7 @@ interface SoftOpticMigrationTabProps {
 }
 
 export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: SoftOpticMigrationTabProps) {
+  const { t } = useTranslation()
   const [phase, setPhase] = useState<WizardPhase>("idle")
   const [progress, setProgress] = useState(0)
   const [stepText, setStepText] = useState("מוכן להתחלה")
@@ -79,6 +81,7 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
   const [uploadStatus, setUploadStatus] = useState<any>(null)
   const [uploadInFlight, setUploadInFlight] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fullScanJobId, setFullScanJobId] = useState<string | null>(null)
 
   const exportStorageKey = useMemo(
     () => clinicId ? `migration-export-job:${clinicId}:${sourceSystem}` : null,
@@ -222,6 +225,34 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
   }, [job?.id, phase])
 
   useEffect(() => {
+    if (!fullScanJobId || !window.electronAPI?.migrationFullScanStatus) return
+    let cancelled = false
+    const poll = async () => {
+      const status = await window.electronAPI.migrationFullScanStatus!({ jobId: fullScanJobId })
+      if (!status || cancelled) return
+      if (Array.isArray(status.candidates)) {
+        setCandidates(status.candidates)
+        const recommended = status.candidates.find((candidate: SoftOpticCandidate) => candidate.recommended)
+        if (recommended) setSelectedId(recommended.id)
+      }
+      if (status.currentRoot) setStepText(t("migrationFullSearchCurrent", { root: status.currentRoot }))
+      if (status.status === "completed" || status.status === "cancelled") {
+        setFullScanJobId(null)
+        setProgress(25)
+        setStepText(t("migrationSelectSource"))
+        setPhase("selecting")
+      } else if (status.status === "failed") {
+        setFullScanJobId(null)
+        setError(status.error || t("migrationFullSearchFailed"))
+        setPhase("failed")
+      }
+    }
+    void poll()
+    const interval = window.setInterval(() => { void poll() }, 750)
+    return () => { cancelled = true; window.clearInterval(interval) }
+  }, [fullScanJobId, t])
+
+  useEffect(() => {
     if (!job?.id || !["importing", "paused"].includes(phase)) return
     const interval = window.setInterval(async () => {
       const response = await apiClient.getMigrationImport(job.id)
@@ -274,6 +305,29 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
       setError(scanError instanceof Error ? scanError.message : "שגיאה בסריקה")
       setPhase("failed")
     }
+  }
+
+  const startFullScan = async () => {
+    if (!window.electronAPI?.migrationStartFullScan) return
+    setError(null)
+    setPhase("scanning")
+    setProgress(12)
+    setStepText(t("migrationFullSearchStarting"))
+    const result = await window.electronAPI.migrationStartFullScan({ sourceSystem: "optitech" })
+    if (!result.success || !result.jobId) {
+      setError(result.error || t("migrationFullSearchFailed"))
+      setPhase("failed")
+      return
+    }
+    setFullScanJobId(result.jobId)
+  }
+
+  const cancelFullScan = async () => {
+    if (!fullScanJobId || !window.electronAPI?.migrationCancelFullScan) return
+    await window.electronAPI.migrationCancelFullScan({ jobId: fullScanJobId })
+    setFullScanJobId(null)
+    setPhase("selecting")
+    setStepText(t("migrationFullSearchCancelled"))
   }
 
   const exportSelected = async () => {
@@ -526,6 +580,18 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
               <FolderSearch className="ml-2 h-4 w-4" />
               סרוק מחשב
             </Button>
+            {sourceSystem === "optitech" && !fullScanJobId && (
+              <Button variant="outline" onClick={startFullScan} disabled={busy || !clinicId}>
+                <FolderSearch className="me-2 h-4 w-4" />
+                {t("migrationFullSearch")}
+              </Button>
+            )}
+            {sourceSystem === "optitech" && fullScanJobId && (
+              <Button variant="outline" onClick={cancelFullScan}>
+                <XCircle className="me-2 h-4 w-4" />
+                {t("migrationCancelFullSearch")}
+              </Button>
+            )}
             <Button variant="outline" onClick={exportSelected} disabled={busy || !selectedCandidate || includeDocuments === null}>
               <FileArchive className="ml-2 h-4 w-4" />
               ייצא נתונים

@@ -3,7 +3,8 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import path from "path";
 import { spawn } from "child_process";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
+import { parse as parseCsv } from "csv-parse/sync";
 import http from "http";
 import https from "https";
 
@@ -421,6 +422,16 @@ type SoftOpticCandidate = {
 
 type MigrationSourceSystem = "softoptic" | "optitech";
 
+type OptiTechFullScanStatus = {
+  jobId: string;
+  status: "running" | "completed" | "cancelled" | "failed";
+  candidates: SoftOpticCandidate[];
+  currentRoot?: string;
+  error?: string;
+};
+
+const optiTechFullScans = new Map<string, OptiTechFullScanStatus & { child?: ReturnType<typeof spawn> }>();
+
 type SoftOpticExportStatus = {
   jobId: string;
   status: "running" | "completed" | "failed";
@@ -576,12 +587,12 @@ function getSoftOpticExporterPath() {
   return path.join(process.cwd(), "docs", "migration_wizzard_doc", "export_opticsoft_csv.ps1");
 }
 
-function getOptiTechExporterPath() {
+function getOptiTechReaderPath() {
   const packaged = process.resourcesPath
-    ? path.join(process.resourcesPath, "migration_wizard", "export_optitech_csv.ps1")
+    ? path.join(process.resourcesPath, "optitech_reader", "optitech-mdb-exporter.exe")
     : "";
   if (packaged && fs.existsSync(packaged)) return packaged;
-  return path.join(process.cwd(), "docs", "migration_wizzard_doc", "export_optitech_csv.ps1");
+  return path.join(process.cwd(), "native", "optitech-mdb-exporter", "dist", "win-x64", "optitech-mdb-exporter.exe");
 }
 
 function getWindowsPowerShellPath() {
@@ -589,7 +600,59 @@ function getWindowsPowerShellPath() {
   return fs.existsSync(x86PowerShell) ? x86PowerShell : "powershell.exe";
 }
 
-async function scanOptiTechCandidates(): Promise<{ supported: boolean; candidates: SoftOpticCandidate[]; error?: string }> {
+function createOptiTechCandidate(dbFile: string): SoftOpticCandidate {
+  const documentPath = path.join(path.dirname(dbFile), "Scans");
+  const info = getFileInfo(dbFile);
+  const likelyBackup = /(?:backup|bak|\\d{2}[-_]\\d{2}[-_]\\d{2,4})/i.test(dbFile);
+  const score = (likelyBackup ? 0 : 30) + (fs.existsSync(documentPath) ? 15 : 0) + (info.modifiedAt ? 5 : 0);
+  return {
+    id: `optitech-${Buffer.from(dbFile).toString("base64url")}`,
+    sourceSystem: "optitech",
+    kind: "access-db",
+    label: path.basename(dbFile),
+    dbFile,
+    documentPath: fs.existsSync(documentPath) ? documentPath : undefined,
+    ...info,
+    score,
+    recommended: false,
+    reasons: [
+      likelyBackup ? "The path looks like a backup" : "Found an OptiTech database",
+      ...(fs.existsSync(documentPath) ? ["Found an adjacent Scans directory"] : []),
+    ],
+  };
+}
+
+function rankOptiTechCandidates(paths: Iterable<string>): SoftOpticCandidate[] {
+  const candidates = [...new Set([...paths].map(candidate => path.normalize(candidate)))].filter(candidate => fs.existsSync(candidate))
+    .map(createOptiTechCandidate)
+    .sort((a, b) => b.score - a.score || String(b.modifiedAt || "").localeCompare(String(a.modifiedAt || "")));
+  if (candidates[0]) candidates[0].recommended = true;
+  return candidates;
+}
+
+async function getOptiTechRegistryDatabaseRoots(): Promise<string[]> {
+  try {
+    const { stdout } = await runProcess("reg", ["query", "HKCU\\Software\\VB and VBA Program Settings\\opt\\DINF", "/v", "DBL"]);
+    const value = stdout.match(/\bDBL\s+REG_\w+\s+(.+)$/mi)?.[1]?.trim();
+    return value ? [value] : [];
+  } catch {
+    return [];
+  }
+}
+
+async function getLocalDriveRoots(): Promise<string[]> {
+  try {
+    const { stdout } = await runProcess("powershell.exe", [
+      "-NoProfile", "-Command",
+      "Get-CimInstance Win32_LogicalDisk | Where-Object { $_.DriveType -in 2,3 } | Select-Object -ExpandProperty DeviceID",
+    ]);
+    return stdout.split(/\r?\n/).map(value => value.trim()).filter(value => /^[A-Za-z]:$/.test(value)).map(value => `${value}\\`);
+  } catch {
+    return ["C:\\"];
+  }
+}
+
+async function scanOptiTechCandidates(): Promise<{ supported: boolean; candidates: SoftOpticCandidate[]; error?: string; fullSearchAvailable?: boolean }> {
   if (process.platform !== "win32") {
     return { supported: false, candidates: [], error: "OptiTech import is available only on Windows" };
   }
@@ -600,40 +663,62 @@ async function scanOptiTechCandidates(): Promise<{ supported: boolean; candidate
     "C:\\Program Files (x86)\\OptiTech\\optData.xns",
   ];
   knownPaths.filter(candidate => fs.existsSync(candidate)).forEach(candidate => discovered.add(candidate));
-  try {
-    const { stdout } = await runProcess(getWindowsPowerShellPath(), [
-      "-NoProfile",
-      "-ExecutionPolicy", "Bypass",
-      "-Command",
-      "Get-PSDrive -PSProvider FileSystem | ForEach-Object { Get-ChildItem -LiteralPath $_.Root -Filter optData.xns -File -Recurse -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName }",
-    ]);
-    stdout.split(/\r?\n/).map(value => value.trim()).filter(Boolean).forEach(candidate => discovered.add(candidate));
-  } catch {
-    // Manual selection remains available when recursive drive discovery is restricted.
+  const [registryRoots, driveRoots] = await Promise.all([getOptiTechRegistryDatabaseRoots(), getLocalDriveRoots()]);
+  for (const root of registryRoots) discovered.add(path.join(root, "optData.xns"));
+  for (const root of driveRoots) {
+    discovered.add(path.join(root, "opt", "optData.xns"));
+    discovered.add(path.join(root, "OptiTech", "optData.xns"));
+    discovered.add(path.join(root, "Program Files (x86)", "OptiTech", "optData.xns"));
   }
-  const candidates = [...discovered].map((dbFile, index) => {
-    const documentPath = path.join(path.dirname(dbFile), "Scans");
-    const info = getFileInfo(dbFile);
-    const likelyBackup = /(?:backup|bak|\\d{2}[-_]\\d{2}[-_]\\d{2,4})/i.test(dbFile);
-    const score = (likelyBackup ? 0 : 30) + (documentPath && fs.existsSync(documentPath) ? 15 : 0) + (info.modifiedAt ? 5 : 0);
-    return {
-      id: `optitech-${Buffer.from(dbFile).toString("base64url")}`,
-      sourceSystem: "optitech" as const,
-      kind: "access-db" as const,
-      label: path.basename(dbFile),
-      dbFile,
-      documentPath: fs.existsSync(documentPath) ? documentPath : undefined,
-      ...info,
-      score,
-      recommended: false,
-      reasons: [
-        likelyBackup ? "The path looks like a backup" : "Found an OptiTech database",
-        ...(fs.existsSync(documentPath) ? ["Found an adjacent Scans directory"] : []),
-      ],
-    };
-  }).sort((a, b) => b.score - a.score || String(b.modifiedAt || "").localeCompare(String(a.modifiedAt || "")));
-  if (candidates[0]) candidates[0].recommended = true;
-  return { supported: true, candidates };
+  return { supported: true, candidates: rankOptiTechCandidates(discovered), fullSearchAvailable: true };
+}
+
+async function startOptiTechFullScan(): Promise<{ success: boolean; jobId?: string; error?: string }> {
+  if (process.platform !== "win32") return { success: false, error: "OptiTech import is available only on Windows" };
+  const jobId = randomUUID();
+  const quick = await scanOptiTechCandidates();
+  const status: OptiTechFullScanStatus & { child?: ReturnType<typeof spawn> } = { jobId, status: "running", candidates: quick.candidates };
+  optiTechFullScans.set(jobId, status);
+  const roots = await getLocalDriveRoots();
+  const command = [
+    "$ErrorActionPreference='Continue'",
+    `$roots=@(${roots.map(root => `'${root.replace(/'/g, "''")}'`).join(",")})`,
+    "foreach($root in $roots){ Write-Output ('__PRYSM_SCAN_ROOT__'+$root); Get-ChildItem -LiteralPath $root -Filter optData.xns -File -Recurse -Force -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName }",
+  ].join("; ");
+  const child = spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+  status.child = child;
+  let stderr = "";
+  child.stdout?.on("data", chunk => {
+    for (const line of chunk.toString().split(/\r?\n/).map((value: string) => value.trim()).filter(Boolean)) {
+      if (line.startsWith("__PRYSM_SCAN_ROOT__")) status.currentRoot = line.slice("__PRYSM_SCAN_ROOT__".length);
+      else if (/optdata\.xns$/i.test(line) && fs.existsSync(line)) status.candidates = rankOptiTechCandidates([...status.candidates.map(candidate => candidate.dbFile || ""), line]);
+    }
+  });
+  child.stderr?.on("data", chunk => { stderr += chunk.toString(); });
+  child.on("error", error => { status.status = "failed"; status.error = error.message; delete status.child; });
+  child.on("close", code => {
+    if (status.status === "cancelled") return;
+    status.status = code === 0 ? "completed" : "failed";
+    if (code && !status.error) status.error = stderr.trim() || "Full database search failed";
+    delete status.child;
+  });
+  return { success: true, jobId };
+}
+
+function getOptiTechFullScanStatus(jobId: string) {
+  const status = optiTechFullScans.get(jobId);
+  if (!status) return null;
+  const { child: _child, ...safe } = status;
+  return safe;
+}
+
+function cancelOptiTechFullScan(jobId: string) {
+  const status = optiTechFullScans.get(jobId);
+  if (!status || status.status !== "running") return { success: false, error: "Search is not running" };
+  status.status = "cancelled";
+  status.child?.kill();
+  delete status.child;
+  return { success: true };
 }
 
 async function exportOptiTechCandidate(
@@ -643,21 +728,15 @@ async function exportOptiTechCandidate(
 ) {
   if (process.platform !== "win32") return { success: false, error: "OptiTech import is available only on Windows" };
   if (!candidate.dbFile || !fs.existsSync(candidate.dbFile)) return { success: false, error: "OptiTech database was not found" };
-  const exporterPath = getOptiTechExporterPath();
-  if (!fs.existsSync(exporterPath)) return { success: false, error: "OptiTech exporter script is missing" };
+  const readerPath = getOptiTechReaderPath();
+  if (!fs.existsSync(readerPath)) return { success: false, error: "The bundled OptiTech compatibility reader is missing. Reinstall Prysm and try again." };
   const outputDir = path.join(app.getPath("temp"), `optitech_export_${Date.now()}`);
   await fs.promises.mkdir(outputDir, { recursive: true });
-  const args = [
-    "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", exporterPath,
-    "-DbFile", candidate.dbFile,
-    "-OutputDir", outputDir,
-  ];
-  if (candidate.documentPath) args.push("-ScansDir", candidate.documentPath);
-  if (includeDocuments) args.push("-IncludeDocuments");
-  if (clientImportLimit) args.push("-ClientLimit", String(clientImportLimit));
   try {
-    await runProcess(getWindowsPowerShellPath(), args, { cwd: outputDir });
-    const manifest = JSON.parse(await fs.promises.readFile(path.join(outputDir, "manifest.json"), "utf-8"));
+    const args = ["--db", candidate.dbFile, "--output", outputDir];
+    if (clientImportLimit) args.push("--client-limit", String(clientImportLimit));
+    await runProcess(readerPath, args, { cwd: outputDir });
+    const manifest = await writeOptiTechManifest(outputDir, candidate.dbFile, candidate.documentPath, includeDocuments, clientImportLimit);
     const tableCounts = Object.fromEntries((manifest.tables || []).map((table: any) => [table.name, table.row_count]));
     const summary = {
       clients: tableCounts.tblPerData || 0,
@@ -679,6 +758,97 @@ async function exportOptiTechCandidate(
   } catch (error) {
     return { success: false, outputDir, error: error instanceof Error ? error.message : String(error) };
   }
+}
+
+async function sha256File(filePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const hash = createHash("sha256");
+    const stream = fs.createReadStream(filePath);
+    stream.on("error", reject);
+    stream.on("data", chunk => hash.update(chunk));
+    stream.on("end", () => resolve(hash.digest("hex")));
+  });
+}
+
+function readCsvHeader(csv: string): string[] {
+  const firstLine = csv.slice(0, csv.indexOf("\n") + 1 || csv.length);
+  return parseCsv(firstLine, { relax_quotes: true, skip_empty_lines: true })[0] || [];
+}
+
+async function collectOptiTechDocuments(
+  outputDir: string,
+  scansDir: string | undefined,
+  includeDocuments: boolean,
+) {
+  const documentsDir = path.join(outputDir, "documents");
+  const result = { included: includeDocuments, root: "documents", file_count: 0, source_file_count: 0, missing_referenced_count: 0, unreferenced_file_count: 0, files: [] as Array<{ file: string; sha256: string; size: number }> };
+  if (!includeDocuments || !scansDir || !fs.existsSync(scansDir)) return result;
+  await fs.promises.mkdir(documentsDir, { recursive: true });
+  const picturePath = path.join(outputDir, "tables", "tblPerPicture.csv");
+  const referenced = new Set<string>();
+  if (fs.existsSync(picturePath)) {
+    const rows = parseCsv(await fs.promises.readFile(picturePath, "utf8"), { columns: true, relax_quotes: true, skip_empty_lines: true }) as Array<Record<string, string>>;
+    for (const row of rows) if (row.PicFileName) referenced.add(path.basename(row.PicFileName));
+  }
+  const sourceFiles: string[] = [];
+  const walk = async (directory: string): Promise<void> => {
+    for (const entry of await fs.promises.readdir(directory, { withFileTypes: true })) {
+      const entryPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) await walk(entryPath);
+      else if (entry.isFile()) sourceFiles.push(entryPath);
+    }
+  };
+  await walk(scansDir);
+  result.source_file_count = sourceFiles.length;
+  const sourceByName = new Map(sourceFiles.map(source => [path.basename(source).toLowerCase(), source]));
+  for (const fileName of referenced) {
+    const source = sourceByName.get(fileName.toLowerCase());
+    if (!source) { result.missing_referenced_count++; continue; }
+    const destination = path.join(documentsDir, fileName);
+    await fs.promises.copyFile(source, destination);
+    const stat = await fs.promises.stat(destination);
+    result.files.push({ file: `documents/${fileName}`, sha256: await sha256File(destination), size: stat.size });
+    result.file_count++;
+  }
+  result.unreferenced_file_count = sourceFiles.filter(source => !referenced.has(path.basename(source))).length;
+  return result;
+}
+
+async function writeOptiTechManifest(
+  outputDir: string,
+  dbFile: string,
+  scansDir: string | undefined,
+  includeDocuments: boolean,
+  clientImportLimit?: number | null,
+) {
+  const tablesDir = path.join(outputDir, "tables");
+  const tableFiles = (await fs.promises.readdir(tablesDir)).filter(file => file.endsWith(".csv")).sort();
+  const tables = await Promise.all(tableFiles.map(async file => {
+    const filePath = path.join(tablesDir, file);
+    const content = await fs.promises.readFile(filePath, "utf8");
+    const rows = (content.match(/\n/g) || []).length - (content.endsWith("\n") ? 1 : 0);
+    return { name: path.basename(file, ".csv"), file: `tables/${file}`, row_count: Math.max(0, rows), columns: readCsvHeader(content), sha256: await sha256File(filePath) };
+  }));
+  const clientsPath = path.join(tablesDir, "tblPerData.csv");
+  const selectedClientIds = fs.existsSync(clientsPath)
+    ? (parseCsv(await fs.promises.readFile(clientsPath, "utf8"), { columns: true, relax_quotes: true, skip_empty_lines: true }) as Array<Record<string, string>>)
+      .map(row => Number.parseInt(row.PerId, 10)).filter(Number.isFinite)
+    : [];
+  const sourceStat = await fs.promises.stat(dbFile);
+  const manifest = {
+    source_system: "optitech",
+    format_version: 2,
+    mapping_version: 2,
+    exported_at: new Date().toISOString(),
+    source: { database_size: sourceStat.size, database_modified_at: sourceStat.mtime.toISOString() },
+    source_fingerprint: await sha256File(dbFile),
+    client_limit: clientImportLimit || null,
+    selected_client_ids: selectedClientIds,
+    tables,
+    documents: await collectOptiTechDocuments(outputDir, scansDir, includeDocuments),
+  };
+  await fs.promises.writeFile(path.join(outputDir, "manifest.json"), JSON.stringify(manifest, null, 2), "utf8");
+  return manifest;
 }
 
 function getFileInfo(filePath: string) {
@@ -1300,6 +1470,19 @@ function setupIpcHandlers() {
 
   ipcMain.handle('migration-scan', async (_event, payload: { sourceSystem: MigrationSourceSystem }) => {
     return payload.sourceSystem === "optitech" ? scanOptiTechCandidates() : scanSoftOpticCandidates();
+  });
+
+  ipcMain.handle('migration-start-full-scan', async (_event, payload: { sourceSystem: MigrationSourceSystem }) => {
+    if (payload.sourceSystem !== "optitech") return { success: false, error: "Full search is available only for OptiTech" };
+    return startOptiTechFullScan();
+  });
+
+  ipcMain.handle('migration-full-scan-status', async (_event, payload: { jobId: string }) => {
+    return getOptiTechFullScanStatus(payload.jobId);
+  });
+
+  ipcMain.handle('migration-cancel-full-scan', async (_event, payload: { jobId: string }) => {
+    return cancelOptiTechFullScan(payload.jobId);
   });
 
   ipcMain.handle('migration-start-export', async (_event, payload: {

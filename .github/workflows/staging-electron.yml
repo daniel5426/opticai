@@ -147,6 +147,19 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Set up native OptiTech reader toolchain
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            base-devel autoconf automake libtool bison flex pkgconf gawk
+            mingw-w64-x86_64-toolchain mingw-w64-x86_64-glib2 mingw-w64-x86_64-libiconv
+
+      - name: Build native OptiTech reader
+        shell: msys2 {0}
+        run: bash scripts/build-optitech-reader.sh
+
       - name: Generate staging environment files
         shell: pwsh
         run: |
@@ -176,6 +189,17 @@ jobs:
           NODE_ENV: production
           NODE_OPTIONS: --max-old-space-size=4096
           CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Verify packaged native OptiTech reader
+        shell: pwsh
+        run: |
+          $unpacked = Get-ChildItem release -Filter "win-unpacked" -Directory -Recurse | Select-Object -First 1
+          if (-not $unpacked) { throw "Windows unpacked application was not created" }
+          $reader = Join-Path $unpacked.FullName "resources\optitech_reader\optitech-mdb-exporter.exe"
+          $notice = Join-Path $unpacked.FullName "resources\optitech_reader\THIRD_PARTY_NOTICES.md"
+          $license = Join-Path $unpacked.FullName "resources\optitech_reader\COPYING.LIB"
+          $source = Join-Path $unpacked.FullName "resources\optitech_reader\SOURCE_AND_BUILD.md"
+          if (-not (Test-Path $reader) -or -not (Test-Path $notice) -or -not (Test-Path $license) -or -not (Test-Path $source)) { throw "Native OptiTech reader resources are missing" }
 
       - name: Upload Windows staging artifact
         uses: actions/upload-artifact@v4

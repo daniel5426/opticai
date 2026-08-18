@@ -81,6 +81,9 @@ declare interface Window {
     softOpticExportStatus?: (payload: { jobId: string }) => Promise<any>;
     softOpticUploadBundle?: (payload: { apiBaseUrl: string; jobId: string; zipPath: string; accessToken: string }) => Promise<any>;
     migrationScan?: (payload: { sourceSystem: "softoptic" | "optitech" }) => Promise<any>;
+    migrationStartFullScan?: (payload: { sourceSystem: "optitech" }) => Promise<any>;
+    migrationFullScanStatus?: (payload: { jobId: string }) => Promise<any>;
+    migrationCancelFullScan?: (payload: { jobId: string }) => Promise<any>;
     migrationStartExport?: (payload: any) => Promise<any>;
     migrationExportStatus?: (payload: { jobId: string }) => Promise<any>;
     migrationUploadBundle?: (payload: { apiBaseUrl: string; jobId: string; zipPath: string; accessToken: string }) => Promise<any>;
