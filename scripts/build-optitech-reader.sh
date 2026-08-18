@@ -20,7 +20,12 @@ tar -xzf "$ARCHIVE" -C "$WORK_DIR"
 MDBTOOLS_DIR="$WORK_DIR/mdbtools-${MDBTOOLS_VERSION}"
 PREFIX="$WORK_DIR/prefix"
 pushd "$MDBTOOLS_DIR" >/dev/null
-patch --strip=1 < "$HELPER_DIR/patches/mdbtools-v${MDBTOOLS_VERSION}-mingw.patch"
+# MDB Tools v1.0.1 predates current MinGW headers.  Correct its Windows
+# spawnv alias and supply the MinGW locale_t spelling before generating files.
+perl -0pi -e 's/-D_spawnv=spawnv/-D_spawnv=_spawnv/' configure.ac
+perl -0pi -e 's{(#define MDB_DEPRECATED\(type, funcname\) type __attribute__\(\(deprecated\)\) funcname\n)}{$1\n#ifdef __MINGW32__\n  #include <stdlib.h>\n  #ifndef locale_t\n    typedef _locale_t locale_t;\n  #endif\n#endif\n}' include/mdbtools.h.in
+grep -F -- '-D_spawnv=_spawnv' configure.ac >/dev/null
+grep -F -- 'typedef _locale_t locale_t;' include/mdbtools.h.in >/dev/null
 autoreconf -i -f
 ./configure --prefix="$PREFIX" --disable-static --enable-shared
 make -j"$(nproc)"
