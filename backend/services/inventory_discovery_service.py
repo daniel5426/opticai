@@ -18,7 +18,6 @@ from models import (
     User,
 )
 from services.inventory_service import (
-    contact_variant_missing_fields,
     contact_component_snapshot,
     create_product,
     create_variant,
@@ -136,14 +135,13 @@ def _contact_candidate(order: ContactLensOrder, side: str) -> dict[str, Any] | N
     prefix = "r" if side == "right" else "l"
     data = order.order_data if isinstance(order.order_data, dict) else {}
     details = data.get("contact-lens-details") if isinstance(data.get("contact-lens-details"), dict) else {}
-    exam = data.get("contact-lens-exam") if isinstance(data.get("contact-lens-exam"), dict) else {}
     lens_type = details.get(f"{prefix}_type") or getattr(order, f"{prefix}_lens_type", None)
     model = details.get(f"{prefix}_model") or getattr(order, f"{prefix}_model", None)
     supplier = details.get(f"{prefix}_supplier") or getattr(order, f"{prefix}_supplier", None)
     material = details.get(f"{prefix}_material") or getattr(order, f"{prefix}_material", None)
     color = details.get(f"{prefix}_color") or getattr(order, f"{prefix}_color", None)
     quantity = details.get(f"{prefix}_quantity") or getattr(order, f"{prefix}_quantity", None) or 1
-    if not any((lens_type, model, supplier, material, color, exam.get(f"{prefix}_sph"))):
+    if not any((lens_type, model, supplier, material, color)):
         return None
     product = _clean_dict({
         # Older orders store supplier but not manufacturer. Do not silently
@@ -156,17 +154,9 @@ def _contact_candidate(order: ContactLensOrder, side: str) -> dict[str, Any] | N
         "replacement_schedule": details.get(f"{prefix}_replacement_schedule"),
     })
     attributes = _clean_dict({
-        "sph": exam.get(f"{prefix}_sph"),
-        "bc": exam.get(f"{prefix}_bc"),
-        "dia": exam.get(f"{prefix}_diam"),
-        "pack_size": details.get(f"{prefix}_pack_size"),
-        "cyl": exam.get(f"{prefix}_cyl"),
-        "axis": exam.get(f"{prefix}_ax"),
-        "add": exam.get(f"{prefix}_read_ad"),
-        "design": details.get(f"{prefix}_design"),
         "color": color,
     })
-    missing = contact_variant_missing_fields(product, attributes)
+    missing = ["model"] if not normalize_text(product.get("model")) else []
     return {
         "category": "contact_lens",
         "product": product,
@@ -307,7 +297,8 @@ def confirm_discovery(
         product_data = candidate.get("product") or {}
         attributes = candidate.get("attributes") or {}
         if category == "contact_lens":
-            missing_fields = contact_variant_missing_fields(product_data, attributes)
+            attributes = _clean_dict({"color": attributes.get("color")})
+            missing_fields = ["model"] if not normalize_text(product_data.get("model")) else []
         else:
             missing_fields = [
                 field
@@ -368,7 +359,10 @@ def confirm_discovery(
                 db,
                 company_id=company_id,
                 product=product,
-                data={"attributes": attributes, "is_stockable": not needs_details},
+                data={
+                    "attributes": attributes,
+                    "is_stockable": category == "frame" and not needs_details,
+                },
             )
             candidate_row.confirmed_variant_id = variant.id
             if before is None:

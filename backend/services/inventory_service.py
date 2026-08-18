@@ -125,7 +125,7 @@ def validate_product_data(category: str, data: dict[str, Any]) -> dict[str, Any]
     }
     if not cleaned["model"]:
         raise HTTPException(status_code=422, detail="Product model is required")
-    if not cleaned["brand"]:
+    if category == "frame" and not cleaned["brand"]:
         raise HTTPException(status_code=422, detail="Brand or manufacturer is required")
     if category == "frame":
         cleaned["replacement_schedule"] = None
@@ -326,12 +326,7 @@ def variant_display_name(product: CatalogProduct, variant: CatalogVariant) -> st
     else:
         detail = " / ".join(
             str(value)
-            for value in (
-                attributes.get("sph"),
-                attributes.get("cyl"),
-                attributes.get("axis"),
-                f"{attributes.get('pack_size')} pack" if attributes.get("pack_size") else None,
-            )
+            for value in (product.product_type, product.material, attributes.get("color"))
             if value not in (None, "")
         )
     return f"{identity}{' — ' + detail if detail else ''}".strip()
@@ -793,7 +788,7 @@ def reconcile_order_allocations(
             expected_category = "contact_lens" if contact else "frame"
             if product.category != expected_category or variant.archived_at is not None or product.archived_at is not None:
                 raise HTTPException(status_code=409, detail="Catalog variant is not available")
-            if not variant.is_stockable:
+            if source == "inventory" and not variant.is_stockable:
                 raise HTTPException(status_code=409, detail="Complete this variant before using it in an order")
 
             current_snapshot = _component_snapshot(order, component, contact=contact)

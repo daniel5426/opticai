@@ -28,6 +28,7 @@ from models import (
     Client,
     Clinic,
     Company,
+    ContactLensOrder,
     InventoryBalance,
     InventoryMovement,
     Order,
@@ -155,6 +156,38 @@ def _frame_order_payload(ids, variant_id, *, status="ממתין לאיסוף ל�
     return payload
 
 
+def _contact_order_payload(ids, variant_id, *, fulfillment_source="supplier_ordered"):
+    return {
+        "order": {
+            "client_id": ids["client"],
+            "clinic_id": ids["clinic"],
+            "type": "contact",
+            "order_data": {
+                "contact-lens-details": {
+                    "r_type": "Monthly",
+                    "r_model": "Biofinity",
+                    "r_quantity": 1,
+                },
+                "contact-lens-exam": {
+                    "r_sph": -2.0,
+                    "r_bc": 8.6,
+                    "r_diam": 14.0,
+                },
+            },
+        },
+        "billing": None,
+        "line_items": [],
+        "inventory_selections": [
+            {
+                "component": "contact_right",
+                "variant_id": variant_id,
+                "quantity": 1,
+                "fulfillment_source": fulfillment_source,
+            }
+        ],
+    }
+
+
 def test_first_stock_adjustment_accepts_the_listed_synthetic_balance_version():
     factory = _session_factory()
     ids = _seed(factory)
@@ -254,6 +287,55 @@ def test_inventory_reservation_and_legacy_delivery_are_atomic():
         ]
 
 
+def test_contact_catalog_product_uses_supplier_ordering_without_prescription_stock():
+    factory = _session_factory()
+    ids = _seed(factory)
+    with _client(factory, ids["worker"]) as client:
+        created = client.post(
+            "/api/v1/inventory/catalog",
+            json={
+                "clinic_id": ids["clinic"],
+                "category": "contact_lens",
+                "product": {
+                    "model": "Biofinity",
+                    "product_type": "Monthly",
+                    "preferred_supplier": "Lens Supply",
+                },
+                "variant": {
+                    "attributes": {"color": "Clear"},
+                    "is_stockable": False,
+                },
+            },
+        )
+        assert created.status_code == 200, created.text
+        variant = created.json()
+        assert variant["product"]["brand"] is None
+        assert variant["attributes"] == {"color": "Clear"}
+        assert variant["is_stockable"] is False
+
+        supplier_order = client.post(
+            "/api/v1/contact-lens-orders/upsert-full",
+            json=_contact_order_payload(ids, variant["id"]),
+        )
+        assert supplier_order.status_code == 200, supplier_order.text
+        assert supplier_order.json()["inventory_allocations"][0]["lifecycle_state"] == "supplier_ordered"
+
+        inventory_order = client.post(
+            "/api/v1/contact-lens-orders/upsert-full",
+            json=_contact_order_payload(
+                ids,
+                variant["id"],
+                fulfillment_source="inventory",
+            ),
+        )
+        assert inventory_order.status_code == 409
+
+    with factory() as db:
+        allocation = db.query(OrderInventoryAllocation).one()
+        assert allocation.lifecycle_state == "supplier_ordered"
+        assert db.query(InventoryMovement).count() == 0
+
+
 def test_legacy_product_change_releases_reservation_instead_of_consuming_it():
     factory = _session_factory()
     ids = _seed(factory)
@@ -337,6 +419,59 @@ def test_discovery_preview_is_read_only_and_confirmation_does_not_rewrite_orders
         assert db.query(CatalogOrderObservation).count() == 1
         assert db.query(InventoryBalance).count() == 0
         assert db.query(Order).one().order_data == original_order_data
+
+
+def test_contact_discovery_groups_prescriptions_under_one_catalog_product():
+    factory = _session_factory()
+    ids = _seed(factory)
+    original_order_data = {
+        "contact-lens-details": {
+            "r_type": "Monthly",
+            "r_model": "Biofinity",
+            "r_supplier": "Lens Supply",
+            "r_material": "Silicone hydrogel",
+            "r_color": "Clear",
+            "r_quantity": 1,
+        },
+        "contact-lens-exam": {
+            "r_sph": -2.0,
+            "r_bc": 8.6,
+            "r_diam": 14.0,
+            "r_cyl": -0.75,
+            "r_ax": 90,
+        },
+    }
+    with factory() as db:
+        db.add(
+            ContactLensOrder(
+                client_id=ids["client"],
+                clinic_id=ids["clinic"],
+                type="contact",
+                order_data=original_order_data,
+            )
+        )
+        db.commit()
+
+    with _client(factory, ids["worker"]) as client:
+        preview = client.post("/api/v1/inventory/discovery/preview")
+        assert preview.status_code == 200, preview.text
+        candidate = preview.json()["candidates"][0]
+        assert candidate["category"] == "contact_lens"
+        assert candidate["attributes"] == {"color": "Clear"}
+        assert candidate["missing_fields"] == []
+
+        candidate["selected"] = True
+        confirmed = client.post(
+            "/api/v1/inventory/discovery/confirm",
+            json={"candidates": [candidate]},
+        )
+        assert confirmed.status_code == 200, confirmed.text
+
+    with factory() as db:
+        variant = db.query(CatalogVariant).one()
+        assert variant.attributes == {"color": "Clear"}
+        assert variant.is_stockable is False
+        assert db.query(ContactLensOrder).one().order_data == original_order_data
 
 
 def test_reservation_conflict_retry_and_supplier_ordered_behavior():

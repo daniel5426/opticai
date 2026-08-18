@@ -156,10 +156,9 @@ export const inventoryVariantDescription = (variant: CatalogVariant) => {
       .join(" · ");
   }
   return [
-    attributes.sph && "SPH " + attributes.sph,
-    attributes.cyl && "CYL " + attributes.cyl,
-    attributes.axis && "AX " + attributes.axis,
-    attributes.pack_size && attributes.pack_size + " באריזה",
+    variant.product.product_type,
+    variant.product.material,
+    attributes.color,
   ]
     .filter(Boolean)
     .join(" · ");

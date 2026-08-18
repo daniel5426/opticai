@@ -211,7 +211,11 @@ export const LookupSelect = React.memo(function LookupSelect({
   const showCreateOption = inputValue.trim() && !exactMatch && !loading
 
   return (
-    <div ref={containerRef} className={`relative ${className} dark:bg-card`}>
+    <div
+      ref={containerRef}
+      className={`relative ${className} dark:bg-card`}
+      dir={dir}
+    >
       <div className="relative">
         <Input
           ref={inputRef}
@@ -220,14 +224,14 @@ export const LookupSelect = React.memo(function LookupSelect({
           onFocus={() => setIsOpen(true)}
           placeholder={placeholder}
           disabled={disabled}
-          className={`text-right pl-5 ${!disabled ? 'bg-card' : 'bg-accent/50 dark:bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${dir === 'rtl' ? 'text-right' : 'text-left'} ${center ? 'text-center' : ''}`}
+          className={`text-start pe-5 ${!disabled ? 'bg-card' : 'bg-accent/50 dark:bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${center ? 'text-center' : ''}`}
           dir={dir}
         />
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          className="absolute w-7 left-0 top-0 h-full px-1 hover:bg-transparent"
+          className="absolute top-0 end-0 h-full w-7 px-1 hover:bg-transparent"
           onClick={() => setIsOpen(!isOpen)}
           disabled={disabled}
         >

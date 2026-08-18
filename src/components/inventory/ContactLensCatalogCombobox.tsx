@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import React, { useMemo } from "react";
 
 import { InventoryCatalogCombobox } from "@/components/inventory/InventoryCatalogCombobox";
 import { CatalogVariant, FulfillmentSource } from "@/lib/inventory";
@@ -18,12 +18,11 @@ export type ContactLensCatalogValues = {
   supplier?: string;
   material?: string;
   color?: string;
-  sph?: string | number;
-  bc?: string | number;
-  diam?: string | number;
-  cyl?: string | number;
-  ax?: string | number;
-  read_ad?: string | number;
+};
+
+export type ContactLensCatalogCreateProduct = {
+  name: string;
+  onCreate: () => Promise<void>;
 };
 
 const normalized = (value: unknown) =>
@@ -31,13 +30,6 @@ const normalized = (value: unknown) =>
     .normalize("NFKC")
     .trim()
     .toLocaleLowerCase();
-
-const normalizedOpticalValue = (value: unknown) => {
-  const text = normalized(value);
-  if (!text) return "";
-  const number = Number(text);
-  return Number.isFinite(number) ? String(number) : text;
-};
 
 export const contactLensCatalogValue = (
   variant: CatalogVariant,
@@ -64,27 +56,34 @@ const matchesContactLensContext = (
     ["material", values.material, variant.product.material],
     ["color", values.color, variant.attributes?.color],
   ];
-  const opticalEntries: Array<[unknown, unknown]> = [
-    [values.sph, variant.attributes?.sph],
-    [values.bc, variant.attributes?.bc],
-    [values.diam, variant.attributes?.dia],
-    [values.cyl, variant.attributes?.cyl],
-    [values.ax, variant.attributes?.axis],
-    [values.read_ad, variant.attributes?.add],
-  ];
+  return textEntries.every(
+    ([field, selected, candidate]) =>
+      field === except ||
+      !normalized(selected) ||
+      normalized(selected) === normalized(candidate),
+  );
+};
 
-  return (
-    textEntries.every(
-      ([field, selected, candidate]) =>
-        field === except ||
-        !normalized(selected) ||
-        normalized(selected) === normalized(candidate),
-    ) &&
-    opticalEntries.every(
+export const canCreateContactLensCatalogProduct = (
+  values: ContactLensCatalogValues,
+) => Boolean(normalized(values.model));
+
+export const hasMatchingContactLensCatalogVariant = (
+  variants: CatalogVariant[],
+  values: ContactLensCatalogValues,
+) => {
+  if (!canCreateContactLensCatalogProduct(values)) return false;
+  return variants.some((variant) =>
+    [
+      [values.model, variant.product.model],
+      [values.type, variant.product.product_type],
+      [values.supplier, variant.product.preferred_supplier],
+      [values.material, variant.product.material],
+      [values.color, variant.attributes?.color],
+    ].every(
       ([selected, candidate]) =>
-        !normalizedOpticalValue(selected) ||
-        normalizedOpticalValue(selected) === normalizedOpticalValue(candidate),
-    )
+        !normalized(selected) || normalized(selected) === normalized(candidate),
+    ),
   );
 };
 
@@ -127,6 +126,7 @@ export function ContactLensCatalogCombobox({
   portalContainer,
   onChange,
   onSelectProduct,
+  createProduct,
 }: {
   field: ContactLensCatalogField;
   lookupType: string;
@@ -143,6 +143,7 @@ export function ContactLensCatalogCombobox({
   portalContainer?: HTMLElement | null;
   onChange: (value: string) => void;
   onSelectProduct: (variant: CatalogVariant, source: FulfillmentSource) => void;
+  createProduct?: ContactLensCatalogCreateProduct;
 }) {
   const catalogOptions = useMemo(
     () => contactLensCatalogFieldOptions(variants, values, field),
@@ -169,6 +170,7 @@ export function ContactLensCatalogCombobox({
       portalContainer={portalContainer}
       onChange={onChange}
       onSelectProduct={onSelectProduct}
+      createProduct={createProduct}
     />
   );
 }

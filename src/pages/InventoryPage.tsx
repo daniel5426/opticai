@@ -153,14 +153,6 @@ const emptyCatalogForm = {
   bridge: "",
   temple_length: "",
   height: "",
-  sph: "",
-  bc: "",
-  dia: "",
-  pack_size: "",
-  cyl: "",
-  axis: "",
-  add: "",
-  design: "",
   sku: "",
   barcode: "",
   default_cost: "",
@@ -237,6 +229,9 @@ function CatalogDialog({
   onSaved: () => void;
 }) {
   const [form, setForm] = useState({ ...emptyCatalogForm });
+  const [legacyContactAttributes, setLegacyContactAttributes] = useState<
+    Record<string, unknown>
+  >({});
   const { t } = useTranslation();
   const { direction } = useAppLocale();
   const [saving, setSaving] = useState(false);
@@ -249,6 +244,7 @@ function CatalogDialog({
   useEffect(() => {
     if (!open) return;
     if (!editing) {
+      setLegacyContactAttributes({});
       setForm({
         ...emptyCatalogForm,
         preferred_supplier: initialSupplier || "",
@@ -257,6 +253,13 @@ function CatalogDialog({
       return;
     }
     const attributes = editing.attributes || {};
+    setLegacyContactAttributes(
+      editing.product.category === "contact_lens"
+        ? Object.fromEntries(
+            Object.entries(attributes).filter(([key]) => key !== "color"),
+          )
+        : {},
+    );
     setForm({
       ...emptyCatalogForm,
       category: editing.product.category,
@@ -271,14 +274,6 @@ function CatalogDialog({
       bridge: String(attributes.bridge || ""),
       temple_length: String(attributes.temple_length || ""),
       height: String(attributes.height || ""),
-      sph: String(attributes.sph || ""),
-      bc: String(attributes.bc || ""),
-      dia: String(attributes.dia || ""),
-      pack_size: String(attributes.pack_size || ""),
-      cyl: String(attributes.cyl || ""),
-      axis: String(attributes.axis || ""),
-      add: String(attributes.add || ""),
-      design: String(attributes.design || ""),
       sku: editing.sku || "",
       barcode: editing.barcode || "",
       default_cost:
@@ -298,7 +293,7 @@ function CatalogDialog({
     void apiClient
       .getInventoryVariants(clinicId, {
         category: form.category,
-        stockableOnly: true,
+        stockableOnly: form.category === "frame",
       })
       .then((response) => {
         if (active) setCatalogVariants(response.data?.items || []);
@@ -343,15 +338,8 @@ function CatalogDialog({
             height: form.height ? Number(form.height) : undefined,
           }
         : {
+            ...legacyContactAttributes,
             color: form.color,
-            sph: form.sph,
-            bc: form.bc,
-            dia: form.dia,
-            pack_size: form.pack_size ? Number(form.pack_size) : undefined,
-            cyl: form.cyl,
-            axis: form.axis ? Number(form.axis) : undefined,
-            add: form.add,
-            design: form.design,
           };
     const product = {
       brand: form.brand,
@@ -371,7 +359,8 @@ function CatalogDialog({
       default_cost: canViewCost ? form.default_cost : undefined,
       default_retail: form.default_retail,
       currency: form.currency,
-      is_stockable: true,
+      is_stockable:
+        form.category === "frame" ? true : editing?.is_stockable ?? false,
     };
     try {
       if (editing) {
@@ -435,12 +424,6 @@ function CatalogDialog({
     supplier: form.preferred_supplier,
     material: form.material,
     color: form.color,
-    sph: form.sph,
-    bc: form.bc,
-    diam: form.dia,
-    cyl: form.cyl,
-    ax: form.axis,
-    read_ad: form.add,
   };
   const frameCatalogField = (
     fieldName: FrameCatalogField,
@@ -499,7 +482,7 @@ function CatalogDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         ref={setDialogContent}
-        className="max-h-[88vh] max-w-3xl overflow-y-auto text-right"
+        className="no-scrollbar max-h-[88vh] max-w-3xl overflow-y-auto text-right"
         dir={direction}
       >
         <DialogHeader>
@@ -630,18 +613,7 @@ function CatalogDialog({
                 {field("temple_length", "אורך זרוע", "number")}
                 {field("height", "גובה", "number")}
               </>
-            ) : (
-              <>
-                {field("sph", "SPH")}
-                {field("bc", "BC")}
-                {field("dia", "DIA")}
-                {field("pack_size", "כמות באריזה", "number")}
-                {field("cyl", "CYL")}
-                {field("axis", "AXIS", "number")}
-                {field("add", "ADD")}
-                {field("design", "עיצוב מולטיפוקל")}
-              </>
-            )}
+            ) : null}
             {field("sku", "SKU")}
             {field("barcode", "ברקוד")}
             <div className="space-y-1.5">
@@ -660,11 +632,6 @@ function CatalogDialog({
                   <SelectItem value="EUR">{t("euro")}</SelectItem>
                 </SelectContent>
               </Select>
-              {editing ? (
-                <p className="text-muted-foreground text-xs">
-                  {t("currencyChangeNotice")}
-                </p>
-              ) : null}
             </div>
             {canViewCost
               ? field("default_cost", "עלות ברירת מחדל", "number")
@@ -672,7 +639,7 @@ function CatalogDialog({
             {field("default_retail", "מחיר מכירה מוצע", "number")}
           </div>
         </div>
-        {editing ? (
+        {editing && form.category === "frame" ? (
           <div className="border-t pt-4">
             <p className="mb-3 text-sm font-medium">מדיניות מלאי</p>
             <div className="grid gap-4 md:grid-cols-2">
@@ -964,20 +931,20 @@ function DiscoveryDialog({
                       ) : null}
                       {candidate.needs_details ? (
                         <div className="mt-3 grid gap-2 rounded-md bg-amber-50/60 p-3 md:grid-cols-4">
-                          <Input
-                            placeholder={
-                              candidate.category === "frame" ? "מותג" : "יצרן"
-                            }
-                            value={String(candidate.product.brand || "")}
-                            onChange={(event) =>
-                              updateCandidateField(
-                                index,
-                                "product",
-                                "brand",
-                                event.target.value,
-                              )
-                            }
-                          />
+                          {candidate.category === "frame" ? (
+                            <Input
+                              placeholder="מותג"
+                              value={String(candidate.product.brand || "")}
+                              onChange={(event) =>
+                                updateCandidateField(
+                                  index,
+                                  "product",
+                                  "brand",
+                                  event.target.value,
+                                )
+                              }
+                            />
+                          ) : null}
                           <Input
                             placeholder="דגם"
                             value={String(candidate.product.model || "")}
@@ -990,60 +957,7 @@ function DiscoveryDialog({
                               )
                             }
                           />
-                          {candidate.category === "contact_lens" ? (
-                            <>
-                              <Input
-                                placeholder="SPH"
-                                value={String(candidate.attributes.sph || "")}
-                                onChange={(event) =>
-                                  updateCandidateField(
-                                    index,
-                                    "attributes",
-                                    "sph",
-                                    event.target.value,
-                                  )
-                                }
-                              />
-                              <Input
-                                placeholder="BC"
-                                value={String(candidate.attributes.bc || "")}
-                                onChange={(event) =>
-                                  updateCandidateField(
-                                    index,
-                                    "attributes",
-                                    "bc",
-                                    event.target.value,
-                                  )
-                                }
-                              />
-                              <Input
-                                placeholder="DIA"
-                                value={String(candidate.attributes.dia || "")}
-                                onChange={(event) =>
-                                  updateCandidateField(
-                                    index,
-                                    "attributes",
-                                    "dia",
-                                    event.target.value,
-                                  )
-                                }
-                              />
-                              <Input
-                                placeholder="כמות באריזה"
-                                value={String(
-                                  candidate.attributes.pack_size || "",
-                                )}
-                                onChange={(event) =>
-                                  updateCandidateField(
-                                    index,
-                                    "attributes",
-                                    "pack_size",
-                                    event.target.value,
-                                  )
-                                }
-                              />
-                            </>
-                          ) : (
+                          {candidate.category === "frame" ? (
                             <>
                               <Input
                                 placeholder="צבע"
@@ -1072,11 +986,7 @@ function DiscoveryDialog({
                                 }
                               />
                             </>
-                          )}
-                          <p className="text-muted-foreground col-span-full text-xs">
-                            חסר: {candidate.missing_fields.join(", ")}. פריט לא
-                            שלם יישאר לא זמין למלאי.
-                          </p>
+                          ) : null}
                         </div>
                       ) : null}
                     </div>

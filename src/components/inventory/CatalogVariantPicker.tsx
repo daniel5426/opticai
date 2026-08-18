@@ -39,10 +39,7 @@ const CONTACT_FACETS: Facet[] = [
   { key: "model", label: "דגם", getValue: (variant) => variant.product.model },
   { key: "product_type", label: "סוג", getValue: (variant) => variant.product.product_type },
   { key: "material", label: "חומר", getValue: (variant) => variant.product.material },
-  { key: "sph", label: "SPH", getValue: (variant) => variant.attributes.sph },
-  { key: "bc", label: "BC", getValue: (variant) => variant.attributes.bc },
-  { key: "dia", label: "DIA", getValue: (variant) => variant.attributes.dia },
-  { key: "pack_size", label: "אריזה", getValue: (variant) => variant.attributes.pack_size },
+  { key: "color", label: "צבע", getValue: (variant) => variant.attributes.color },
 ];
 
 const normalized = (value: unknown) => String(value ?? "").trim();
@@ -122,7 +119,10 @@ export function CatalogVariantPicker({
     let active = true;
     setLoading(true);
     void apiClient
-      .getInventoryVariants(clinicId, { category, stockableOnly: true })
+      .getInventoryVariants(clinicId, {
+        category,
+        stockableOnly: category === "frame",
+      })
       .then((response) => {
         if (active) setVariants(response.data?.items || []);
       })

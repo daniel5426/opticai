@@ -7,6 +7,7 @@ import { FastInput, inputSyncManager } from "./shared/OptimizedInputs";
 import { EXAM_FIELDS } from "./data/exam-field-definitions";
 import {
   ContactLensCatalogCombobox,
+  ContactLensCatalogCreateProduct,
   ContactLensCatalogField,
   ContactLensCatalogValues,
 } from "@/components/inventory/ContactLensCatalogCombobox";
@@ -19,6 +20,8 @@ interface ContactLensInventoryCatalogProps {
   leftValues: ContactLensCatalogValues;
   rightDisabled?: boolean;
   leftDisabled?: boolean;
+  rightCreateProduct?: ContactLensCatalogCreateProduct;
+  leftCreateProduct?: ContactLensCatalogCreateProduct;
   onSelect: (
     side: "right" | "left",
     variant: CatalogVariant,
@@ -132,6 +135,11 @@ export function ContactLensDetailsTab({
         onSelectProduct={(variant, source) =>
           inventoryCatalog.onSelect(side, variant, source)
         }
+        createProduct={
+          eye === "R"
+            ? inventoryCatalog.rightCreateProduct
+            : inventoryCatalog.leftCreateProduct
+        }
       />
     );
   };
@@ -235,16 +243,10 @@ export function ContactLensDetailsTab({
             {columns.map(({ key, config }) => (
               <React.Fragment key={`l-${key}`}>
                 {config.lookupType ? (
-                  isEditing ? (
-                    renderLookup(
-                      "L",
-                      key as ContactLensCatalogField,
-                      config.lookupType,
-                    )
-                  ) : (
-                    <div className="bg-accent/50 flex h-8 items-center rounded-md border px-2 text-xs">
-                      {getFieldValue("L", key) || ""}
-                    </div>
+                  renderLookup(
+                    "L",
+                    key as ContactLensCatalogField,
+                    config.lookupType,
                   )
                 ) : (
                   <FastInput

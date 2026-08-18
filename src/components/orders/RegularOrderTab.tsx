@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -26,7 +28,11 @@ import {
 import { useUser } from "@/contexts/UserContext";
 import { apiClient } from "@/lib/api-client";
 import { ORDER_STATUS_OPTIONS } from "@/lib/order-status";
-import { FrameCatalogCombobox } from "@/components/inventory/FrameCatalogCombobox";
+import {
+  canCreateFrameCatalogProduct,
+  FrameCatalogCombobox,
+  hasMatchingFrameCatalogVariant,
+} from "@/components/inventory/FrameCatalogCombobox";
 import {
   CatalogVariant,
   FulfillmentSource,
@@ -251,6 +257,7 @@ export default function RegularOrderTab({
   >([]);
   const [isLoadingFrameCatalog, setIsLoadingFrameCatalog] = useState(false);
   const { currentUser, currentClinic } = useUser();
+  const { t } = useTranslation();
   const activeLens = lensFrameTab?.lens || ({ order_id: 0 } as OrderLens);
   const activeFrame = lensFrameTab?.frame || ({ order_id: 0 } as Frame);
   const lensRowsAreEqual = lensRowsMatch(activeLens);
@@ -259,6 +266,72 @@ export default function RegularOrderTab({
     (lensLayoutMode === "auto" && !lensRowsAreEqual);
   const effectiveCompanyId =
     currentUser?.company_id ?? currentClinic?.company_id;
+  const frameCatalogValues = {
+    supplier: activeFrame.supplier,
+    manufacturer: activeFrame.manufacturer,
+    model: activeFrame.model,
+    color: activeFrame.color,
+    width: activeFrame.width,
+  };
+  const canCreateCurrentFrameCatalogProduct =
+    Boolean(currentClinic?.id) &&
+    canCreateFrameCatalogProduct(frameCatalogValues) &&
+    !hasMatchingFrameCatalogVariant(frameCatalogVariants, frameCatalogValues);
+
+  const createCurrentFrameCatalogProduct = async () => {
+    const clinicId = currentClinic?.id;
+    if (!clinicId || !canCreateFrameCatalogProduct(frameCatalogValues)) {
+      throw new Error("Frame catalog product is incomplete");
+    }
+
+    const response = await apiClient.createCatalogEntry({
+      clinic_id: clinicId,
+      category: "frame",
+      product: {
+        brand: activeFrame.manufacturer,
+        model: activeFrame.model,
+        preferred_supplier: activeFrame.supplier,
+      },
+      variant: {
+        attributes: {
+          color: activeFrame.color,
+          eye_size: activeFrame.width,
+          bridge: activeFrame.bridge,
+          temple_length: activeFrame.length,
+          height: activeFrame.height,
+        },
+        is_stockable: true,
+      },
+    });
+    if (response.error || !response.data) {
+      throw new Error(
+        String(response.error || "Catalog product creation failed"),
+      );
+    }
+
+    const createdVariant = response.data;
+    setFrameCatalogVariants((current) => {
+      const withoutCurrent = current.filter(
+        (variant) => variant.id !== createdVariant.id,
+      );
+      return [...withoutCurrent, createdVariant].sort((left, right) =>
+        left.display_name.localeCompare(right.display_name, "he"),
+      );
+    });
+    onFrameInventorySelect(createdVariant, "supplier_ordered");
+    toast.success(
+      t("inventoryProductCreated", { name: createdVariant.display_name }),
+    );
+  };
+
+  const frameCatalogProductAction = canCreateCurrentFrameCatalogProduct
+    ? {
+        name: [activeFrame.manufacturer, activeFrame.model]
+          .filter(Boolean)
+          .join(" "),
+        onCreate: createCurrentFrameCatalogProduct,
+      }
+    : undefined;
 
   useEffect(() => {
     let isMounted = true;
@@ -738,6 +811,7 @@ export default function RegularOrderTab({
                           }
                           className={`${fieldClass} text-right`}
                           onSelectProduct={onFrameInventorySelect}
+                          createProduct={frameCatalogProductAction}
                         />
                       </div>
                       <div>
@@ -761,6 +835,7 @@ export default function RegularOrderTab({
                           }
                           className={`${fieldClass} text-right`}
                           onSelectProduct={onFrameInventorySelect}
+                          createProduct={frameCatalogProductAction}
                         />
                       </div>
                       <div>
@@ -784,6 +859,7 @@ export default function RegularOrderTab({
                           }
                           className={`${fieldClass} text-right`}
                           onSelectProduct={onFrameInventorySelect}
+                          createProduct={frameCatalogProductAction}
                         />
                       </div>
                       <div>
@@ -826,6 +902,7 @@ export default function RegularOrderTab({
                           }
                           className={`${fieldClass} text-right`}
                           onSelectProduct={onFrameInventorySelect}
+                          createProduct={frameCatalogProductAction}
                         />
                       </div>
                       <div>

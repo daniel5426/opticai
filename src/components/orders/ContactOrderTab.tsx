@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 
 import {
@@ -26,6 +27,11 @@ import {
 import { inputSyncManager } from "@/components/exam/shared/OptimizedInputs";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
+import {
+  canCreateContactLensCatalogProduct,
+  ContactLensCatalogValues,
+  hasMatchingContactLensCatalogVariant,
+} from "@/components/inventory/ContactLensCatalogCombobox";
 import {
   CatalogVariant,
   FulfillmentSource,
@@ -75,6 +81,7 @@ export default function ContactOrderTab({
   onInventoryRelevantFieldChange,
   clientOrderIndex,
 }: ContactOrderTabProps) {
+  const { t } = useTranslation();
   const [clipboardSourceType, setClipboardSourceType] =
     useState<ExamComponentType | null>(null);
   const [catalogVariants, setCatalogVariants] = useState<CatalogVariant[]>([]);
@@ -96,7 +103,6 @@ export default function ContactOrderTab({
     void apiClient
       .getInventoryVariants(clinicId, {
         category: "contact_lens",
-        stockableOnly: true,
       })
       .then((response) => {
         if (isMounted) setCatalogVariants(response.data?.items || []);
@@ -155,6 +161,77 @@ export default function ContactOrderTab({
       });
       return updated;
     });
+  };
+
+  const catalogValuesFor = (
+    side: "right" | "left",
+  ): ContactLensCatalogValues => {
+    const prefix = side === "right" ? "r" : "l";
+    return {
+      type:
+        contactLensDetailsData[`${prefix}_type`] ??
+        contactLensDetailsData[`${prefix}_lens_type`],
+      model: contactLensDetailsData[`${prefix}_model`],
+      supplier: contactLensDetailsData[`${prefix}_supplier`],
+      material: contactLensDetailsData[`${prefix}_material`],
+      color: contactLensDetailsData[`${prefix}_color`],
+    };
+  };
+
+  const createContactLensCatalogProduct = async (side: "right" | "left") => {
+    const values = catalogValuesFor(side);
+    if (!clinicId || !canCreateContactLensCatalogProduct(values)) {
+      throw new Error("Contact-lens catalog product is incomplete");
+    }
+
+    const response = await apiClient.createCatalogEntry({
+      clinic_id: clinicId,
+      category: "contact_lens",
+      product: {
+        model: values.model,
+        product_type: values.type,
+        material: values.material,
+        preferred_supplier: values.supplier,
+      },
+      variant: {
+        attributes: values.color ? { color: values.color } : {},
+        is_stockable: false,
+      },
+    });
+    if (response.error || !response.data) {
+      throw new Error(
+        String(response.error || "Catalog product creation failed"),
+      );
+    }
+
+    const createdVariant = response.data;
+    setCatalogVariants((current) => {
+      const withoutCurrent = current.filter(
+        (variant) => variant.id !== createdVariant.id,
+      );
+      return [...withoutCurrent, createdVariant].sort((left, right) =>
+        left.display_name.localeCompare(right.display_name, "he"),
+      );
+    });
+    onInventorySelect(side, createdVariant, "supplier_ordered");
+    toast.success(
+      t("inventoryProductCreated", { name: createdVariant.display_name }),
+    );
+  };
+
+  const catalogProductActionFor = (side: "right" | "left") => {
+    const values = catalogValuesFor(side);
+    if (
+      !clinicId ||
+      !canCreateContactLensCatalogProduct(values) ||
+      hasMatchingContactLensCatalogVariant(catalogVariants, values)
+    ) {
+      return undefined;
+    }
+    return {
+      name: [values.model, values.type].filter(Boolean).join(" · "),
+      onCreate: () => createContactLensCatalogProduct(side),
+    };
   };
 
   const handleToolboxClear = (targetType: ExamComponentType) => {
@@ -433,12 +510,6 @@ export default function ContactOrderTab({
                           supplier: contactLensDetailsData.r_supplier,
                           material: contactLensDetailsData.r_material,
                           color: contactLensDetailsData.r_color,
-                          sph: contactLensExamData.r_sph,
-                          bc: contactLensExamData.r_bc,
-                          diam: contactLensExamData.r_diam,
-                          cyl: contactLensExamData.r_cyl,
-                          ax: contactLensExamData.r_ax,
-                          read_ad: contactLensExamData.r_read_ad,
                         },
                         leftValues: {
                           type:
@@ -448,13 +519,9 @@ export default function ContactOrderTab({
                           supplier: contactLensDetailsData.l_supplier,
                           material: contactLensDetailsData.l_material,
                           color: contactLensDetailsData.l_color,
-                          sph: contactLensExamData.l_sph,
-                          bc: contactLensExamData.l_bc,
-                          diam: contactLensExamData.l_diam,
-                          cyl: contactLensExamData.l_cyl,
-                          ax: contactLensExamData.l_ax,
-                          read_ad: contactLensExamData.l_read_ad,
                         },
+                        rightCreateProduct: catalogProductActionFor("right"),
+                        leftCreateProduct: catalogProductActionFor("left"),
                         rightDisabled:
                           rightInventorySelection?.lifecycle_state ===
                           "consumed",

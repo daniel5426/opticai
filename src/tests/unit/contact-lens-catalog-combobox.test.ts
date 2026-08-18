@@ -66,24 +66,22 @@ const variants = [
 ];
 
 describe("contact-lens catalog combobox", () => {
-  it("filters product suggestions using identity and prescription values", () => {
+  it("filters product suggestions using reusable product details", () => {
     expect(
       contactLensCatalogSuggestions(variants, {
         material: "Silicone",
-        sph: "-2.00",
-        bc: "8.60",
       }).map((variant) => variant.id),
-    ).toEqual([1]);
+    ).toEqual([1, 3]);
   });
 
-  it("derives field options from all other entered values", () => {
+  it("derives field options from all other product details", () => {
     expect(
       contactLensCatalogFieldOptions(
         variants,
-        { material: "Silicone", sph: -2 },
+        { material: "Silicone" },
         "model",
       ),
-    ).toEqual(["Biofinity"]);
+    ).toEqual(["Biofinity", "MyDay"]);
   });
 
   it("uses manufacturer as shared catalog context", () => {
@@ -100,9 +98,9 @@ describe("contact-lens catalog combobox", () => {
     expect(
       contactLensCatalogSuggestions(
         variants,
-        { model: "Bio", sph: -2 },
+        { model: "Bio", material: "Silicone" },
         "model",
       ).map((variant) => variant.id),
-    ).toEqual([1, 2]);
+    ).toEqual([1, 3]);
   });
 });

@@ -413,9 +413,8 @@ export default function WorkerStatsPage() {
                       <Card className="">
                         <CardHeader>
                           <div
-                            className={`flex items-center justify-between gap-4 ${
-                              direction === "ltr" ? "flex-row-reverse" : ""
-                            }`}
+                            className="flex flex-row-reverse items-center justify-between gap-4"
+                            dir={direction}
                           >
                             <div className="flex items-center gap-4">
                               <div className="flex items-center gap-2">
@@ -459,9 +458,8 @@ export default function WorkerStatsPage() {
                               </div>
                             </div>
                             <div
-                              className={`flex items-center gap-3 ${
-                                direction === "ltr" ? "flex-row-reverse" : ""
-                              }`}
+                              className="flex flex-row-reverse items-center gap-3"
+                              dir={direction}
                             >
                               <div className="text-start">
                                 <CardTitle>
@@ -542,11 +540,13 @@ export default function WorkerStatsPage() {
                       <Card className="">
                         <CardHeader>
                           <div
-                            className={`flex items-start justify-between gap-4 ${
-                              direction === "ltr" ? "flex-row-reverse" : ""
-                            }`}
+                            className="flex flex-row-reverse items-start justify-between gap-4"
+                            dir={direction}
                           >
-                            <div className="flex items-center gap-3">
+                            <div
+                              className="flex flex-row-reverse items-center gap-3"
+                              dir={direction}
+                            >
                               {isRoleAtLeast(
                                 currentUser?.role_level,
                                 ROLE_LEVELS.manager,
@@ -557,11 +557,14 @@ export default function WorkerStatsPage() {
                                   onClick={() => setIsCreateModalOpen(true)}
                                   className="flex items-center gap-2"
                                 >
-                                  <IconPlus className="h-4 w-4" />
                                   הוספת משמרת
+                                  <IconPlus className="h-4 w-4" />
                                 </Button>
                               )}
-                              <div className="flex items-center gap-2">
+                              <div
+                                className="flex flex-row-reverse items-center gap-2"
+                                dir={direction}
+                              >
                                 <DateInput
                                   name="selected_date"
                                   value={selectedDate}
@@ -570,7 +573,7 @@ export default function WorkerStatsPage() {
                                   dir="ltr"
                                 />
                                 <Label className="text-sm font-medium">
-                                  :תאריך
+                                  {t("attendanceDateLabel")}
                                 </Label>
                               </div>
                             </div>

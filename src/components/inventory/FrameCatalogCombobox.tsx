@@ -71,6 +71,31 @@ const matchesSearch = (variant: CatalogVariant, query: string) => {
   ].some((value) => normalized(value).includes(search));
 };
 
+export const canCreateFrameCatalogProduct = (values: FrameCatalogValues) => {
+  const eyeSize = Number(values.width);
+  return Boolean(
+    normalized(values.manufacturer) &&
+      normalized(values.model) &&
+      normalized(values.color) &&
+      Number.isFinite(eyeSize) &&
+      eyeSize > 0,
+  );
+};
+
+export const hasMatchingFrameCatalogVariant = (
+  variants: CatalogVariant[],
+  values: FrameCatalogValues,
+) => {
+  if (!canCreateFrameCatalogProduct(values)) return false;
+  return variants.some(
+    (variant) =>
+      normalized(variant.product.brand) === normalized(values.manufacturer) &&
+      normalized(variant.product.model) === normalized(values.model) &&
+      normalized(variant.attributes?.color) === normalized(values.color) &&
+      Number(variant.attributes?.eye_size) === Number(values.width),
+  );
+};
+
 export function frameCatalogSuggestions(
   variants: CatalogVariant[],
   values: FrameCatalogValues,
@@ -123,6 +148,7 @@ export function FrameCatalogCombobox({
   portalContainer,
   onChange,
   onSelectProduct,
+  createProduct,
 }: {
   field: FrameCatalogField;
   lookupType: string;
@@ -137,6 +163,10 @@ export function FrameCatalogCombobox({
   portalContainer?: HTMLElement | null;
   onChange: (value: string) => void;
   onSelectProduct: (variant: CatalogVariant, source: FulfillmentSource) => void;
+  createProduct?: {
+    name: string;
+    onCreate: () => Promise<void>;
+  };
 }) {
   const catalogOptions = useMemo(
     () => combinedFrameFieldOptions([], variants, values, field),
@@ -161,6 +191,7 @@ export function FrameCatalogCombobox({
       portalContainer={portalContainer}
       onChange={onChange}
       onSelectProduct={onSelectProduct}
+      createProduct={createProduct}
     />
   );
 }

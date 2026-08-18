@@ -2,11 +2,13 @@ import { useMemo, useState } from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { Check, ChevronDown, Loader2, PackageCheck, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useLookupData } from "@/hooks/useLookupData";
+import { useAppLocale } from "@/localization/use-app-locale";
 import {
   CatalogVariant,
   FulfillmentSource,
@@ -83,6 +85,7 @@ export function InventoryCatalogCombobox({
   portalContainer,
   onChange,
   onSelectProduct,
+  createProduct,
 }: {
   lookupType: string;
   lookupLabel: string;
@@ -99,10 +102,17 @@ export function InventoryCatalogCombobox({
   portalContainer?: HTMLElement | null;
   onChange: (value: string) => void;
   onSelectProduct: (variant: CatalogVariant, source: FulfillmentSource) => void;
+  createProduct?: {
+    name: string;
+    onCreate: () => Promise<void>;
+  };
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [isCreatingProduct, setIsCreatingProduct] = useState(false);
   const { data, loading, createItem, isCreating } = useLookupData(lookupType);
+  const { t } = useTranslation();
+  const { direction } = useAppLocale();
 
   const options = useMemo(() => {
     return rankCatalogLookupOptions(
@@ -143,6 +153,19 @@ export function InventoryCatalogCombobox({
     }
   };
 
+  const createCatalogProduct = async () => {
+    if (!createProduct || isCreatingProduct) return;
+    setIsCreatingProduct(true);
+    try {
+      await createProduct.onCreate();
+      setDropdownOpen(false);
+    } catch {
+      toast.error(t("inventoryProductCreateFailed"));
+    } finally {
+      setIsCreatingProduct(false);
+    }
+  };
+
   const openAfterFocus = () => {
     setQuery(value);
     window.setTimeout(() => setOpen(true), 0);
@@ -165,7 +188,7 @@ export function InventoryCatalogCombobox({
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={setDropdownOpen}>
       <PopoverPrimitive.Anchor asChild>
-        <div className={`relative ${className}`} dir="rtl">
+        <div className={`relative ${className}`} dir={direction}>
           <Input
             value={value}
             onChange={(event) => {
@@ -177,13 +200,14 @@ export function InventoryCatalogCombobox({
             placeholder={placeholder}
             disabled={disabled}
             autoComplete="off"
-            className={`bg-card disabled:bg-accent/50 pl-8 disabled:cursor-default disabled:opacity-100 ${center ? "text-center" : "text-start"} ${inputClassName}`}
+            dir={direction}
+            className={`bg-card disabled:bg-accent/50 pe-8 disabled:cursor-default disabled:opacity-100 ${center ? "text-center" : "text-start"} ${inputClassName}`}
           />
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="absolute top-0 left-0 h-full w-8 hover:bg-transparent"
+            className="absolute end-0 top-0 h-full w-8 hover:bg-transparent"
             onClick={toggleDropdown}
             disabled={disabled}
             aria-label={`פתח אפשרויות ${lookupLabel}`}
@@ -202,7 +226,7 @@ export function InventoryCatalogCombobox({
           align="start"
           collisionPadding={16}
           className="bg-popover text-popover-foreground z-[9999] flex w-max max-w-[min(440px,calc(100vw-2rem))] min-w-[var(--radix-popover-trigger-width)] flex-col overflow-hidden rounded-lg border shadow-lg outline-none"
-          dir="rtl"
+          dir={direction}
           onOpenAutoFocus={(event) => event.preventDefault()}
         >
           <section
@@ -304,6 +328,26 @@ export function InventoryCatalogCombobox({
                 אין מוצרי קטלוג מתאימים
               </p>
             )}
+            {createProduct ? (
+              <button
+                type="button"
+                className="text-primary hover:bg-accent focus-visible:ring-ring mt-1 flex w-full items-center gap-2 rounded-md border-t px-2 py-2 text-start text-sm focus-visible:ring-2 focus-visible:outline-none"
+                onClick={() => void createCatalogProduct()}
+                disabled={isCreatingProduct}
+              >
+                <span className="min-w-0 flex-1 truncate">
+                  {t("inventoryCreateProduct", { name: createProduct.name })}
+                </span>
+                {isCreatingProduct ? (
+                  <Loader2
+                    aria-hidden="true"
+                    className="size-4 shrink-0 animate-spin"
+                  />
+                ) : (
+                  <Plus aria-hidden="true" className="size-4 shrink-0" />
+                )}
+              </button>
+            ) : null}
           </section>
         </PopoverPrimitive.Content>
       </PopoverPrimitive.Portal>

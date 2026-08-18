@@ -1199,15 +1199,6 @@ export default function OrderDetailPage({
       [`${prefix}_color`]: attributes.color || "",
       [`${prefix}_quantity`]: quantity,
     }));
-    setContactLensExamData((current: any) => ({
-      ...current,
-      [`${prefix}_sph`]: attributes.sph ?? "",
-      [`${prefix}_bc`]: attributes.bc ?? "",
-      [`${prefix}_diam`]: attributes.dia ?? "",
-      [`${prefix}_cyl`]: attributes.cyl ?? "",
-      [`${prefix}_ax`]: attributes.axis ?? "",
-      [`${prefix}_read_ad`]: attributes.add ?? "",
-    }));
     commitInventorySelection(component, variant, fulfillmentSource, quantity);
   };
 
@@ -1228,12 +1219,6 @@ export default function OrderDetailPage({
       "supplier",
       "material",
       "color",
-      "sph",
-      "bc",
-      "diam",
-      "cyl",
-      "ax",
-      "read_ad",
     ]);
     if (suffix !== "quantity" && !identityFields.has(suffix)) return true;
 
