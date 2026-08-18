@@ -130,3 +130,14 @@ def test_native_exporter_uses_explicit_allowlists_and_excludes_sensitive_fields(
     assert " Pass " not in plan
     assert "Microsoft.Jet" not in reader
     assert "Microsoft.ACE" not in reader
+
+
+def test_windows_native_reader_build_requires_iconv_for_unicode_text():
+    build_script = (
+        Path(__file__).parents[2]
+        / "scripts"
+        / "build-optitech-reader.sh"
+    ).read_text(encoding="utf-8")
+
+    assert 'LIBS="${LIBS:-} -liconv" ./configure' in build_script
+    assert "#define MDBTOOLS_H_HAVE_ICONV_H 1" in build_script

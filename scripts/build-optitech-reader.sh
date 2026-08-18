@@ -27,7 +27,10 @@ perl -0pi -e 's{(#define MDB_DEPRECATED\(type, funcname\) type __attribute__\(\(
 grep -F -- '-D_spawnv=_spawnv' configure.ac >/dev/null
 grep -F -- 'typedef _locale_t locale_t;' include/mdbtools.h.in >/dev/null
 autoreconf -i -f
-./configure --prefix="$PREFIX" --disable-static --enable-shared
+# MinGW provides iconv in libiconv rather than the C runtime. Without this,
+# MDB Tools falls back to locale conversion and corrupts Jet Unicode fields.
+LIBS="${LIBS:-} -liconv" ./configure --prefix="$PREFIX" --disable-static --enable-shared
+grep -F -- '#define MDBTOOLS_H_HAVE_ICONV_H 1' include/mdbtools.h >/dev/null
 make -j"$(nproc)"
 make install
 popd >/dev/null
