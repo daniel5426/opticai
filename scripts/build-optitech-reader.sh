@@ -20,6 +20,7 @@ tar -xzf "$ARCHIVE" -C "$WORK_DIR"
 MDBTOOLS_DIR="$WORK_DIR/mdbtools-${MDBTOOLS_VERSION}"
 PREFIX="$WORK_DIR/prefix"
 pushd "$MDBTOOLS_DIR" >/dev/null
+patch --strip=1 < "$HELPER_DIR/patches/mdbtools-v${MDBTOOLS_VERSION}-mingw.patch"
 autoreconf -i -f
 ./configure --prefix="$PREFIX" --disable-static --enable-shared
 make -j"$(nproc)"

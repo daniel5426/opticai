@@ -1,0 +1,31 @@
+diff --git a/configure.ac b/configure.ac
+index cdfcfee..0000000 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -86,7 +86,7 @@ AC_SUBST(LFLAGS)
+ CFLAGS="$CFLAGS -Wall"
+ LOCALE_T=locale_t
+ AS_CASE([$host],
+-        [*mingw*], [LDFLAGS="$LDFLAGS -no-undefined" CFLAGS="$CFLAGS -D_spawnv=spawnv"], [])
++        [*mingw*], [LDFLAGS="$LDFLAGS -no-undefined" CFLAGS="$CFLAGS -D_spawnv=_spawnv"], [])
+ AC_SUBST(LOCALE_T)
+ 
+ dnl See if iconv is present and wanted
+diff --git a/include/mdbtools.h.in b/include/mdbtools.h.in
+index 0000000..0000000 100644
+--- a/include/mdbtools.h.in
++++ b/include/mdbtools.h.in
+@@ -68,6 +68,13 @@
+ // M$VC see http://stackoverflow.com/questions/1113409/attribute-constructor-equivalent-in-vc
+ #define MDB_DEPRECATED(type, funcname) type __attribute__((deprecated)) funcname
+ 
++#ifdef __MINGW32__
++  #include <stdlib.h>
++  #ifndef locale_t
++    typedef _locale_t locale_t;
++  #endif
++#endif
++
+ typedef @LOCALE_T@ mdb_locale_t;
+ 
+ enum {
