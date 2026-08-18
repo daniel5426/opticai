@@ -96,6 +96,16 @@ def test_client_selection_rejects_dependent_rows_outside_limit(tmp_path):
         )
 
 
+def test_client_selection_accepts_legacy_unsorted_manifest_ids(tmp_path):
+    (tmp_path / "tblPerData.csv").write_text("PerId\n2\n1\n", encoding="utf-8")
+
+    assert validate_optitech_client_selection(
+        tmp_path,
+        {"selected_client_ids": [2, 1]},
+        client_limit=None,
+    ) == {1, 2}
+
+
 def test_native_exporter_uses_explicit_allowlists_and_excludes_sensitive_fields():
     reader = (
         Path(__file__).parents[2]

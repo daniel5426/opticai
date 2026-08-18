@@ -834,7 +834,7 @@ async function writeOptiTechManifest(
   const clientsPath = path.join(tablesDir, "tblPerData.csv");
   const selectedClientIds = fs.existsSync(clientsPath)
     ? (parseCsv(await fs.promises.readFile(clientsPath, "utf8"), { columns: true, relax_quotes: true, skip_empty_lines: true }) as Array<Record<string, string>>)
-      .map(row => Number.parseInt(row.PerId, 10)).filter(Number.isFinite)
+      .map(row => Number.parseInt(row.PerId, 10)).filter(Number.isFinite).sort((left, right) => left - right)
     : [];
   const sourceStat = await fs.promises.stat(dbFile);
   const manifest = {

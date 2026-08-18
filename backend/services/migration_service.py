@@ -114,8 +114,10 @@ def validate_optitech_client_selection(
     manifest_ids = manifest.get("selected_client_ids")
     if isinstance(manifest_ids, list):
         normalized_manifest_ids = [int(value) for value in manifest_ids]
-        if normalized_manifest_ids != client_ids:
-            raise RuntimeError("OptiTech manifest client selection is not the ascending tblPerData selection")
+        # Older desktop exports preserved the MDB's physical table order. The
+        # client set is authoritative; current exports serialize it ascending.
+        if len(normalized_manifest_ids) != len(client_ids) or sorted(normalized_manifest_ids) != client_ids:
+            raise RuntimeError("OptiTech manifest client selection does not match tblPerData")
 
     dependent = {
         "tblCrdGlassChecks": "PerId",
