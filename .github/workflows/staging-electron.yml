@@ -1,4 +1,4 @@
-name: Verify Staging and Build Desktop
+name: Verify Staging and Build Windows
 
 on:
   workflow_dispatch:
@@ -130,60 +130,6 @@ jobs:
           retry_health https://staging-api.prysm.co.il/health/database
           retry_health https://prysm-web-staging-staging.up.railway.app/health
 
-  build-macos-staging:
-    needs: verify-staging
-    runs-on: macos-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.sha }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Generate staging environment file
-        run: |
-          cat > .env.production <<'EOF'
-          VITE_API_URL=${{ env.VITE_API_URL }}
-          APP_ENVIRONMENT=${{ env.APP_ENVIRONMENT }}
-          APP_PROFILE_NAME=${{ env.APP_PROFILE_NAME }}
-          AUTH_PROTOCOL=${{ env.AUTH_PROTOCOL }}
-          GOOGLE_DESKTOP_CLIENT_ID=${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
-          GOOGLE_DESKTOP_CLIENT_SECRET=${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
-          EOF
-
-      - name: Build macOS staging app
-        run: |
-          npx vite build
-          npx electron-builder --mac zip --arm64 \
-            --publish never \
-            --config.productName="Prysm Staging" \
-            --config.appId="com.prysm.app.staging" \
-            --config.mac.identity=null \
-            --config.mac.hardenedRuntime=false \
-            --config.mac.gatekeeperAssess=false \
-            '--config.artifactName=Prysm-Staging-${os}-${arch}-${version}.${ext}'
-        env:
-          NODE_ENV: production
-          NODE_OPTIONS: --max-old-space-size=4096
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-
-      - name: Upload macOS staging artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: prysm-staging-macos-arm64-${{ needs.verify-staging.outputs.sha }}
-          path: |
-            release/*.zip
-            release/latest-mac.yml
-          if-no-files-found: error
-          retention-days: 14
-
   build-windows-staging:
     needs: verify-staging
     runs-on: windows-latest
@@ -240,7 +186,7 @@ jobs:
           retention-days: 14
 
   publish-public-staging-download:
-    needs: [verify-staging, build-macos-staging, build-windows-staging]
+    needs: [verify-staging, build-windows-staging]
     runs-on: ubuntu-latest
     steps:
       - name: Download staging artifacts
@@ -264,5 +210,4 @@ jobs:
 
             Verified commit: `${{ needs.verify-staging.outputs.sha }}`
           files: |
-            staging-artifacts/prysm-staging-macos-arm64-${{ needs.verify-staging.outputs.sha }}/*.zip
             staging-artifacts/prysm-staging-windows-x64-${{ needs.verify-staging.outputs.sha }}/Prysm-Staging-Setup-*.exe
