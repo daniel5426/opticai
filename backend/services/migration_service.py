@@ -34,6 +34,12 @@ def _count_manifest_rows(path: Path) -> int:
         return max(0, sum(1 for _ in reader) - 1)
 
 
+def _count_legacy_manifest_rows(path: Path) -> int:
+    """Match the pre-fix Electron counter, which counted physical newlines."""
+    content = path.read_text(encoding="utf-8-sig")
+    return max(0, content.count("\n") - int(content.endswith("\n")))
+
+
 def read_bundle_manifest(root: Path) -> dict[str, Any]:
     path = root / "manifest.json"
     if not path.exists():
@@ -66,8 +72,12 @@ def validate_versioned_manifest(root: Path, expected_source: str) -> dict[str, A
             if actual.lower() != str(expected_hash).lower():
                 raise RuntimeError(f"Migration table checksum mismatch: {relative}")
         expected_rows = table.get("row_count")
-        if isinstance(expected_rows, int) and _count_manifest_rows(file_path) != expected_rows:
-            raise RuntimeError(f"Migration table row count mismatch: {relative}")
+        if isinstance(expected_rows, int):
+            logical_rows = _count_manifest_rows(file_path)
+            # Earlier Windows Electron bundles counted physical line breaks.
+            # Keep them importable while current bundles use logical CSV rows.
+            if logical_rows != expected_rows and _count_legacy_manifest_rows(file_path) != expected_rows:
+                raise RuntimeError(f"Migration table row count mismatch: {relative}")
     documents = manifest.get("documents") if isinstance(manifest.get("documents"), dict) else {}
     for document in documents.get("files") or []:
         relative = document.get("file")

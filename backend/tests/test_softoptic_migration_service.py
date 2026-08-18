@@ -2,6 +2,7 @@ import csv
 import zipfile
 from datetime import date
 
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -28,6 +29,7 @@ from services.softoptic_migration_service import (
     cleanup_previous_softoptic_import,
     prepare_bundle_direct_upload,
     resume_job,
+    _safe_extract_zip,
     run_softoptic_import,
     softoptic_bundle_storage_location,
     update_job,
@@ -78,6 +80,28 @@ def _write_bundle(tmp_path, first_name="שם", client_count=1):
     with zipfile.ZipFile(bundle_path, "w") as archive:
         archive.write(export_dir / "account.csv", "account.csv")
     return bundle_path, export_dir
+
+
+def test_safe_extract_zip_normalizes_windows_member_paths(tmp_path):
+    bundle_path = tmp_path / "windows-bundle.zip"
+    with zipfile.ZipFile(bundle_path, "w") as archive:
+        archive.writestr(r"tables\tblCitys.csv", "CityId,CityName\r\n1,Haifa\r\n")
+
+    destination = tmp_path / "extracted"
+    _safe_extract_zip(bundle_path, destination)
+
+    assert (destination / "tables" / "tblCitys.csv").read_bytes() == b"CityId,CityName\r\n1,Haifa\r\n"
+
+
+def test_safe_extract_zip_rejects_windows_path_traversal(tmp_path):
+    bundle_path = tmp_path / "unsafe-bundle.zip"
+    with zipfile.ZipFile(bundle_path, "w") as archive:
+        archive.writestr(r"..\outside.csv", "not allowed")
+
+    with pytest.raises(Exception, match="Invalid migration archive"):
+        _safe_extract_zip(bundle_path, tmp_path / "extracted")
+
+    assert not (tmp_path / "outside.csv").exists()
 
 
 def _seed_job(db, bundle_path, job_id="job1", client_import_limit=None):

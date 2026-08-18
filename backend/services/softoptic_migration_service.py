@@ -7,7 +7,7 @@ import shutil
 import tempfile
 import zipfile
 from datetime import datetime, timedelta
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Dict, Iterable, Optional
 from uuid import uuid4
 
@@ -252,12 +252,33 @@ def phase_completed(job: SoftOpticMigrationJob, phase: str) -> bool:
 
 def _safe_extract_zip(zip_path: Path, destination: Path) -> None:
     with zipfile.ZipFile(zip_path) as archive:
+        destination_root = destination.resolve()
+        members: list[tuple[zipfile.ZipInfo, Path, str]] = []
         for member in archive.infolist():
-            target = destination / member.filename
-            resolved = target.resolve()
-            if not str(resolved).startswith(str(destination.resolve())):
+            # PowerShell Compress-Archive records Windows path separators. ZIP
+            # paths are platform-independent, so normalize them before both the
+            # safety check and extraction on Linux workers.
+            member_name = member.filename.replace("\\", "/")
+            relative = PurePosixPath(member_name)
+            if (
+                not member_name
+                or member_name.startswith("/")
+                or (len(member_name) >= 2 and member_name[0].isalpha() and member_name[1] == ":")
+                or any(part in {"", ".", ".."} for part in relative.parts)
+            ):
                 raise HTTPException(status_code=400, detail="Invalid migration archive")
-        archive.extractall(destination)
+            target = destination.joinpath(*relative.parts)
+            resolved = target.resolve()
+            if not resolved.is_relative_to(destination_root):
+                raise HTTPException(status_code=400, detail="Invalid migration archive")
+            members.append((member, target, member_name))
+        for member, target, member_name in members:
+            if member.is_dir() or member_name.endswith("/"):
+                target.mkdir(parents=True, exist_ok=True)
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with archive.open(member) as source, target.open("wb") as output:
+                shutil.copyfileobj(source, output)
 
 
 def _find_csv_root(extract_dir: Path) -> Path:

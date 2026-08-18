@@ -59,6 +59,28 @@ def test_v2_manifest_validates_table_and_document_hashes(tmp_path):
         validate_versioned_manifest(tmp_path, "optitech")
 
 
+def test_v2_manifest_accepts_legacy_physical_line_row_counts(tmp_path):
+    tables = tmp_path / "tables"
+    tables.mkdir()
+    clients = tables / "tblPerData.csv"
+    clients.write_bytes(b'PerId,Comment\r\n1,"first line\r\nsecond line"\r\n')
+    manifest = {
+        "source_system": "optitech",
+        "format_version": 2,
+        "mapping_version": 2,
+        # The old Electron counter counted the quoted line break as a row.
+        "tables": [{
+            "name": "tblPerData",
+            "file": "tables/tblPerData.csv",
+            "row_count": 2,
+            "sha256": _sha256(clients),
+        }],
+    }
+    (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    assert validate_versioned_manifest(tmp_path, "optitech")["mapping_version"] == 2
+
+
 def test_client_selection_rejects_dependent_rows_outside_limit(tmp_path):
     (tmp_path / "tblPerData.csv").write_text("PerId\n1\n", encoding="utf-8")
     (tmp_path / "tblCrdGlassChecks.csv").write_text(

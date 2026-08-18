@@ -826,7 +826,9 @@ async function writeOptiTechManifest(
   const tables = await Promise.all(tableFiles.map(async file => {
     const filePath = path.join(tablesDir, file);
     const content = await fs.promises.readFile(filePath, "utf8");
-    const rows = (content.match(/\n/g) || []).length - (content.endsWith("\n") ? 1 : 0);
+    // Count CSV records, not physical newlines: notes can contain quoted
+    // line breaks and the worker validates logical CSV rows.
+    const rows = parseCsv(content, { relax_quotes: true, relax_column_count: true, skip_empty_lines: true }).length - 1;
     return { name: path.basename(file, ".csv"), file: `tables/${file}`, row_count: Math.max(0, rows), columns: readCsvHeader(content), sha256: await sha256File(filePath) };
   }));
   const clientsPath = path.join(tablesDir, "tblPerData.csv");
