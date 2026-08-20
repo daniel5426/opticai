@@ -58,6 +58,8 @@ import {
   MaddoxRodExam,
   StereoTestExam,
   RGExam,
+  RGBalanceExam,
+  MaddoxWingExam,
   OcularMotorAssessmentExam,
   NPCExam,
   DiopterAdjustmentPanel,
@@ -78,6 +80,8 @@ import { FusionRangeTab } from "@/components/exam/FusionRangeTab";
 import { MaddoxRodTab } from "@/components/exam/MaddoxRodTab";
 import { StereoTestTab } from "@/components/exam/StereoTestTab";
 import { RGTab } from "@/components/exam/RGTab";
+import { RGBalanceTab } from "@/components/exam/RGBalanceTab";
+import { MaddoxWingTab } from "@/components/exam/MaddoxWingTab";
 import { OcularMotorAssessmentTab } from "@/components/exam/OcularMotorAssessmentTab";
 import { NPCTab } from "@/components/exam/NPCTab";
 import { v4 as uuidv4 } from "uuid";
@@ -108,6 +112,7 @@ const componentsWithMiddleRow: CardItem["type"][] = [
   "over-refraction",
   "old-contact-lenses",
   "contact-lens-exam",
+  "maddox-wing",
 ];
 const componentsDontHaveMiddleRow: CardItem["type"][] = [
   "objective",
@@ -125,6 +130,7 @@ const componentsDontHaveMiddleRow: CardItem["type"][] = [
   "maddox-rod",
   "stereo-test",
   "rg",
+  "rg-balance",
   "ocular-motor-assessment",
   "npc",
 ];
@@ -191,8 +197,10 @@ export interface CardItem {
     | "diopter-adjustment-panel"
     | "fusion-range"
     | "maddox-rod"
+    | "maddox-wing"
     | "stereo-test"
     | "rg"
+    | "rg-balance"
     | "ocular-motor-assessment"
     | "npc"
     | "old-contact-lenses"
@@ -338,10 +346,14 @@ const getExamFormData = (
       return { layout_instance_id: 0 } as FusionRangeExam;
     case "maddox-rod":
       return { layout_instance_id: 0, schema_version: 2 } as MaddoxRodExam;
+    case "maddox-wing":
+      return { layout_instance_id: 0 } as MaddoxWingExam;
     case "stereo-test":
       return { layout_instance_id: 0 } as StereoTestExam;
     case "rg":
       return { layout_instance_id: 0 } as RGExam;
+    case "rg-balance":
+      return { layout_instance_id: 0 } as RGBalanceExam;
     case "ocular-motor-assessment":
       return { layout_instance_id: 0 } as OcularMotorAssessmentExam;
     case "npc":
@@ -540,11 +552,15 @@ export const getColumnCount = (
     case "fusion-range":
       return 5;
     case "maddox-rod":
-      return 6;
+      return 7;
+    case "maddox-wing":
+      return 4;
     case "stereo-test":
       return 4;
     case "rg":
       return 3;
+    case "rg-balance":
+      return 5;
     case "ocular-motor-assessment":
       return 5;
     case "npc":
@@ -563,6 +579,10 @@ export const getMaxWidth = (
   switch (type) {
     case "rg":
       return 290;
+    case "rg-balance":
+      return 360;
+    case "maddox-wing":
+      return 360;
     case "corneal-topography":
       return 1260;
     case "keratometer":
@@ -1034,7 +1054,12 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
       l_recommendations: "",
     };
     const emptyFusionRangeData: FusionRangeExam = { layout_instance_id: 0 };
-    const emptyMaddoxRodData: MaddoxRodExam = { layout_instance_id: 0 };
+    const emptyMaddoxRodData: MaddoxRodExam = {
+      layout_instance_id: 0,
+      schema_version: 2,
+    };
+    const emptyMaddoxWingData: MaddoxWingExam = { layout_instance_id: 0 };
+    const emptyRGBalanceData: RGBalanceExam = { layout_instance_id: 0 };
     const emptyOcularMotorAssessmentData: OcularMotorAssessmentExam = {
       layout_instance_id: 0,
     };
@@ -1135,6 +1160,10 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
           return emptyFusionRangeData;
         case "maddox-rod":
           return emptyMaddoxRodData;
+        case "maddox-wing":
+          return emptyMaddoxWingData;
+        case "rg-balance":
+          return emptyRGBalanceData;
         case "ocular-motor-assessment":
           return emptyOcularMotorAssessmentData;
         case "npc":
@@ -2160,10 +2189,21 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
               }
               onMaddoxRodChange={getChangeHandler("maddox-rod", item.id)}
               isEditing={mode === "detail" ? detailProps!.isEditing : false}
-              needsMiddleSpacer={
-                hasSiblingWithMiddleRow &&
-                componentsDontHaveMiddleRow.includes(item.type)
+              needsMiddleSpacer={needsMiddleSpacer}
+            />
+          </div>
+        );
+
+      case "maddox-wing":
+        return (
+          <div className="relative">
+            {toolbox}
+            <MaddoxWingTab
+              maddoxWingData={
+                getExamData("maddox-wing", item.id) as MaddoxWingExam
               }
+              onMaddoxWingChange={getChangeHandler("maddox-wing", item.id)}
+              isEditing={mode === "detail" ? detailProps!.isEditing : false}
             />
           </div>
         );
@@ -2208,6 +2248,21 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
                 hasSiblingWithMiddleRow &&
                 componentsDontHaveMiddleRow.includes(item.type)
               }
+            />
+          </div>
+        );
+
+      case "rg-balance":
+        return (
+          <div className="relative">
+            {toolbox}
+            <RGBalanceTab
+              rgBalanceData={
+                getExamData("rg-balance", item.id) as RGBalanceExam
+              }
+              onRGBalanceChange={getChangeHandler("rg-balance", item.id)}
+              isEditing={mode === "detail" ? detailProps!.isEditing : false}
+              needsMiddleSpacer={needsMiddleSpacer}
             />
           </div>
         );

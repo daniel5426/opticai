@@ -303,7 +303,9 @@ const CARD_MIN_GRID_COL_OVERRIDES: Partial<Record<CardItem["type"], number>> = {
   "corneal-topography": 8,
   keratometer: 8,
   "keratometer-contact-lens": 11,
-  "maddox-rod": 9,
+  "maddox-rod": 10,
+  "maddox-wing": 6,
+  "rg-balance": 7,
   retinoscop: 11,
   "diopter-adjustment-panel": 8,
 };

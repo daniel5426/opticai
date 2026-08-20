@@ -26,6 +26,8 @@ import {
   MaddoxRodExam,
   StereoTestExam,
   RGExam,
+  RGBalanceExam,
+  MaddoxWingExam,
   OcularMotorAssessmentExam,
   NPCExam
 } from './db/schema-interface'
@@ -62,8 +64,10 @@ export type ExamComponentType =
   | 'diopter-adjustment-panel'
   | 'fusion-range'
   | 'maddox-rod'
+  | 'maddox-wing'
   | 'stereo-test'
   | 'rg'
+  | 'rg-balance'
   | 'ocular-motor-assessment'
   | 'npc';
 
@@ -99,8 +103,10 @@ export const fullExamsList: ExamComponentType[] = [
   'diopter-adjustment-panel',
   'fusion-range',
   'maddox-rod',
+  'maddox-wing',
   'stereo-test',
   'rg',
+  'rg-balance',
   'ocular-motor-assessment',
   'npc',
 ];
@@ -137,13 +143,15 @@ export const examComponentTypeToExamFields: Record<ExamComponentType, ExamCompon
   'diopter-adjustment-panel': [],
   'fusion-range': [],
   'maddox-rod': [],
+  'maddox-wing': [],
   'stereo-test': [],
   'rg': [],
+  'rg-balance': [],
   'ocular-motor-assessment': [],
   'npc': [],
 };
 
-export type ExamDataType = OpticalExam | OldRefExam | OldRefractionExam | OldRefractionExtensionExam | ObjectiveExam | SubjectiveExam | FinalSubjectiveExam | FinalPrescriptionExam | CompactPrescriptionExam | AdditionExam | RetinoscopExam | RetinoscopDilationExam | UncorrectedVAExam | KeratometerExam | KeratometerFullExam | CornealTopographyExam | CoverTestExam | CoverTestV2Exam | SchirmerTestExam | ContactLensDiameters | ContactLensDetails | KeratometerContactLens | ContactLensExam | ContactLensOrder | StereoTestExam | RGExam | NPCExam
+export type ExamDataType = OpticalExam | OldRefExam | OldRefractionExam | OldRefractionExtensionExam | ObjectiveExam | SubjectiveExam | FinalSubjectiveExam | FinalPrescriptionExam | CompactPrescriptionExam | AdditionExam | RetinoscopExam | RetinoscopDilationExam | UncorrectedVAExam | KeratometerExam | KeratometerFullExam | CornealTopographyExam | CoverTestExam | CoverTestV2Exam | SchirmerTestExam | ContactLensDiameters | ContactLensDetails | KeratometerContactLens | ContactLensExam | ContactLensOrder | StereoTestExam | RGExam | RGBalanceExam | MaddoxRodExam | MaddoxWingExam | NPCExam
 
 export interface FieldMapping {
   [sourceField: string]: string | null
@@ -186,8 +194,10 @@ export class ExamFieldMapper {
     'diopter-adjustment-panel': fullExamsList,
     'fusion-range': fullExamsList,
     'maddox-rod': ['maddox-rod'],
+    'maddox-wing': ['maddox-wing'],
     'stereo-test': ['stereo-test'],
     'rg': ['rg'],
+    'rg-balance': ['rg-balance'],
     'ocular-motor-assessment': ['ocular-motor-assessment'],
     'npc': ['npc'],
   }
@@ -224,9 +234,9 @@ export class ExamFieldMapper {
       case 'objective':
         return ['r_sph', 'r_cyl', 'r_ax', 'r_se', 'l_sph', 'l_cyl', 'l_ax', 'l_se']
       case 'subjective':
-        return ['r_fa', 'r_fa_tuning', 'r_sph', 'r_cyl', 'r_ax', 'r_pris', 'r_base', 'r_va', 'r_pd_close', 'r_pd_far', 'l_fa', 'l_fa_tuning', 'l_sph', 'l_cyl', 'l_ax', 'l_pris', 'l_base', 'l_va', 'l_pd_close', 'l_pd_far', 'comb_fa', 'comb_fa_tuning', 'comb_va', 'comb_pd_close', 'comb_pd_far']
+        return ['r_fa', 'r_fa_tuning', 'r_sph', 'r_cyl', 'r_ax', 'r_pris', 'r_base', 'r_pr_h', 'r_base_h', 'r_pr_v', 'r_base_v', 'r_va', 'r_pd_close', 'r_pd_far', 'l_fa', 'l_fa_tuning', 'l_sph', 'l_cyl', 'l_ax', 'l_pris', 'l_base', 'l_pr_h', 'l_base_h', 'l_pr_v', 'l_base_v', 'l_va', 'l_pd_close', 'l_pd_far', 'comb_fa', 'comb_fa_tuning', 'comb_va', 'comb_pd_close', 'comb_pd_far']
       case 'final-subjective':
-        return ['r_sph', 'r_cyl', 'r_ax', 'r_pris', 'r_base', 'r_va', 'r_j', 'r_pd_close', 'r_pd_far', 'l_sph', 'l_cyl', 'l_ax', 'l_pris', 'l_base', 'l_va', 'l_j', 'l_pd_close', 'l_pd_far', 'comb_va', 'comb_j', 'comb_pd_close', 'comb_pd_far']
+        return ['r_sph', 'r_cyl', 'r_ax', 'r_pris', 'r_base', 'r_pr_h', 'r_base_h', 'r_pr_v', 'r_base_v', 'r_va', 'r_j', 'r_pd_close', 'r_pd_far', 'l_sph', 'l_cyl', 'l_ax', 'l_pris', 'l_base', 'l_pr_h', 'l_base_h', 'l_pr_v', 'l_base_v', 'l_va', 'l_j', 'l_pd_close', 'l_pd_far', 'comb_va', 'comb_j', 'comb_pd_close', 'comb_pd_far']
       case 'final-prescription':
         return ['r_sph', 'r_cyl', 'r_ax', 'r_pris', 'r_base', 'r_va', 'r_ad', 'r_pd_far', 'r_pd_close', 'r_high', 'r_diam', 'l_sph', 'l_cyl', 'l_ax', 'l_pris', 'l_base', 'l_va', 'l_ad', 'l_pd_far', 'l_pd_close', 'l_high', 'l_diam', 'comb_va', 'comb_pd_far', 'comb_pd_close', 'comb_high']
       case 'compact-prescription':
@@ -304,11 +314,12 @@ export class ExamFieldMapper {
         ];
       case 'maddox-rod':
         return [
-          'c_r_h', 'c_r_v', 'c_l_h', 'c_l_v', 'wc_r_h', 'wc_r_v', 'wc_l_h', 'wc_l_v',
           'schema_version', 'with_horizontal_prism', 'with_horizontal_direction',
           'with_vertical_prism', 'with_vertical_direction', 'without_horizontal_prism',
           'without_horizontal_direction', 'without_vertical_prism', 'without_vertical_direction'
         ];
+      case 'maddox-wing':
+        return ['exo_phoria', 'eso_phoria', 'hyper_phoria', 'hyper_eye', 'near_vision'];
       case 'stereo-test':
         return [
           'fly_result', 'circle_score', 'circle_max', 'circle_9_score', 'circle_3_score'
@@ -317,6 +328,8 @@ export class ExamFieldMapper {
         return [
           'rg_status', 'suppressed_eye'
         ];
+      case 'rg-balance':
+        return ['r_green', 'r_equal', 'r_red', 'l_green', 'l_equal', 'l_red'];
       case 'ocular-motor-assessment':
         return [
           'ocular_motility', 'acc_od', 'acc_os', 'npc_break', 'npc_recovery'

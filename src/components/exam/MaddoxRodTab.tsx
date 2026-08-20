@@ -1,8 +1,10 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent } from "@/components/ui/card";
 import { MaddoxRodExam } from "@/lib/db/schema-interface";
-import { FastInput } from "./shared/OptimizedInputs"
-import { Triangle } from "lucide-react";
+import { normalizeMaddoxRodExam } from "@/lib/maddox-compatibility";
+import { EXAM_FIELDS } from "./data/exam-field-definitions";
+import { FastInput, FastSelect } from "./shared/OptimizedInputs";
 
 interface MaddoxRodTabProps {
   maddoxRodData: MaddoxRodExam;
@@ -11,186 +13,87 @@ interface MaddoxRodTabProps {
   needsMiddleSpacer?: boolean;
 }
 
-const columns = [
-  { key: "c_r_h", label: "R" },
-  { key: "c_l_h", label: "L" },
-  { key: "c_r_v", label: "R" },
-  { key: "c_l_v", label: "L" },
-];
-
 export function MaddoxRodTab({
   maddoxRodData,
   onMaddoxRodChange,
   isEditing,
-  needsMiddleSpacer = true,
+  needsMiddleSpacer = false,
 }: MaddoxRodTabProps) {
-  if (maddoxRodData.schema_version === 2) {
-    const rows = [
-      { prefix: "with", label: "עם תיקון" },
-      { prefix: "without", label: "בלי תיקון" },
-    ] as const;
-    const measurement = (prefix: "with" | "without", axis: "horizontal" | "vertical") => {
-      const prismKey = `${prefix}_${axis}_prism` as keyof MaddoxRodExam;
-      const directionKey = `${prefix}_${axis}_direction` as keyof MaddoxRodExam;
-      return (
-        <div className="grid grid-cols-2 gap-2">
-          <div className="relative">
-            <FastInput type="number" step="0.25" value={String(maddoxRodData[prismKey] ?? "")}
-              onChange={(value) => onMaddoxRodChange(prismKey, value)} disabled={!isEditing}
-              className="h-8 pr-7 text-xs disabled:cursor-default disabled:opacity-100" />
-            <Triangle size={16} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          </div>
-          <FastInput value={String(maddoxRodData[directionKey] ?? "")}
-            onChange={(value) => onMaddoxRodChange(directionKey, value)} disabled={!isEditing}
-            className="h-8 text-xs disabled:cursor-default disabled:opacity-100" />
-        </div>
-      );
-    };
+  const { t } = useTranslation();
+  const data = normalizeMaddoxRodExam(maddoxRodData as Record<string, unknown>) as MaddoxRodExam;
+  const rows = [
+    { prefix: "with", label: t("maddoxWithCorrection") },
+    { prefix: "without", label: t("maddoxWithoutCorrection") },
+  ] as const;
+
+  const measurement = (
+    prefix: "with" | "without",
+    axis: "horizontal" | "vertical",
+  ) => {
+    const prismKey = `${prefix}_${axis}_prism` as keyof MaddoxRodExam;
+    const directionKey = `${prefix}_${axis}_direction` as keyof MaddoxRodExam;
+    const directionOptions =
+      axis === "horizontal"
+        ? EXAM_FIELDS.MADDOX_HORIZONTAL_DIRECTION.options
+        : EXAM_FIELDS.MADDOX_VERTICAL_DIRECTION.options;
+
     return (
-      <Card className="w-full examcard pb-4 pt-3">
-        <CardContent className="px-4" style={{ direction: "ltr" }}>
-          <h3 className="mb-3 text-center font-medium text-muted-foreground">Maddox Rod</h3>
-          <div className="grid grid-cols-[1fr_1fr_76px] items-center gap-2">
-            <div className="text-center text-xs font-medium text-muted-foreground">Horizontal</div>
-            <div className="text-center text-xs font-medium text-muted-foreground">Vertical</div>
+      <div className="grid min-w-0 grid-cols-[minmax(4.5rem,0.9fr)_minmax(4.75rem,1.1fr)] items-center gap-2">
+        <FastInput
+          type="number"
+          step="0.25"
+          value={String(data[prismKey] ?? "")}
+          onChange={(value) => onMaddoxRodChange(prismKey, value)}
+          disabled={!isEditing}
+          dir="ltr"
+          suffix={EXAM_FIELDS.COVER_TEST_PRISM.suffix}
+          className="h-8 min-w-0 text-xs disabled:cursor-default disabled:opacity-100"
+        />
+        <FastSelect
+          value={String(data[directionKey] ?? "")}
+          onChange={(value) => onMaddoxRodChange(directionKey, value)}
+          disabled={!isEditing}
+          options={directionOptions || []}
+          allowImportedValue
+          size="xs"
+          center
+          triggerClassName={`h-8 min-w-[4.75rem] text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+        />
+      </div>
+    );
+  };
+
+  return (
+    <Card className="examcard w-full pt-3 pb-4" dir="ltr">
+      <CardContent className="px-4" style={{ scrollbarWidth: "none" }}>
+        <div className="space-y-3">
+          <div className="text-center">
+            <h3 className="text-muted-foreground font-medium">Maddox rod</h3>
+          </div>
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2">
+            <div className="text-muted-foreground text-center text-xs font-medium">
+              {t("maddoxHorizontal")}
+            </div>
+            <div className="text-muted-foreground text-center text-xs font-medium">
+              {t("maddoxVertical")}
+            </div>
             <div />
-            {rows.map(({ prefix, label }) => (
+            {rows.map(({ prefix, label }, index) => (
               <React.Fragment key={prefix}>
+                {index === 1 && needsMiddleSpacer && (
+                  <>
+                    <div className="h-8" />
+                    <div className="h-8" />
+                    <div className="h-8" />
+                  </>
+                )}
                 {measurement(prefix, "horizontal")}
                 {measurement(prefix, "vertical")}
-                <div className="text-right text-sm text-muted-foreground" dir="rtl">{label}</div>
+                <div className="text-muted-foreground px-1 text-end text-sm whitespace-nowrap" dir="auto">
+                  {label}
+                </div>
               </React.Fragment>
             ))}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-  return (
-    <Card className="w-full examcard pt-3 pb-4">
-      <CardContent
-        className="px-4"
-        style={{ scrollbarWidth: "none", direction: "ltr" }}
-      >
-        <div className="space-y-3" >
-          <div className="rtl grid grid-cols-[1fr_1fr_4px_1fr_1fr_70px] items-center gap-2">
-            <div className="text-muted-foreground text-center pt-3 text-xs font-medium col-span-2">
-              Horizon
-            </div>
-            <div className="text-muted-foreground text-center text-md pb-1 font-medium flex items-center justify-center whitespace-nowrap">
-              Maddox Rod
-            </div>
-            <div className="text-muted-foreground text-center text-xs pt-3 font-medium col-span-2">
-              Vertical
-            </div>
-            <div></div>
-            {columns.slice(0, 2).map((col) => (
-              <div
-                key={col.key}
-                className="text-muted-foreground text-center text-xs font-medium"
-              >
-                {col.label}
-              </div>
-            ))}
-            <div className="bg-transparent w-px h-full my-2"></div>
-            {columns.slice(2, 4).map((col) => (
-              <div
-                key={col.key}
-                className="text-muted-foreground text-center text-xs font-medium"
-              >
-                {col.label}
-              </div>
-            ))}
-            <div></div>
-            {columns.slice(0, 2).map((col) => {
-              const wcKey = col.key.replace("c_", "wc_") as keyof MaddoxRodExam;
-              return (
-                <div key={col.key + "-wc"} className="relative">
-                  <FastInput
-                    type="number"
-                    step="0.25"
-                    value={String(maddoxRodData[wcKey] || "")}
-                    onChange={(val) => onMaddoxRodChange(wcKey, val)}
-                    disabled={!isEditing}
-                    className={`h-8 pr-7 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
-                  />
-                  <Triangle size={16} className="text-muted-foreground absolute top-1/2 right-2 -translate-y-1/2" />
-                </div>
-              );
-            })}
-            <div className="bg-border w-px h-8"></div>
-            {columns.slice(2, 4).map((col) => {
-              const wcKey = col.key.replace("c_", "wc_") as keyof MaddoxRodExam;
-              return (
-                <div key={col.key + "-wc"} className="relative">
-                  <FastInput
-                    type="number"
-                    step="0.25"
-                    value={String(maddoxRodData[wcKey] || "")}
-                    onChange={(val) => onMaddoxRodChange(wcKey, val)}
-                    disabled={!isEditing}
-                    className={`h-8 pr-7 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
-                  />
-                  <Triangle size={16} className="text-muted-foreground absolute top-1/2 right-2 -translate-y-1/2" />
-                </div>
-              );
-            })}
-            <div className="text-right text-sm text-muted-foreground">
-              בלי תיקון
-            </div>
-            {needsMiddleSpacer && (
-              <>
-                {columns.slice(0, 2).map(({ key }) => (
-                  <div key={`spacer-${key}`} className="h-8" />
-                ))}
-                <div className="h-8" />
-                {columns.slice(2, 4).map(({ key }) => (
-                  <div key={`spacer-${key}`} className="h-8" />
-                ))}
-                <div className="h-8" />
-              </>
-            )}
-
-            {columns.slice(0, 2).map((col) => (
-              <div key={col.key} className="relative">
-                <FastInput
-                  type="number"
-                  step="0.25"
-                  value={String(maddoxRodData[col.key as keyof MaddoxRodExam] || "")}
-                  onChange={(val) =>
-                    onMaddoxRodChange(
-                      col.key as keyof MaddoxRodExam,
-                      val,
-                    )
-                  }
-                  disabled={!isEditing}
-                  className={`h-8 pr-7 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
-                />
-                <Triangle size={16} className="text-muted-foreground absolute top-1/2 right-2 -translate-y-1/2" />
-              </div>
-            ))}
-            <div className="bg-border w-px h-8"></div>
-            {columns.slice(2, 4).map((col) => (
-              <div key={col.key} className="relative">
-                <FastInput
-                  type="number"
-                  step="0.25"
-                  value={String(maddoxRodData[col.key as keyof MaddoxRodExam] || "")}
-                  onChange={(val) =>
-                    onMaddoxRodChange(
-                      col.key as keyof MaddoxRodExam,
-                      val,
-                    )
-                  }
-                  disabled={!isEditing}
-                  className={`h-8 pr-7 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
-                />
-                <Triangle size={16} className="text-muted-foreground absolute top-1/2 right-2 -translate-y-1/2" />
-              </div>
-            ))}
-            <div className="text-right text-sm text-muted-foreground">
-              עם תיקון
-            </div>
           </div>
         </div>
       </CardContent>

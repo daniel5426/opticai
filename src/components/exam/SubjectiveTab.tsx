@@ -1,4 +1,5 @@
-import React, { useState, useRef } from "react"
+import React, { useState, useRef, useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import { Card, CardContent } from "@/components/ui/card"
 import { SubjectiveExam } from "@/lib/db/schema-interface"
 import { VASelect } from "./shared/VASelect"
@@ -13,6 +14,8 @@ import { useAxisWarning } from "./shared/useAxisWarning"
 import { AxisWarningInput } from "./shared/AxisWarningInput"
 import { copyEyeRowFields } from "./shared/copyEyeRowFields"
 import { ToggleTextNumberInput } from "./shared/ToggleTextNumberInput"
+import { PrismAxisCompatibility } from "@/lib/prism-axis-compatibility"
+import { buildPrismAxisColumns } from "./shared/prismAxisColumns"
 
 interface SubjectiveTabProps {
   subjectiveData: SubjectiveExam;
@@ -29,7 +32,13 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
   onMultifocalClick,
   hideEyeLabels = false
 }: SubjectiveTabProps) {
+  const { t } = useTranslation();
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
+  const [forceVertical, setForceVertical] = useState(false);
+  const hasVerticalPrism = PrismAxisCompatibility.hasVerticalPrism(
+    subjectiveData as Record<string, unknown>
+  );
+  const showVertical = forceVertical || hasVerticalPrism;
 
   const { fieldWarnings, handleAxisChange, handleAxisBlur } = useAxisWarning(
     subjectiveData,
@@ -46,12 +55,32 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
     isEditing
   );
 
+  const prismColumns = useMemo(
+    () =>
+      buildPrismAxisColumns({
+        showVertical,
+        showAddVertical: isEditing,
+        compactBase: { key: "base", ...EXAM_FIELDS.BASE, type: "select", options: BASE_VALUES },
+        expandedLabels: {
+          prismHorizontal: t("examPrismHorizontal"),
+          baseHorizontal: t("examBaseHorizontal"),
+          prismVertical: t("examPrismVertical"),
+          baseVertical: t("examBaseVertical"),
+        },
+        addVerticalLabel: t("examAddVerticalPrism"),
+        onAddVertical: () => setForceVertical(true),
+        showRemoveVertical: isEditing && showVertical && !hasVerticalPrism,
+        removeVerticalLabel: t("examRemoveVerticalPrism"),
+        onRemoveVertical: () => setForceVertical(false),
+      }),
+    [hasVerticalPrism, isEditing, showVertical, t]
+  );
+
   const columns = [
     { key: "sph", ...EXAM_FIELDS.SPH },
     { key: "cyl", ...EXAM_FIELDS.CYL },
     { key: "ax", ...EXAM_FIELDS.AXIS },
-    { key: "pris", ...EXAM_FIELDS.PRISM },
-    { key: "base", ...EXAM_FIELDS.BASE, type: "select", options: BASE_VALUES },
+    ...prismColumns,
     { key: "va", ...EXAM_FIELDS.VA },
     { key: "pd_far", ...EXAM_FIELDS.PD_FAR },
     { key: "pd_close", ...EXAM_FIELDS.PD_NEAR }
@@ -86,8 +115,13 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
       const combField = `comb_${field}` as keyof SubjectiveExam;
       onSubjectiveChange(combField, value);
     } else {
-      const eyeField = `${eye.toLowerCase()}_${field}` as keyof SubjectiveExam;
+      const prefix = `${eye.toLowerCase()}_`;
+      const eyeField = `${prefix}${field}` as keyof SubjectiveExam;
       onSubjectiveChange(eyeField, value);
+      const linked = PrismAxisCompatibility.linkedHorizontalField(field);
+      if (linked) {
+        onSubjectiveChange(`${prefix}${linked}` as keyof SubjectiveExam, value);
+      }
     }
   };
 
@@ -103,16 +137,19 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
             <h3 className="font-medium text-muted-foreground">Subjective</h3>
           </div>
 
-          <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(8,1fr)]' : 'grid-cols-[20px_repeat(8,1fr)]'} gap-2 items-center`}>
+          <div className={`grid ${hideEyeLabels ? (showVertical ? 'grid-cols-[repeat(10,1fr)]' : 'grid-cols-[repeat(8,1fr)]') : (showVertical ? 'grid-cols-[20px_repeat(10,1fr)]' : 'grid-cols-[20px_repeat(8,1fr)]')} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
-            {columns.map(({ key, label }) => (
-              <div key={key} className="h-4 flex items-center justify-center">
+            {columns.map(({ key, label, headerAccessory }) => (
+              <div key={key} className="h-4 flex items-center justify-center gap-0.5">
                 {key === "cyl" ? (
                   <CylTitle onTranspose={handleManualTranspose} disabled={!isEditing} />
                 ) : (
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {label}
-                  </span>
+                  <>
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {label}
+                    </span>
+                    {headerAccessory}
+                  </>
                 )}
               </div>
             ))}
@@ -128,7 +165,7 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                 {hoveredEye === "L" ? <ChevronDown size={16} /> : "R"}
               </span>
             </div>}
-            {columns.map(({ key, ...colProps }) => (
+            {columns.map(({ key, headerAccessory, ...colProps }) => (
               <div key={`r-${key}`}>
                 {(key === 'cyl' || key === 'ax') ? (
                   <AxisWarningInput
@@ -164,7 +201,7 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                       className: `h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`
                     }}
                   />
-                ) : key === "base" ? (
+                ) : key === "base" || key === "base_v" ? (
                   <FastSelect
                     value={getFieldValue("R", key)}
                     onChange={(value) => handleChange("R", key, value)}
@@ -240,7 +277,7 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                 {hoveredEye === "R" ? <ChevronUp size={16} /> : "L"}
               </span>
             </div>}
-            {columns.map(({ key, ...colProps }) => (
+            {columns.map(({ key, headerAccessory, ...colProps }) => (
               <div key={`l-${key}`}>
                 {(key === 'cyl' || key === 'ax') ? (
                   <AxisWarningInput
@@ -276,7 +313,7 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                       className: `h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`
                     }}
                   />
-                ) : key === "base" ? (
+                ) : key === "base" || key === "base_v" ? (
                   <FastSelect
                     value={getFieldValue("L", key)}
                     onChange={(value) => handleChange("L", key, value)}

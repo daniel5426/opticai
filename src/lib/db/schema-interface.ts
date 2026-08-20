@@ -273,6 +273,14 @@ export interface SubjectiveExam {
   l_pris?: number;
   r_base?: number;
   l_base?: number;
+  r_pr_h?: number;
+  l_pr_h?: number;
+  r_base_h?: string;
+  l_base_h?: string;
+  r_pr_v?: number;
+  l_pr_v?: number;
+  r_base_v?: string;
+  l_base_v?: string;
   r_va?: number;
   l_va?: number;
   r_ph?: number;
@@ -362,6 +370,14 @@ export interface FinalSubjectiveExam {
   l_pris?: number;
   r_base?: string;
   l_base?: string;
+  r_pr_h?: number;
+  l_pr_h?: number;
+  r_base_h?: string;
+  l_base_h?: string;
+  r_pr_v?: number;
+  l_pr_v?: number;
+  r_base_v?: string;
+  l_base_v?: string;
   r_va?: number;
   l_va?: number;
   r_j?: number;
@@ -1235,14 +1251,6 @@ export interface FusionRangeExam {
 export interface MaddoxRodExam {
   id?: number;
   layout_instance_id: number;
-  c_r_h?: number;
-  c_r_v?: number;
-  c_l_h?: number;
-  c_l_v?: number;
-  wc_r_h?: number;
-  wc_r_v?: number;
-  wc_l_h?: number;
-  wc_l_v?: number;
   schema_version?: 2;
   with_horizontal_prism?: number | string;
   with_horizontal_direction?: string;
@@ -1269,6 +1277,27 @@ export interface RGExam {
   layout_instance_id: number;
   rg_status?: "suppression" | "fusion" | "diplopia";
   suppressed_eye?: "R" | "G" | null;
+}
+
+export interface RGBalanceExam {
+  id?: number;
+  layout_instance_id: number;
+  r_green?: number | string;
+  r_equal?: number | string;
+  r_red?: number | string;
+  l_green?: number | string;
+  l_equal?: number | string;
+  l_red?: number | string;
+}
+
+export interface MaddoxWingExam {
+  id?: number;
+  layout_instance_id: number;
+  exo_phoria?: number | string;
+  eso_phoria?: number | string;
+  hyper_phoria?: number | string;
+  hyper_eye?: "R" | "L" | string;
+  near_vision?: boolean;
 }
 
 export interface OcularMotorAssessmentExam {

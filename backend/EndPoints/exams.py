@@ -9,6 +9,7 @@ from models import OpticalExam, User, Client
 from schemas import OpticalExam as OpticalExamSchema, OpticalExamCreate
 from auth import get_current_user
 from .exam_layouts import build_layout_tree
+from services.prism_axis_compatibility import normalize_prism_axis_exam_data
 from utils.table_search import build_all_terms_search_condition, search_blob, spaced_concat
 from security.scope import (
     apply_clinic_user_scope,
@@ -246,7 +247,7 @@ def get_exam_page_data(
                 "layout_data": getattr(inst, 'layout_data', None),
             },
             "layout": layout_map.get(inst.layout_id),
-            "exam_data": inst.exam_data or {}
+            "exam_data": normalize_prism_axis_exam_data(inst.exam_data or {})
         })
 
     # Determine chosen active instance: prefer DB is_active; fallback to first by order

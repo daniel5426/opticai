@@ -68,6 +68,7 @@ from models import (
     MigrationSourceLink,
 )
 from services.lookup_defaults import seed_default_lookup_values_for_clinic
+from services.prism_axis_compatibility import normalize_prism_axis_block
 
 
 # ------------------------------
@@ -221,8 +222,10 @@ MIGRATED_LAYOUT_COMPONENTS: List[str] = [
     "sensation-vision-stability",
     "fusion-range",
     "maddox-rod",
+    "maddox-wing",
     "stereo-test",
     "rg",
+    "rg-balance",
 ]
 
 
@@ -347,8 +350,14 @@ def parse_visual_acuity(value: Optional[str]) -> Optional[Any]:
     match = re.fullmatch(r"(\d+(?:\.\d+)?)([+-]\d+)?", cleaned)
     if not match:
         return cleaned
-    denominator = float(match.group(1))
-    if not 3 <= denominator <= 190:
+    raw_number = match.group(1)
+    denominator = float(raw_number)
+    is_integer = "." not in raw_number
+    if denominator > 190:
+        return cleaned
+    if is_integer and denominator < 1:
+        return cleaned
+    if not is_integer and denominator < 3:
         return cleaned
     normalized_denominator = f"{denominator:g}"
     return f"6/{normalized_denominator}{match.group(2) or ''}"
@@ -365,6 +374,110 @@ def normalize_base_value(value: Optional[str]) -> Optional[str]:
         "BD": "DOWN", "BASE DOWN": "DOWN", "DOWN": "DOWN",
     }
     return aliases.get(s.upper(), s)
+
+
+def normalize_maddox_direction(value: Optional[str], axis: str) -> Optional[str]:
+    s = clean_legacy_text(value)
+    if s is None:
+        return None
+    key = s.upper().replace(" ", "")
+    if axis == "horizontal":
+        aliases = {
+            "X": "EXO", "EXO": "EXO", "XT": "EXO", "EXOTROPIA": "EXO",
+            "E": "ESO", "ESO": "ESO", "ET": "ESO", "ESOTROPIA": "ESO",
+        }
+        return aliases.get(key, s)
+    aliases = {
+        "R": "R/L", "R/L": "R/L", "RL": "R/L", "RHYPER": "R/L",
+        "L": "L/R", "L/R": "L/R", "LR": "L/R", "LHYPER": "L/R",
+    }
+    return aliases.get(key, s)
+
+
+def normalize_maddox_wing_eye(value: Optional[str]) -> Optional[str]:
+    s = clean_legacy_text(value)
+    if s is None:
+        return None
+    key = s.upper().replace(" ", "")
+    aliases = {
+        "R": "R", "OD": "R", "RIGHT": "R",
+        "L": "L", "OS": "L", "LEFT": "L",
+    }
+    return aliases.get(key, s)
+
+
+def normalize_cover_test_direction(value: Optional[str]) -> Optional[str]:
+    s = clean_legacy_text(value)
+    if s is None:
+        return None
+    key = s.upper().replace(" ", "")
+    aliases = {
+        "EXO": "exo", "XT": "exo", "EXOTROPIA": "exo",
+        "ESO": "eso", "ET": "eso", "ESOTROPIA": "eso",
+        "HYPER": "hyper", "HYPERTROPIA": "hyper",
+    }
+    return aliases.get(key, key.lower())
+
+
+def _cover_test_is_phoria(type_value: Optional[str]) -> Optional[bool]:
+    s = clean_legacy_text(type_value)
+    if s is None:
+        return None
+    key = s.upper()
+    if "PHOR" in key or key in {"P", "PHORIA"}:
+        return True
+    if "TROP" in key or key in {"T", "TROPIA"}:
+        return False
+    return None
+
+
+def _meaningful_cover_test_prism(value: Optional[float]) -> Optional[float]:
+    if value is None or value == 0:
+        return None
+    return value
+
+
+def _cover_test_horizontal_deviation(side: str, is_phoria: bool) -> str:
+    if side == "exo":
+        return "Exophoria" if is_phoria else "Exotropia"
+    return "Esophoria" if is_phoria else "Esotropia"
+
+
+def _pick_cover_test_v2_horizontal(
+    exo_value: Optional[float],
+    eso_value: Optional[float],
+    selection: Optional[str],
+    horizontal_type: Optional[str],
+) -> Tuple[Optional[float], Optional[str]]:
+    exo = _meaningful_cover_test_prism(exo_value)
+    eso = _meaningful_cover_test_prism(eso_value)
+    if exo is None and eso is None:
+        return None, None
+
+    selected = normalize_cover_test_direction(selection)
+    side: Optional[str] = None
+    prism: Optional[float] = None
+    if exo is not None and eso is None:
+        side, prism = "exo", exo
+    elif eso is not None and exo is None:
+        side, prism = "eso", eso
+    elif exo is not None and eso is not None:
+        if selected == "exo":
+            side, prism = "exo", exo
+        elif selected == "eso":
+            side, prism = "eso", eso
+        elif exo >= eso:
+            side, prism = "exo", exo
+        else:
+            side, prism = "eso", eso
+
+    if side is None or prism is None:
+        return None, None
+
+    is_phoria = _cover_test_is_phoria(horizontal_type)
+    if is_phoria is None:
+        is_phoria = True
+    return prism, _cover_test_horizontal_deviation(side, is_phoria)
 
 
 def parse_bool_flag(value: Optional[str]) -> Optional[bool]:
@@ -543,9 +656,11 @@ def build_default_migrated_layout_data() -> str:
         "over-refraction": 9,
         "sensation-vision-stability": 5,
         "fusion-range": 5,
-        "maddox-rod": 6,
+        "maddox-rod": 7,
+        "maddox-wing": 4,
         "stereo-test": 4,
         "rg": 3,
+        "rg-balance": 5,
         "ocular-motor-assessment": 5,
     }
     grid_columns = 24
@@ -573,7 +688,9 @@ def build_contact_fit_layout_data() -> str:
         ("objective", "objective-1", 6),
         ("over-refraction", "over-refraction-1", 14),
         ("fusion-range", "fusion-range-1", 8),
-        ("maddox-rod", "maddox-rod-1", 9),
+        ("maddox-rod", "maddox-rod-1", 10),
+        ("maddox-wing", "maddox-wing-1", 8),
+        ("rg-balance", "rg-balance-1", 7),
         ("stereo-test", "stereo-test-1", 6),
         ("cover-test-v2", "cover-test-v2-1", 12),
         ("notes", "notes-1", 8),
@@ -1140,6 +1257,10 @@ def _build_subjective_component(row: Dict[str, Any], expanded: Optional[Dict[str
         "l_pris": _get_float(expanded, row, ["sub_l_prish"], ["sb_left_pris"]),
         "r_base": _get_base(expanded, row, ["sub_r_baseh"], ["sb_right_base"]),
         "l_base": _get_base(expanded, row, ["sub_l_baseh"], ["sb_left_base"]),
+        "r_pr_v": _get_float(expanded, row, ["sub_r_prisv"]),
+        "l_pr_v": _get_float(expanded, row, ["sub_l_prisv"]),
+        "r_base_v": _get_base(expanded, row, ["sub_r_basev"]),
+        "l_base_v": _get_base(expanded, row, ["sub_l_basev"]),
         "r_va": _get_va(expanded, row, ["sub_r_va"], ["sb_right_va"]),
         "l_va": _get_va(expanded, row, ["sub_l_va"], ["sb_left_va"]),
         "r_ph": _get_str(expanded, row, ["sub_r_ph"], ["sb_right_ph"]),
@@ -1153,7 +1274,7 @@ def _build_subjective_component(row: Dict[str, Any], expanded: Optional[Dict[str
         "comb_pd_far": _get_float(expanded, row, ["patient_b_pd", "sub_b_pd"], ["sb_mid_far_pd"]),
     }
     if any(v is not None for v in data.values()):
-        return data
+        return normalize_prism_axis_block(data)
     return None
 
 
@@ -1246,6 +1367,10 @@ def _build_final_subjective_component(row: Dict[str, Any], expanded: Optional[Di
         "l_pris": _get_float(expanded, row, ["sub_f_l_prish"]),
         "r_base": _get_base(expanded, row, ["sub_f_r_baseh"]),
         "l_base": _get_base(expanded, row, ["sub_f_l_baseh"]),
+        "r_pr_v": _get_float(expanded, row, ["sub_f_r_prisv"]),
+        "l_pr_v": _get_float(expanded, row, ["sub_f_l_prisv"]),
+        "r_base_v": _get_base(expanded, row, ["sub_f_r_basev"]),
+        "l_base_v": _get_base(expanded, row, ["sub_f_l_basev"]),
         "r_va": _get_va(expanded, row, ["sub_f_r_va"]),
         "l_va": _get_va(expanded, row, ["sub_f_l_va"]),
         "r_j": normalize_j_value(_get_str(expanded, row, ["sub_f_r_j"])),
@@ -1259,7 +1384,7 @@ def _build_final_subjective_component(row: Dict[str, Any], expanded: Optional[Di
         "comb_va": _get_va(expanded, row, ["sub_f_b_va"]),
     }
     if any(v is not None for v in data.values()):
-        return data
+        return normalize_prism_axis_block(data)
     return None
 
 
@@ -1379,25 +1504,33 @@ def _build_keratometer_component(row: Dict[str, Any], expanded: Optional[Dict[st
 
 
 def _build_keratometer_full_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    r_dpt_1, r_mm_1 = normalize_keratometer_pair(expanded.get("obj_k_r_dpt1") if expanded else None, expanded.get("obj_k_r_mm1") if expanded else None)
-    r_dpt_2, r_mm_2 = normalize_keratometer_pair(expanded.get("obj_k_r_dpt2") if expanded else None, expanded.get("obj_k_r_mm2") if expanded else None)
-    l_dpt_1, l_mm_1 = normalize_keratometer_pair(expanded.get("obj_k_l_dpt1") if expanded else None, expanded.get("obj_k_l_mm1") if expanded else None)
-    l_dpt_2, l_mm_2 = normalize_keratometer_pair(expanded.get("obj_k_l_dpt2") if expanded else None, expanded.get("obj_k_l_mm2") if expanded else None)
     data = {
-        "r_dpt_k1": r_dpt_1, "r_dpt_k2": r_dpt_2,
-        "l_dpt_k1": l_dpt_1, "l_dpt_k2": l_dpt_2,
-        "r_mm_k1": r_mm_1, "r_mm_k2": r_mm_2,
-        "l_mm_k1": l_mm_1, "l_mm_k2": l_mm_2,
+        "r_dpt_k1": _get_float(expanded, row, ["obj_k_r_dpt1"]),
+        "r_dpt_k2": _get_float(expanded, row, ["obj_k_r_dpt2"]),
+        "l_dpt_k1": _get_float(expanded, row, ["obj_k_l_dpt1"]),
+        "l_dpt_k2": _get_float(expanded, row, ["obj_k_l_dpt2"]),
+        "r_mm_k1": _get_float(expanded, row, ["obj_k_r_mm1"]),
+        "r_mm_k2": _get_float(expanded, row, ["obj_k_r_mm2"]),
+        "l_mm_k1": _get_float(expanded, row, ["obj_k_l_mm1"]),
+        "l_mm_k2": _get_float(expanded, row, ["obj_k_l_mm2"]),
         "r_mer_k1": _get_float(expanded, row, ["obj_k_r_mer1"]),
         "r_mer_k2": _get_float(expanded, row, ["obj_k_r_mer2"]),
         "l_mer_k1": _get_float(expanded, row, ["obj_k_l_mer1"]),
         "l_mer_k2": _get_float(expanded, row, ["obj_k_l_mer2"]),
-        "r_astig": None,
-        "l_astig": None,
+        "r_astig": _get_bool(
+            expanded,
+            row,
+            ["obj_k_r_astig", "obj_k_r_dist", "obj_k_r_irreg", "obj_k_r_distort"],
+        ),
+        "l_astig": _get_bool(
+            expanded,
+            row,
+            ["obj_k_l_astig", "obj_k_l_dist", "obj_k_l_irreg", "obj_k_l_distort"],
+        ),
     }
-    if data["r_dpt_k1"] is not None and data["r_dpt_k2"] is not None:
+    if data["r_astig"] is None and data["r_dpt_k1"] is not None and data["r_dpt_k2"] is not None:
         data["r_astig"] = abs(data["r_dpt_k1"] - data["r_dpt_k2"]) > 0
-    if data["l_dpt_k1"] is not None and data["l_dpt_k2"] is not None:
+    if data["l_astig"] is None and data["l_dpt_k1"] is not None and data["l_dpt_k2"] is not None:
         data["l_astig"] = abs(data["l_dpt_k1"] - data["l_dpt_k2"]) > 0
     if any(v is not None for v in data.values()):
         return data
@@ -1433,18 +1566,37 @@ def _build_anamnesis_component(row: Dict[str, Any], expanded: Optional[Dict[str,
     return None
 
 
-def _build_cover_test_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    data = {
-        "deviation_type": _get_str(expanded, row, ["bino_ct_hp_type", "bino_ct_ht_type"], ["bino_ct_hp_type", "bino_ct_ht_type"], True),
-        "deviation_direction": _get_str(expanded, row, ["bino_ct_selection"], ["bino_ct_selection"], True),
-        "fv_1": _get_float(expanded, row, ["bino_ct_fv_exo_p"], ["bino_ct_fv_exo_p"]),
-        "fv_2": _get_float(expanded, row, ["bino_ct_fv_eso_p"], ["bino_ct_fv_eso_p"]),
-        "nv_1": _get_float(expanded, row, ["bino_ct_nv_exo_p"], ["bino_ct_nv_exo_p"]),
-        "nv_2": _get_float(expanded, row, ["bino_ct_nv_eso_p"], ["bino_ct_nv_eso_p"]),
-    }
-    if any(v is not None for v in data.values()):
-        return data
-    return None
+def _build_cover_test_v2_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    selection = _get_str(expanded, row, ["bino_ct_selection"], ["bino_ct_selection"], True)
+    if normalize_cover_test_direction(selection) == "hyper":
+        return None
+
+    horizontal_type = _get_str(expanded, row, ["bino_ct_hp_type"], ["bino_ct_hp_type"], True)
+    far_prism, far_deviation = _pick_cover_test_v2_horizontal(
+        _get_float(expanded, row, ["bino_ct_fv_exo_p"], ["bino_ct_fv_exo_p"]),
+        _get_float(expanded, row, ["bino_ct_fv_eso_p"], ["bino_ct_fv_eso_p"]),
+        selection,
+        horizontal_type,
+    )
+    near_prism, near_deviation = _pick_cover_test_v2_horizontal(
+        _get_float(expanded, row, ["bino_ct_nv_exo_p"], ["bino_ct_nv_exo_p"]),
+        _get_float(expanded, row, ["bino_ct_nv_eso_p"], ["bino_ct_nv_eso_p"]),
+        selection,
+        horizontal_type,
+    )
+
+    data: Dict[str, Any] = {}
+    if far_prism is not None:
+        data["cc_far_horizontal_prism"] = far_prism
+    if far_deviation:
+        data["cc_far_horizontal_deviation"] = far_deviation
+    if near_prism is not None:
+        data["cc_near_horizontal_prism"] = near_prism
+    if near_deviation:
+        data["cc_near_horizontal_deviation"] = near_deviation
+    if not data:
+        return None
+    return data
 
 
 def _build_fusion_range_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -1467,13 +1619,13 @@ def _build_maddox_rod_component(row: Dict[str, Any], expanded: Optional[Dict[str
     data = {
         "schema_version": 2,
         "with_horizontal_prism": _get_optical_value(expanded, row, ["bino_mr_h_with"]),
-        "with_horizontal_direction": _get_str(expanded, row, ["bino_mr_h_addw"]),
-        "with_vertical_prism": _get_optical_value(expanded, row, ["bino_mt_v_with"]),
-        "with_vertical_direction": _get_str(expanded, row, ["bino_mr_v_addw"]),
+        "with_horizontal_direction": normalize_maddox_direction(_get_str(expanded, row, ["bino_mr_h_addw"]), "horizontal"),
+        "with_vertical_prism": _get_optical_value(expanded, row, ["bino_mt_v_with", "bino_mr_v_with"]),
+        "with_vertical_direction": normalize_maddox_direction(_get_str(expanded, row, ["bino_mr_v_addw"]), "vertical"),
         "without_horizontal_prism": _get_optical_value(expanded, row, ["bino_mr_h_no"]),
-        "without_horizontal_direction": _get_str(expanded, row, ["bino_mr_h_addn"]),
+        "without_horizontal_direction": normalize_maddox_direction(_get_str(expanded, row, ["bino_mr_h_addn"]), "horizontal"),
         "without_vertical_prism": _get_optical_value(expanded, row, ["bino_mr_v_no"]),
-        "without_vertical_direction": _get_str(expanded, row, ["bino_mr_v_addn"]),
+        "without_vertical_direction": normalize_maddox_direction(_get_str(expanded, row, ["bino_mr_v_addn"]), "vertical"),
     }
     if any(v is not None for k, v in data.items() if k != "schema_version"):
         return data
@@ -1493,8 +1645,35 @@ def _build_stereo_test_component(row: Dict[str, Any], expanded: Optional[Dict[st
 
 
 def _build_rg_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    # Legacy codes have no reliable codebook; a wrong semantic mapping is worse
-    # than an intentionally empty card.
+    return None
+
+
+def _build_rg_balance_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    data = {
+        "r_green": _get_float(expanded, row, ["bino_rg_r_green", "bino_rg_green_r", "bino_rg_r_g"]),
+        "r_equal": _get_float(expanded, row, ["bino_rg_r_equal", "bino_rg_equal_r", "bino_rg_r_e", "bino_rg_r_eq"]),
+        "r_red": _get_float(expanded, row, ["bino_rg_r_red", "bino_rg_red_r", "bino_rg_r_rd"]),
+        "l_green": _get_float(expanded, row, ["bino_rg_l_green", "bino_rg_green_l", "bino_rg_l_g"]),
+        "l_equal": _get_float(expanded, row, ["bino_rg_l_equal", "bino_rg_equal_l", "bino_rg_l_e", "bino_rg_l_eq"]),
+        "l_red": _get_float(expanded, row, ["bino_rg_l_red", "bino_rg_red_l", "bino_rg_l_rd"]),
+    }
+    if any(v is not None for v in data.values()):
+        return data
+    return None
+
+
+def _build_maddox_wing_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    data = {
+        "exo_phoria": _get_optical_value(expanded, row, ["bino_mw_exo", "bino_mw_exo_p"]),
+        "eso_phoria": _get_optical_value(expanded, row, ["bino_mw_eso", "bino_mw_eso_p"]),
+        "hyper_phoria": _get_optical_value(expanded, row, ["bino_mw_hyper", "bino_mw_hyp", "bino_mw_hyper_p", "bino_mw_hyp_p"]),
+        "hyper_eye": normalize_maddox_wing_eye(
+            _get_str(expanded, row, ["bino_mw_hyper_eye", "bino_mw_hyp_eye", "bino_mw_hyper_add", "bino_mw_hyp_add"])
+        ),
+        "near_vision": _get_bool(expanded, row, ["bino_mw_nv", "bino_mw_nv_flag"]),
+    }
+    if any(v is not None for v in data.values()):
+        return data
     return None
 
 
@@ -1529,8 +1708,8 @@ def _build_sensation_vision_stability_component(row: Dict[str, Any], expanded: O
         "l_vision": _get_str(expanded, row, ["fun_l_macula", "fun_l_pupil"], ["fun_l_macula", "fun_l_pupil"], True),
         "r_stability": _get_str(expanded, row, ["fun_r_diska"], ["fun_r_diska"], True),
         "l_stability": _get_str(expanded, row, ["fun_l_diska"], ["fun_l_diska"], True),
-        "r_movement": _get_str(expanded, row, ["bino_mw_exo"], ["bino_mw_exo"], True),
-        "l_movement": _get_str(expanded, row, ["bino_mw_eso"], ["bino_mw_eso"], True),
+        "r_movement": _get_str(expanded, row, ["fun_r_movement"], ["fun_r_movement"], True),
+        "l_movement": _get_str(expanded, row, ["fun_l_movement"], ["fun_l_movement"], True),
         "r_recommendations": _get_str(expanded, row, ["subjective_remarks"], ["subjective_remarks"], True),
         "l_recommendations": _get_str(expanded, row, ["bino_remarks"], ["bino_remarks"], True),
     }
@@ -1556,9 +1735,12 @@ def build_exam_data_from_eye_tests(row: Dict[str, Any], expanded: Optional[Dict[
         ("corneal-topography", _build_corneal_topography_component),
         ("anamnesis", _build_anamnesis_component),
         ("fusion-range", _build_fusion_range_component),
+        ("cover-test-v2", _build_cover_test_v2_component),
         ("maddox-rod", _build_maddox_rod_component),
+        ("maddox-wing", _build_maddox_wing_component),
         ("stereo-test", _build_stereo_test_component),
         ("rg", _build_rg_component),
+        ("rg-balance", _build_rg_balance_component),
         ("schirmer-test", _build_schirmer_component),
         ("contact-lens-diameters", _build_contact_lens_diameters_component),
     ]
@@ -1641,7 +1823,16 @@ def build_contact_fit_exam_data(row: Dict[str, Any]) -> Dict[str, Any]:
         "comb_va": parse_visual_acuity(row.get("or_both_va")), "comb_j": normalize_j_value(row.get("or_both_j")),
     }
     if any(v is not None for v in over.values()): data.update(_build_component_entry("over-refraction", over))
-    for builder_key, builder in (("maddox-rod", _build_maddox_rod_component), ("stereo-test", _build_stereo_test_component), ("fusion-range", _build_fusion_range_component)):
+    cover_test = _build_cover_test_v2_component(row, row)
+    if cover_test:
+        data.update(_build_component_entry("cover-test-v2", cover_test))
+    for builder_key, builder in (
+        ("maddox-rod", _build_maddox_rod_component),
+        ("maddox-wing", _build_maddox_wing_component),
+        ("rg-balance", _build_rg_balance_component),
+        ("stereo-test", _build_stereo_test_component),
+        ("fusion-range", _build_fusion_range_component),
+    ):
         block = builder(row, row)
         if block: data.update(_build_component_entry(builder_key, block))
     notes = [("Fit remark", row.get("fit_remark")), ("Observation remarks", row.get("obs_remarks")), ("Fit remarks", row.get("fit_remarks"))]

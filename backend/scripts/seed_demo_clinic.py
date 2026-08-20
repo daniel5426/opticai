@@ -1165,7 +1165,7 @@ def _component_payload(component_type: str, card_id: str, index: int) -> dict[st
     if component_type == "fusion-range":
         return {"fv_base_in": 12, "fv_base_in_recovery": 8, "fv_base_out": 18, "fv_base_out_recovery": 12, "nv_base_in": 16, "nv_base_in_recovery": 10, "nv_base_out": 24, "nv_base_out_recovery": 16}
     if component_type == "maddox-rod":
-        return {"c_r_h": 1, "c_r_v": 0, "c_l_h": 1, "c_l_v": 0, "wc_r_h": 2, "wc_r_v": 0, "wc_l_h": 2, "wc_l_v": 0}
+        return {"schema_version": 2, "with_horizontal_prism": 1, "with_horizontal_direction": "EXO", "with_vertical_prism": 0, "with_vertical_direction": "R/L", "without_horizontal_prism": 2, "without_horizontal_direction": "EXO", "without_vertical_prism": 0, "without_vertical_direction": "L/R"}
     if component_type == "schirmer-test":
         return {"r_mm": 10 + index % 8, "l_mm": 10 + (index + 2) % 8, "r_but": 7 + index % 5, "l_but": 7 + (index + 1) % 5}
     if component_type == "contact-lens-diameters":

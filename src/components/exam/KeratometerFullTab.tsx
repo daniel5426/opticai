@@ -3,6 +3,11 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import { KeratometerFullExam } from "@/lib/db/schema-interface"
+import {
+  getKeratometerRange,
+  getKeratometerStep,
+  KERATOMETER_MERIDIAN_RANGE,
+} from "@/utils/keratometer-utils"
 import { FastInput, inputSyncManager } from "./shared/OptimizedInputs"
 
 interface KeratometerFullTabProps {
@@ -25,15 +30,30 @@ export function KeratometerFullTab({
   const dataRef = useRef(keratometerFullData);
   dataRef.current = keratometerFullData;
 
+  const dptRange = getKeratometerRange("D")
+  const mmRange = getKeratometerRange("mm")
+
   const columns = [
-    { key: "dpt_k1", label: "DPT K1", step: "0.01" },
-    { key: "dpt_k2", label: "DPT K2", step: "0.01" },
-    { key: "mm_k1", label: "MM K1", step: "0.01" },
-    { key: "mm_k2", label: "MM K2", step: "0.01" },
-    { key: "mer_k1", label: "MER K1", step: "0.01" },
-    { key: "mer_k2", label: "MER K2", step: "0.01" },
-    { key: "astig", label: "ASTIG", type: "checkbox" }
-  ]
+    { key: "dpt_k1", label: "DPT K1", step: getKeratometerStep("D"), min: dptRange.min, max: dptRange.max },
+    { key: "dpt_k2", label: "DPT K2", step: getKeratometerStep("D"), min: dptRange.min, max: dptRange.max },
+    { key: "mm_k1", label: "MM K1", step: getKeratometerStep("mm"), min: mmRange.min, max: mmRange.max },
+    { key: "mm_k2", label: "MM K2", step: getKeratometerStep("mm"), min: mmRange.min, max: mmRange.max },
+    {
+      key: "mer_k1",
+      label: "MER K1",
+      step: "1",
+      min: KERATOMETER_MERIDIAN_RANGE.min,
+      max: KERATOMETER_MERIDIAN_RANGE.max,
+    },
+    {
+      key: "mer_k2",
+      label: "MER K2",
+      step: "1",
+      min: KERATOMETER_MERIDIAN_RANGE.min,
+      max: KERATOMETER_MERIDIAN_RANGE.max,
+    },
+    { key: "astig", label: "ASTIG", type: "checkbox" },
+  ] as const
 
   const getFieldValue = (eye: "R" | "L", field: string) => {
     const eyeField = `${eye.toLowerCase()}_${field}` as keyof KeratometerFullExam
@@ -70,7 +90,7 @@ export function KeratometerFullTab({
   const renderInputRow = (eye: "R" | "L") => {
     const components: React.ReactNode[] = []
 
-    columns.forEach(({ key, step, type }, idx) => {
+    columns.forEach(({ key, step, type, min, max }, idx) => {
       if (type === "checkbox") {
         components.push(
           <div key={`${eye}-${key}`} className="flex items-center justify-center">
@@ -88,9 +108,12 @@ export function KeratometerFullTab({
             key={`${eye}-${key}`}
             type="number"
             step={step}
+            min={min}
+            max={max}
             value={getFieldValue(eye, key)}
             onChange={(val) => handleChange(eye, key, val)}
             disabled={!isEditing}
+            dir="ltr"
             className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
           />
         )

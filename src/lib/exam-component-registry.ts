@@ -2,6 +2,13 @@
 import { apiClient } from './api-client'
 import { ExamComponentType } from './exam-field-mappings'
 import { normalizeNpcExamData } from './npc-compatibility'
+import { normalizeMaddoxRodExamData } from './maddox-compatibility'
+import { PrismAxisCompatibility } from './prism-axis-compatibility'
+
+const canonicalizeExamData = (data: Record<string, unknown>) =>
+  PrismAxisCompatibility.normalizeExamData(
+    normalizeMaddoxRodExamData(normalizeNpcExamData(data))
+  )
 
 const normalizeComponentFieldValue = (previous: unknown, rawValue: string): unknown => {
   const trimmed = typeof rawValue === "string" ? rawValue.trim() : rawValue
@@ -88,7 +95,7 @@ export class ExamComponentRegistry {
   async loadAllData(layoutInstanceId: number): Promise<Record<string, unknown>> {
     try {
       const response = await apiClient.getUnifiedExamData(layoutInstanceId)
-      const data = normalizeNpcExamData(response.data || Object.create(null))
+      const data = canonicalizeExamData(response.data || Object.create(null))
       console.log(`DiopterAdjustmentPanel: Loaded data for layout ${layoutInstanceId}:`, data)
       return data
     } catch (error) {
@@ -100,7 +107,7 @@ export class ExamComponentRegistry {
   async saveAllData(layoutInstanceId: number, formData: Record<string, unknown>): Promise<Record<string, unknown>> {
     try {
       const dataToSave: Record<string, unknown> = {}
-      const canonicalFormData = normalizeNpcExamData(formData)
+      const canonicalFormData = canonicalizeExamData(formData as Record<string, unknown>)
       
       for (const [key, data] of Object.entries(canonicalFormData)) {
         if (key === '__ui' && data && typeof data === 'object') {
@@ -387,6 +394,13 @@ examComponentRegistry.register('maddox-rod', {
   showInLayoutEditor: true
 })
 
+examComponentRegistry.register('maddox-wing', {
+  name: 'כנף מדוקס',
+  component: () => import('../components/exam/MaddoxWingTab'),
+  order: 28,
+  showInLayoutEditor: true
+})
+
 examComponentRegistry.register('stereo-test', {
   name: 'בדיקת סטריאו',
   component: () => import('../components/exam/StereoTestTab'),
@@ -397,6 +411,13 @@ examComponentRegistry.register('stereo-test', {
 examComponentRegistry.register('rg', {
   name: 'RG',
   component: () => import('../components/exam/RGTab'),
+  order: 30,
+  showInLayoutEditor: true
+})
+
+examComponentRegistry.register('rg-balance', {
+  name: 'R/G',
+  component: () => import('../components/exam/RGBalanceTab'),
   order: 30,
   showInLayoutEditor: true
 })

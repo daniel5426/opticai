@@ -1190,7 +1190,7 @@ export default function InventoryPage() {
   const [visibility, setVisibility] = useState<InventoryVisibility>("active");
   const [page, setPage] = useState(1);
   const [supplierPage, setSupplierPage] = useState(1);
-  const [viewMode, setViewMode] = useState<InventoryViewMode>("table");
+  const [viewMode, setViewMode] = useState<InventoryViewMode>("suppliers");
   const [viewModeUserId, setViewModeUserId] = useState<number | null>(null);
   const [selectedSupplier, setSelectedSupplier] =
     useState<InventorySupplierSelection | null>(null);
@@ -1243,7 +1243,7 @@ export default function InventoryPage() {
   useEffect(() => {
     const userId = currentUser?.id;
     if (!userId) {
-      setViewMode("table");
+      setViewMode("suppliers");
       setViewModeUserId(null);
       return;
     }
@@ -1251,9 +1251,9 @@ export default function InventoryPage() {
       const stored = window.localStorage.getItem(
         inventoryViewModeStorageKey(userId),
       );
-      setViewMode(stored === "suppliers" ? "suppliers" : "table");
+      setViewMode(stored === "table" ? "table" : "suppliers");
     } catch {
-      setViewMode("table");
+      setViewMode("suppliers");
     }
     setViewModeUserId(userId);
   }, [currentUser?.id]);

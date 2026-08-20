@@ -3,6 +3,8 @@ import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, test, vi } from "vitest"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MaddoxRodTab } from "@/components/exam/MaddoxRodTab"
+import { MaddoxWingTab } from "@/components/exam/MaddoxWingTab"
+import { RGBalanceTab } from "@/components/exam/RGBalanceTab"
 import { StereoTestTab } from "@/components/exam/StereoTestTab"
 import { FusionRangeTab } from "@/components/exam/FusionRangeTab"
 import { FastSelect } from "@/components/exam/shared/OptimizedInputs"
@@ -12,8 +14,11 @@ import { ExamGridLayout } from "@/components/exam/ExamGridLayout"
 import { ContactLensExamTab } from "@/components/exam/ContactLensExamTab"
 import { inputSyncManager } from "@/components/exam/shared/OptimizedInputs"
 
+import i18n from "@/localization/i18n"
+
 describe("SoftOptic card compatibility", () => {
-  test("renders Maddox v2 while retaining the legacy presentation", () => {
+  test("renders Maddox v2 directions in full and upgrades legacy values", async () => {
+    await i18n.changeLanguage("he")
     const { rerender } = render(
       <MaddoxRodTab
         maddoxRodData={{ layout_instance_id: 1, schema_version: 2, with_horizontal_prism: 2, with_horizontal_direction: "EXO" }}
@@ -22,17 +27,59 @@ describe("SoftOptic card compatibility", () => {
       />,
     )
     expect(screen.getByDisplayValue("2")).toBeInTheDocument()
-    expect(screen.getByDisplayValue("EXO")).toBeInTheDocument()
+    expect(screen.getByText("EXO")).toBeInTheDocument()
     expect(screen.getByText("עם תיקון")).toBeInTheDocument()
 
     rerender(
       <MaddoxRodTab
-        maddoxRodData={{ layout_instance_id: 1, c_r_h: 3 }}
+        maddoxRodData={{ layout_instance_id: 1, c_r_h: 3, with_vertical_direction: "R" } as any}
         onMaddoxRodChange={vi.fn()}
         isEditing={false}
       />,
     )
     expect(screen.getByDisplayValue("3")).toBeInTheDocument()
+    expect(screen.getByText("R/L")).toBeInTheDocument()
+  })
+
+  test("renders the SoftOptic R/G balance and Maddox Wing cards", async () => {
+    await i18n.changeLanguage("en")
+    render(
+      <>
+        <RGBalanceTab
+          rgBalanceData={{
+            layout_instance_id: 1,
+            r_green: 232.32,
+            r_equal: 323.23,
+            r_red: 345.45,
+            l_green: 445.45,
+            l_equal: 676.76,
+            l_red: 767.67,
+          }}
+          onRGBalanceChange={vi.fn()}
+          isEditing={false}
+        />
+        <MaddoxWingTab
+          maddoxWingData={{
+            layout_instance_id: 1,
+            exo_phoria: 2,
+            eso_phoria: 3,
+            hyper_phoria: 4,
+            hyper_eye: "R",
+            near_vision: true,
+          }}
+          onMaddoxWingChange={vi.fn()}
+          isEditing={false}
+        />
+      </>,
+    )
+    expect(screen.getByText("R/G")).toBeInTheDocument()
+    expect(screen.getByDisplayValue("232.32")).toBeInTheDocument()
+    expect(screen.getByDisplayValue("767.67")).toBeInTheDocument()
+    expect(screen.getByText("Maddox wing")).toBeInTheDocument()
+    expect(screen.getByDisplayValue("2")).toBeInTheDocument()
+    expect(screen.getByDisplayValue("4")).toBeInTheDocument()
+    expect(screen.getAllByText("R").length).toBeGreaterThan(0)
+    expect(screen.getByText("NV")).toBeInTheDocument()
   })
 
   test("renders independent Stereo scores with fixed denominators", () => {

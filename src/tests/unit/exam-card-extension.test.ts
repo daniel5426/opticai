@@ -35,6 +35,9 @@ describe("exam card extension contract", () => {
 
     expect(layoutTypes).toContain("npc");
     expect(layoutTypes).toContain("cover-test-v2");
+    expect(layoutTypes).toContain("maddox-rod");
+    expect(layoutTypes).toContain("maddox-wing");
+    expect(layoutTypes).toContain("rg-balance");
     expect(layoutTypes).not.toContain("cover-test");
   });
 
@@ -57,20 +60,45 @@ describe("exam card extension contract", () => {
     });
   });
 
+  test("clears all persisted Maddox v2 fields", () => {
+    expect(
+      ExamFieldMapper.clearData(
+        {
+          schema_version: 2,
+          with_horizontal_prism: 2,
+          with_horizontal_direction: "EXO",
+          with_vertical_direction: "R/L",
+        },
+        "maddox-rod",
+      ),
+    ).toMatchObject({
+      with_horizontal_prism: "",
+      with_horizontal_direction: "",
+      with_vertical_direction: "",
+    });
+  });
+
   test("gives both cards stable layout widths", () => {
     expect(getColumnCount("npc", "detail")).toBe(7);
     expect(getColumnCount("cover-test-v2", "detail")).toBe(8);
     expect(getColumnCount("keratometer", "detail")).toBe(4);
     expect(getColumnCount("keratometer-contact-lens", "detail")).toBe(7);
     expect(getColumnCount("contact-lens-exam", "detail")).toBe(11);
-    expect(getColumnCount("maddox-rod", "detail")).toBe(6);
+    expect(getColumnCount("maddox-rod", "detail")).toBe(7);
+    expect(getColumnCount("maddox-wing", "detail")).toBe(4);
+    expect(getColumnCount("rg-balance", "detail")).toBe(5);
     expect(getColumnCount("retinoscop", "detail")).toBe(7);
     expect(computeCardMinGridCols("keratometer")).toBe(8);
     expect(computeCardMinGridCols("keratometer-contact-lens")).toBe(11);
     expect(computeCardMinGridCols("contact-lens-exam")).toBe(17);
-    expect(computeCardMinGridCols("maddox-rod")).toBe(9);
+    expect(computeCardMinGridCols("maddox-rod")).toBe(11);
+    expect(computeCardMinGridCols("maddox-wing")).toBe(6);
+    expect(computeCardMinGridCols("rg-balance")).toBe(8);
     expect(computeCardMinGridCols("retinoscop")).toBe(11);
     expect(componentHasMiddleRow("retinoscop")).toBe(true);
     expect(componentHasMiddleRow("contact-lens-exam")).toBe(true);
+    expect(componentHasMiddleRow("maddox-wing")).toBe(true);
+    expect(componentHasMiddleRow("maddox-rod")).toBe(false);
+    expect(componentHasMiddleRow("rg-balance")).toBe(false);
   });
 });

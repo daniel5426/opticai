@@ -13,6 +13,10 @@ import {
   isInClinicalNavScope,
   normalizeClinicalNumberInput,
 } from "@/lib/clinical-input-navigation";
+import {
+  isPrismDeltaSuffix,
+  PrismDeltaIcon,
+} from "@/components/ui/prism-delta-icon";
 
 interface InputProps extends React.ComponentProps<"input"> {
   /** Show + sign for positive numbers. Only works with type="number" */
@@ -589,11 +593,13 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         {suffix && (
           <span
             className={cn(
-              "text-muted-foreground pointer-events-none absolute top-1/2 z-10 -translate-y-1/2 text-[10px] font-medium",
-              "right-1",
+              "pointer-events-none absolute top-1/2 z-10 -translate-y-1/2",
+              isPrismDeltaSuffix(suffix)
+                ? "right-1.5 flex items-center"
+                : "text-muted-foreground right-1 text-[10px] font-medium",
             )}
           >
-            {suffix}
+            {isPrismDeltaSuffix(suffix) ? <PrismDeltaIcon /> : suffix}
           </span>
         )}
         {showButtons && (

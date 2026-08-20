@@ -114,6 +114,30 @@ export const EXAM_FIELDS = {
     type: "select",
     options: ["Hypertropia", "Hypotropia", "Hyperphoria", "Hypophoria", "Iso"],
   } as FieldConfig,
+  MADDOX_HORIZONTAL_DIRECTION: {
+    label: "Direction",
+    type: "select",
+    options: ["EXO", "ESO"],
+  } as FieldConfig,
+  MADDOX_VERTICAL_DIRECTION: {
+    label: "Direction",
+    type: "select",
+    options: ["R/L", "L/R"],
+  } as FieldConfig,
+  MADDOX_WING_PRISM: {
+    label: "Prism",
+    step: "0.25",
+    type: "number",
+    min: 0,
+    max: 50,
+    suffix: "Δ",
+    showPlus: false,
+  } as FieldConfig,
+  MADDOX_WING_HYPER_EYE: {
+    label: "Eye",
+    type: "select",
+    options: ["R", "L"],
+  } as FieldConfig,
   PD_FAR: {
     label: "PD FAR",
     step: "0.5",

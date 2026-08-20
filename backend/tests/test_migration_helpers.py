@@ -36,6 +36,8 @@ def test_visual_acuity_normalizes_softoptic_bare_meter_denominators():
     assert migration.parse_visual_acuity("9+2") == "6/9+2"
     assert migration.parse_visual_acuity("7.5+2") == "6/7.5+2"
     assert migration.parse_visual_acuity("24") == "6/24"
+    assert migration.parse_visual_acuity("2") == "6/2"
+    assert migration.parse_visual_acuity("1") == "6/1"
     assert migration.parse_visual_acuity("1.0+2") == "1.0+2"
     assert migration.parse_visual_acuity("Ambli") == "Ambli"
 
@@ -103,7 +105,13 @@ def test_build_exam_data_uses_current_keys():
 
     assert "old-refraction-old-refraction-1-legacy" in exam_data
     assert exam_data["old-refraction-old-refraction-1-legacy"]["card_id"] == "old-refraction-1"
-    assert not any(key.startswith("cover-test-") for key in exam_data)
+    assert "cover-test-v2-cover-test-v2-1" in exam_data
+    assert exam_data["cover-test-v2-cover-test-v2-1"]["cc_far_horizontal_prism"] == 4.0
+    assert exam_data["cover-test-v2-cover-test-v2-1"]["cc_far_horizontal_deviation"] == "Exophoria"
+    assert not any(
+        key.startswith("cover-test-") and not key.startswith("cover-test-v2")
+        for key in exam_data
+    )
     assert "sensation-vision-stability-sensation-vision-stability-1" not in exam_data
     assert exam_data["objective-objective-1"]["r_se"] == 5.25
     assert exam_data["objective-objective-1"]["l_se"] == -0.5
@@ -246,6 +254,7 @@ def test_contact_fit_creates_separate_exam_with_exact_cards(tmp_path):
         assert data["over-refraction"]["r_sph"] == -0.5
         assert data["maddox-rod"]["with_horizontal_direction"] == "EXO"
         assert data["stereo-test"]["circle_3_score"] == 1
+        assert data["cover-test-v2"]["cc_far_horizontal_prism"] == 9.0
         assert "cover-test" not in data and "rg" not in data
         assert len([key for key in data if key.startswith("notes-notes-")]) == 3
 
@@ -304,12 +313,100 @@ def test_maddox_stereo_and_ambiguous_binocular_mappings():
     assert maddox["schema_version"] == 2
     assert maddox["with_horizontal_prism"] == 2
     assert maddox["with_vertical_direction"] == "R/L"
+    assert maddox["with_horizontal_direction"] == "EXO"
     stereo = data["stereo-test-stereo-test-1"]
     assert stereo["fly_result"] is True
     assert stereo["circle_9_score"] == 4
     assert stereo["circle_3_score"] == 1
+    cover = data["cover-test-v2-cover-test-v2-1"]
+    assert cover["cc_far_horizontal_prism"] == 9.0
+    assert cover["cc_far_horizontal_deviation"] == "Exophoria"
+    assert "cc_near_horizontal_prism" not in cover
+    assert "sc_far_horizontal_prism" not in cover
     assert "cover-test" not in data
     assert "rg" not in data
+
+
+def test_cover_test_v2_maps_far_and_near_horizontal_cc_only():
+    data = migration.build_exam_data_from_eye_tests({}, {
+        "bino_ct_selection": "EXO",
+        "bino_ct_hp_type": "Phoria",
+        "bino_ct_fv_exo_p": "4",
+        "bino_ct_nv_exo_p": "8",
+    })
+    cover = data["cover-test-v2-cover-test-v2-1"]
+    assert cover["cc_far_horizontal_prism"] == 4.0
+    assert cover["cc_far_horizontal_deviation"] == "Exophoria"
+    assert cover["cc_near_horizontal_prism"] == 8.0
+    assert cover["cc_near_horizontal_deviation"] == "Exophoria"
+    assert "sc_far_horizontal_prism" not in cover
+    assert "cc_far_vertical_prism" not in cover
+
+
+def test_cover_test_v2_prefers_selection_when_both_prisms_present():
+    data = migration.build_exam_data_from_eye_tests({}, {
+        "bino_ct_selection": "ESO",
+        "bino_ct_hp_type": "Tropia",
+        "bino_ct_fv_exo_p": "4",
+        "bino_ct_fv_eso_p": "2",
+    })
+    cover = data["cover-test-v2-cover-test-v2-1"]
+    assert cover["cc_far_horizontal_prism"] == 2.0
+    assert cover["cc_far_horizontal_deviation"] == "Esotropia"
+
+
+def test_cover_test_v2_skips_hyper_only_selection():
+    data = migration.build_exam_data_from_eye_tests({}, {
+        "bino_ct_selection": "Hyper",
+        "bino_ct_ht_type": "Phoria",
+    })
+    assert "cover-test-v2-cover-test-v2-1" not in data
+
+
+def test_rg_balance_and_maddox_wing_mappings():
+    data = migration.build_exam_data_from_eye_tests({}, {
+        "bino_rg_r_green": "232.32",
+        "bino_rg_r_equal": "323.23",
+        "bino_rg_r_red": "345.45",
+        "bino_rg_l_green": "445.45",
+        "bino_rg_l_equal": "676.76",
+        "bino_rg_l_red": "767.67",
+        "bino_mw_exo": "2",
+        "bino_mw_eso": "3",
+        "bino_mw_hyper": "4",
+        "bino_mw_hyper_add": "R",
+        "bino_mw_nv": "1",
+    })
+    rg_balance = data["rg-balance-rg-balance-1"]
+    assert rg_balance["r_green"] == 232.32
+    assert rg_balance["r_equal"] == 323.23
+    assert rg_balance["r_red"] == 345.45
+    assert rg_balance["l_green"] == 445.45
+    assert rg_balance["l_equal"] == 676.76
+    assert rg_balance["l_red"] == 767.67
+    wing = data["maddox-wing-maddox-wing-1"]
+    assert wing["exo_phoria"] == 2
+    assert wing["eso_phoria"] == 3
+    assert wing["hyper_phoria"] == 4
+    assert wing["hyper_eye"] == "R"
+    assert wing["near_vision"] is True
+    assert "rg" not in data
+
+
+def test_maddox_directions_expand_truncated_softoptic_codes():
+    data = migration.build_exam_data_from_eye_tests({}, {
+        "bino_mr_h_addw": "X",
+        "bino_mr_v_addw": "R",
+        "bino_mr_h_addn": "E",
+        "bino_mr_v_addn": "L",
+        "bino_mr_v_with": "4",
+    })
+    maddox = data["maddox-rod-maddox-rod-1"]
+    assert maddox["with_horizontal_direction"] == "EXO"
+    assert maddox["with_vertical_direction"] == "R/L"
+    assert maddox["without_horizontal_direction"] == "ESO"
+    assert maddox["without_vertical_direction"] == "L/R"
+    assert maddox["with_vertical_prism"] == 4
 
 
 def test_old_refraction_tabs_use_legacy_type_not_source_or_lens():
@@ -358,9 +455,28 @@ def test_keratometer_sources_detect_mm_and_diopters():
         "obj_k_r_dpt1": "7.5", "obj_k_r_dpt2": "45",
         "obj_k_l_mm1": "7.8", "obj_k_l_mm2": "43.27",
     })["keratometer-full"]
-    assert full["r_mm_k1"] == 7.5 and full["r_dpt_k1"] == 45
-    assert full["r_dpt_k2"] == 45 and full["r_mm_k2"] == 7.5
-    assert full["l_dpt_k1"] == round(337.5 / 7.8, 2)
+    assert full["r_dpt_k1"] == 7.5
+    assert full["r_dpt_k2"] == 45
+    assert full["l_mm_k1"] == 7.8
+    assert full["l_mm_k2"] == 43.27
+
+
+def test_keratometer_full_preserves_out_of_range_values():
+    full = migration.build_exam_data_from_eye_tests({}, {
+        "obj_k_r_mm1": "23",
+        "obj_k_r_mm2": "56",
+        "obj_k_r_mer1": "67",
+        "obj_k_r_mer2": "157",
+        "obj_k_l_mm1": "24",
+        "obj_k_l_mm2": "57",
+        "obj_k_l_mer1": "68",
+        "obj_k_l_mer2": "158",
+        "obj_k_r_astig": "1",
+    })["keratometer-full"]
+    assert full["r_mm_k1"] == 23.0
+    assert full["r_mm_k2"] == 56.0
+    assert full["r_mer_k1"] == 67.0
+    assert full["r_astig"] is True
 
 
 def test_referrer_resolves_latest_active_full_hierarchy(tmp_path):
@@ -388,10 +504,13 @@ def test_default_layout_contains_expected_cards():
     assert "sensation-vision-stability-1" in card_ids
     widths = {item["id"]: item["w"] for item in layout["items"]}
     assert widths["keratometer-1"] == 6
-    assert widths["maddox-rod-1"] == 9
+    assert widths["maddox-rod-1"] == 11
+    assert widths["maddox-wing-1"] == 6
+    assert widths["rg-balance-1"] == 8
     assert widths["retinoscop-1"] == 11
     contact_fit_layout = json.loads(migration.build_contact_fit_layout_data())
-    assert next(item["w"] for item in contact_fit_layout["items"] if item["id"] == "maddox-rod-1") == 9
+    assert next(item["w"] for item in contact_fit_layout["items"] if item["id"] == "maddox-rod-1") == 10
+    assert next(item["w"] for item in contact_fit_layout["items"] if item["id"] == "maddox-wing-1") == 8
 
 
 def test_write_legacy_blob_file_persists_content(tmp_path, monkeypatch):
@@ -860,3 +979,43 @@ def test_contact_order_without_billing_data_does_not_require_price_trace(tmp_pat
 
         assert db.query(ContactLensOrder).count() == 1
         assert db.query(Billing).count() == 0
+
+
+def test_subjective_softoptic_maps_vertical_prism_and_dual_writes_horizontal():
+    from backend.migration.pipeline.common import (
+        _build_final_subjective_component,
+        _build_subjective_component,
+    )
+
+    subjective = _build_subjective_component(
+        {},
+        {
+            "sub_r_sph": "+100",
+            "sub_r_prish": "2",
+            "sub_r_baseh": "IN",
+            "sub_r_prisv": "1",
+            "sub_r_basev": "UP",
+        },
+    )
+    assert subjective["r_pris"] == 2.0
+    assert subjective["r_pr_h"] == 2.0
+    assert subjective["r_base"] == "IN"
+    assert subjective["r_base_h"] == "IN"
+    assert subjective["r_pr_v"] == 1.0
+    assert subjective["r_base_v"] == "UP"
+
+    final_subjective = _build_final_subjective_component(
+        {},
+        {
+            "sub_f_r_sph": "+125",
+            "sub_f_r_prish": "3",
+            "sub_f_r_baseh": "OUT",
+            "sub_f_r_prisv": "0.5",
+            "sub_f_r_basev": "DOWN",
+        },
+    )
+    assert final_subjective["r_pris"] == 3.0
+    assert final_subjective["r_pr_h"] == 3.0
+    assert final_subjective["r_pr_v"] == 0.5
+    assert final_subjective["r_base_v"] == "DOWN"
+

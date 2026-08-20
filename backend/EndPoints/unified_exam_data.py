@@ -7,6 +7,11 @@ from models import ExamLayoutInstance
 from auth import get_current_user
 from models import User
 from services.prescription_search_index import rebuild_exam_instance_index
+from services.prism_axis_compatibility import (
+    is_prism_axis_component_key,
+    normalize_prism_axis_block,
+    normalize_prism_axis_exam_data,
+)
 import json
 
 router = APIRouter(prefix="/unified-exam-data", tags=["Unified Exam Data"])
@@ -32,6 +37,10 @@ def _normalize_npc_exam_data(exam_data: Dict[str, Any]) -> Dict[str, Any]:
     return normalized
 
 
+def _normalize_exam_payload(exam_data: Dict[str, Any] | None) -> Dict[str, Any]:
+    return normalize_prism_axis_exam_data(_normalize_npc_exam_data(exam_data or {}))
+
+
 @router.get("/{layout_instance_id}")
 async def get_exam_data(
     layout_instance_id: int,
@@ -53,7 +62,7 @@ async def get_exam_data(
         )
     
     # Return instance-level JSON
-    return _normalize_npc_exam_data(layout_instance.exam_data or {})
+    return _normalize_exam_payload(layout_instance.exam_data or {})
 
 @router.post("/{layout_instance_id}")
 async def save_exam_data(
@@ -97,7 +106,7 @@ async def save_exam_data(
         )
     
     # Upsert directly on instance row, upgrading legacy OPC keys to NPC.
-    layout_instance.exam_data = _normalize_npc_exam_data(exam_data)
+    layout_instance.exam_data = _normalize_exam_payload(exam_data)
     rebuild_exam_instance_index(db, layout_instance)
     db.commit()
     db.refresh(layout_instance)
@@ -151,7 +160,7 @@ async def get_exam_component_data(
             detail="Layout instance not found"
         )
     
-    data = layout_instance.exam_data or {}
+    data = _normalize_exam_payload(layout_instance.exam_data or {})
     canonical_component_type = _normalize_npc_key(component_type)
     if canonical_component_type in data:
         return data[canonical_component_type]
@@ -185,8 +194,12 @@ async def save_exam_component_data(
         )
     
     # Update the specific component on instance JSON
-    merged = _normalize_npc_exam_data(dict(layout_instance.exam_data or {}))
-    merged[_normalize_npc_key(component_type)] = component_data
+    merged = _normalize_exam_payload(dict(layout_instance.exam_data or {}))
+    component_key = _normalize_npc_key(component_type)
+    if is_prism_axis_component_key(component_key) and isinstance(component_data, dict):
+        merged[component_key] = normalize_prism_axis_block(component_data)
+    else:
+        merged[component_key] = component_data
     layout_instance.exam_data = merged
     rebuild_exam_instance_index(db, layout_instance)
     db.commit()

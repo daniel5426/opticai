@@ -3,6 +3,8 @@ import {
   normalizeNpcExamData,
   normalizeNpcExamDataKey,
 } from "@/lib/npc-compatibility";
+import { normalizeMaddoxRodExamData } from "@/lib/maddox-compatibility";
+import { PrismAxisCompatibility } from "@/lib/prism-axis-compatibility";
 
 export const EXAM_DATA_UI_KEY = "__ui";
 
@@ -488,10 +490,14 @@ export const ensureLayoutDataForRows = (
   const hasLegacyNpcData = Object.keys(examData).some(
     (key) => normalizeNpcExamDataKey(key) !== key,
   );
-  const normalizedTabs = ensureTabsMetadataForRows(
+  const npcMaddoxNormalized = normalizeMaddoxRodExamData(
     normalizeNpcExamData(examData),
-    cardRows,
   );
+  const prismNormalized =
+    PrismAxisCompatibility.normalizeExamData(npcMaddoxNormalized);
+  const prismAxisChanged =
+    JSON.stringify(npcMaddoxNormalized) !== JSON.stringify(prismNormalized);
+  const normalizedTabs = ensureTabsMetadataForRows(prismNormalized, cardRows);
   const recoveredOldRefraction = rebindOrphanedRefractionTabsForRows(
     normalizedTabs.examData,
     cardRows,
@@ -505,6 +511,7 @@ export const ensureLayoutDataForRows = (
   let next = recoveredOldRefractionExtension.examData;
   let changed =
     hasLegacyNpcData ||
+    prismAxisChanged ||
     normalizedTabs.changed ||
     recoveredOldRefraction.changed ||
     recoveredOldRefractionExtension.changed;

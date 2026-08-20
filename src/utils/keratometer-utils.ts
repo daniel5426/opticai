@@ -18,6 +18,32 @@ export function getKeratometerRange(unit: KeratometerUnit): { min: string; max: 
   return KERATOMETER_UNIT_RANGES[unit];
 }
 
+export const KERATOMETER_MERIDIAN_RANGE = { min: "0", max: "180" } as const;
+
+export function isKeratometerValueInRange(
+  value: string | number | undefined | null,
+  unit: KeratometerUnit | "meridian",
+): boolean {
+  if (value === undefined || value === null || value === "") {
+    return true;
+  }
+
+  const numericValue =
+    typeof value === "number" ? value : parseFloat(String(value).replace(",", "."));
+
+  if (!Number.isFinite(numericValue)) {
+    return true;
+  }
+
+  if (unit === "meridian") {
+    return numericValue >= Number(KERATOMETER_MERIDIAN_RANGE.min)
+      && numericValue <= Number(KERATOMETER_MERIDIAN_RANGE.max);
+  }
+
+  const range = getKeratometerRange(unit);
+  return numericValue >= Number(range.min) && numericValue <= Number(range.max);
+}
+
 export function roundToStep(value: number, step: number): number {
   return Math.round(value / step) * step;
 }

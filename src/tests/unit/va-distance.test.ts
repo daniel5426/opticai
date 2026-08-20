@@ -50,6 +50,11 @@ describe("VA test distance conversion", () => {
     expect(convertVA("9+2", "meter")).toBe("6/9+2");
     expect(convertVA("9+2", "decimal")).toBe("1.0+2");
     expect(convertVA("7.5+2", "meter")).toBe("6/7.5+2");
+    expect(normalizeLegacyBareMeterVA("2")).toBe("6/2");
+    expect(convertVA("2", "meter")).toBe("6/2");
+    expect(normalizeLegacyBareMeterVA("1")).toBe("6/1");
+    expect(convertVA("1", "meter")).toBe("6/1");
+    expect(normalizeLegacyBareMeterVA("1.0+2")).toBe("1.0+2");
   });
 
   test("falls back to 6m for invalid settings", () => {

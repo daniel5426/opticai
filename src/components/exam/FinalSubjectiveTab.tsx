@@ -1,4 +1,5 @@
-import React, { useState, useRef } from "react"
+import React, { useState, useRef, useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import { Card, CardContent } from "@/components/ui/card"
 import { FinalSubjectiveExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
@@ -13,6 +14,8 @@ import { useAxisWarning } from "./shared/useAxisWarning"
 import { AxisWarningInput } from "./shared/AxisWarningInput"
 import { ToggleTextNumberInput } from "./shared/ToggleTextNumberInput"
 import { copyEyeRowFields } from "./shared/copyEyeRowFields"
+import { PrismAxisCompatibility } from "@/lib/prism-axis-compatibility"
+import { buildPrismAxisColumns } from "./shared/prismAxisColumns"
 
 interface FinalSubjectiveTabProps {
   finalSubjectiveData: FinalSubjectiveExam;
@@ -27,7 +30,13 @@ export function FinalSubjectiveTab({
   isEditing,
   hideEyeLabels = false
 }: FinalSubjectiveTabProps) {
+  const { t } = useTranslation();
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
+  const [forceVertical, setForceVertical] = useState(false);
+  const hasVerticalPrism = PrismAxisCompatibility.hasVerticalPrism(
+    finalSubjectiveData as Record<string, unknown>
+  );
+  const showVertical = forceVertical || hasVerticalPrism;
 
   const { fieldWarnings, handleAxisChange, handleAxisBlur } = useAxisWarning(
     finalSubjectiveData,
@@ -44,12 +53,32 @@ export function FinalSubjectiveTab({
     isEditing
   );
 
+  const prismColumns = useMemo(
+    () =>
+      buildPrismAxisColumns({
+        showVertical,
+        showAddVertical: isEditing,
+        compactBase: { key: "base", ...EXAM_FIELDS.BASE, type: "select", options: BASE_VALUES_SIMPLE },
+        expandedLabels: {
+          prismHorizontal: t("examPrismHorizontal"),
+          baseHorizontal: t("examBaseHorizontal"),
+          prismVertical: t("examPrismVertical"),
+          baseVertical: t("examBaseVertical"),
+        },
+        addVerticalLabel: t("examAddVerticalPrism"),
+        onAddVertical: () => setForceVertical(true),
+        showRemoveVertical: isEditing && showVertical && !hasVerticalPrism,
+        removeVerticalLabel: t("examRemoveVerticalPrism"),
+        onRemoveVertical: () => setForceVertical(false),
+      }),
+    [hasVerticalPrism, isEditing, showVertical, t]
+  );
+
   const columns = [
     { key: "sph", ...EXAM_FIELDS.SPH },
     { key: "cyl", ...EXAM_FIELDS.CYL },
     { key: "ax", ...EXAM_FIELDS.AXIS },
-    { key: "pris", ...EXAM_FIELDS.PRISM },
-    { key: "base", ...EXAM_FIELDS.BASE, type: "select", options: BASE_VALUES_SIMPLE },
+    ...prismColumns,
     { key: "va", ...EXAM_FIELDS.VA, type: "va" },
     { key: "j", ...EXAM_FIELDS.J, type: "j" },
     { key: "pd_far", ...EXAM_FIELDS.PD_FAR },
@@ -93,10 +122,14 @@ export function FinalSubjectiveTab({
 
     const field = `${eye.toLowerCase()}_${key}` as keyof FinalSubjectiveExam;
     onFinalSubjectiveChange(field, value);
+    const linked = PrismAxisCompatibility.linkedHorizontalField(key);
+    if (linked) {
+      onFinalSubjectiveChange(`${eye.toLowerCase()}_${linked}` as keyof FinalSubjectiveExam, value);
+    }
   };
 
   const renderInput = (eye: "R" | "L" | "C", col: any) => {
-    const { key, type, options, ...inputProps } = col;
+    const { key, type, options, headerAccessory: _headerAccessory, ...inputProps } = col;
     const value = getFieldValue(eye, key);
 
     switch (type) {
@@ -192,16 +225,19 @@ export function FinalSubjectiveTab({
             <h3 className="font-medium text-muted-foreground">Final Subjective</h3>
           </div>
 
-          <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(9,1fr)]' : 'grid-cols-[20px_repeat(9,1fr)]'} gap-2 items-center`}>
+          <div className={`grid ${hideEyeLabels ? (showVertical ? 'grid-cols-[repeat(11,1fr)]' : 'grid-cols-[repeat(9,1fr)]') : (showVertical ? 'grid-cols-[20px_repeat(11,1fr)]' : 'grid-cols-[20px_repeat(9,1fr)]')} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
-            {columns.map(({ key, label }) => (
-              <div key={key} className="h-4 flex items-center justify-center text-center">
+            {columns.map(({ key, label, headerAccessory }) => (
+              <div key={key} className="h-4 flex items-center justify-center gap-0.5 text-center">
                 {key === "cyl" ? (
                   <CylTitle onTranspose={handleManualTranspose} disabled={!isEditing} />
                 ) : (
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {label}
-                  </span>
+                  <>
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {label}
+                    </span>
+                    {headerAccessory}
+                  </>
                 )}
               </div>
             ))}

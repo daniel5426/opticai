@@ -111,7 +111,15 @@ export function normalizeLegacyBareMeterVA(value: string): string {
   if (!/^\d+(?:\.\d+)?$/.test(base)) return value
 
   const denominator = Number(base)
-  if (!Number.isFinite(denominator) || denominator < 3 || denominator > 190) {
+  if (!Number.isFinite(denominator) || denominator > 190) {
+    return value
+  }
+
+  const isInteger = !base.includes(".")
+  if (isInteger && denominator < 1) {
+    return value
+  }
+  if (!isInteger && denominator < 3) {
     return value
   }
 

@@ -66,9 +66,11 @@ COMPONENT_LEGACY_COLUMNS = {
     "over-refraction": 9,
     "sensation-vision-stability": 5,
     "fusion-range": 5,
-    "maddox-rod": 5,
+    "maddox-rod": 6,
+    "maddox-wing": 4,
     "stereo-test": 2,
     "rg": 3,
+    "rg-balance": 5,
     "ocular-motor-assessment": 5,
 }
 

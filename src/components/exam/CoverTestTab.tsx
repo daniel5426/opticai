@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CoverTestExam } from "@/lib/db/schema-interface";
-import { Triangle, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 interface CoverTestTabProps {
@@ -181,39 +181,25 @@ export function CoverTestTab({
               </SelectContent>
             </Select>
 
-            <div className="relative w-full">
-              <FastInput
-                type="number"
-                step="0.25"
-                value={coverTestData.fv_1?.toString() || ""}
-                onChange={(val) => handleChange("fv_1", val)}
-                disabled={!isEditing}
-                className={`h-8 w-full text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100 ${isPhoria ? "pr-7" : "pr-1"}`}
-              />
-              {isPhoria && (
-                <Triangle
-                  size={16}
-                  className="text-muted-foreground absolute top-1/2 right-2 -translate-y-1/2"
-                />
-              )}
-            </div>
+            <FastInput
+              type="number"
+              step="0.25"
+              value={coverTestData.fv_1?.toString() || ""}
+              onChange={(val) => handleChange("fv_1", val)}
+              disabled={!isEditing}
+              suffix={isPhoria ? "Δ" : undefined}
+              className={`h-8 w-full text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+            />
 
-            <div className="relative w-full">
-              <FastInput
-                type="number"
-                step="0.25"
-                value={coverTestData.nv_1?.toString() || ""}
-                onChange={(val) => handleChange("nv_1", val)}
-                disabled={!isEditing}
-                className={`h-8 w-full text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100 ${isPhoria ? "pr-7" : "pr-1"}`}
-              />
-              {isPhoria && (
-                <Triangle
-                  size={16}
-                  className="text-muted-foreground absolute top-1/2 right-2 -translate-y-1/2"
-                />
-              )}
-            </div>
+            <FastInput
+              type="number"
+              step="0.25"
+              value={coverTestData.nv_1?.toString() || ""}
+              onChange={(val) => handleChange("nv_1", val)}
+              disabled={!isEditing}
+              suffix={isPhoria ? "Δ" : undefined}
+              className={`h-8 w-full text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+            />
 
             {/* Spacer Row */}
             {needsMiddleSpacer && (

@@ -3,6 +3,7 @@ import {
   convertKeratometerValue,
   getKeratometerRange,
   getKeratometerStep,
+  isKeratometerValueInRange,
   roundToStep,
 } from "@/utils/keratometer-utils";
 
@@ -25,6 +26,15 @@ describe("keratometer utils", () => {
   test("rounds converted millimeters to the nearest hundredth", () => {
     expect(convertKeratometerValue("43.25", "mm")).toBe("7.80");
     expect(convertKeratometerValue("39.25", "mm")).toBe("8.60");
+  });
+
+  test("flags out-of-range keratometer values", () => {
+    expect(isKeratometerValueInRange("7.8", "mm")).toBe(true);
+    expect(isKeratometerValueInRange("23", "mm")).toBe(false);
+    expect(isKeratometerValueInRange("43.25", "D")).toBe(true);
+    expect(isKeratometerValueInRange("56", "D")).toBe(true);
+    expect(isKeratometerValueInRange("180", "meridian")).toBe(true);
+    expect(isKeratometerValueInRange("181", "meridian")).toBe(false);
   });
 
   test("keeps converted values aligned to their target step", () => {
