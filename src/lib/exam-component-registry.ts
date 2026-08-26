@@ -64,6 +64,21 @@ export class ExamComponentRegistry {
     return Array.from(this.components.keys())
   }
 
+  matchExamComponentType(key: string): ExamComponentType | null {
+    if (this.components.has(key as ExamComponentType)) {
+      return key as ExamComponentType
+    }
+    const typesBySpecificity = Array.from(this.components.keys()).sort(
+      (a, b) => b.length - a.length,
+    )
+    for (const type of typesBySpecificity) {
+      if (key.startsWith(`${type}-`)) {
+        return type
+      }
+    }
+    return null
+  }
+
   getLayoutEditorTypes(): ExamComponentType[] {
     return Array.from(this.components.entries())
       .filter(([, config]) => config.showInLayoutEditor === true)
@@ -127,20 +142,7 @@ export class ExamComponentRegistry {
             componentType = 'cover-test'
           } else {
             // Check if it's a direct type or a type with a suffix (type-id)
-            if (this.components.has(key as ExamComponentType)) {
-              componentType = key as ExamComponentType
-            } else {
-              // Try to find if any registered type is a prefix followed by a hyphen
-              const typesBySpecificity = Array.from(this.components.keys()).sort(
-                (a, b) => b.length - a.length,
-              )
-              for (const type of typesBySpecificity) {
-                if (key.startsWith(`${type}-`)) {
-                  componentType = type
-                  break
-                }
-              }
-            }
+            componentType = this.matchExamComponentType(key)
           }
           
           if (componentType) {
@@ -432,6 +434,20 @@ examComponentRegistry.register('ocular-motor-assessment', {
 examComponentRegistry.register('cover-test', {
   name: 'בדיקת כיסוי (ישן)',
   component: () => import('../components/exam/CoverTestTab'),
+  order: 32,
+  showInLayoutEditor: false
+})
+
+examComponentRegistry.register('softoptic-cover-test', {
+  name: 'בדיקת כיסוי SoftOptic',
+  component: () => import('../components/exam/SoftOpticCoverTestTab'),
+  order: 32,
+  showInLayoutEditor: false
+})
+
+examComponentRegistry.register('softoptic-maddox-grid', {
+  name: 'מוט מדוקס SoftOptic',
+  component: () => import('../components/exam/SoftOpticMaddoxGridTab'),
   order: 32,
   showInLayoutEditor: false
 })

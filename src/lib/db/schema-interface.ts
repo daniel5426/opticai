@@ -1133,6 +1133,54 @@ export interface CoverTestExam {
   nv_2?: number;
 }
 
+export interface SoftOpticCoverTestExam {
+  id?: number;
+  layout_instance_id: number;
+  card_instance_id?: string;
+  fv_exo_phoria?: number | string;
+  nv_exo_phoria?: number | string;
+  fv_eso_phoria?: number | string;
+  nv_eso_phoria?: number | string;
+  fv_exo_tropia_eye?: string;
+  fv_exo_tropia?: number | string;
+  nv_exo_tropia_eye?: string;
+  nv_exo_tropia?: number | string;
+  fv_eso_tropia_eye?: string;
+  fv_eso_tropia?: number | string;
+  nv_eso_tropia_eye?: string;
+  nv_eso_tropia?: number | string;
+  fv_hyper_phoria_eye?: string;
+  fv_hyper_phoria?: number | string;
+  nv_hyper_phoria_eye?: string;
+  nv_hyper_phoria?: number | string;
+  fv_hyper_tropia_eye?: string;
+  fv_hyper_tropia?: number | string;
+  nv_hyper_tropia_eye?: string;
+  nv_hyper_tropia?: number | string;
+}
+
+export interface SoftOpticMaddoxGridExam {
+  id?: number;
+  layout_instance_id: number;
+  card_instance_id?: string;
+  fv_exo_phoria?: number | string;
+  nv_exo_phoria?: number | string;
+  fv_eso_phoria?: number | string;
+  nv_eso_phoria?: number | string;
+  fv_exo_tropia_eye?: string;
+  fv_exo_tropia?: number | string;
+  nv_exo_tropia_eye?: string;
+  nv_exo_tropia?: number | string;
+  fv_eso_tropia_eye?: string;
+  fv_eso_tropia?: number | string;
+  nv_eso_tropia_eye?: string;
+  nv_eso_tropia?: number | string;
+  fv_hyper_phoria_eye?: string;
+  fv_hyper_phoria?: number | string;
+  nv_hyper_phoria_eye?: string;
+  nv_hyper_phoria?: number | string;
+}
+
 export interface CoverTestV2Exam {
   id?: number;
   layout_instance_id: number;

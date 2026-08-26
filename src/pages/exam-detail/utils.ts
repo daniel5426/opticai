@@ -306,6 +306,8 @@ const CARD_MIN_GRID_COL_OVERRIDES: Partial<Record<CardItem["type"], number>> = {
   "maddox-rod": 10,
   "maddox-wing": 6,
   "rg-balance": 7,
+  "softoptic-cover-test": 12,
+  "softoptic-maddox-grid": 12,
   retinoscop: 11,
   "diopter-adjustment-panel": 8,
 };

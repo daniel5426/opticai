@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react"
+import { useTranslation } from "react-i18next"
 import { Card, CardContent } from "@/components/ui/card"
 import { OldRefractionExtensionExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
@@ -47,6 +48,7 @@ export function OldRefractionExtensionTab({
   onUpdateType,
   allTabsData = [],
 }: OldRefractionExtensionTabProps) {
+  const { t } = useTranslation();
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
   const dataRef = useRef(oldRefractionExtensionData);
@@ -68,10 +70,10 @@ export function OldRefractionExtensionTab({
     { key: "sph", ...EXAM_FIELDS.SPH },
     { key: "cyl", ...EXAM_FIELDS.CYL },
     { key: "ax", ...EXAM_FIELDS.AXIS },
-    { key: "pr_h", label: "PR.H", ...EXAM_FIELDS.PRISM },
-    { key: "base_h", label: "BASE.H", ...EXAM_FIELDS.BASE, isSelect: true },
-    { key: "pr_v", label: "PR.V", ...EXAM_FIELDS.PRISM },
-    { key: "base_v", label: "BASE.V", ...EXAM_FIELDS.BASE, isSelect: true },
+    { key: "pr_h", ...EXAM_FIELDS.PRISM, label: t("examPrismHorizontal") },
+    { key: "base_h", ...EXAM_FIELDS.BASE, label: t("examBaseHorizontal"), isSelect: true },
+    { key: "pr_v", ...EXAM_FIELDS.PRISM, label: t("examPrismVertical") },
+    { key: "base_v", ...EXAM_FIELDS.BASE, label: t("examBaseVertical"), isSelect: true },
     { key: "va", ...EXAM_FIELDS.VA },
     { key: "ad", ...EXAM_FIELDS.ADD },
     { key: "j", ...EXAM_FIELDS.J },

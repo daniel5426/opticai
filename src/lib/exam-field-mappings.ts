@@ -1,4 +1,8 @@
 import {
+  SOFTOPTIC_COVER_TEST_FIELDS,
+  SOFTOPTIC_MADDOX_GRID_FIELDS,
+} from '@/components/exam/data/softoptic-phoria-fields'
+import {
   OpticalExam,
   OldRefExam,
   OldRefractionExam,
@@ -17,6 +21,8 @@ import {
   CornealTopographyExam,
   CoverTestExam,
   CoverTestV2Exam,
+  SoftOpticCoverTestExam,
+  SoftOpticMaddoxGridExam,
   SchirmerTestExam,
   ContactLensDiameters,
   ContactLensDetails,
@@ -50,6 +56,8 @@ export type ExamComponentType =
   | 'corneal-topography'
   | 'cover-test'
   | 'cover-test-v2'
+  | 'softoptic-cover-test'
+  | 'softoptic-maddox-grid'
   | 'schirmer-test'
   | 'anamnesis'
   | 'notes'
@@ -89,6 +97,8 @@ export const fullExamsList: ExamComponentType[] = [
   'corneal-topography',
   'cover-test',
   'cover-test-v2',
+  'softoptic-cover-test',
+  'softoptic-maddox-grid',
   'schirmer-test',
   'anamnesis',
   'notes',
@@ -129,6 +139,8 @@ export const examComponentTypeToExamFields: Record<ExamComponentType, ExamCompon
   'corneal-topography': [],
   'cover-test': [],
   'cover-test-v2': [],
+  'softoptic-cover-test': [],
+  'softoptic-maddox-grid': [],
   'schirmer-test': [],
   'anamnesis': [],
   'notes': [],
@@ -151,7 +163,7 @@ export const examComponentTypeToExamFields: Record<ExamComponentType, ExamCompon
   'npc': [],
 };
 
-export type ExamDataType = OpticalExam | OldRefExam | OldRefractionExam | OldRefractionExtensionExam | ObjectiveExam | SubjectiveExam | FinalSubjectiveExam | FinalPrescriptionExam | CompactPrescriptionExam | AdditionExam | RetinoscopExam | RetinoscopDilationExam | UncorrectedVAExam | KeratometerExam | KeratometerFullExam | CornealTopographyExam | CoverTestExam | CoverTestV2Exam | SchirmerTestExam | ContactLensDiameters | ContactLensDetails | KeratometerContactLens | ContactLensExam | ContactLensOrder | StereoTestExam | RGExam | RGBalanceExam | MaddoxRodExam | MaddoxWingExam | NPCExam
+export type ExamDataType = OpticalExam | OldRefExam | OldRefractionExam | OldRefractionExtensionExam | ObjectiveExam | SubjectiveExam | FinalSubjectiveExam | FinalPrescriptionExam | CompactPrescriptionExam | AdditionExam | RetinoscopExam | RetinoscopDilationExam | UncorrectedVAExam | KeratometerExam | KeratometerFullExam | CornealTopographyExam | CoverTestExam | CoverTestV2Exam | SoftOpticCoverTestExam | SoftOpticMaddoxGridExam | SchirmerTestExam | ContactLensDiameters | ContactLensDetails | KeratometerContactLens | ContactLensExam | ContactLensOrder | StereoTestExam | RGExam | RGBalanceExam | MaddoxRodExam | MaddoxWingExam | NPCExam
 
 export interface FieldMapping {
   [sourceField: string]: string | null
@@ -180,6 +192,8 @@ export class ExamFieldMapper {
     'corneal-topography': fullExamsList,
     'cover-test': ['cover-test', 'uncorrected-va'],
     'cover-test-v2': ['cover-test-v2'],
+    'softoptic-cover-test': ['softoptic-cover-test'],
+    'softoptic-maddox-grid': ['softoptic-maddox-grid'],
     'schirmer-test': [],
     'anamnesis': [],
     'notes': [],
@@ -273,6 +287,10 @@ export class ExamFieldMapper {
           'sc_far_vertical_prism', 'sc_far_vertical_deviation',
           'sc_near_vertical_prism', 'sc_near_vertical_deviation',
         ]
+      case 'softoptic-cover-test':
+        return [...SOFTOPTIC_COVER_TEST_FIELDS]
+      case 'softoptic-maddox-grid':
+        return [...SOFTOPTIC_MADDOX_GRID_FIELDS]
       case 'schirmer-test':
         return ['r_mm', 'l_mm', 'r_but', 'l_but']
       case 'notes':

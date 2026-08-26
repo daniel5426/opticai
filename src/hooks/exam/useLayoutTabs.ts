@@ -238,16 +238,13 @@ export function useLayoutTabs({
         cardDefs.push({ id, type: "old-refraction" });
         return;
       } else {
-        for (const registeredType of examComponentRegistry.getAllTypes()) {
-          if (key === registeredType) {
-            type = registeredType as CardItem["type"];
-            cardId = (value as any)?.card_instance_id || "";
-            break;
-          } else if (key.startsWith(`${registeredType}-`)) {
-            type = registeredType as CardItem["type"];
-            cardId = key.replace(`${registeredType}-`, "");
-            break;
-          }
+        const registeredType = examComponentRegistry.matchExamComponentType(key);
+        if (registeredType) {
+          type = registeredType as CardItem["type"];
+          cardId =
+            key === registeredType
+              ? (value as any)?.card_instance_id || ""
+              : key.replace(`${registeredType}-`, "");
         }
       }
 
@@ -283,11 +280,9 @@ export function useLayoutTabs({
           if (key.startsWith("notes-")) {
             clone.card_instance_id = key.replace("notes-", "");
           } else {
-            for (const type of examComponentRegistry.getAllTypes()) {
-              if (key.startsWith(`${type}-`)) {
-                clone.card_instance_id = key.replace(`${type}-`, "");
-                break;
-              }
+            const matchedType = examComponentRegistry.matchExamComponentType(key);
+            if (matchedType && key.startsWith(`${matchedType}-`)) {
+              clone.card_instance_id = key.replace(`${matchedType}-`, "");
             }
           }
         }

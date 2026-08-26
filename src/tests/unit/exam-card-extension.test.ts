@@ -39,6 +39,8 @@ describe("exam card extension contract", () => {
     expect(layoutTypes).toContain("maddox-wing");
     expect(layoutTypes).toContain("rg-balance");
     expect(layoutTypes).not.toContain("cover-test");
+    expect(layoutTypes).not.toContain("softoptic-cover-test");
+    expect(layoutTypes).not.toContain("softoptic-maddox-grid");
   });
 
   test("clears all persisted replacement Cover Test fields", () => {
@@ -87,6 +89,8 @@ describe("exam card extension contract", () => {
     expect(getColumnCount("maddox-rod", "detail")).toBe(7);
     expect(getColumnCount("maddox-wing", "detail")).toBe(4);
     expect(getColumnCount("rg-balance", "detail")).toBe(5);
+    expect(getColumnCount("softoptic-cover-test", "detail")).toBe(8);
+    expect(getColumnCount("softoptic-maddox-grid", "detail")).toBe(8);
     expect(getColumnCount("retinoscop", "detail")).toBe(7);
     expect(computeCardMinGridCols("keratometer")).toBe(8);
     expect(computeCardMinGridCols("keratometer-contact-lens")).toBe(11);
@@ -100,5 +104,32 @@ describe("exam card extension contract", () => {
     expect(componentHasMiddleRow("maddox-wing")).toBe(true);
     expect(componentHasMiddleRow("maddox-rod")).toBe(false);
     expect(componentHasMiddleRow("rg-balance")).toBe(false);
+  });
+
+  test("matches longer exam component types before their prefixes", () => {
+    expect(examComponentRegistry.matchExamComponentType("keratometer-full")).toBe(
+      "keratometer-full",
+    );
+    expect(
+      examComponentRegistry.matchExamComponentType(
+        "keratometer-full-keratometer-full-1",
+      ),
+    ).toBe("keratometer-full");
+    expect(
+      examComponentRegistry.matchExamComponentType("rg-balance-rg-balance-1"),
+    ).toBe("rg-balance");
+    expect(
+      examComponentRegistry.matchExamComponentType(
+        "softoptic-cover-test-softoptic-cover-test-1",
+      ),
+    ).toBe("softoptic-cover-test");
+    expect(
+      examComponentRegistry.matchExamComponentType(
+        "softoptic-maddox-grid-softoptic-maddox-grid-1",
+      ),
+    ).toBe("softoptic-maddox-grid");
+    expect(examComponentRegistry.matchExamComponentType("keratometer")).toBe(
+      "keratometer",
+    );
   });
 });

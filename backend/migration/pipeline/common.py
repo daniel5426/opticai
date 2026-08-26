@@ -1375,12 +1375,12 @@ def _build_final_subjective_component(row: Dict[str, Any], expanded: Optional[Di
         "l_va": _get_va(expanded, row, ["sub_f_l_va"]),
         "r_j": normalize_j_value(_get_str(expanded, row, ["sub_f_r_j"])),
         "l_j": normalize_j_value(_get_str(expanded, row, ["sub_f_l_j"])),
-        "r_pd_far": _get_float(expanded, row, ["sub_f_r_far_pd"]),
-        "l_pd_far": _get_float(expanded, row, ["sub_f_l_far_pd"]),
-        "r_pd_close": _get_float(expanded, row, ["sub_f_r_near_pd"]),
-        "l_pd_close": _get_float(expanded, row, ["sub_f_l_near_pd"]),
-        "comb_pd_far": _get_float(expanded, row, ["sub_f_b_far_pd"]),
-        "comb_pd_close": _get_float(expanded, row, ["sub_f_b_near_pd"]),
+        "r_pd_far": _get_float(expanded, row, ["sub_f_r_near_pd"]),
+        "l_pd_far": _get_float(expanded, row, ["sub_f_l_near_pd"]),
+        "r_pd_close": _get_float(expanded, row, ["sub_f_r_far_pd"]),
+        "l_pd_close": _get_float(expanded, row, ["sub_f_l_far_pd"]),
+        "comb_pd_far": _get_float(expanded, row, ["sub_f_b_near_pd"]),
+        "comb_pd_close": _get_float(expanded, row, ["sub_f_b_far_pd"]),
         "comb_va": _get_va(expanded, row, ["sub_f_b_va"]),
     }
     if any(v is not None for v in data.values()):
@@ -1404,13 +1404,13 @@ def _build_final_prescription_component(row: Dict[str, Any], expanded: Optional[
         "l_va": _get_va(expanded, row, ["sub_f_l_va"]),
         "r_ad": _get_optical_float(expanded, row, ["sub_r_add_at"]),
         "l_ad": _get_optical_float(expanded, row, ["sub_l_add_at"]),
-        "r_pd_far": _get_float(expanded, row, ["sub_f_r_far_pd"]),
-        "l_pd_far": _get_float(expanded, row, ["sub_f_l_far_pd"]),
-        "r_pd_close": _get_float(expanded, row, ["sub_f_r_near_pd"]),
-        "l_pd_close": _get_float(expanded, row, ["sub_f_l_near_pd"]),
+        "r_pd_far": _get_float(expanded, row, ["sub_f_r_near_pd"]),
+        "l_pd_far": _get_float(expanded, row, ["sub_f_l_near_pd"]),
+        "r_pd_close": _get_float(expanded, row, ["sub_f_r_far_pd"]),
+        "l_pd_close": _get_float(expanded, row, ["sub_f_l_far_pd"]),
         "comb_va": _get_va(expanded, row, ["sub_f_b_va"]),
-        "comb_pd_far": _get_float(expanded, row, ["sub_f_b_far_pd"]),
-        "comb_pd_close": _get_float(expanded, row, ["sub_f_b_near_pd"]),
+        "comb_pd_far": _get_float(expanded, row, ["sub_f_b_near_pd"]),
+        "comb_pd_close": _get_float(expanded, row, ["sub_f_b_far_pd"]),
     }
     if any(v is not None for v in data.values()):
         return data
@@ -1433,10 +1433,10 @@ def _build_compact_prescription_component(row: Dict[str, Any], expanded: Optiona
         "l_va": _get_va(expanded, row, ["sub_f_l_va"]),
         "r_ad": _get_optical_float(expanded, row, ["sub_r_add_at"]),
         "l_ad": _get_optical_float(expanded, row, ["sub_l_add_at"]),
-        "r_pd": _get_float(expanded, row, ["sub_f_r_far_pd"]),
-        "l_pd": _get_float(expanded, row, ["sub_f_l_far_pd"]),
+        "r_pd": _get_float(expanded, row, ["sub_f_r_near_pd"]),
+        "l_pd": _get_float(expanded, row, ["sub_f_l_near_pd"]),
         "comb_va": _get_va(expanded, row, ["sub_f_b_va"]),
-        "comb_pd": _get_float(expanded, row, ["sub_f_b_far_pd"]),
+        "comb_pd": _get_float(expanded, row, ["sub_f_b_near_pd"]),
     }
     if any(v is not None for v in data.values()):
         return data
@@ -1489,12 +1489,19 @@ def _build_uncorrected_va_component(row: Dict[str, Any], expanded: Optional[Dict
     return None
 
 
+def _compact_keratometer_k(expanded: Optional[Dict[str, Any]], row: Dict[str, Any], mm_key: str, dpt_key: str) -> Optional[float]:
+    mm_value = _get_float(expanded, row, [mm_key])
+    if mm_value is not None:
+        return mm_value
+    return keratometer_mm(_pick_value(expanded, row, [dpt_key], [dpt_key]))
+
+
 def _build_keratometer_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     data = {
-        "r_k1": _get_float(expanded, row, ["obj_k_r_dpt1"]),
-        "r_k2": _get_float(expanded, row, ["obj_k_r_dpt2"]),
-        "l_k1": _get_float(expanded, row, ["obj_k_l_dpt1"]),
-        "l_k2": _get_float(expanded, row, ["obj_k_l_dpt2"]),
+        "r_k1": _compact_keratometer_k(expanded, row, "obj_k_r_mm1", "obj_k_r_dpt1"),
+        "r_k2": _compact_keratometer_k(expanded, row, "obj_k_r_mm2", "obj_k_r_dpt2"),
+        "l_k1": _compact_keratometer_k(expanded, row, "obj_k_l_mm1", "obj_k_l_dpt1"),
+        "l_k2": _compact_keratometer_k(expanded, row, "obj_k_l_mm2", "obj_k_l_dpt2"),
         "r_axis": _get_int(expanded, row, ["obj_k_r_mer1"]),
         "l_axis": _get_int(expanded, row, ["obj_k_l_mer1"]),
     }
@@ -1520,12 +1527,12 @@ def _build_keratometer_full_component(row: Dict[str, Any], expanded: Optional[Di
         "r_astig": _get_bool(
             expanded,
             row,
-            ["obj_k_r_astig", "obj_k_r_dist", "obj_k_r_irreg", "obj_k_r_distort"],
+            ["obj_k_r_dis", "obj_k_r_astig", "obj_k_r_dist", "obj_k_r_irreg", "obj_k_r_distort"],
         ),
         "l_astig": _get_bool(
             expanded,
             row,
-            ["obj_k_l_astig", "obj_k_l_dist", "obj_k_l_irreg", "obj_k_l_distort"],
+            ["obj_k_l_dis", "obj_k_l_astig", "obj_k_l_dist", "obj_k_l_irreg", "obj_k_l_distort"],
         ),
     }
     if data["r_astig"] is None and data["r_dpt_k1"] is not None and data["r_dpt_k2"] is not None:
@@ -1632,6 +1639,82 @@ def _build_maddox_rod_component(row: Dict[str, Any], expanded: Optional[Dict[str
     return None
 
 
+def _softoptic_grid_eye(expanded: Optional[Dict[str, Any]], key: str) -> Optional[str]:
+    return normalize_maddox_wing_eye(_get_str(expanded, {}, [key]))
+
+
+def _build_softoptic_cover_test_slot(expanded: Dict[str, Any], index: int) -> Optional[Dict[str, Any]]:
+    prefix = f"old{index}_ct"
+    data = {
+        "fv_exo_phoria": _get_float(expanded, {}, [f"{prefix}_fv_exo_p"]),
+        "nv_exo_phoria": _get_float(expanded, {}, [f"{prefix}_nv_exo_p"]),
+        "fv_eso_phoria": _get_float(expanded, {}, [f"{prefix}_fv_eso_p"]),
+        "nv_eso_phoria": _get_float(expanded, {}, [f"{prefix}_nv_eso_p"]),
+        "fv_exo_tropia_eye": _softoptic_grid_eye(expanded, f"{prefix}_fv_exo_t_e"),
+        "fv_exo_tropia": _get_float(expanded, {}, [f"{prefix}_fv_exo_t_p"]),
+        "nv_exo_tropia_eye": _softoptic_grid_eye(expanded, f"{prefix}_nv_exo_t_e"),
+        "nv_exo_tropia": _get_float(expanded, {}, [f"{prefix}_nv_exo_t_p"]),
+        "fv_eso_tropia_eye": _softoptic_grid_eye(expanded, f"{prefix}_fv_eso_t_e"),
+        "fv_eso_tropia": _get_float(expanded, {}, [f"{prefix}_fv_eso_t_p"]),
+        "nv_eso_tropia_eye": _softoptic_grid_eye(expanded, f"{prefix}_nv_eso_t_e"),
+        "nv_eso_tropia": _get_float(expanded, {}, [f"{prefix}_nv_eso_t_p"]),
+        "fv_hyper_phoria_eye": _softoptic_grid_eye(expanded, f"{prefix}_fv_hp_e"),
+        "fv_hyper_phoria": _get_float(expanded, {}, [f"{prefix}_fv_hp_p"]),
+        "nv_hyper_phoria_eye": _softoptic_grid_eye(expanded, f"{prefix}_nv_hp_e"),
+        "nv_hyper_phoria": _get_float(expanded, {}, [f"{prefix}_nv_hp_p"]),
+        "fv_hyper_tropia_eye": _softoptic_grid_eye(expanded, f"{prefix}_fv_ht_e"),
+        "fv_hyper_tropia": _get_float(expanded, {}, [f"{prefix}_fv_ht_p"]),
+        "nv_hyper_tropia_eye": _softoptic_grid_eye(expanded, f"{prefix}_nv_ht_e"),
+        "nv_hyper_tropia": _get_float(expanded, {}, [f"{prefix}_nv_ht_p"]),
+    }
+    if any(value is not None for value in data.values()):
+        return data
+    return None
+
+
+def _build_softoptic_maddox_grid_slot(expanded: Dict[str, Any], index: int) -> Optional[Dict[str, Any]]:
+    prefix = f"old{index}_mr"
+    data = {
+        "fv_exo_phoria": _get_float(expanded, {}, [f"{prefix}_fv_exo_p"]),
+        "nv_exo_phoria": _get_float(expanded, {}, [f"{prefix}_nv_exo_p"]),
+        "fv_eso_phoria": _get_float(expanded, {}, [f"{prefix}_fv_eso_p"]),
+        "nv_eso_phoria": _get_float(expanded, {}, [f"{prefix}_nv_eso_p"]),
+        "fv_exo_tropia_eye": _softoptic_grid_eye(expanded, f"{prefix}_fv_exo_t_e"),
+        "fv_exo_tropia": _get_float(expanded, {}, [f"{prefix}_fv_exo_t_p"]),
+        "nv_exo_tropia_eye": _softoptic_grid_eye(expanded, f"{prefix}_nv_exo_t_e"),
+        "nv_exo_tropia": _get_float(expanded, {}, [f"{prefix}_nv_exo_t_p"]),
+        "fv_eso_tropia_eye": _softoptic_grid_eye(expanded, f"{prefix}_fv_eso_t_e"),
+        "fv_eso_tropia": _get_float(expanded, {}, [f"{prefix}_fv_eso_t_p"]),
+        "nv_eso_tropia_eye": _softoptic_grid_eye(expanded, f"{prefix}_nv_eso_t_e"),
+        "nv_eso_tropia": _get_float(expanded, {}, [f"{prefix}_nv_eso_t_p"]),
+        "fv_hyper_phoria_eye": _softoptic_grid_eye(expanded, f"{prefix}_fv_hp_e"),
+        "fv_hyper_phoria": _get_float(expanded, {}, [f"{prefix}_fv_hp_p"]),
+        "nv_hyper_phoria_eye": _softoptic_grid_eye(expanded, f"{prefix}_nv_hp_e"),
+        "nv_hyper_phoria": _get_float(expanded, {}, [f"{prefix}_nv_hp_p"]),
+    }
+    if any(value is not None for value in data.values()):
+        return data
+    return None
+
+
+def _append_softoptic_grid_slots(
+    data: Dict[str, Any],
+    expanded: Optional[Dict[str, Any]],
+    component_type: str,
+    builder: Any,
+) -> None:
+    if not expanded:
+        return
+    for index in range(1, 4):
+        block = builder(expanded, index)
+        if not block:
+            continue
+        card_id = f"{component_type}-{index}"
+        payload = dict(block)
+        payload["card_instance_id"] = card_id
+        data[f"{component_type}-{card_id}"] = payload
+
+
 def _build_stereo_test_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     fly_result = _get_bool(expanded, row, ["bino_st_fly"])
     data = {
@@ -1650,12 +1733,12 @@ def _build_rg_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]])
 
 def _build_rg_balance_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     data = {
-        "r_green": _get_float(expanded, row, ["bino_rg_r_green", "bino_rg_green_r", "bino_rg_r_g"]),
-        "r_equal": _get_float(expanded, row, ["bino_rg_r_equal", "bino_rg_equal_r", "bino_rg_r_e", "bino_rg_r_eq"]),
-        "r_red": _get_float(expanded, row, ["bino_rg_r_red", "bino_rg_red_r", "bino_rg_r_rd"]),
-        "l_green": _get_float(expanded, row, ["bino_rg_l_green", "bino_rg_green_l", "bino_rg_l_g"]),
-        "l_equal": _get_float(expanded, row, ["bino_rg_l_equal", "bino_rg_equal_l", "bino_rg_l_e", "bino_rg_l_eq"]),
-        "l_red": _get_float(expanded, row, ["bino_rg_l_red", "bino_rg_red_l", "bino_rg_l_rd"]),
+        "r_green": _get_optical_float(expanded, row, ["sub_r_green", "bino_rg_r_green", "bino_rg_green_r", "bino_rg_r_g"]),
+        "r_equal": _get_optical_float(expanded, row, ["sub_r_equal", "bino_rg_r_equal", "bino_rg_equal_r", "bino_rg_r_e", "bino_rg_r_eq"]),
+        "r_red": _get_optical_float(expanded, row, ["sub_r_red", "bino_rg_r_red", "bino_rg_red_r", "bino_rg_r_rd"]),
+        "l_green": _get_optical_float(expanded, row, ["sub_l_green", "bino_rg_l_green", "bino_rg_green_l", "bino_rg_l_g"]),
+        "l_equal": _get_optical_float(expanded, row, ["sub_l_equal", "bino_rg_l_equal", "bino_rg_equal_l", "bino_rg_l_e", "bino_rg_l_eq"]),
+        "l_red": _get_optical_float(expanded, row, ["sub_l_red", "bino_rg_l_red", "bino_rg_red_l", "bino_rg_l_rd"]),
     }
     if any(v is not None for v in data.values()):
         return data
@@ -1666,9 +1749,9 @@ def _build_maddox_wing_component(row: Dict[str, Any], expanded: Optional[Dict[st
     data = {
         "exo_phoria": _get_optical_value(expanded, row, ["bino_mw_exo", "bino_mw_exo_p"]),
         "eso_phoria": _get_optical_value(expanded, row, ["bino_mw_eso", "bino_mw_eso_p"]),
-        "hyper_phoria": _get_optical_value(expanded, row, ["bino_mw_hyper", "bino_mw_hyp", "bino_mw_hyper_p", "bino_mw_hyp_p"]),
+        "hyper_phoria": _get_optical_value(expanded, row, ["bino_mw_hp_p", "bino_mw_hyper", "bino_mw_hyp", "bino_mw_hyper_p", "bino_mw_hyp_p"]),
         "hyper_eye": normalize_maddox_wing_eye(
-            _get_str(expanded, row, ["bino_mw_hyper_eye", "bino_mw_hyp_eye", "bino_mw_hyper_add", "bino_mw_hyp_add"])
+            _get_str(expanded, row, ["bino_mw_hp_e", "bino_mw_hyper_eye", "bino_mw_hyp_eye", "bino_mw_hyper_add", "bino_mw_hyp_add"])
         ),
         "near_vision": _get_bool(expanded, row, ["bino_mw_nv", "bino_mw_nv_flag"]),
     }
@@ -1731,6 +1814,7 @@ def build_exam_data_from_eye_tests(row: Dict[str, Any], expanded: Optional[Dict[
         ("retinoscop", _build_retinoscop_component),
         ("retinoscop-dilation", _build_retinoscop_dilation_component),
         ("uncorrected-va", _build_uncorrected_va_component),
+        ("keratometer", _build_keratometer_component),
         ("keratometer-full", _build_keratometer_full_component),
         ("corneal-topography", _build_corneal_topography_component),
         ("anamnesis", _build_anamnesis_component),
@@ -1755,6 +1839,8 @@ def build_exam_data_from_eye_tests(row: Dict[str, Any], expanded: Optional[Dict[
         block = _build_old_refraction_component(row, expanded)
         if block:
             data.update(_build_component_entry("old-refraction", block))
+    _append_softoptic_grid_slots(data, expanded, "softoptic-cover-test", _build_softoptic_cover_test_slot)
+    _append_softoptic_grid_slots(data, expanded, "softoptic-maddox-grid", _build_softoptic_maddox_grid_slot)
     warnings: List[str] = []
     for component_key, block in data.items():
         if not isinstance(block, dict) or component_key == "__ui":

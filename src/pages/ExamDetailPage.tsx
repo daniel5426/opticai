@@ -98,7 +98,6 @@ const buildFullDataLayoutDataFromExamData = (
 ): string => {
   const cardDefs: { id: string; type: any; title?: string }[] = [];
   const added = new Set<string>();
-  const registeredTypes = examComponentRegistry.getAllTypes();
 
   const resolveTabbedCardId = (
     type: "cover-test" | "old-refraction" | "old-refraction-extension",
@@ -138,23 +137,17 @@ const buildFullDataLayoutDataFromExamData = (
       type = "old-refraction";
       cardId = resolveTabbedCardId("old-refraction", key, value);
     } else {
-      for (const registeredType of registeredTypes) {
-        if (key === registeredType) {
-          type = registeredType;
-          cardId =
-            registeredType === "cover-test" ||
-            registeredType === "old-refraction" ||
-            registeredType === "old-refraction-extension"
+      const registeredType = examComponentRegistry.matchExamComponentType(key);
+      if (registeredType) {
+        type = registeredType;
+        cardId =
+          key === registeredType
+            ? registeredType === "cover-test" ||
+              registeredType === "old-refraction" ||
+              registeredType === "old-refraction-extension"
               ? (value as any)?.card_id || registeredType
-              : (value as any)?.card_instance_id || registeredType;
-          break;
-        }
-        if (key.startsWith(`${registeredType}-`)) {
-          type = registeredType;
-          cardId =
-            (value as any)?.card_id || key.replace(`${registeredType}-`, "");
-          break;
-        }
+              : (value as any)?.card_instance_id || registeredType
+            : (value as any)?.card_id || key.replace(`${registeredType}-`, "");
       }
     }
 

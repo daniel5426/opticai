@@ -18,6 +18,8 @@ import { KeratometerFullTab } from "@/components/exam/KeratometerFullTab";
 import { CornealTopographyTab } from "@/components/exam/CornealTopographyTab";
 import { CoverTestTab } from "@/components/exam/CoverTestTab";
 import { CoverTestV2Tab } from "@/components/exam/CoverTestV2Tab";
+import { SoftOpticCoverTestTab } from "@/components/exam/SoftOpticCoverTestTab";
+import { SoftOpticMaddoxGridTab } from "@/components/exam/SoftOpticMaddoxGridTab";
 import { AnamnesisTab } from "@/components/exam/AnamnesisTab";
 import { SchirmerTestTab } from "@/components/exam/SchirmerTestTab";
 import { ContactLensDiametersTab } from "@/components/exam/ContactLensDiametersTab";
@@ -44,6 +46,8 @@ import {
   CornealTopographyExam,
   CoverTestExam,
   CoverTestV2Exam,
+  SoftOpticCoverTestExam,
+  SoftOpticMaddoxGridExam,
   AnamnesisExam,
   NotesExam,
   SchirmerTestExam,
@@ -122,6 +126,8 @@ const componentsDontHaveMiddleRow: CardItem["type"][] = [
   "keratometer",
   "keratometer-full",
   "cover-test",
+  "softoptic-cover-test",
+  "softoptic-maddox-grid",
   "schirmer-test",
   "contact-lens-diameters",
   "contact-lens-details",
@@ -186,6 +192,8 @@ export interface CardItem {
     | "corneal-topography"
     | "cover-test"
     | "cover-test-v2"
+    | "softoptic-cover-test"
+    | "softoptic-maddox-grid"
     | "notes"
     | "anamnesis"
     | "schirmer-test"
@@ -324,6 +332,10 @@ const getExamFormData = (
       return { layout_instance_id: 0 } as CoverTestExam;
     case "cover-test-v2":
       return { layout_instance_id: 0 } as CoverTestV2Exam;
+    case "softoptic-cover-test":
+      return { layout_instance_id: 0 } as SoftOpticCoverTestExam;
+    case "softoptic-maddox-grid":
+      return { layout_instance_id: 0 } as SoftOpticMaddoxGridExam;
     case "anamnesis":
       return { layout_instance_id: 0 } as AnamnesisExam;
     case "notes":
@@ -529,6 +541,9 @@ export const getColumnCount = (
       return 4;
     case "cover-test-v2":
       return 8;
+    case "softoptic-cover-test":
+    case "softoptic-maddox-grid":
+      return 8;
     case "notes":
       return 5;
     case "anamnesis":
@@ -583,6 +598,9 @@ export const getMaxWidth = (
       return 360;
     case "maddox-wing":
       return 360;
+    case "softoptic-cover-test":
+    case "softoptic-maddox-grid":
+      return 560;
     case "corneal-topography":
       return 1260;
     case "keratometer":
@@ -1023,6 +1041,12 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
     };
     const emptyCoverTestData: CoverTestExam = { layout_instance_id: 0 };
     const emptyCoverTestV2Data: CoverTestV2Exam = { layout_instance_id: 0 };
+    const emptySoftOpticCoverTestData: SoftOpticCoverTestExam = {
+      layout_instance_id: 0,
+    };
+    const emptySoftOpticMaddoxGridData: SoftOpticMaddoxGridExam = {
+      layout_instance_id: 0,
+    };
     const emptyAnamnesisData: AnamnesisExam = { layout_instance_id: 0 };
     const emptyNotesData: NotesExam = { layout_instance_id: 0 };
     const emptySchirmerTestData: SchirmerTestExam = { layout_instance_id: 0 };
@@ -1138,6 +1162,10 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
           return emptyCoverTestData;
         case "cover-test-v2":
           return emptyCoverTestV2Data;
+        case "softoptic-cover-test":
+          return emptySoftOpticCoverTestData;
+        case "softoptic-maddox-grid":
+          return emptySoftOpticMaddoxGridData;
         case "anamnesis":
           return emptyAnamnesisData;
         case "notes":
@@ -1889,6 +1917,46 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
                 "cover-test-v2",
                 item.id,
               ) as (field: keyof CoverTestV2Exam, value: string) => void}
+              isEditing={mode === "detail" ? detailProps!.isEditing : false}
+            />
+          </div>
+        );
+
+      case "softoptic-cover-test":
+        return (
+          <div className="relative">
+            {toolbox}
+            <SoftOpticCoverTestTab
+              coverTestData={
+                getExamData(
+                  "softoptic-cover-test",
+                  item.id,
+                ) as SoftOpticCoverTestExam
+              }
+              onCoverTestChange={getChangeHandler(
+                "softoptic-cover-test",
+                item.id,
+              )}
+              isEditing={mode === "detail" ? detailProps!.isEditing : false}
+            />
+          </div>
+        );
+
+      case "softoptic-maddox-grid":
+        return (
+          <div className="relative">
+            {toolbox}
+            <SoftOpticMaddoxGridTab
+              maddoxGridData={
+                getExamData(
+                  "softoptic-maddox-grid",
+                  item.id,
+                ) as SoftOpticMaddoxGridExam
+              }
+              onMaddoxGridChange={getChangeHandler(
+                "softoptic-maddox-grid",
+                item.id,
+              )}
               isEditing={mode === "detail" ? detailProps!.isEditing : false}
             />
           </div>

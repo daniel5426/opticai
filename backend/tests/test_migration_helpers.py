@@ -293,11 +293,15 @@ def test_lossless_optical_values_fcc_va_base_and_pd_mapping():
     assert subjective["comb_pd_close"] is None
     assert exam_data["addition-addition-1"]["r_fcc"] == 1.11
     final = exam_data["final-prescription-final-prescription-1"]
-    assert final["r_pd_far"] == 31
-    assert final["r_pd_close"] == 29
-    assert final["comb_pd_close"] == 58
+    assert final["r_pd_far"] == 29
+    assert final["r_pd_close"] == 31
+    assert final["comb_pd_close"] == 62
     compact = exam_data["compact-prescription-compact-prescription-1"]
     assert compact["r_ad"] == 1.25
+    assert compact["r_pd"] == 29
+    subjective_final = exam_data["final-subjective-final-subjective-1"]
+    assert subjective_final["r_pd_far"] == 29
+    assert subjective_final["r_pd_close"] == 31
 
 
 def test_maddox_stereo_and_ambiguous_binocular_mappings():
@@ -363,18 +367,79 @@ def test_cover_test_v2_skips_hyper_only_selection():
     assert "cover-test-v2-cover-test-v2-1" not in data
 
 
+def test_softoptic_cover_test_and_maddox_grid_map_old1_slots():
+    data = migration.build_exam_data_from_eye_tests({}, {
+        "old1_ct_fv_exo_p": "1",
+        "old1_ct_nv_exo_p": "2",
+        "old1_ct_fv_eso_p": "2",
+        "old1_ct_nv_eso_p": "3",
+        "old1_ct_fv_exo_t_e": "R",
+        "old1_ct_fv_exo_t_p": "34",
+        "old1_ct_nv_exo_t_e": "L",
+        "old1_ct_nv_exo_t_p": "78",
+        "old1_ct_fv_eso_t_e": "L",
+        "old1_ct_fv_eso_t_p": "44",
+        "old1_ct_nv_eso_t_e": "R",
+        "old1_ct_nv_eso_t_p": "88",
+        "old1_ct_fv_hp_e": "R",
+        "old1_ct_fv_hp_p": "55",
+        "old1_ct_nv_hp_e": "L",
+        "old1_ct_nv_hp_p": "98",
+        "old1_ct_fv_ht_e": "L",
+        "old1_ct_fv_ht_p": "67",
+        "old1_ct_nv_ht_e": "R",
+        "old1_ct_nv_ht_p": "99",
+        "old1_mr_fv_exo_p": "3",
+        "old1_mr_nv_exo_p": "4",
+        "old1_mr_fv_eso_p": "4",
+        "old1_mr_nv_eso_p": "5",
+        "old1_mr_fv_exo_t_e": "R",
+        "old1_mr_fv_exo_t_p": "23",
+        "old1_mr_nv_exo_t_e": "R",
+        "old1_mr_nv_exo_t_p": "4",
+        "old1_mr_fv_eso_t_e": "L",
+        "old1_mr_fv_eso_t_p": "34",
+        "old1_mr_nv_eso_t_e": "L",
+        "old1_mr_nv_eso_t_p": "50",
+        "old1_mr_fv_hp_e": "L",
+        "old1_mr_fv_hp_p": "45",
+        "old1_mr_nv_hp_e": "R",
+        "old1_mr_nv_hp_p": "60",
+        "old2_ct_fv_exo_p": "9",
+    })
+    cover = data["softoptic-cover-test-softoptic-cover-test-1"]
+    assert cover["fv_exo_phoria"] == 1.0
+    assert cover["nv_exo_phoria"] == 2.0
+    assert cover["fv_exo_tropia_eye"] == "R"
+    assert cover["fv_exo_tropia"] == 34.0
+    assert cover["nv_hyper_tropia_eye"] == "R"
+    assert cover["nv_hyper_tropia"] == 99.0
+    assert "softoptic-cover-test" not in data
+    cover_two = data["softoptic-cover-test-softoptic-cover-test-2"]
+    assert cover_two["fv_exo_phoria"] == 9.0
+    maddox = data["softoptic-maddox-grid-softoptic-maddox-grid-1"]
+    assert maddox["fv_exo_phoria"] == 3.0
+    assert maddox["nv_eso_tropia"] == 50.0
+    assert maddox["fv_hyper_phoria_eye"] == "L"
+    assert maddox["nv_hyper_phoria"] == 60.0
+    assert "fv_hyper_tropia" not in maddox
+    layout = migration.build_default_migrated_layout_data()
+    assert "softoptic-cover-test" not in layout
+    assert "softoptic-maddox-grid" not in layout
+
+
 def test_rg_balance_and_maddox_wing_mappings():
     data = migration.build_exam_data_from_eye_tests({}, {
-        "bino_rg_r_green": "232.32",
-        "bino_rg_r_equal": "323.23",
-        "bino_rg_r_red": "345.45",
-        "bino_rg_l_green": "445.45",
-        "bino_rg_l_equal": "676.76",
-        "bino_rg_l_red": "767.67",
+        "sub_r_green": "23232",
+        "sub_r_equal": "32323",
+        "sub_r_red": "34545",
+        "sub_l_green": "44545",
+        "sub_l_equal": "67676",
+        "sub_l_red": "76767",
         "bino_mw_exo": "2",
         "bino_mw_eso": "3",
-        "bino_mw_hyper": "4",
-        "bino_mw_hyper_add": "R",
+        "bino_mw_hp_p": "4",
+        "bino_mw_hp_e": "R",
         "bino_mw_nv": "1",
     })
     rg_balance = data["rg-balance-rg-balance-1"]
@@ -471,12 +536,23 @@ def test_keratometer_full_preserves_out_of_range_values():
         "obj_k_l_mm2": "57",
         "obj_k_l_mer1": "68",
         "obj_k_l_mer2": "158",
-        "obj_k_r_astig": "1",
+        "obj_k_r_dis": "0",
     })["keratometer-full"]
     assert full["r_mm_k1"] == 23.0
     assert full["r_mm_k2"] == 56.0
     assert full["r_mer_k1"] == 67.0
-    assert full["r_astig"] is True
+    assert full["r_astig"] is False
+    compact = migration.build_exam_data_from_eye_tests({}, {
+        "obj_k_r_mm1": "23",
+        "obj_k_r_mm2": "56",
+        "obj_k_r_mer1": "67",
+        "obj_k_l_mm1": "24",
+        "obj_k_l_mm2": "57",
+        "obj_k_l_mer1": "68",
+    })["keratometer"]
+    assert compact["r_k1"] == 23.0
+    assert compact["r_k2"] == 56.0
+    assert compact["r_axis"] == 67
 
 
 def test_referrer_resolves_latest_active_full_hierarchy(tmp_path):
