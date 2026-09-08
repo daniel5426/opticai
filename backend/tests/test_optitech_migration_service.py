@@ -157,8 +157,9 @@ def test_native_exporter_uses_explicit_allowlists_and_excludes_sensitive_fields(
     ).read_text(encoding="utf-8")
     plan = (
         Path(__file__).parents[2]
-        / "native"
-        / "optitech-mdb-exporter"
+        / "backend"
+        / "migration"
+        / "optitech"
         / "export-plan.h"
     ).read_text(encoding="utf-8")
 

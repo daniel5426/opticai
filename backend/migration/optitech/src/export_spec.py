@@ -5,7 +5,7 @@ from pathlib import Path
 import re
 
 
-EXPORT_PLAN_PATH = Path(__file__).resolve().parents[4] / "native" / "optitech-mdb-exporter" / "export-plan.h"
+EXPORT_PLAN_PATH = Path(__file__).resolve().parents[1] / "export-plan.h"
 _SOURCE = EXPORT_PLAN_PATH.read_text(encoding="utf-8")
 
 

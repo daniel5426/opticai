@@ -14,7 +14,7 @@
 #include <sys/stat.h>
 #define mkdir_one(path) mkdir(path, 0700)
 #endif
-#include "export-plan.h"
+#include "../../backend/migration/optitech/export-plan.h"
 
 #define BIND_SIZE 16384
 #define MAX_SELECTED 256
