@@ -32,6 +32,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.sha }}
+          # The deployment watch check compares this commit with its parent.
+          # actions/checkout otherwise fetches only the requested commit.
+          fetch-depth: 2
 
       - name: Validate requested commit
         id: release
