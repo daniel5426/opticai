@@ -12,6 +12,7 @@ from security.scope import (
     get_scoped_client,
     get_scoped_medical_log,
 )
+from services.trash_service import move_to_trash
 
 router = APIRouter(prefix="/medical-logs", tags=["medical-logs"])
 
@@ -114,18 +115,6 @@ def delete_medical_log(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    medical_log = get_scoped_medical_log(db, current_user, medical_log_id)
-    client_id = medical_log.client_id
-    db.delete(medical_log)
-    db.commit()
-    # bump client_updated_date and clear ai_medical_state to avoid stale AI
-    try:
-        if client_id:
-            client = db.query(Client).filter(Client.id == client_id).first()
-            if client:
-                client.client_updated_date = func.now()
-                client.ai_medical_state = None
-                db.commit()
-    except Exception:
-        pass
-    return {"message": "Medical log deleted successfully"} 
+    get_scoped_medical_log(db, current_user, medical_log_id)
+    item = move_to_trash(db, current_user, "medical_log", medical_log_id)
+    return {"message": "Medical log deleted successfully", "trash_item_id": item.id, "expires_at": item.expires_at, "side_effects": "backend"}

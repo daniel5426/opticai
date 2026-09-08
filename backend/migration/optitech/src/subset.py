@@ -6,18 +6,10 @@ from typing import Any, Dict, Generator, Iterable, Mapping, Optional, Sequence, 
 
 from .reader import EXTRACTS_DIR, iter_exported_rows
 from .records import TABLE_PRIMARY_KEYS, parse_intish
+from .export_spec import CLIENT_DEPENDENT_TABLES, CLINICAL_TABLES
 
 
-TABLES_WITH_PER_ID = {
-    "tblPerData": "PerId",
-    "tblCrdGlassChecks": "PerId",
-    "tblCrdClensChecks": "PerId",
-    "tblCrdBuysWorks": "PerId",
-    "tblPerPicture": "PerId",
-    "tblCrdDiags": "PerId",
-    "tblClndrApt": "PerID",
-    "tblCrdGlassChecksPrevs": "PerId",
-}
+TABLES_WITH_PER_ID = dict(CLIENT_DEPENDENT_TABLES)
 
 DOMAIN_BY_TABLE = {
     "tblPerData": "clients",
@@ -30,6 +22,8 @@ DOMAIN_BY_TABLE = {
     "tblCrdGlassChecksPrevs": "glasses_exams",
     "tblClndrWrk": "work_shifts",
 }
+for _clinical_table in CLINICAL_TABLES:
+    DOMAIN_BY_TABLE.setdefault(_clinical_table, "clinical_exams")
 
 
 def extract_per_id(table_name: str, row: Mapping[str, Any]) -> Optional[int]:

@@ -18,6 +18,7 @@ from security.scope import (
     get_scoped_file,
 )
 from services.file_storage_service import FileStorageService, get_file_storage_service
+from services.trash_service import move_to_trash
 from utils.table_search import build_all_terms_search_condition, search_blob, spaced_concat
 
 router = APIRouter(prefix="/files", tags=["files"])
@@ -418,17 +419,10 @@ def delete_file(
     file_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    storage: FileStorageService = Depends(get_file_storage_service),
 ):
-    file = get_scoped_file(db, current_user, file_id)
-    client_id = file.client_id
-    storage_bucket, storage_key = require_storage_metadata(file)
-    if storage_bucket != LEGACY_LOCAL_BUCKET:
-        storage.remove(storage_bucket, storage_key)
-    db.delete(file)
-    db.commit()
-    bump_client_updated_date(db, client_id)
-    return {"message": "File deleted successfully"}
+    get_scoped_file(db, current_user, file_id)
+    item = move_to_trash(db, current_user, "file", file_id)
+    return {"message": "File deleted successfully", "trash_item_id": item.id, "expires_at": item.expires_at, "side_effects": "backend"}
 
 
 @router.get("/{file_id}/download-url")

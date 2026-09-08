@@ -781,15 +781,31 @@ async function collectOptiTechDocuments(
   includeDocuments: boolean,
 ) {
   const documentsDir = path.join(outputDir, "documents");
-  const result = { included: includeDocuments, root: "documents", file_count: 0, source_file_count: 0, missing_referenced_count: 0, unreferenced_file_count: 0, files: [] as Array<{ file: string; sha256: string; size: number }> };
-  if (!includeDocuments || !scansDir || !fs.existsSync(scansDir)) return result;
-  await fs.promises.mkdir(documentsDir, { recursive: true });
-  const picturePath = path.join(outputDir, "tables", "tblPerPicture.csv");
-  const referenced = new Set<string>();
-  if (fs.existsSync(picturePath)) {
-    const rows = parseCsv(await fs.promises.readFile(picturePath, "utf8"), { columns: true, relax_quotes: true, skip_empty_lines: true }) as Array<Record<string, string>>;
-    for (const row of rows) if (row.PicFileName) referenced.add(path.basename(row.PicFileName));
+  type DocumentReference = { source_table: string; source_field: string; source_ref: string; source_per_id?: string; source_check_date?: string; value: string; status: "included" | "missing" | "ambiguous" | "not_requested"; file?: string };
+  const result = { included: includeDocuments, root: "documents", file_count: 0, source_file_count: 0, missing_referenced_count: 0, ambiguous_referenced_count: 0, unreferenced_file_count: 0, files: [] as Array<{ file: string; sha256: string; size: number }>, references: [] as DocumentReference[] };
+  const referenceFields: Record<string, string[]> = {
+    tblPerPicture: ["PicFileName"],
+    tblCrdOverViews: ["Pic"],
+    tblCrdOrthoks: ["PICR", "PICL"],
+    tblCrdClinicChecks: ["Pic3", "Pic4"],
+  };
+  const references: Array<Omit<DocumentReference, "status" | "file">> = [];
+  for (const [table, fields] of Object.entries(referenceFields)) {
+    const csvPath = path.join(outputDir, "tables", `${table}.csv`);
+    if (!fs.existsSync(csvPath)) continue;
+    const rows = parseCsv(await fs.promises.readFile(csvPath, "utf8"), { columns: true, relax_quotes: true, skip_empty_lines: true }) as Array<Record<string, string>>;
+    rows.forEach((row, index) => fields.forEach(source_field => {
+      const value = String(row[source_field] || "").trim();
+      if (value) references.push({ source_table: table, source_field, source_ref: `${table}:row=${index + 1}`, source_per_id: row.PerId, source_check_date: row.CheckDate, value });
+    }));
   }
+  if (!includeDocuments || !scansDir || !fs.existsSync(scansDir)) {
+    result.references = references.map(reference => ({ ...reference, status: "not_requested" }));
+    result.missing_referenced_count = references.length;
+    return result;
+  }
+  await fs.promises.mkdir(documentsDir, { recursive: true });
+  const referenced = new Set(references.map(reference => path.basename(reference.value).toLowerCase()));
   const sourceFiles: string[] = [];
   const walk = async (directory: string): Promise<void> => {
     for (const entry of await fs.promises.readdir(directory, { withFileTypes: true })) {
@@ -800,17 +816,34 @@ async function collectOptiTechDocuments(
   };
   await walk(scansDir);
   result.source_file_count = sourceFiles.length;
-  const sourceByName = new Map(sourceFiles.map(source => [path.basename(source).toLowerCase(), source]));
-  for (const fileName of referenced) {
-    const source = sourceByName.get(fileName.toLowerCase());
-    if (!source) { result.missing_referenced_count++; continue; }
-    const destination = path.join(documentsDir, fileName);
+  const sourceByName = new Map<string, string[]>();
+  for (const source of sourceFiles) {
+    const key = path.basename(source).toLowerCase();
+    sourceByName.set(key, [...(sourceByName.get(key) || []), source]);
+  }
+  const copied = new Map<string, string>();
+  const scansRoot = path.resolve(scansDir);
+  for (const reference of references) {
+    const requestedPath = path.resolve(scansRoot, reference.value);
+    const exact = requestedPath.startsWith(scansRoot + path.sep) && fs.existsSync(requestedPath) && fs.statSync(requestedPath).isFile() ? requestedPath : undefined;
+    const matches = exact ? [exact] : sourceByName.get(path.basename(reference.value).toLowerCase()) || [];
+    if (!matches.length) { result.missing_referenced_count++; result.references.push({ ...reference, status: "missing" }); continue; }
+    if (matches.length > 1) { result.ambiguous_referenced_count++; result.references.push({ ...reference, status: "ambiguous" }); continue; }
+    const source = matches[0];
+    const existing = copied.get(source);
+    if (existing) { result.references.push({ ...reference, status: "included", file: existing }); continue; }
+    const fileName = path.basename(source);
+    const destinationName = `${createHash("sha256").update(path.relative(scansRoot, source).toLowerCase()).digest("hex").slice(0, 16)}-${fileName}`;
+    const destination = path.join(documentsDir, destinationName);
     await fs.promises.copyFile(source, destination);
     const stat = await fs.promises.stat(destination);
-    result.files.push({ file: `documents/${fileName}`, sha256: await sha256File(destination), size: stat.size });
+    const manifestFile = `documents/${destinationName}`;
+    copied.set(source, manifestFile);
+    result.references.push({ ...reference, status: "included", file: manifestFile });
+    result.files.push({ file: manifestFile, sha256: await sha256File(destination), size: stat.size });
     result.file_count++;
   }
-  result.unreferenced_file_count = sourceFiles.filter(source => !referenced.has(path.basename(source))).length;
+  result.unreferenced_file_count = sourceFiles.filter(source => !referenced.has(path.basename(source).toLowerCase())).length;
   return result;
 }
 
@@ -821,6 +854,12 @@ async function writeOptiTechManifest(
   includeDocuments: boolean,
   clientImportLimit?: number | null,
 ) {
+  // Keep an immutable copy of the source database in the uploaded archive so
+  // future mappings can recover tables that were not part of this export plan.
+  const sourceArchiveDir = path.join(outputDir, "source");
+  const sourceArchivePath = path.join(sourceArchiveDir, "optData.xns");
+  await fs.promises.mkdir(sourceArchiveDir, { recursive: true });
+  await fs.promises.copyFile(dbFile, sourceArchivePath);
   const tablesDir = path.join(outputDir, "tables");
   const tableFiles = (await fs.promises.readdir(tablesDir)).filter(file => file.endsWith(".csv")).sort();
   const tables = await Promise.all(tableFiles.map(async file => {
@@ -837,15 +876,32 @@ async function writeOptiTechManifest(
       .map(row => Number.parseInt(row.PerId, 10)).filter(Number.isFinite).sort((left, right) => left - right)
     : [];
   const sourceStat = await fs.promises.stat(dbFile);
+  const sourceArchiveStat = await fs.promises.stat(sourceArchivePath);
+  const sourceArchiveFingerprint = await sha256File(sourceArchivePath);
+  const sourceFingerprint = sourceArchiveFingerprint;
+  const schemaInventoryPath = path.join(outputDir, "source-schema.csv");
   const manifest = {
     source_system: "optitech",
     format_version: 2,
-    mapping_version: 2,
+    mapping_version: 3,
     exported_at: new Date().toISOString(),
     source: { database_size: sourceStat.size, database_modified_at: sourceStat.mtime.toISOString() },
-    source_fingerprint: await sha256File(dbFile),
+    source_fingerprint: sourceFingerprint,
+    source_archive: {
+      file: "source/optData.xns",
+      kind: "original_database",
+      original_name: path.basename(dbFile),
+      complete: true,
+      size: sourceArchiveStat.size,
+      sha256: sourceArchiveFingerprint,
+    },
     client_limit: clientImportLimit || null,
     selected_client_ids: selectedClientIds,
+    source_schema_inventory: fs.existsSync(schemaInventoryPath) ? {
+      file: "source-schema.csv",
+      complete: true,
+      sha256: await sha256File(schemaInventoryPath),
+    } : { complete: false },
     tables,
     documents: await collectOptiTechDocuments(outputDir, scansDir, includeDocuments),
   };

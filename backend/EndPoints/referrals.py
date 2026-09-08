@@ -14,6 +14,7 @@ from security.scope import (
     get_scoped_referral,
 )
 from services.prescription_search_index import delete_source_index_rows, rebuild_referral_index
+from services.trash_service import move_to_trash
 
 router = APIRouter(prefix="/referrals", tags=["referrals"])
 
@@ -182,21 +183,9 @@ def delete_referral(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    referral = get_scoped_referral(db, current_user, referral_id)
-    client_id = referral.client_id
-    delete_source_index_rows(db, "referral", referral.id)
-    db.delete(referral)
-    db.commit()
-    # bump client_updated_date
-    try:
-        if client_id:
-            client = db.query(Client).filter(Client.id == client_id).first()
-            if client:
-                client.client_updated_date = func.now()
-                db.commit()
-    except Exception:
-        pass
-    return {"message": "Referral deleted successfully"}
+    get_scoped_referral(db, current_user, referral_id)
+    item = move_to_trash(db, current_user, "referral", referral_id)
+    return {"message": "Referral deleted successfully", "trash_item_id": item.id, "expires_at": item.expires_at, "side_effects": "backend"}
 
 # Referral unified data endpoints
 @router.get("/{referral_id}/data")

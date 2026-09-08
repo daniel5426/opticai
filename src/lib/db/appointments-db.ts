@@ -350,8 +350,10 @@ export async function deleteAppointment(id: number): Promise<boolean> {
       return false;
     }
     
-    // Trigger automatic Google Calendar sync for deletion
-    if (appointmentToDelete) {
+    // Newer backends own calendar reconciliation for Trash. Keep this fallback
+    // for older installed clients talking to a legacy backend.
+    const backendOwnsSideEffects = (response.data as { side_effects?: string } | undefined)?.side_effects === 'backend';
+    if (appointmentToDelete && !backendOwnsSideEffects) {
       try {
         // Prefer appointment owner calendar if available
         const owner = await getOwnerUserForSync(appointmentToDelete.user_id);

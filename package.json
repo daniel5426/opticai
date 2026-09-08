@@ -1,7 +1,7 @@
 {
   "name": "opticai",
   "productName": "Prysm",
-  "version": "1.0.91",
+  "version": "1.0.92",
   "description": "Multi-clinic management system for optical clinics",
   "main": "dist-electron/main.js",
   "private": true,
@@ -14,6 +14,7 @@
     "build": "vite build && electron-builder --dir",
     "build:web": "vite build --config vite.renderer.config.mts",
     "build:optitech-reader": "bash scripts/build-optitech-reader.sh",
+    "open:latest-prysm": "bash scripts/open-latest-downloaded-prysm.sh",
     "build:mac": "vite build && electron-builder --mac",
     "build:mac:arm64": "vite build && electron-builder --mac --arm64",
     "build:mac:x64": "vite build && electron-builder --mac --x64",

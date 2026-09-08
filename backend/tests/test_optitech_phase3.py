@@ -196,6 +196,19 @@ def test_contact_order_preserves_optitech_work_fields():
     assert unmapped == {}
 
 
+def test_explicit_cancellation_overrides_legacy_status_and_preserves_both():
+    seed = records.normalize_order_row({"WorkId": "12", "PerId": "33", "WorkTypeId": "0", "WorkStatId": "3", "Canceled": "-1"})
+    order_data, _ = phase3.build_regular_order_data(
+        seed, catalog=_minimal_lookup_catalog(), clinic_name="Clinic",
+        unresolved_dependencies=[], matched_exam=None,
+    )
+    assert order_data["details"]["order_status"] == "מבוטל"
+    assert order_data["legacy_source"]["work"]["canceled"] is True
+    assert order_data["legacy_source"]["work"]["original_work_status_id"] == 3
+    assert order_data["legacy_source"]["resolved_lookups"]["work_status"] == "נמסרה"
+    assert order_data["legacy_source"]["resolved_lookups"]["effective_work_status"] == "מבוטל"
+
+
 def test_build_glasses_exam_data_uses_canonical_keys():
     seed = records.normalize_glasses_exam_row(
         {
@@ -356,7 +369,7 @@ def test_build_contact_lens_exam_data_uses_canonical_keys():
 
     assert "schirmer-test" in exam_data
     assert "contact-lens-diameters" in exam_data
-    assert "keratometer-contact-lens" in exam_data
+    assert "optitech-contact-measurements" in exam_data
     assert "contact-lens-details" in exam_data
     assert "contact-lens-exam" in exam_data
     assert "contact-lens-order" in exam_data
@@ -383,7 +396,7 @@ def test_contact_exam_suppresses_empty_card_and_keeps_invalid_oz_in_trace():
     assert empty_seed.source_ref.raw_payload["OZR"] == "wide"
 
 
-def test_keratometry_detects_diopters_and_millimeters():
+def test_keratometry_does_not_guess_source_units():
     seed = records.normalize_contact_lens_exam_row(
         {
             "PerId": "3",
@@ -394,7 +407,7 @@ def test_keratometry_detects_diopters_and_millimeters():
     )
     payload = phase3.build_contact_lens_keratometer_payload(seed, layout_instance_id=8)
 
-    assert payload["r_rh"] == 7.5
+    assert payload["r_rh"] == 45
     assert payload["r_rv"] == 7.5
 
 

@@ -39,6 +39,11 @@ import {
 } from './db/schema-interface'
 
 export type ExamComponentType =
+  | 'optitech-examination'
+  | 'optitech-prescription'
+  | 'optitech-contact-measurements'
+  | 'optitech-accommodation'
+  | 'optitech-binocular'
   | 'old-ref'
   | 'old-refraction'
   | 'old-refraction-extension'
@@ -80,6 +85,12 @@ export type ExamComponentType =
   | 'npc';
 
 export const fullExamsList: ExamComponentType[] = [
+  'optitech-examination',
+  'optitech-prescription',
+  'optitech-contact-measurements',
+  'optitech-accommodation',
+  'optitech-binocular',
+
   'old-ref',
   'old-refraction',
   'old-refraction-extension',
@@ -139,6 +150,11 @@ export const examComponentTypeToExamFields: Record<ExamComponentType, ExamCompon
   'corneal-topography': [],
   'cover-test': [],
   'cover-test-v2': [],
+  'optitech-examination': [],
+  'optitech-prescription': [],
+  'optitech-contact-measurements': [],
+  'optitech-accommodation': [],
+  'optitech-binocular': [],
   'softoptic-cover-test': [],
   'softoptic-maddox-grid': [],
   'schirmer-test': [],
@@ -192,6 +208,11 @@ export class ExamFieldMapper {
     'corneal-topography': fullExamsList,
     'cover-test': ['cover-test', 'uncorrected-va'],
     'cover-test-v2': ['cover-test-v2'],
+    'optitech-examination': [],
+    'optitech-prescription': [],
+    'optitech-contact-measurements': [],
+    'optitech-accommodation': [],
+    'optitech-binocular': [],
     'softoptic-cover-test': ['softoptic-cover-test'],
     'softoptic-maddox-grid': ['softoptic-maddox-grid'],
     'schirmer-test': [],

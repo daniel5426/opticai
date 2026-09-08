@@ -1009,9 +1009,9 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
                       className={`${inModal ? "hover:bg-muted focus-visible:bg-muted flex min-h-10 w-full items-center gap-2.5 rounded-lg px-2 text-start text-sm transition-colors outline-none" : "hover:bg-muted block w-full border-b p-3 text-right transition-colors last:border-b-0"}`}
                       onClick={() => handleClientClick(visit.client_id)}
                     >
-                      <div className="flex min-w-0 items-center gap-2.5">
+                      <div className="flex min-w-0 flex-1 items-center gap-2.5">
                         <User className="text-muted-foreground h-4 w-4" />
-                        <div className="w-0 min-w-0 flex-1">
+                        <div className="min-w-0 flex-1">
                           <div
                             className={
                               inModal

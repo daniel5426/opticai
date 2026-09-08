@@ -1,3 +1,5 @@
+import { OptitechMigrationCard } from "./OptitechMigrationCard";
+import { isOptitechCard, OptitechCardType, OptitechCardData } from "@/lib/optitech-cards";
 import React, { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -175,6 +177,7 @@ const getRowCompositionKey = (cards: CardItem[]) =>
 export interface CardItem {
   id: string;
   type:
+    | OptitechCardType
     | "old-ref"
     | "old-refraction"
     | "old-refraction-extension"
@@ -504,6 +507,7 @@ export const getColumnCount = (
   type: CardItem["type"],
   mode: "editor" | "detail",
 ): number | { fixedPx: number } => {
+  if (isOptitechCard(type)) return 8;
   switch (type) {
     case "diopter-adjustment-panel":
       return { fixedPx: mode === "editor" ? 389 : 369 };
@@ -1225,6 +1229,27 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
 
     // Move hooks to top level
     const coverTestActiveTabsRef = React.useRef<Record<string, number>>({});
+
+    if (isOptitechCard(item.type)) {
+      return <div className="relative h-full">
+        <OptitechMigrationCard
+          type={item.type}
+          data={(getExamData(item.type, item.id) || {}) as OptitechCardData}
+          onChange={getChangeHandler(item.type, item.id)}
+          isEditing={mode === "detail" ? detailProps!.isEditing : false}
+          readBinding={(component, field, targetCardInstanceId) => {
+            const canonical = getExamData(component as ExamComponentType) as Record<string, unknown> | undefined;
+            const id = targetCardInstanceId || String(canonical?.card_instance_id || `${component}-1`);
+            return (getExamData(component as ExamComponentType, id) as Record<string, unknown> | undefined)?.[field];
+          }}
+          writeBinding={(component, field, value, targetCardInstanceId) => {
+            const canonical = getExamData(component as ExamComponentType) as Record<string, unknown> | undefined;
+            const id = targetCardInstanceId || String(canonical?.card_instance_id || `${component}-1`);
+            getChangeHandler(component as ExamComponentType, id)(field, value);
+          }}
+        />
+      </div>;
+    }
 
     switch (item.type) {
       case "old-ref":

@@ -897,3 +897,52 @@ def release_order_allocations_for_delete(
                 reason="Undelivered order deleted",
             )
     db.flush()
+
+
+def restore_order_allocations(
+    db: Session,
+    *,
+    order: Order | ContactLensOrder,
+    current_user: User,
+    contact: bool,
+) -> list[dict[str, Any]]:
+    """Re-establish reversible order reservations without replaying consumption."""
+    warnings: list[dict[str, Any]] = []
+    if is_delivered(order, contact=contact) or is_cancelled(order, contact=contact):
+        return warnings
+    for allocation in _allocation_query(db, order, contact=contact).with_for_update().all():
+        if allocation.lifecycle_state != "released":
+            continue
+        if allocation.fulfillment_source == "supplier_ordered":
+            allocation.lifecycle_state = "supplier_ordered"
+            allocation.released_at = None
+            continue
+        try:
+            apply_balance_change(
+                db,
+                company_id=allocation.company_id,
+                clinic_id=allocation.clinic_id,
+                variant_id=allocation.variant_id,
+                on_hand_delta=0,
+                reserved_delta=allocation.quantity,
+                movement_type="restore_reservation",
+                reason="Reservation restored with order",
+                actor_user_id=current_user.id,
+                order_id=allocation.order_id,
+                contact_lens_order_id=allocation.contact_lens_order_id,
+                idempotency_key=f"trash-restore:{allocation.id}:{allocation.released_at.isoformat() if allocation.released_at else 'released'}",
+                metadata={"allocation_id": allocation.id, "component": allocation.component},
+            )
+            allocation.lifecycle_state = "reserved"
+            allocation.released_at = None
+        except HTTPException:
+            warnings.append(
+                {
+                    "code": "inventory_review_required",
+                    "allocation_id": allocation.id,
+                    "variant_id": allocation.variant_id,
+                    "component": allocation.component,
+                }
+            )
+    db.flush()
+    return warnings

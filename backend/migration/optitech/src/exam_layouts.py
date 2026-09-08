@@ -21,6 +21,8 @@ GLASSES_COMPONENTS: Tuple[str, ...] = (
     "old-refraction",
     "final-prescription",
     "addition",
+    "optitech-examination",
+    "optitech-prescription",
     "notes",
 )
 
@@ -31,6 +33,8 @@ CONTACT_LENS_COMPONENTS: Tuple[str, ...] = (
     "contact-lens-details",
     "contact-lens-exam",
     "contact-lens-order",
+    "optitech-examination",
+    "optitech-contact-measurements",
     "notes",
 )
 
@@ -76,7 +80,7 @@ COMPONENT_LEGACY_COLUMNS = {
 
 
 def _card_width(component_type: str) -> int:
-    legacy_cols = COMPONENT_LEGACY_COLUMNS.get(component_type, 1)
+    legacy_cols = 8 if component_type.startswith("optitech-") else COMPONENT_LEGACY_COLUMNS.get(component_type, 1)
     width = int((legacy_cols / LEGACY_LAYOUT_COLUMNS) * EXAM_LAYOUT_GRID_COLUMNS + 0.5)
     return max(1, min(EXAM_LAYOUT_GRID_COLUMNS, width))
 
@@ -111,7 +115,16 @@ def build_instance_layout_data(
 ) -> str:
     present_components = {_component_type_from_exam_data_key(key) for key in exam_data}
     filtered_components = [component_type for component_type in component_types if component_type in present_components]
-    return build_layout_data(filtered_components)
+    layout = json.loads(build_layout_data(filtered_components))
+    for key, block in exam_data.items():
+        if key.startswith("optitech-") and isinstance(block, dict):
+            card_id = block.get("card_instance_id", f"{key}-1")
+            if any(item["id"] == card_id for item in layout["items"]):
+                continue
+            component = next((t for t in ("optitech-examination", "optitech-prescription", "optitech-contact-measurements", "optitech-accommodation", "optitech-binocular") if key == t or key.startswith(t + "-")), None)
+            if component:
+                layout["items"].append({"id": card_id, "type": component, "showEyeLabels": True, "x": 0, "y": len(layout["items"]), "w": 12})
+    return json.dumps(layout, ensure_ascii=False)
 
 
 def ensure_phase3_exam_layouts(db: Session, clinic: Clinic) -> tuple[ExamLayout, ExamLayout]:

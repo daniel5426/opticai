@@ -26,6 +26,8 @@ import { apiClient, type SubscriptionSummary } from "@/lib/api-client";
 import Loader from "@/components/kokonutui/loader";
 import { IconAlertTriangle } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   getActiveLocale,
   getDirection,
@@ -79,6 +81,7 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
     null,
   );
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const location = useLocation();
   const routerLocation = useRouterState({ select: (state) => state.location });
 
@@ -105,6 +108,30 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
   const updateCompany = (newCompany: Company) => {
     setCompany(newCompany);
   };
+
+  useEffect(() => {
+    const handleTrashCreated = (event: Event) => {
+      const detail = (event as CustomEvent<{ trash_item_id?: number }>).detail
+      if (!detail?.trash_item_id) return
+      void queryClient.invalidateQueries()
+      toast.success(t("trashMoved"), {
+        duration: 10_000,
+        action: {
+          label: t("undo"),
+          onClick: async () => {
+            const response = await apiClient.restoreTrashItem(detail.trash_item_id!)
+            if (response.error) toast.error(t("trashRestoreFailed"))
+            else {
+              void queryClient.invalidateQueries()
+              toast.success(t("trashRestored"))
+            }
+          },
+        },
+      })
+    }
+    window.addEventListener("prysm:trash-created", handleTrashCreated)
+    return () => window.removeEventListener("prysm:trash-created", handleTrashCreated)
+  }, [queryClient, t])
 
   // Load settings when clinic context is available
   useEffect(() => {

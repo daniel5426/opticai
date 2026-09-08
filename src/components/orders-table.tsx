@@ -42,6 +42,7 @@ import {
 import { formatBillingAmount, getBillingBalance, getBillingPaymentStatus } from "@/lib/billing-payment-status"
 import { emitBillingPaymentsChanged, onBillingPaymentsChanged } from "@/lib/billing-events"
 import { useAppLocale } from "@/localization/use-app-locale"
+import { useTranslation } from "react-i18next"
 
 const MONEY_STEP = "0.01"
 
@@ -102,6 +103,7 @@ export function OrdersTable({
   onSortChange,
   fillHeight = false
 }: OrdersTableProps) {
+  const { t } = useTranslation()
   const { locale } = useAppLocale()
   const navigate = useNavigate()
   const [internalSearch, setInternalSearch] = useState("")
@@ -248,8 +250,6 @@ export function OrdersTable({
     try {
       const deletedOrderId = selected.id
       onOrderDeleted(deletedOrderId)
-      toast.success("הזמנה נמחקה בהצלחה")
-
       const isContact = Boolean((selected as any).__contact)
       const success = await (isContact ? deleteContactLensOrder(deletedOrderId) : deleteOrder(deletedOrderId))
       if (!success) {
@@ -1285,15 +1285,11 @@ export function OrdersTable({
       <CustomModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
-        title="מחיקת הזמנה"
-        description={
-          orderToDelete
-            ? `האם אתה בטוח שברצונך למחוק את הזמנה מס' ${orderToDelete.id} מיום ${orderToDelete.order_date ? new Date(orderToDelete.order_date).toLocaleDateString("he-IL") : ""}?`
-            : "האם אתה בטוח שברצונך למחוק את ההזמנה?"
-        }
+        title={t("trashMoveTitle")}
+        description={t("trashMoveDescription", { item: orderToDelete ? `${t("trashTypeOrder")} #${orderToDelete.id}` : t("trashTypeOrder") })}
         onConfirm={handleDeleteConfirm}
-        confirmText="מחק"
-        cancelText="בטל"
+        confirmText={t("trashMoveConfirm")}
+        cancelText={t("cancel")}
       />
     </div>
   )

@@ -3,6 +3,18 @@ from sqlalchemy.orm import declared_attr, relationship, backref
 from sqlalchemy.sql import func, false
 from database import Base
 
+
+class SoftDeletableMixin:
+    deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
+
+    @declared_attr
+    def deleted_by_user_id(cls):
+        return Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    @declared_attr
+    def trash_item_id(cls):
+        return Column(Integer, ForeignKey("trash_items.id", ondelete="SET NULL"), nullable=True, index=True)
+
 class Company(Base):
     __tablename__ = "companies"
     
@@ -106,6 +118,84 @@ class User(Base):
     @property
     def has_password(self):
         return bool(self.password_hash and self.password_hash.strip())
+
+
+class TrashItem(Base):
+    __tablename__ = "trash_items"
+    __table_args__ = (
+        Index("ix_trash_items_scope_deleted", "company_id", "clinic_id", "deleted_at"),
+        Index("ix_trash_items_expiry_status", "expires_at", "status"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    clinic_id = Column(Integer, ForeignKey("clinics.id", ondelete="CASCADE"), nullable=False, index=True)
+    root_entity_type = Column(String(40), nullable=False, index=True)
+    root_entity_id = Column(Integer, nullable=False)
+    display_label = Column(String(255), nullable=False)
+    client_id = Column(Integer, nullable=True, index=True)
+    client_label = Column(String(255))
+    deleted_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    deleted_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    status = Column(String(24), nullable=False, default="trashed", server_default="trashed", index=True)
+    included_counts = Column(JSON, nullable=False, default=dict)
+    warnings = Column(JSON, nullable=False, default=list)
+    restored_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    restored_at = Column(DateTime(timezone=True))
+    purge_requested_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    purge_requested_at = Column(DateTime(timezone=True))
+
+
+class TrashMember(Base):
+    __tablename__ = "trash_members"
+    __table_args__ = (
+        UniqueConstraint("entity_type", "entity_id", "trash_item_id", name="uq_trash_member_entity_batch"),
+        Index("ix_trash_members_entity", "entity_type", "entity_id"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    trash_item_id = Column(Integer, ForeignKey("trash_items.id", ondelete="CASCADE"), nullable=False, index=True)
+    entity_type = Column(String(40), nullable=False)
+    entity_id = Column(Integer, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class TrashAuditEvent(Base):
+    __tablename__ = "trash_audit_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    trash_item_id = Column(Integer, nullable=False, index=True)
+    company_id = Column(Integer, nullable=False, index=True)
+    clinic_id = Column(Integer, nullable=False, index=True)
+    entity_type = Column(String(40), nullable=False)
+    entity_id = Column(Integer, nullable=False)
+    event_type = Column(String(40), nullable=False, index=True)
+    actor_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    event_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    event_metadata = Column(JSON, nullable=False, default=dict)
+
+
+class TrashJob(Base):
+    __tablename__ = "trash_jobs"
+    __table_args__ = (
+        UniqueConstraint("trash_item_id", "job_type", "generation", name="uq_trash_job_generation"),
+        Index("ix_trash_jobs_claim", "status", "available_at", "created_at"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    trash_item_id = Column(Integer, ForeignKey("trash_items.id", ondelete="CASCADE"), nullable=False, index=True)
+    job_type = Column(String(40), nullable=False)
+    generation = Column(Integer, nullable=False, default=1, server_default="1")
+    status = Column(String(24), nullable=False, default="pending", server_default="pending", index=True)
+    payload = Column(JSON, nullable=False, default=dict)
+    attempt_count = Column(Integer, nullable=False, default=0, server_default="0")
+    available_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    claimed_at = Column(DateTime(timezone=True))
+    claimed_by = Column(String(160))
+    last_error = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    finished_at = Column(DateTime(timezone=True))
 
 
 class ClinicHolidayOverride(Base):
@@ -395,7 +485,7 @@ class Family(Base):
     clinic = relationship("Clinic", back_populates="families")
     clients = relationship("Client", back_populates="family")
 
-class Client(Base):
+class Client(SoftDeletableMixin, Base):
     __tablename__ = "clients"
     
     id = Column(Integer, primary_key=True, index=True)
@@ -526,7 +616,7 @@ class Settings(Base):
     
     clinic = relationship("Clinic", back_populates="settings")
 
-class MedicalLog(Base):
+class MedicalLog(SoftDeletableMixin, Base):
     __tablename__ = "medical_logs"
     
     id = Column(Integer, primary_key=True, index=True)
@@ -536,7 +626,7 @@ class MedicalLog(Base):
     log_date = Column(Date)
     log = Column(Text)
 
-class OpticalExam(Base):
+class OpticalExam(SoftDeletableMixin, Base):
     __tablename__ = "optical_exams"
     
     id = Column(Integer, primary_key=True, index=True)
@@ -635,7 +725,7 @@ class OrderLineItem(Base):
     line_total = Column(Float)
     currency = Column(String(3), nullable=False, default="ILS", server_default="ILS")
 
-class Order(Base):
+class Order(SoftDeletableMixin, Base):
     __tablename__ = "orders"
     
     id = Column(Integer, primary_key=True, index=True)
@@ -653,7 +743,7 @@ class Order(Base):
 # so to understand the structure of the order data read the file docs/exam_data.md
 
  
-class ContactLensOrder(Base):
+class ContactLensOrder(SoftDeletableMixin, Base):
     __tablename__ = "contact_lens_orders"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -840,8 +930,22 @@ class CatalogDiscoveryRun(Base):
     id = Column(Integer, primary_key=True, index=True)
     company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
     created_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), index=True)
-    status = Column(String(32), nullable=False, default="review", server_default="review")
+    status = Column(String(32), nullable=False, default="queued", server_default="queued", index=True)
+    step = Column(String(160), nullable=False, default="Waiting for discovery worker", server_default="Waiting for discovery worker")
+    progress = Column(Integer, nullable=False, default=0, server_default="0")
+    total_orders = Column(Integer, nullable=False, default=0, server_default="0")
+    scanned_orders = Column(Integer, nullable=False, default=0, server_default="0")
+    candidate_count = Column(Integer, nullable=False, default=0, server_default="0")
+    selected_count = Column(Integer, nullable=False, default=0, server_default="0")
     summary = Column(JSON, nullable=False, default=dict)
+    checkpoint = Column(JSON, nullable=False, default=dict)
+    error = Column(Text)
+    locked_by = Column(String(160), index=True)
+    lease_until = Column(DateTime(timezone=True), index=True)
+    heartbeat_at = Column(DateTime(timezone=True))
+    attempt_count = Column(Integer, nullable=False, default=0, server_default="0")
+    started_at = Column(DateTime(timezone=True))
+    finished_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     confirmed_at = Column(DateTime(timezone=True))
 
@@ -865,6 +969,30 @@ class CatalogDiscoveryCandidate(Base):
     selected = Column(Boolean, nullable=False, default=False, server_default="false")
     suggested_variant_id = Column(Integer, ForeignKey("catalog_variants.id", ondelete="SET NULL"))
     confirmed_variant_id = Column(Integer, ForeignKey("catalog_variants.id", ondelete="SET NULL"))
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class CatalogDiscoverySource(Base):
+    __tablename__ = "catalog_discovery_sources"
+    __table_args__ = (
+        UniqueConstraint("candidate_id", "order_id", "component", name="uq_catalog_discovery_sources_order_component"),
+        UniqueConstraint("candidate_id", "contact_lens_order_id", "component", name="uq_catalog_discovery_sources_contact_component"),
+        CheckConstraint(
+            "(order_id IS NOT NULL AND contact_lens_order_id IS NULL) OR "
+            "(order_id IS NULL AND contact_lens_order_id IS NOT NULL)",
+            name="ck_catalog_discovery_sources_one_order",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    candidate_id = Column(Integer, ForeignKey("catalog_discovery_candidates.id", ondelete="CASCADE"), nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    clinic_id = Column(Integer, ForeignKey("clinics.id", ondelete="CASCADE"), nullable=False, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"), index=True)
+    contact_lens_order_id = Column(Integer, ForeignKey("contact_lens_orders.id", ondelete="CASCADE"), index=True)
+    component = Column(String(32), nullable=False)
+    observed_on = Column(Date)
+    quantity = Column(Integer, nullable=False, default=1, server_default="1")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
@@ -907,7 +1035,7 @@ class InventoryCompanySettings(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
-class Referral(Base):
+class Referral(SoftDeletableMixin, Base):
     __tablename__ = "referrals"
     
     id = Column(Integer, primary_key=True, index=True)
@@ -940,7 +1068,7 @@ class ReferralEye(Base):
     high = Column(Float)
     pd = Column(Float)
 
-class Appointment(Base):
+class Appointment(SoftDeletableMixin, Base):
     __tablename__ = "appointments"
     
     id = Column(Integer, primary_key=True, index=True)
@@ -955,7 +1083,7 @@ class Appointment(Base):
     note = Column(Text)
     google_calendar_event_id = Column(String)
 
-class File(Base):
+class File(SoftDeletableMixin, Base):
     __tablename__ = "files"
     
     id = Column(Integer, primary_key=True, index=True)

@@ -23,6 +23,8 @@ import {
   useClientMedicalLogsQuery,
 } from "@/hooks/client/useClientTabQueries";
 import { useAppLocale } from "@/localization/use-app-locale";
+import { CustomModal } from "@/components/ui/custom-modal";
+import { useTranslation } from "react-i18next";
 
 type MedicalRecord = MedicalLog & {
   isEditing?: boolean;
@@ -58,6 +60,7 @@ const MedicalRecordsSkeleton = ({ direction }: { direction: "rtl" | "ltr" }) => 
 export const ClientMedicalRecordTab = ({
   enabled = true,
 }: ClientMedicalRecordTabProps) => {
+  const { t } = useTranslation();
   const { direction, locale } = useAppLocale();
   const { clientId } = useParams({ from: "/clients/$clientId" });
   const clientIdNum = Number(clientId);
@@ -68,6 +71,7 @@ export const ClientMedicalRecordTab = ({
   const { currentClinic } = useUser();
   const [records, setRecords] = useState<MedicalRecord[]>([]);
   const [tempIdCounter, setTempIdCounter] = useState(-1);
+  const [recordToDelete, setRecordToDelete] = useState<MedicalRecord | null>(null);
 
   useEffect(() => {
     const sortedLogs = [...medicalLogs].sort((a, b) => {
@@ -217,7 +221,7 @@ export const ClientMedicalRecordTab = ({
     try {
       if (id < 0) {
         setRecords((prev) => prev.filter((record) => record.id !== id));
-        toast.success("הרשומה נמחקה");
+        toast.success(t("trashDraftRemoved"));
       } else {
         const previous = records;
         setRecords((prev) => prev.filter((record) => record.id !== id));
@@ -226,7 +230,6 @@ export const ClientMedicalRecordTab = ({
           queryClient.setQueryData<MedicalLog[]>(queryKey, (current) =>
             removeQueryItemById(current, id),
           );
-          toast.success("הרשומה נמחקה בהצלחה");
         } else {
           setRecords(previous);
           toast.error("שגיאה במחיקת הרשומה");
@@ -345,9 +348,8 @@ export const ClientMedicalRecordTab = ({
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() =>
-                          record.id !== undefined && deleteRecord(record.id)
-                        }
+                        onClick={() => setRecordToDelete(record)}
+                        aria-label={t("trashMoveConfirm")}
                         className="text-destructive hover:text-destructive h-8 w-8 p-0"
                       >
                         <TrashIcon className="h-4 w-4" />
@@ -381,6 +383,19 @@ export const ClientMedicalRecordTab = ({
           </div>
         </div>
       )}
+      <CustomModal
+        isOpen={Boolean(recordToDelete)}
+        onClose={() => setRecordToDelete(null)}
+        title={t("trashMoveTitle")}
+        description={t("trashMoveDescription", { item: t("trashTypeMedicalNote") })}
+        onConfirm={() => {
+          if (recordToDelete?.id !== undefined) void deleteRecord(recordToDelete.id)
+          setRecordToDelete(null)
+        }}
+        confirmText={t("trashMoveConfirm")}
+        cancelText={t("cancel")}
+        direction={direction}
+      />
     </div>
   );
 };

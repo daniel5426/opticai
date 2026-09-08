@@ -19,6 +19,7 @@ from security.scope import (
     normalize_clinic_id_for_company,
     resolve_company_id,
 )
+from services.trash_service import move_to_trash
 
 
 CEO_LEVEL = 4
@@ -406,11 +407,9 @@ def delete_client(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    client = get_scoped_client(db, current_user, client_id)
-    
-    db.delete(client)
-    db.commit()
-    return {"message": "Client deleted successfully"}
+    get_scoped_client(db, current_user, client_id)
+    item = move_to_trash(db, current_user, "client", client_id)
+    return {"message": "Client deleted successfully", "trash_item_id": item.id, "expires_at": item.expires_at, "side_effects": "backend"}
 
 @router.get("/{client_id}/family-members", response_model=List[ClientSchema])
 def get_family_members(

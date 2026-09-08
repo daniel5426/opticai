@@ -9,7 +9,9 @@ import pytest
 from backend.services.migration_service import (
     validate_optitech_client_selection,
     validate_versioned_manifest,
+    validate_optitech_manifest_version,
 )
+from backend.EndPoints import migration as migration_endpoint
 
 
 def _sha256(path: Path) -> str:
@@ -81,6 +83,46 @@ def test_v2_manifest_accepts_legacy_physical_line_row_counts(tmp_path):
     assert validate_versioned_manifest(tmp_path, "optitech")["mapping_version"] == 2
 
 
+def test_v3_manifest_validates_retained_original_database(tmp_path):
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    source = source_dir / "optData.xns"
+    source.write_bytes(b"complete original database")
+    fingerprint = _sha256(source)
+    manifest = {
+        "source_system": "optitech",
+        "format_version": 2,
+        "mapping_version": 3,
+        "source_fingerprint": fingerprint,
+        "source_archive": {
+            "file": "source/optData.xns",
+            "kind": "original_database",
+            "complete": True,
+            "size": source.stat().st_size,
+            "sha256": fingerprint,
+        },
+        "tables": [],
+    }
+    (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    assert validate_versioned_manifest(tmp_path, "optitech")["source_archive"]["complete"] is True
+
+    source.write_bytes(b"tampered")
+    with pytest.raises(RuntimeError, match="source archive size mismatch"):
+        validate_versioned_manifest(tmp_path, "optitech")
+
+
+@pytest.mark.parametrize("mapping_version", [2, 3])
+def test_import_service_accepts_supported_optitech_mapping_versions(mapping_version):
+    validate_optitech_manifest_version({"format_version": 2, "mapping_version": mapping_version})
+
+
+@pytest.mark.parametrize("mapping_version", [None, 1, 4, "3"])
+def test_import_service_rejects_unsupported_optitech_mapping_versions(mapping_version):
+    with pytest.raises(RuntimeError, match="mapping_version 2 or 3"):
+        validate_optitech_manifest_version({"format_version": 2, "mapping_version": mapping_version})
+
+
 def test_client_selection_rejects_dependent_rows_outside_limit(tmp_path):
     (tmp_path / "tblPerData.csv").write_text("PerId\n1\n", encoding="utf-8")
     (tmp_path / "tblCrdGlassChecks.csv").write_text(
@@ -130,6 +172,37 @@ def test_native_exporter_uses_explicit_allowlists_and_excludes_sensitive_fields(
     assert " Pass " not in plan
     assert "Microsoft.Jet" not in reader
     assert "Microsoft.ACE" not in reader
+
+
+def test_source_archive_download_uses_scoped_retained_bundle(monkeypatch):
+    class Storage:
+        def __init__(self):
+            self.calls = []
+
+        def exists(self, bucket, key):
+            return True
+
+        def create_signed_url(self, bucket, key, expires_in):
+            self.calls.append((bucket, key, expires_in))
+            return "https://storage.example/signed"
+
+    job = type("Job", (), {
+        "id": "job-1",
+        "source_system": "optitech",
+        "bundle_storage_bucket": "private-migrations",
+        "bundle_storage_key": "clinics/1/optitech-migrations/job-1/bundle.zip",
+        "validation_summary": {"manifest": {"source_archive": {"complete": True, "sha256": "abc"}}},
+    })()
+    monkeypatch.setattr(migration_endpoint, "_get_job", lambda db, current_user, job_id: job)
+    storage = Storage()
+
+    result = migration_endpoint.download_source_archive(
+        "job-1", db=object(), current_user=object(), storage=storage,
+    )
+
+    assert result["url"] == "https://storage.example/signed"
+    assert result["sha256"] == "abc"
+    assert storage.calls == [("private-migrations", "clinics/1/optitech-migrations/job-1/bundle.zip", 900)]
 
 
 def test_windows_native_reader_build_requires_iconv_for_unicode_text():

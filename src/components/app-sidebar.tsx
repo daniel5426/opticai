@@ -100,6 +100,7 @@ const getNavData = (
       title: t("search"),
       icon: IconSearch,
       onClick: onOpenSearch,
+      quickAction: "recent-clients" as const,
     },
     {
       title: t("settings"),
@@ -239,7 +240,11 @@ export function AppSidebar({
               items={navData.documents}
               renderQuickAction={renderQuickAction}
             />
-            <NavSecondary items={navData.navSecondary} className="mt-auto" />
+            <NavSecondary
+              items={navData.navSecondary}
+              renderQuickAction={renderQuickAction}
+              className="mt-auto"
+            />
           </SidebarContent>
         )}
       </SidebarQuickActions>

@@ -70,6 +70,7 @@ export interface InventoryMovement {
 }
 
 export interface DiscoveryCandidate {
+  id?: number;
   normalized_fingerprint: string;
   category: InventoryCategory;
   product: Partial<CatalogProduct>;
@@ -77,7 +78,7 @@ export interface DiscoveryCandidate {
   needs_details: boolean;
   missing_fields: string[];
   occurrence_count: number;
-  sources: Array<{
+  sources?: Array<{
     kind: "regular" | "contact";
     order_id: number;
     component: InventoryComponent | string;
@@ -90,6 +91,31 @@ export interface DiscoveryCandidate {
   last_seen?: string | null;
   suggested_variant?: { id: number; display_name: string; similarity: number } | null;
   selected?: boolean;
+}
+
+export interface DiscoveryRun {
+  id: number;
+  status: "queued" | "running" | "ready" | "confirm_queued" | "confirming" | "confirmed" | "failed";
+  step: string;
+  progress: number;
+  total_orders: number;
+  scanned_orders: number;
+  candidate_count: number;
+  selected_count: number;
+  summary: Record<string, number>;
+  error?: string | null;
+  created_at?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+  confirmed_at?: string | null;
+}
+
+export interface DiscoveryCandidatePage {
+  items: DiscoveryCandidate[];
+  page: number;
+  limit: number;
+  total: number;
+  run: DiscoveryRun;
 }
 
 export const UNASSIGNED_INVENTORY_SUPPLIER_KEY = "__unassigned__";
@@ -155,10 +181,21 @@ export const inventoryVariantDescription = (variant: CatalogVariant) => {
       .filter(Boolean)
       .join(" · ");
   }
+  const contactParameters = [
+    attributes.sph != null && `SPH ${attributes.sph}`,
+    attributes.bc != null && `BC ${attributes.bc}`,
+    attributes.dia != null && `DIA ${attributes.dia}`,
+    attributes.pack_size != null && `BOX ${attributes.pack_size}`,
+    attributes.cyl != null && `CYL ${attributes.cyl}`,
+    attributes.axis != null && `AX ${attributes.axis}`,
+    attributes.add != null && `ADD ${attributes.add}`,
+    attributes.design,
+  ];
   return [
     variant.product.product_type,
     variant.product.material,
     attributes.color,
+    ...contactParameters,
   ]
     .filter(Boolean)
     .join(" · ");

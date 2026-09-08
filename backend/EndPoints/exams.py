@@ -17,6 +17,7 @@ from security.scope import (
     get_allowed_clinic_ids,
     get_scoped_client,
 )
+from services.trash_service import move_to_trash
 
 router = APIRouter(prefix="/exams", tags=["exams"])
 
@@ -356,23 +357,8 @@ def delete_exam(
     
     assert_clinic_scope(db, current_user, db_exam.clinic_id)
     
-    try:
-        client_id = db_exam.client_id
-        db.delete(db_exam)
-        db.commit()
-        # bump client_updated_date
-        try:
-            if client_id:
-                client = db.query(Client).filter(Client.id == client_id).first()
-                if client:
-                    client.client_updated_date = func.now()
-                    db.commit()
-        except Exception:
-            pass
-        return {"message": "Exam deleted successfully"}
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=422, detail=f"Error deleting exam: {str(e)}")
+    item = move_to_trash(db, current_user, "exam", exam_id)
+    return {"message": "Exam deleted successfully", "trash_item_id": item.id, "expires_at": item.expires_at, "side_effects": "backend"}
 
 @router.get("/client/{client_id}", response_model=List[OpticalExamSchema])
 def get_exams_by_client(

@@ -35,6 +35,7 @@ import { AboutTab } from "@/components/settings/AboutTab";
 import { MigrationTab } from "@/components/settings/MigrationTab";
 import { ClinicHolidaysTab } from "@/components/settings/ClinicHolidaysTab";
 import { ClinicDataPruneTab } from "@/components/settings/ClinicDataPruneTab";
+import { TrashTab } from "@/components/settings/TrashTab";
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog";
 import { useUnsavedChanges } from "@/hooks/shared/useUnsavedChanges";
 import { useAppLocale } from "@/localization/use-app-locale";
@@ -1166,6 +1167,15 @@ export default function SettingsPage() {
                     </TabsContent>
                   )}
 
+                  {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.worker) && (
+                    <TabsContent value="trash" className="mt-0 space-y-6">
+                      <TrashTab
+                        currentClinic={currentClinic}
+                        currentUser={currentUser}
+                      />
+                    </TabsContent>
+                  )}
+
                   <TabsContent value="field-data" className="mt-0 space-y-6">
                     <FieldDataTab
                       clinicId={currentClinic?.id}
@@ -1283,6 +1293,17 @@ export default function SettingsPage() {
                     >
                       {t("fieldData")}
                     </TabsTrigger>
+                    {isRoleAtLeast(
+                      currentUser?.role_level,
+                      ROLE_LEVELS.worker,
+                    ) && (
+                      <TabsTrigger
+                        value="trash"
+                        className="w-full justify-start text-start"
+                      >
+                        {t("trashTitle")}
+                      </TabsTrigger>
+                    )}
                     {isRoleAtLeast(
                       currentUser?.role_level,
                       ROLE_LEVELS.ceo,

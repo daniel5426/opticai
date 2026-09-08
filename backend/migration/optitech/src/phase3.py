@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from contextvars import ContextVar
 import mimetypes
+import re
 from pathlib import Path
 import shutil
 import sys
@@ -50,7 +53,7 @@ from .exam_layouts import CONTACT_LENS_COMPONENTS, GLASSES_COMPONENTS, build_ins
 from migration.pipeline.common import get_or_create_admin_user
 from .lookups import LookupCatalog, ensure_lookup_extracts, load_lookup_catalog, lookup_name
 from .phase2 import apply_payload, batched, resolve_target_binding
-from .reader import WORKSPACE_ROOT, current_scans_dir, iter_exported_rows
+from .reader import WORKSPACE_ROOT, current_extracts_dir, current_scans_dir, iter_exported_rows
 from .records import (
     NormalizedAppointmentSeed,
     NormalizedContactLensExamSeed,
@@ -67,6 +70,7 @@ from .records import (
     normalize_order_row,
     normalize_previous_refraction_row,
     normalize_work_shift_row,
+    build_source_ref,
     parse_access_date,
     parse_intish,
 )
@@ -89,7 +93,12 @@ from .validate_phase3 import (
 )
 
 
+from .records import parse_floatish
+from .clinical_cards import add_supplemental_cards, resolve_seed_bases
+
+
 PHASE3_DOMAINS: Tuple[str, ...] = (
+    "clinical_exams",
     "glasses_exams",
     "contact_lens_exams",
     "orders",
@@ -445,7 +454,7 @@ def build_glasses_uncorrected_va_payload(
 
 def _meaningful_refraction(tab: Mapping[str, Any]) -> bool:
     ignored = {
-        "type", "legacy_prev_id", "legacy_slot", "legacy_comment",
+        "type", "legacy_prev_id", "legacy_slot", "legacy_comment", "source_fields",
         "trace_pd_far", "trace_secondary_prism",
         "r_pd_far", "l_pd_far", "comb_pd_far",
         "r_pd_close", "l_pd_close", "comb_pd_close", "r_ph", "l_ph",
@@ -466,7 +475,6 @@ def build_glasses_old_refraction_tabs(
         for tab in seed.extra_context.get("previous_refractions", [])
         if isinstance(tab, dict) and _meaningful_refraction(tab)
     )
-    candidates = candidates[:5]
     if not candidates:
         return {}
 
@@ -571,7 +579,7 @@ def build_glasses_exam_data(
         payload = exam_data.get(component_type)
         if isinstance(payload, dict):
             payload["card_instance_id"] = f"{component_type}-1"
-    return exam_data
+    return add_supplemental_cards(exam_data, seed, layout_instance_id)
 
 
 def build_contact_lens_details_payload(
@@ -757,32 +765,22 @@ def build_contact_lens_keratometer_payload(
     *,
     layout_instance_id: Optional[int] = None,
 ) -> Optional[Dict[str, Any]]:
-    def to_mm(value: Any) -> Optional[float]:
-        if value is None:
-            return None
-        numeric = float(value)
-        if 6 <= numeric <= 10:
-            return round(numeric, 2)
-        if 35 <= numeric <= 60:
-            return round(337.5 / numeric, 2)
-        return None
-
-    left_rh = to_mm(seed.keratometry.get("l_h"))
-    left_rv = to_mm(seed.keratometry.get("l_v"))
-    right_rh = to_mm(seed.keratometry.get("r_h"))
-    right_rv = to_mm(seed.keratometry.get("r_v"))
+    left_rh = seed.keratometry.get("l_h")
+    left_rv = seed.keratometry.get("l_v")
+    right_rh = seed.keratometry.get("r_h")
+    right_rv = seed.keratometry.get("r_v")
     payload = strip_none(
         {
             "layout_instance_id": layout_instance_id,
             "l_rh": left_rh,
             "l_rv": left_rv,
             "l_avg": ((left_rh + left_rv) / 2.0) if left_rh is not None and left_rv is not None else None,
-            "l_cyl": abs(left_rh - left_rv) if left_rh is not None and left_rv is not None else None,
+            "l_cyl": parse_floatish(seed.source_ref.raw_payload.get("KeratCylL")),
             "l_ax": seed.keratometry.get("l_h_axis"),
             "r_rh": right_rh,
             "r_rv": right_rv,
             "r_avg": ((right_rh + right_rv) / 2.0) if right_rh is not None and right_rv is not None else None,
-            "r_cyl": abs(right_rh - right_rv) if right_rh is not None and right_rv is not None else None,
+            "r_cyl": parse_floatish(seed.source_ref.raw_payload.get("KeratCylR")),
             "r_ax": seed.keratometry.get("r_h_axis"),
         }
     )
@@ -875,8 +873,7 @@ def build_contact_lens_exam_data(
     if diameters:
         exam_data["contact-lens-diameters"] = diameters
     keratometer = build_contact_lens_keratometer_payload(seed, layout_instance_id=layout_instance_id)
-    if keratometer:
-        exam_data["keratometer-contact-lens"] = keratometer
+    # Source units are not guaranteed; show original measurements in the migration card.
     details = build_contact_lens_details_payload(
         seed,
         catalog=catalog,
@@ -922,7 +919,7 @@ def build_contact_lens_exam_data(
         payload = exam_data.get(component_type)
         if isinstance(payload, dict):
             payload["card_instance_id"] = f"{component_type}-1"
-    return exam_data
+    return add_supplemental_cards(exam_data, seed, layout_instance_id, contact=True)
 
 
 def build_glasses_order_match(seed: NormalizedGlassesExamSeed) -> GlassesOrderMatch:
@@ -1031,6 +1028,8 @@ def build_legacy_order_source(
                     "delivery_date": iso_date(seed.delivery_date),
                     "work_type_id": seed.work_type_id,
                     "work_status_id": seed.work_status_id,
+                    "original_work_status_id": seed.work_status_id,
+                    "canceled": seed.canceled,
                     "work_supply_id": seed.work_supply_id,
                     "lab_id": seed.lab_id,
                     "supplier_id": seed.supplier_id,
@@ -1154,6 +1153,18 @@ def build_regular_order_data(
             "length": frame_size["length"],
         }
     )
+    original_status = resolve_lookup_value(
+        catalog,
+        table_name="tblCrdBuysWorkStats",
+        key=seed.work_status_id,
+        unresolved_dependencies=unresolved_dependencies,
+        domain="orders",
+        raw_row_ref=seed.source_ref.raw_row_ref,
+        source_per_id=seed.source_per_id,
+        source_user_id=seed.source_user_id,
+        dependency_name="work_status",
+    )
+    effective_status = "מבוטל" if seed.canceled is True else original_status
     details = strip_none(
         {
             "branch": clinic_name,
@@ -1182,17 +1193,7 @@ def build_regular_order_data(
                 source_user_id=seed.source_user_id,
                 dependency_name="work_lab",
             ),
-            "order_status": resolve_lookup_value(
-                catalog,
-                table_name="tblCrdBuysWorkStats",
-                key=seed.work_status_id,
-                unresolved_dependencies=unresolved_dependencies,
-                domain="orders",
-                raw_row_ref=seed.source_ref.raw_row_ref,
-                source_per_id=seed.source_per_id,
-                source_user_id=seed.source_user_id,
-                dependency_name="work_status",
-            ),
+            "order_status": effective_status,
             "promised_date": iso_date(seed.promise_date),
             "notes": seed.comment,
             "lens_order_notes": seed.comment,
@@ -1221,7 +1222,8 @@ def build_regular_order_data(
             "frame_label": frame.get("manufacturer"),
             "work_supply": details.get("supplier_status"),
             "work_lab": details.get("manufacturing_lab"),
-            "work_status": details.get("order_status"),
+            "work_status": original_status,
+            "effective_work_status": effective_status if seed.canceled is True else None,
         },
     )
     unmapped_fields: Dict[str, Any] = {}
@@ -1280,6 +1282,7 @@ def build_contact_lens_order_payloads(
         source_user_id=seed.source_user_id,
         dependency_name="work_supplier",
     )
+    effective_status = "מבוטל" if seed.canceled is True else status_name
     scalar_payload = {
         "client_id": None,
         "clinic_id": clinic.id,
@@ -1287,7 +1290,7 @@ def build_contact_lens_order_payloads(
         "order_date": seed.work_date,
         "type": "contact-lens",
         "supply_in_clinic_id": clinic.id,
-        "order_status": status_name,
+        "order_status": effective_status,
         "delivery_date": seed.delivery_date,
         "guaranteed_date": seed.promise_date,
         "cleaning_solution": matched_exam.order_block.get("cleaning_solution") if matched_exam else None,
@@ -1315,7 +1318,7 @@ def build_contact_lens_order_payloads(
             {
                 "branch": clinic.name,
                 "supply_in_branch": clinic.name,
-                "order_status": status_name,
+                "order_status": effective_status,
                 "delivery_date": iso_date(seed.delivery_date),
                 "guaranteed_date": iso_date(seed.promise_date),
                 "notes": seed.comment,
@@ -1328,6 +1331,7 @@ def build_contact_lens_order_payloads(
         seed,
         resolved_lookups={
             "work_status": status_name,
+            "effective_work_status": effective_status if seed.canceled is True else None,
             "work_supply": supply_name,
             "work_lab": lab_name,
             "work_supplier": supplier_name,
@@ -1425,7 +1429,10 @@ def store_scan_if_needed(
 
 
 def iter_glasses_exam_seeds() -> Iterator[NormalizedGlassesExamSeed]:
+    catalog = load_lookup_catalog()
     previous_by_exam: Dict[Tuple[int, str], List[Dict[str, Any]]] = {}
+    previous_raw_by_exam = {}
+    retinoscopy_by_exam = {}
     previous_rows = sorted(
         iter_exported_rows("tblCrdGlassChecksPrevs"),
         key=lambda row: (
@@ -1439,17 +1446,43 @@ def iter_glasses_exam_seeds() -> Iterator[NormalizedGlassesExamSeed]:
         check_date = parse_access_date(row.get("CheckDate"))
         if per_id is None or check_date is None:
             continue
-        previous_by_exam.setdefault((per_id, check_date.isoformat()), []).extend(
-            normalize_previous_refraction_row(row)
-        )
+        previous_raw_by_exam.setdefault((per_id, check_date.isoformat()), []).append(dict(row))
+        decoded = dict(row)
+        for field, value in row.items():
+            if "base" in field.lower() and parse_intish(value) is not None:
+                decoded[field] = catalog.get("tblBases", {}).get(parse_intish(value))
+        tabs = normalize_previous_refraction_row(decoded)
+        for tab in tabs:
+            slot = str(tab["legacy_slot"])
+            tab["source_fields"] = {k: v for k, v in row.items() if re.search(r"(\d+)$", k) and re.search(r"(\d+)$", k).group(1) == slot}
+        previous_by_exam.setdefault((per_id, check_date.isoformat()), []).extend(tabs)
+        for slot in (1, 2):
+            suffix = "" if slot == 1 else "2"
+            method_id = parse_intish(row.get(f"RetTypeId{slot}"))
+            distance_id = parse_intish(row.get(f"RetDistId{slot}"))
+            fields = {
+                f"RefSphR{suffix}": row.get(f"RefSphR{suffix}"), f"RefSphL{suffix}": row.get(f"RefSphL{suffix}"),
+                f"RefCylR{suffix}": row.get(f"RefCylR{suffix}"), f"RefCylL{suffix}": row.get(f"RefCylL{suffix}"),
+                f"RefAxR{suffix}": row.get(f"RefAxR{suffix}"), f"RefAxL{suffix}": row.get(f"RefAxL{suffix}"),
+                "RetinoscopyMethod": catalog.get("tblCrdGlassRetTypes", {}).get(method_id) if method_id else None,
+                "RetinoscopyDistance": catalog.get("tblCrdGlassRetDists", {}).get(distance_id) if distance_id else None,
+                "RetinoscopyComments": row.get(f"RetCom{slot}"),
+            }
+            if any(value not in (None, "") for value in fields.values()):
+                retinoscopy_by_exam.setdefault((per_id, check_date.isoformat()), []).append({
+                    "source_fields": fields,
+                    "source_provenance": {"RetTypeId": method_id, "RetDistId": distance_id, "slot": slot, "PrevId": row.get("PrevId")},
+                })
     for row in iter_exported_rows("tblCrdGlassChecks"):
-        seed = normalize_glasses_exam_row(row)
+        seed = resolve_seed_bases(normalize_glasses_exam_row(row), catalog)
         key = build_order_exact_key(seed.source_per_id, seed.check_date)
         yield replace(
             seed,
             extra_context={
                 **seed.extra_context,
                 "previous_refractions": previous_by_exam.get(key, []) if key else [],
+                "previous_raw_rows": previous_raw_by_exam.get(key, []) if key else [],
+                "retinoscopy_records": retinoscopy_by_exam.get(key, []) if key else [],
             },
         )
 
@@ -1465,8 +1498,43 @@ def iter_order_seeds() -> Iterator[NormalizedOrderSeed]:
 
 
 def iter_file_seeds() -> Iterator[NormalizedFileSeed]:
+    manifest_path = current_extracts_dir().parent / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig")) if manifest_path.exists() else {}
+    documents = manifest.get("documents") if isinstance(manifest.get("documents"), dict) else {}
+    picture_files = {
+        str(reference.get("value")): current_extracts_dir().parent / str(reference["file"])
+        for reference in documents.get("references") or []
+        if reference.get("source_table") == "tblPerPicture" and reference.get("status") == "included" and reference.get("file")
+    }
     for row in iter_exported_rows("tblPerPicture"):
-        yield normalize_file_row(row, current_scans_dir())
+        seed = normalize_file_row(row, current_scans_dir())
+        matched = picture_files.get(str(row.get("PicFileName")))
+        yield replace(seed, scan_path=str(matched), scan_exists=matched.is_file()) if matched else seed
+    if not manifest_path.exists():
+        return
+    for reference in documents.get("references") or []:
+        if reference.get("source_table") == "tblPerPicture" or reference.get("status") != "included" or not reference.get("file"):
+            continue
+        per_id = parse_intish(reference.get("source_per_id"))
+        source_path = current_extracts_dir().parent / str(reference["file"])
+        identity = f"{reference.get('source_ref')}|{reference.get('source_field')}|{reference.get('value')}"
+        legacy_id = int(hashlib.sha256(identity.encode("utf-8")).hexdigest()[:15], 16)
+        row = {
+            "PerId": reference.get("source_per_id"), "CheckDate": reference.get("source_check_date"),
+            "ClinicalAttachmentId": legacy_id, "SourceField": reference.get("source_field"),
+            "SourceValue": reference.get("value"),
+        }
+        source_ref = build_source_ref(
+            str(reference.get("source_table")), row,
+            raw_row_ref=f"{reference.get('source_ref')}|attachment={reference.get('source_field')}",
+        )
+        yield NormalizedFileSeed(
+            source_ref=source_ref, source_per_id=per_id, source_user_id=None,
+            legacy_file_id=legacy_id, file_name=Path(str(reference.get("value"))).name,
+            description=f"OptiTech clinical attachment ({reference.get('source_field')})",
+            scan_date=parse_access_date(reference.get("source_check_date")),
+            scan_path=str(source_path), scan_exists=source_path.is_file(),
+        )
 
 
 def iter_medical_note_seeds() -> Iterator[NormalizedMedicalNoteSeed]:
@@ -2826,7 +2894,8 @@ def execute_phase3(
     db = SessionLocal()
     progress_token = _batch_progress_callback.set(on_batch_progress)
     try:
-        db.execute(text("SET statement_timeout TO 0"))
+        if db.bind is not None and db.bind.dialect.name == "postgresql":
+            db.execute(text("SET statement_timeout TO 0"))
         clinic = resolve_target_binding(db, target_clinic_id)
         ensure_lookup_extracts()
         catalog = load_lookup_catalog()
@@ -2836,7 +2905,7 @@ def execute_phase3(
 
         summary: Dict[str, Any] = {
             "source_system": OPTITECH_SOURCE_SYSTEM,
-            "mapping_version": 2,
+            "mapping_version": 3,
             "target_clinic_id": clinic.id,
             "target_company_id": clinic.company_id,
             "dry_run": dry_run,
@@ -2884,6 +2953,16 @@ def execute_phase3(
             summary["contact_lens_exams"] = counters.as_dict()
             skipped_rows.extend(domain_skips)
             unresolved_dependencies.extend(domain_unresolved)
+            if not dry_run:
+                db.commit()
+        if "clinical_exams" in selected_domains:
+            from .clinical_import import import_clinical_exams
+            counters, clinical_skips = import_clinical_exams(
+                db, clinic=clinic, client_map=client_map, user_map=user_map,
+                migration_job_id=migration_job_id, catalog=catalog, commit_each_batch=not dry_run,
+            )
+            summary["clinical_exams"] = counters
+            skipped_rows.extend(clinical_skips)
             if not dry_run:
                 db.commit()
         if "orders" in selected_domains:
@@ -3008,6 +3087,12 @@ def execute_phase3(
             for item in unresolved_dependencies
             if item.get("domain") == "work_shifts" and item.get("warnings")
         )
+        from .coverage import clinical_coverage_report
+        from .reporting import write_json_report
+        coverage = clinical_coverage_report()
+        write_json_report(report_dir / "clinical_coverage.json", coverage)
+        summary["clinical_mapping_version"] = 3
+        summary["clinical_tables_requiring_fresh_export"] = coverage["requires_fresh_export"]
         unmapped_source_fields = finalize_unmapped_field_report(unmapped_report)
         if dry_run:
             db.rollback()

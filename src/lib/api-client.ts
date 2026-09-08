@@ -25,6 +25,8 @@ import { CalendarHoliday } from './clinic-holidays';
 import {
   CatalogVariant,
   DiscoveryCandidate,
+  DiscoveryCandidatePage,
+  DiscoveryRun,
   InventoryMovement,
   InventorySelection,
 } from './inventory';
@@ -34,6 +36,7 @@ import type {
   InventoryAnalyticsResponse,
   WorkforceAnalyticsResponse,
 } from "./analytics";
+import type { TrashItem, TrashPage } from "./trash";
 
 function normalizeApiBaseUrl(rawUrl?: string): string {
   const fallback = 'http://localhost:8001/api/v1';
@@ -125,6 +128,17 @@ class ApiClient {
   private refreshToken: string | null = null;
   private clinicTrustToken: string | null = null;
   private refreshTokenPromise: Promise<boolean> | null = null;
+
+  private emitTrashCreated(endpoint: string, options: RequestInit, data: any) {
+    if (
+      typeof window !== "undefined" &&
+      options.method?.toUpperCase() === "DELETE" &&
+      !endpoint.startsWith("/trash/") &&
+      data?.trash_item_id
+    ) {
+      window.dispatchEvent(new CustomEvent("prysm:trash-created", { detail: data }))
+    }
+  }
 
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
@@ -250,6 +264,7 @@ class ApiClient {
               response = await fetch(url, fetchOptions);
               if (response.ok) {
                 const data = await response.json();
+                this.emitTrashCreated(endpoint, options, data);
                 return { data };
               }
               if (response.status !== 401) {
@@ -280,6 +295,7 @@ class ApiClient {
       }
 
       const data = await response.json();
+      this.emitTrashCreated(endpoint, options, data);
       return { data };
     } catch (error) {
       const fallbackBaseUrl = getFallbackApiBaseUrl(this.baseUrl);
@@ -295,6 +311,7 @@ class ApiClient {
           if (fallbackResponse.ok) {
             this.baseUrl = fallbackBaseUrl;
             const data = await fallbackResponse.json();
+            this.emitTrashCreated(endpoint, options, data);
             return { data };
           }
         } catch {}
@@ -805,6 +822,48 @@ class ApiClient {
     return this.request(`/clients/${id}`, {
       method: 'DELETE',
     });
+  }
+
+  async getTrash(options?: {
+    clinicId?: number
+    entityType?: string
+    deletedByUserId?: number
+    deletedFrom?: string
+    deletedTo?: string
+    search?: string
+    limit?: number
+    offset?: number
+  }) {
+    const params = new URLSearchParams()
+    if (options?.clinicId) params.set("clinic_id", String(options.clinicId))
+    if (options?.entityType) params.set("entity_type", options.entityType)
+    if (options?.deletedByUserId) params.set("deleted_by_user_id", String(options.deletedByUserId))
+    if (options?.deletedFrom) params.set("deleted_from", options.deletedFrom)
+    if (options?.deletedTo) params.set("deleted_to", options.deletedTo)
+    if (options?.search) params.set("search", options.search)
+    params.set("limit", String(options?.limit ?? 25))
+    params.set("offset", String(options?.offset ?? 0))
+    return this.request<TrashPage>(`/trash?${params.toString()}`)
+  }
+
+  async getTrashItem(id: number) {
+    return this.request<TrashItem>(`/trash/${id}`)
+  }
+
+  async restoreTrashItem(id: number) {
+    return this.request<{ trash_item_id: number; status: string; restored: Array<{ type: string; id: number }>; warnings: Array<{ code: string }> }>(`/trash/${id}/restore`, { method: "POST" })
+  }
+
+  async permanentlyDeleteTrashItem(id: number) {
+    return this.request<{ trash_item_id: number; status: string }>(`/trash/${id}`, { method: "DELETE" })
+  }
+
+  async retryTrashItem(id: number) {
+    return this.request<{ retried: number }>(`/trash/${id}/retry`, { method: "POST" })
+  }
+
+  async getTrashFilePreview(itemId: number, fileId: number) {
+    return this.request<{ url: string }>(`/trash/${itemId}/files/${fileId}/preview`)
   }
 
   async updateClientUpdatedDate(clientId: number) {
@@ -1370,6 +1429,67 @@ class ApiClient {
       candidates: DiscoveryCandidate[];
       summary: Record<string, number>;
     }>("/inventory/discovery/preview", { method: "POST" });
+  }
+
+  async startInventoryDiscoveryRun() {
+    return this.request<DiscoveryRun>("/inventory/discovery/runs", {
+      method: "POST",
+    });
+  }
+
+  async getLatestInventoryDiscoveryRun() {
+    return this.request<{ run: DiscoveryRun | null }>(
+      "/inventory/discovery/runs/latest",
+    );
+  }
+
+  async getInventoryDiscoveryRun(runId: number) {
+    return this.request<DiscoveryRun>(`/inventory/discovery/runs/${runId}`);
+  }
+
+  async getInventoryDiscoveryCandidates(
+    runId: number,
+    page: number,
+    limit: number,
+  ) {
+    return this.request<DiscoveryCandidatePage>(
+      `/inventory/discovery/runs/${runId}/candidates?page=${page}&limit=${limit}`,
+    );
+  }
+
+  async updateInventoryDiscoveryCandidate(
+    runId: number,
+    candidateId: number,
+    payload: Pick<DiscoveryCandidate, "selected" | "product" | "attributes">,
+  ) {
+    return this.request<DiscoveryCandidate>(
+      `/inventory/discovery/runs/${runId}/candidates/${candidateId}`,
+      { method: "PATCH", body: JSON.stringify(payload) },
+    );
+  }
+
+  async setInventoryDiscoveryCandidatesSelection(
+    runId: number,
+    candidateIds: number[],
+    selected: boolean,
+  ) {
+    return this.request<{ selected_count: number }>(
+      `/inventory/discovery/runs/${runId}/candidates/selection`,
+      {
+        method: "POST",
+        body: JSON.stringify({ candidate_ids: candidateIds, selected }),
+      },
+    );
+  }
+
+  async confirmInventoryDiscoveryRun(
+    runId: number,
+    mode: "selected" | "all_ready",
+  ) {
+    return this.request<DiscoveryRun>(
+      `/inventory/discovery/runs/${runId}/confirm`,
+      { method: "POST", body: JSON.stringify({ mode }) },
+    );
   }
 
   async confirmInventoryDiscovery(candidates: DiscoveryCandidate[]) {
@@ -2467,6 +2587,12 @@ class ApiClient {
   async getMigrationReportDownload(jobId: string) {
     return this.request<{ url: string; file_name: string }>(
       `/migration/imports/${jobId}/report-download`,
+    );
+  }
+
+  async getMigrationSourceArchiveDownload(jobId: string) {
+    return this.request<{ url: string; file_name: string; sha256: string }>(
+      `/migration/imports/${jobId}/source-archive-download`,
     );
   }
 

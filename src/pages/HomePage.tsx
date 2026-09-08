@@ -818,12 +818,11 @@ export default function HomePage() {
   ]);
 
   const handleDeleteAppointment = useCallback(async (appointmentId: number) => {
-    if (!confirm("האם אתה בטוח שברצונך למחוק את התור?")) return;
+    if (!confirm(t("trashMoveDescription", { item: t("trashTypeAppointment") }))) return;
 
     try {
       const result = await deleteAppointment(appointmentId);
       if (result) {
-        toast.success("התור נמחק בהצלחה");
         // Remove from local state instead of reloading all data
         setAppointments((prev) =>
           prev.filter((apt) => apt.id !== appointmentId),
@@ -835,7 +834,7 @@ export default function HomePage() {
       console.error("Error deleting appointment:", error);
       toast.error("שגיאה במחיקת התור");
     }
-  }, []);
+  }, [t]);
 
   const handleExamLayoutChange = useCallback(
     (layoutId: number | null) => {
@@ -1289,7 +1288,7 @@ export default function HomePage() {
               }}
             >
               <Trash2 className="h-4 w-4" />
-              מחק
+              {t("trashMoveConfirm")}
             </button>
           </div>
         )}

@@ -52,7 +52,7 @@ from .records import SourceRef
 
 
 OPTITECH_SOURCE_SYSTEM = "optitech"
-OPTITECH_MAPPING_VERSION = 2
+OPTITECH_MAPPING_VERSION = 3
 PHASE2_TARGET_MODELS: Dict[str, Type[Any]] = {
     "Client": Client,
     "Family": Family,

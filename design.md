@@ -40,6 +40,20 @@ Prysm uses a restrained, operational interface for optical-clinic workflows. The
 - `DialogHeader`, its title, and its description inherit logical start alignment from the shared dialog component. Do not add page-level RTL alignment overrides.
 - `DialogFooter` handles RTL action order centrally. Keep secondary/cancel actions first and primary actions last in JSX.
 - The close button uses logical placement: right in LTR dialogs and left in RTL dialogs.
+- When a dialog contains portal-based comboboxes, keep the dialog surface `overflow-visible` and scroll an inner content wrapper instead. Scope the portal to the dialog so the menu remains interactive, but never let the scroll wrapper clip it.
+
+## Catalog forms
+
+- The catalog item dialog has a 650px maximum desktop width. Keep it compact unless a new requirement needs more space.
+- Give each field a visible label; do not rely on placeholder text in labeled selects or comboboxes.
+- Labels use regular weight, stay on one line, and use no more than two words in every supported locale. Resize or rearrange the field instead of wrapping or truncating its label.
+- Size fields by their data: names, models, suppliers, colors, SKUs, and barcodes may use wider cells; clinical measurements, quantities, prices, and currency use compact cells.
+- Group contact-lens measurements together in a compact specification area and keep their numeric values locally LTR. Keep product identity, variant identifiers, and pricing as separate groups.
+- In the catalog dialog, keep the contact-lens color selector compact and give the remaining row width to the measurement grid so `SPH`, `BC`, and `DIA` remain comfortably usable.
+- Use standard contact-lens abbreviations (`SPH`, `BC`, `DIA`, `CYL`, `AX`, `ADD`) wherever they are unambiguous; reserve descriptive labels for fields such as box quantity.
+- Test explicit grid tracks in RTL: source order maps to the rightmost track first, so assign any wider track to the intended field rather than assuming left-to-right placement.
+- Numeric controls with increment/decrement buttons must size the control wrapper and input together; never widen only the input or separate the buttons from it.
+- Show currency selectors as ISO codes only (`ILS`, `USD`, `EUR`), not expanded currency names.
 
 ## Actions and controls
 

@@ -1,3 +1,4 @@
+import { OPTITECH_CARD_TYPES } from './optitech-cards'
 // @ts-nocheck
 import { apiClient } from './api-client'
 import { ExamComponentType } from './exam-field-mappings'
@@ -472,3 +473,12 @@ examComponentRegistry.register('npc', {
   order: 34,
   showInLayoutEditor: true
 })
+
+// Migration-only cards use the same JSON persistence as standard exam cards.
+for (const type of OPTITECH_CARD_TYPES) {
+  examComponentRegistry.register(type, {
+    name: type,
+    component: () => import('../components/exam/OptitechMigrationCard'),
+    showInLayoutEditor: false,
+  })
+}

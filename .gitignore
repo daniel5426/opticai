@@ -144,3 +144,11 @@ test-x64/
 /blob-report/
 /playwright/.cache/
 /tmp/
+
+# Local editor settings
+.cursor/
+
+# Generated OptiTech database audit artifacts
+docs/migration_wizzard_doc/optitech-*-audit.md
+docs/migration_wizzard_doc/optitech-*-schema-audit.json
+docs/migration_wizzard_doc/optitech-*-runtime-audit.json

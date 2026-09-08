@@ -11,6 +11,18 @@ PrimaryKeyPart = Tuple[str, str]
 
 
 TABLE_PRIMARY_KEYS: Dict[str, Tuple[str, ...]] = {
+    "tblBases": ("BaseId",),
+    "tblCrdDisDiags": ('PerId', 'CheckDate'),
+    "tblCrdOverViews": ('PerId', 'CheckDate'),
+    "tblCrdOrthoks": ("OrthokId",),
+    "tblCrdClinicChecks": ("ClinicCheckId",),
+    "tblCrdClensFits": ("PerId", "CheckDate", "FitId"),
+    "tblCrdLVChecks": ("PerId", "CheckDate", "LVId"),
+    "tblCrdGlassChecksGlasses": ('PerId', 'CheckDate', 'GlassId'),
+    "tblCrdGlassChecksFrm": ('PerId', 'CheckDate', 'GlassId'),
+    "tblCrdGlassChecksGlassesP": ('PerId', 'CheckDate', 'GlassPId'),
+    "tblCrdFrps": ('FrpId', 'PerId'),
+    "tblCrdFrpsLines": ('FrpLineId',),
     "tblPerData": ("PerId",),
     "tblPerData_FamId": ("FamId",),
     "tblUsers": ("UserId",),
@@ -427,6 +439,7 @@ class NormalizedOrderSeed(NormalizedSeedBase):
     delivery_date: Optional[date] = None
     work_type_id: Optional[int] = None
     work_status_id: Optional[int] = None
+    canceled: Optional[bool] = None
     work_supply_id: Optional[int] = None
     lab_id: Optional[int] = None
     supplier_id: Optional[int] = None
@@ -775,7 +788,8 @@ def normalize_contact_lens_exam_row(
 def normalize_previous_refraction_row(row: Mapping[str, Any]) -> list[Dict[str, Any]]:
     """Expand one tblCrdGlassChecksPrevs row into its substantive refractions."""
     tabs: list[Dict[str, Any]] = []
-    for index in range(1, 5):
+    slots = sorted({int(match.group(1)) for key in row if (match := re.search(r"(\d+)$", key))})
+    for index in slots:
         tab = {
             "r_sph": parse_optical_value(row.get(f"SphR{index}")),
             "l_sph": parse_optical_value(row.get(f"SphL{index}")),
@@ -795,6 +809,7 @@ def normalize_previous_refraction_row(row: Mapping[str, Any]) -> list[Dict[str, 
             "type": "רחוק",
             "legacy_prev_id": parse_intish(row.get("PrevId")),
             "legacy_slot": index,
+            "source_fields": {k: v for k, v in row.items() if re.search(r"(\d+)$", k) and int(re.search(r"(\d+)$", k).group(1)) == index},
             "legacy_comment": clean_text(row.get(f"Comments{index}")),
             # Semantics are incomplete; retain these in trace instead of the card.
             "trace_pd_far": {
@@ -813,7 +828,10 @@ def normalize_previous_refraction_row(row: Mapping[str, Any]) -> list[Dict[str, 
             "r_sph", "l_sph", "r_cyl", "l_cyl", "r_ax", "l_ax",
             "r_pris", "l_pris", "r_va", "l_va", "comb_va", "r_ad", "l_ad",
         )
-        if any(tab.get(field) not in (None, "", 0, 0.0) for field in content_fields):
+        if any(tab.get(field) not in (None, "") for field in content_fields) or any(
+            clean_text(value) is not None for key, value in tab["source_fields"].items()
+            if "base" not in key.lower()
+        ):
             tabs.append(tab)
     return tabs
 
@@ -851,6 +869,7 @@ def normalize_order_row(
         delivery_date=parse_access_date(row.get("DeliverDate")),
         work_type_id=parse_intish(row.get("WorkTypeId")),
         work_status_id=parse_intish(row.get("WorkStatId")),
+        canceled=parse_boolish(row.get("Canceled")),
         work_supply_id=parse_intish(row.get("WorkSupplyId")),
         lab_id=parse_intish(row.get("LabId")),
         supplier_id=parse_intish(row.get("SapakId")),

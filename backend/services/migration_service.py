@@ -18,6 +18,7 @@ from services.softoptic_migration_service import (
     run_softoptic_import,
     update_job,
 )
+from migration.optitech.src.export_spec import CLIENT_DEPENDENT_TABLES
 
 
 SUPPORTED_SOURCE_SYSTEMS = {"softoptic", "optitech"}
@@ -25,6 +26,17 @@ SUPPORTED_SOURCE_SYSTEMS = {"softoptic", "optitech"}
 
 class OptiTechPauseRequested(RuntimeError):
     pass
+
+
+def validate_optitech_manifest_version(manifest: dict[str, Any]) -> None:
+    if manifest.get("format_version") != 2:
+        raise RuntimeError("OptiTech imports require bundle format_version 2")
+    mapping_version = manifest.get("mapping_version")
+    if mapping_version not in {2, 3}:
+        raise RuntimeError(
+            "OptiTech imports support mapping_version 2 or 3; "
+            f"received {mapping_version!r}"
+        )
 
 
 def _count_manifest_rows(path: Path) -> int:
@@ -45,6 +57,23 @@ def read_bundle_manifest(root: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
     return json.loads(path.read_text(encoding="utf-8-sig"))
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _validated_manifest_file(root: Path, relative: Any, kind: str) -> Path:
+    if not isinstance(relative, str) or not relative:
+        raise RuntimeError(f"Migration manifest contains an invalid {kind} path")
+    file_path = (root / relative).resolve()
+    if root.resolve() not in file_path.parents or not file_path.is_file():
+        raise RuntimeError(f"Migration {kind} is missing: {relative}")
+    return file_path
 
 
 def validate_versioned_manifest(root: Path, expected_source: str) -> dict[str, Any]:
@@ -89,6 +118,29 @@ def validate_versioned_manifest(root: Path, expected_source: str) -> dict[str, A
         expected_hash = document.get("sha256")
         if expected_hash and hashlib.sha256(file_path.read_bytes()).hexdigest().lower() != str(expected_hash).lower():
             raise RuntimeError(f"Migration document checksum mismatch: {relative}")
+    source_inventory = manifest.get("source_schema_inventory")
+    if isinstance(source_inventory, dict) and source_inventory.get("file"):
+        relative = source_inventory["file"]
+        file_path = (root / relative).resolve()
+        if root.resolve() not in file_path.parents or not file_path.is_file():
+            raise RuntimeError(f"Migration source schema inventory is missing: {relative}")
+        expected_hash = source_inventory.get("sha256")
+        if expected_hash and hashlib.sha256(file_path.read_bytes()).hexdigest().lower() != str(expected_hash).lower():
+            raise RuntimeError("Migration source schema inventory checksum mismatch")
+    source_archive = manifest.get("source_archive")
+    if isinstance(source_archive, dict) and source_archive.get("file"):
+        relative = source_archive["file"]
+        file_path = _validated_manifest_file(root, relative, "source archive")
+        expected_size = source_archive.get("size")
+        if isinstance(expected_size, int) and file_path.stat().st_size != expected_size:
+            raise RuntimeError("Migration source archive size mismatch")
+        expected_hash = source_archive.get("sha256")
+        actual_hash = _sha256_file(file_path)
+        if expected_hash and actual_hash.lower() != str(expected_hash).lower():
+            raise RuntimeError("Migration source archive checksum mismatch")
+        source_fingerprint = manifest.get("source_fingerprint")
+        if source_fingerprint and actual_hash.lower() != str(source_fingerprint).lower():
+            raise RuntimeError("Migration source archive does not match source_fingerprint")
     return manifest
 
 
@@ -119,17 +171,8 @@ def validate_optitech_client_selection(
         if len(normalized_manifest_ids) != len(client_ids) or sorted(normalized_manifest_ids) != client_ids:
             raise RuntimeError("OptiTech manifest client selection does not match tblPerData")
 
-    dependent = {
-        "tblCrdGlassChecks": "PerId",
-        "tblCrdGlassChecksPrevs": "PerId",
-        "tblCrdClensChecks": "PerId",
-        "tblCrdBuysWorks": "PerId",
-        "tblPerPicture": "PerId",
-        "tblCrdDiags": "PerId",
-        "tblClndrApt": "PerID",
-    }
     selected = set(client_ids)
-    for table, column in dependent.items():
+    for table, column in CLIENT_DEPENDENT_TABLES.items():
         path = tables_dir / f"{table}.csv"
         if not path.exists():
             path = tables_dir / f"{table}.tsv"
@@ -141,6 +184,22 @@ def validate_optitech_client_selection(
                 raw = row.get(column)
                 if raw not in (None, "") and int(float(raw)) not in selected:
                     raise RuntimeError(f"{table} contains a client outside the selected import set")
+    frp_clients: dict[int, int] = {}
+    frps_path = next((path for path in (tables_dir / "tblCrdFrps.csv", tables_dir / "tblCrdFrps.tsv") if path.exists()), None)
+    if frps_path:
+        delimiter = "\t" if frps_path.suffix.lower() == ".tsv" else ","
+        with frps_path.open("r", newline="", encoding="utf-8-sig") as handle:
+            for row in csv.DictReader(handle, delimiter=delimiter):
+                if row.get("FrpId") not in (None, "") and row.get("PerId") not in (None, ""):
+                    frp_clients[int(float(row["FrpId"]))] = int(float(row["PerId"]))
+    lines_path = next((path for path in (tables_dir / "tblCrdFrpsLines.csv", tables_dir / "tblCrdFrpsLines.tsv") if path.exists()), None)
+    if lines_path:
+        delimiter = "\t" if lines_path.suffix.lower() == ".tsv" else ","
+        with lines_path.open("r", newline="", encoding="utf-8-sig") as handle:
+            for row in csv.DictReader(handle, delimiter=delimiter):
+                frp_id = int(float(row["FrpId"])) if row.get("FrpId") not in (None, "") else None
+                if frp_id not in frp_clients or frp_clients[frp_id] not in selected:
+                    raise RuntimeError("tblCrdFrpsLines contains an unresolved or out-of-scope FrpId")
     return selected
 
 
@@ -170,10 +229,7 @@ def run_optitech_import(
         extracted = temp_dir / "bundle"
         _safe_extract_zip(bundle_path, extracted)
         manifest = validate_versioned_manifest(extracted, "optitech")
-        if manifest.get("format_version") != 2:
-            raise RuntimeError("OptiTech imports require bundle format_version 2")
-        if manifest.get("mapping_version") != 2:
-            raise RuntimeError("OptiTech imports require mapping_version 2")
+        validate_optitech_manifest_version(manifest)
         manifest_fingerprint = manifest.get("source_fingerprint")
         if not isinstance(manifest_fingerprint, str) or not manifest_fingerprint:
             raise RuntimeError("OptiTech bundle is missing source_fingerprint")
@@ -200,12 +256,15 @@ def run_optitech_import(
         completed = set(checkpoint.get("completed_phases") or [])
         summaries: dict[str, Any] = dict(job.import_summary or {})
         manifest_documents = manifest.get("documents") if isinstance(manifest.get("documents"), dict) else {}
+        manifest_source_archive = manifest.get("source_archive") if isinstance(manifest.get("source_archive"), dict) else {}
         summaries["export"] = {
             "mapping_version": manifest.get("mapping_version", 2),
             "selected_client_count": len(selected_client_ids),
             "document_count": manifest_documents.get("file_count", 0),
             "missing_referenced_scans": manifest_documents.get("missing_referenced_count", 0),
             "unreferenced_scans": manifest_documents.get("unreferenced_file_count", 0),
+            "source_archive_available": bool(manifest_source_archive.get("complete") and manifest_source_archive.get("file")),
+            "source_archive_size": manifest_source_archive.get("size"),
         }
 
         import_users = bool((job.source_metadata or {}).get("import_users", False))
@@ -260,7 +319,7 @@ def run_optitech_import(
                     batch_counts = dict((job.checkpoint or {}).get("optitech_batch_counts") or {})
                     batch_counts[domain] = counts
                     clinical_domains = (
-                        "glasses_exams", "contact_lens_exams", "orders", "files",
+                        "glasses_exams", "contact_lens_exams", "clinical_exams", "orders", "files",
                         "medical_notes", "appointments", "work_shifts",
                     )
                     domain_index = clinical_domains.index(domain) if domain in clinical_domains else 0
@@ -296,15 +355,7 @@ def run_optitech_import(
             summaries["report"] = {"available": True, "bucket": report_bucket, "key": report_key}
 
         db.commit()
-        if storage and job.bundle_storage_bucket and job.bundle_storage_key:
-            try:
-                storage.remove(job.bundle_storage_bucket, job.bundle_storage_key)
-                job.bundle_storage_bucket = None
-                job.bundle_storage_key = None
-                summaries["server_bundle_removed"] = True
-            except Exception as cleanup_error:
-                summaries["server_bundle_removed"] = False
-                summaries["server_bundle_cleanup_warning"] = str(cleanup_error)
+        summaries["source_bundle_retained"] = bool(job.bundle_storage_bucket and job.bundle_storage_key)
         on_progress(status="completed", step="Completed", progress=100, import_summary=summaries)
     except OptiTechPauseRequested:
         return

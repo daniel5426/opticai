@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTranslation } from 'react-i18next';
 
 interface ServerStatusContextType {
   isServerDown: boolean;
@@ -13,7 +14,7 @@ interface ServerStatusContextType {
 
 const ServerStatusContext = createContext<ServerStatusContextType | undefined>(undefined);
 
-type ConnectionIssue = 'server' | 'client-offline' | null;
+export type ConnectionIssue = 'server' | 'client-offline' | null;
 
 const getHealthCheckUrl = () => {
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8001/api/v1';
@@ -59,11 +60,41 @@ const getFallbackHealthCheckUrl = (baseUrl: string) => {
 const isClientOffline = () =>
   typeof navigator !== 'undefined' && navigator.onLine === false;
 
+export async function checkServerConnection(
+  baseUrl = getHealthCheckUrl(),
+  request: typeof fetch = fetch,
+): Promise<ConnectionIssue> {
+  try {
+    let res: Response;
+
+    try {
+      res = await request(`${baseUrl}/health`, {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5000)
+      });
+    } catch (primaryError) {
+      const fallbackUrl = getFallbackHealthCheckUrl(baseUrl);
+      if (!fallbackUrl) throw primaryError;
+
+      res = await request(`${fallbackUrl}/health`, {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5000)
+      });
+    }
+
+    return res.ok ? null : 'server';
+  } catch (error) {
+    console.error('[ServerStatus] Health check failed:', error);
+    return isClientOffline() ? 'client-offline' : 'server';
+  }
+}
+
 interface ServerStatusProviderProps {
   children: ReactNode;
 }
 
 export function ServerStatusProvider({ children }: ServerStatusProviderProps) {
+  const { t, i18n } = useTranslation();
   const [connectionIssue, setConnectionIssue] = useState<ConnectionIssue>(null);
   const [isChecking, setIsChecking] = useState(true);
   const serverDown = connectionIssue === 'server';
@@ -71,35 +102,9 @@ export function ServerStatusProvider({ children }: ServerStatusProviderProps) {
 
   const checkServerHealth = async (showChecking = true) => {
     if (showChecking) setIsChecking(true);
-    if (isClientOffline()) {
-      setConnectionIssue('client-offline');
-      if (showChecking) setIsChecking(false);
-      return;
-    }
 
     try {
-      const baseUrl = getHealthCheckUrl();
-      let res: Response;
-
-      try {
-        res = await fetch(`${baseUrl}/health`, {
-          cache: 'no-store',
-          signal: AbortSignal.timeout(5000)
-        });
-      } catch (primaryError) {
-        const fallbackUrl = getFallbackHealthCheckUrl(baseUrl);
-        if (!fallbackUrl) throw primaryError;
-
-        res = await fetch(`${fallbackUrl}/health`, {
-          cache: 'no-store',
-          signal: AbortSignal.timeout(5000)
-        });
-      }
-
-      setConnectionIssue(res.ok ? null : 'server');
-    } catch (error) {
-      console.error('[ServerStatus] Health check failed:', error);
-      setConnectionIssue(isClientOffline() ? 'client-offline' : 'server');
+      setConnectionIssue(await checkServerConnection());
     } finally {
       if (showChecking) setIsChecking(false);
     }
@@ -122,11 +127,10 @@ export function ServerStatusProvider({ children }: ServerStatusProviderProps) {
 
   useEffect(() => {
     const handleOffline = () => {
-      setConnectionIssue('client-offline');
-      setIsChecking(false);
+      void checkServerHealth(false);
     };
     const handleOnline = () => {
-      checkServerHealth();
+      void checkServerHealth();
     };
 
     window.addEventListener('offline', handleOffline);
@@ -141,7 +145,7 @@ export function ServerStatusProvider({ children }: ServerStatusProviderProps) {
   useEffect(() => {
     const handleApiError = (event: CustomEvent) => {
       if (event.detail?.isNetworkError) {
-        setConnectionIssue(isClientOffline() ? 'client-offline' : 'server');
+        void checkServerHealth(false);
       }
     };
 
@@ -162,7 +166,7 @@ export function ServerStatusProvider({ children }: ServerStatusProviderProps) {
       {connectionIssue && (
         <div
           className="fixed inset-0 bg-muted flex flex-col items-center justify-center p-6 md:p-10"
-          dir="rtl"
+          dir={i18n.dir()}
           style={{ scrollbarWidth: 'none', zIndex: 9999 }}
         >
           <div className={cn('w-full max-w-sm md:max-w-3xl')}>
@@ -170,12 +174,12 @@ export function ServerStatusProvider({ children }: ServerStatusProviderProps) {
               <CardContent className="flex h-[360px] flex-col items-center justify-center gap-4 p-8 text-center">
                 <AlertTriangle className="h-10 w-10 text-yellow-500" />
                 <h1 className="text-2xl font-bold">
-                  {clientOffline ? 'אין חיבור לאינטרנט' : 'הפלטפורמה אינה זמינה כרגע'}
+                  {clientOffline ? t('offlineTitle') : t('serverUnavailableTitle')}
                 </h1>
                 <p className="text-muted-foreground">
                   {clientOffline
-                    ? 'נראה שהמחשב לא מחובר לאינטרנט. בדקו את ה-Wi-Fi ונסו שוב'
-                    : 'אנחנו מקווים לחזור לפעילות ממש בקרוב'}
+                    ? t('offlineDescription')
+                    : t('serverUnavailableDescription')}
                 </p>
                 <div className="mt-2">
                   <Button
@@ -183,7 +187,7 @@ export function ServerStatusProvider({ children }: ServerStatusProviderProps) {
                     disabled={isChecking}
                     className="bg-general-primary hover:bg-general-primary/80"
                   >
-                    {isChecking ? 'בודק...' : 'נסה שוב'}
+                    {isChecking ? t('checkingConnection') : t('tryAgain')}
                   </Button>
                 </div>
               </CardContent>

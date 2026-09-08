@@ -17,6 +17,7 @@ from .reader import (
 )
 from .reporting import write_json_report
 from .subset import build_pilot_subset_report
+from .export_spec import LOOKUP_TABLES
 
 
 CORE_TABLES: Sequence[str] = (
@@ -30,34 +31,6 @@ CORE_TABLES: Sequence[str] = (
     "tblClndrApt",
     "tblCrdGlassChecksPrevs",
     "tblClndrWrk",
-)
-
-LOOKUP_TABLES: Sequence[str] = (
-    "tblCitys",
-    "tblRefs",
-    "tblRefsSub1",
-    "tblRefsSub2",
-    "tblCrdGlassBrand",
-    "tblCrdGlassCoat",
-    "tblCrdGlassColor",
-    "tblCrdGlassMater",
-    "tblCrdGlassModel",
-    "tblCrdGlassRole",
-    "tblCrdClensBrands",
-    "tblCrdClensManuf",
-    "tblCrdClensTypes",
-    "tblCrdClensSolClean",
-    "tblCrdClensSolDisinfect",
-    "tblCrdClensSolRinse",
-    "tblCrdBuysWorkTypes",
-    "tblCrdBuysWorkStats",
-    "tblCrdBuysWorkSupply",
-    "tblCrdBuysWorkLabs",
-    "tblCrdBuysWorkSapaks",
-    "tblCrdBuysWorkLabels",
-    "tblCrdClensChecksMater",
-    "tblCrdClensChecksTint",
-    "tblCrdClensChecksPr",
 )
 
 FOUNDATION_MAPPING: Mapping[str, Mapping[str, Any]] = {

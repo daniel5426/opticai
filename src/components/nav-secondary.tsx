@@ -12,6 +12,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { GuardedRouterLink } from "@/components/GuardedRouterLink";
+import { type SidebarQuickAction } from "@/components/sidebar-quick-actions";
 
 export function NavSecondary({
   items,
@@ -22,8 +23,11 @@ export function NavSecondary({
     icon: Icon;
     url?: string;
     onClick?: () => void;
+    quickAction?: SidebarQuickAction;
   }[];
+  renderQuickAction?: (action: SidebarQuickAction) => React.ReactNode;
 } & React.ComponentPropsWithoutRef<typeof SidebarGroup>) {
+  const { renderQuickAction, ...groupProps } = props;
   const location = useLocation();
 
   const normalizePath = (path: string) => {
@@ -45,7 +49,7 @@ export function NavSecondary({
   };
 
   return (
-    <SidebarGroup {...props}>
+    <SidebarGroup {...groupProps}>
       <SidebarGroupContent>
         <SidebarMenu>
           {items.map((item) => {
@@ -82,6 +86,7 @@ export function NavSecondary({
                     </GuardedRouterLink>
                   )}
                 </SidebarMenuButton>
+                {item.quickAction && renderQuickAction?.(item.quickAction)}
               </SidebarMenuItem>
             );
           })}

@@ -31,6 +31,7 @@ from services.inventory_service import (
     reconcile_order_allocations,
     release_order_allocations_for_delete,
 )
+from services.trash_service import move_to_trash
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -517,27 +518,9 @@ def update_order(
 
 @router.delete("/{order_id}")
 def delete_order(order_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    order = get_scoped_order(db, current_user, order_id)
-    client_id = order.client_id
-    release_order_allocations_for_delete(
-        db,
-        order=order,
-        current_user=current_user,
-        contact=False,
-    )
-    delete_source_index_rows(db, "order", order.id)
-    db.delete(order)
-    db.commit()
-    # bump client_updated_date
-    try:
-        if client_id:
-            client = db.query(Client).filter(Client.id == client_id).first()
-            if client:
-                client.client_updated_date = func.now()
-                db.commit()
-    except Exception:
-        pass
-    return {"message": "Order deleted successfully"}
+    get_scoped_order(db, current_user, order_id)
+    item = move_to_trash(db, current_user, "order", order_id)
+    return {"message": "Order deleted successfully", "trash_item_id": item.id, "expires_at": item.expires_at, "side_effects": "backend"}
 
 # Order unified data endpoints
 @router.get("/{order_id}/data")
@@ -914,26 +897,9 @@ def delete_contact_lens_order(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    order = get_scoped_contact_lens_order(db, current_user, order_id)
-    client_id = order.client_id
-    release_order_allocations_for_delete(
-        db,
-        order=order,
-        current_user=current_user,
-        contact=True,
-    )
-    delete_source_index_rows(db, "contact_lens_order", order.id)
-    db.delete(order)
-    db.commit()
-    try:
-        if client_id:
-            client = db.query(Client).filter(Client.id == client_id).first()
-            if client:
-                client.client_updated_date = func.now()
-                db.commit()
-    except Exception:
-        pass
-    return {"message": "Contact lens order deleted successfully"}
+    get_scoped_contact_lens_order(db, current_user, order_id)
+    item = move_to_trash(db, current_user, "contact_lens_order", order_id)
+    return {"message": "Contact lens order deleted successfully", "trash_item_id": item.id, "expires_at": item.expires_at, "side_effects": "backend"}
 
 @cl_router.post("/upsert-full")
 def upsert_contact_lens_order_full(

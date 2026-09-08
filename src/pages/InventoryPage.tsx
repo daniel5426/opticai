@@ -12,6 +12,7 @@ import {
   ClipboardCheck,
   History,
   LayoutGrid,
+  Layers,
   Loader2,
   MoreHorizontal,
   Pencil,
@@ -111,6 +112,7 @@ import type {
 import {
   CatalogVariant,
   DiscoveryCandidate,
+  DiscoveryRun,
   InventoryCategory,
   InventoryMovement,
   InventorySupplierGroup,
@@ -128,6 +130,12 @@ type InventoryTab = "stock" | "insights";
 type InventoryVisibility = "active" | "archived" | "all";
 type InventoryViewMode = "table" | "suppliers";
 type InventorySupplierSelection = Pick<InventorySupplierGroup, "key" | "label">;
+type InventoryProductGroup = {
+  product: CatalogVariant["product"];
+  variants: CatalogVariant[];
+  onHand: number;
+  available: number;
+};
 
 const INVENTORY_HEADER_TABS = [
   { value: "stock", label: "מלאי וקטלוג" },
@@ -149,6 +157,14 @@ const emptyCatalogForm = {
   preferred_supplier: "",
   replacement_schedule: "",
   color: "",
+  sph: "",
+  bc: "",
+  dia: "",
+  pack_size: "",
+  cyl: "",
+  axis: "",
+  add: "",
+  design: "",
   eye_size: "",
   bridge: "",
   temple_length: "",
@@ -160,6 +176,24 @@ const emptyCatalogForm = {
   currency: "ILS" as "ILS" | "USD" | "EUR",
   reorder_point: "",
   target_quantity: "",
+};
+
+const CONTACT_VARIANT_ATTRIBUTE_KEYS = new Set([
+  "color",
+  "sph",
+  "bc",
+  "dia",
+  "pack_size",
+  "cyl",
+  "axis",
+  "add",
+  "design",
+]);
+
+const numericAttribute = (value: string) => {
+  if (!value.trim()) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 };
 
 const integerFormatter = new Intl.NumberFormat("he-IL", {
@@ -256,7 +290,9 @@ function CatalogDialog({
     setLegacyContactAttributes(
       editing.product.category === "contact_lens"
         ? Object.fromEntries(
-            Object.entries(attributes).filter(([key]) => key !== "color"),
+            Object.entries(attributes).filter(
+              ([key]) => !CONTACT_VARIANT_ATTRIBUTE_KEYS.has(key),
+            ),
           )
         : {},
     );
@@ -270,6 +306,14 @@ function CatalogDialog({
       preferred_supplier: editing.product.preferred_supplier || "",
       replacement_schedule: editing.product.replacement_schedule || "",
       color: String(attributes.color || ""),
+      sph: String(attributes.sph ?? ""),
+      bc: String(attributes.bc ?? ""),
+      dia: String(attributes.dia ?? ""),
+      pack_size: String(attributes.pack_size ?? ""),
+      cyl: String(attributes.cyl ?? ""),
+      axis: String(attributes.axis ?? ""),
+      add: String(attributes.add ?? ""),
+      design: String(attributes.design ?? ""),
       eye_size: String(attributes.eye_size || ""),
       bridge: String(attributes.bridge || ""),
       temple_length: String(attributes.temple_length || ""),
@@ -340,6 +384,14 @@ function CatalogDialog({
         : {
             ...legacyContactAttributes,
             color: form.color,
+            sph: numericAttribute(form.sph),
+            bc: numericAttribute(form.bc),
+            dia: numericAttribute(form.dia),
+            pack_size: numericAttribute(form.pack_size),
+            cyl: numericAttribute(form.cyl),
+            axis: numericAttribute(form.axis),
+            add: form.add,
+            design: form.design,
           };
     const product = {
       brand: form.brand,
@@ -360,7 +412,7 @@ function CatalogDialog({
       default_retail: form.default_retail,
       currency: form.currency,
       is_stockable:
-        form.category === "frame" ? true : editing?.is_stockable ?? false,
+        form.category === "frame" ? true : editing?.is_stockable ?? true,
     };
     try {
       if (editing) {
@@ -398,16 +450,68 @@ function CatalogDialog({
     }
   };
 
-  const field = (name: keyof typeof form, label: string, type = "text") => (
-    <div className="space-y-1.5">
+  const field = (
+    name: keyof typeof form,
+    label: string,
+    type = "text",
+    className = "",
+  ) => (
+    <div className={`space-y-1.5 ${className}`}>
       <Label>{label}</Label>
       <Input
         type={type}
+        className={type === "number" ? "max-w-32" : undefined}
+        wrapperClassName={type === "number" ? "max-w-32" : undefined}
         value={form[name]}
         onChange={(event) => setField(name, event.target.value)}
         dir={type === "number" ? "ltr" : "rtl"}
       />
     </div>
+  );
+
+  const contactVariantField = (
+    name:
+      | "sph"
+      | "bc"
+      | "dia"
+      | "pack_size"
+      | "cyl"
+      | "axis"
+      | "add"
+      | "design",
+    label: string,
+    step?: string,
+    className = "",
+    controlWidth = "max-w-28",
+  ) => (
+    <div className={`space-y-1.5 ${className}`}>
+      <Label>{label}</Label>
+      <Input
+        type={step ? "number" : "text"}
+        step={step}
+        className={step ? controlWidth : undefined}
+        wrapperClassName={step ? controlWidth : undefined}
+        value={form[name]}
+        onChange={(event) => setField(name, event.target.value)}
+        dir="ltr"
+      />
+    </div>
+  );
+
+  const contactLensType = form.product_type.toLocaleLowerCase();
+  const isToricContactLens = Boolean(
+    form.cyl ||
+      form.axis ||
+      ["toric", "טורי", "צילינדר", "torique", "astigmat"].some((marker) =>
+        contactLensType.includes(marker),
+      ),
+  );
+  const isMultifocalContactLens = Boolean(
+    form.add ||
+      form.design ||
+      ["multifocal", "מולטיפוק", "רב מוקדי", "multifocale", "presby"].some(
+        (marker) => contactLensType.includes(marker),
+      ),
   );
 
   const frameValues: FrameCatalogValues = {
@@ -431,9 +535,10 @@ function CatalogDialog({
     label: string,
     lookupType: string,
     lookupLabel: string,
-    placeholder: string,
+    _placeholder: string,
+    className = "",
   ) => (
-    <div className="space-y-1.5">
+    <div className={`space-y-1.5 ${className}`}>
       <Label>{label}</Label>
       <FrameCatalogCombobox
         field={fieldName}
@@ -443,7 +548,7 @@ function CatalogDialog({
         loadingCatalog={loadingCatalog}
         lookupType={lookupType}
         lookupLabel={lookupLabel}
-        placeholder={placeholder}
+        placeholder=""
         portalContainer={dialogContent}
         onChange={(value) => setField(formField, value)}
         onSelectProduct={(variant) => onSelectCatalogVariant(variant)}
@@ -456,9 +561,10 @@ function CatalogDialog({
     label: string,
     lookupType: string,
     lookupLabel: string,
-    placeholder: string,
+    _placeholder: string,
+    className = "",
   ) => (
-    <div className="space-y-1.5">
+    <div className={`space-y-1.5 ${className}`}>
       <Label>{label}</Label>
       <ContactLensCatalogCombobox
         field={fieldName}
@@ -468,7 +574,7 @@ function CatalogDialog({
         loadingCatalog={loadingCatalog}
         lookupType={lookupType}
         lookupLabel={lookupLabel}
-        placeholder={placeholder}
+        placeholder=""
         inputClassName="h-9 text-sm"
         center={false}
         portalContainer={dialogContent}
@@ -482,27 +588,26 @@ function CatalogDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         ref={setDialogContent}
-        className="no-scrollbar max-h-[88vh] max-w-3xl overflow-y-auto text-right"
+        className="overflow-visible text-start [&_label]:whitespace-nowrap [&_label]:font-normal sm:!max-w-[650px]"
         dir={direction}
       >
+        <div className="no-scrollbar max-h-[calc(88vh-3rem)] overflow-y-auto pe-1">
+          <div className="space-y-4">
         <DialogHeader>
           <DialogTitle>
             {editing ? "עריכת פריט קטלוג" : "הוספת פריט לקטלוג"}
           </DialogTitle>
-          <DialogDescription>
-            מוצר הוא המשפחה המשותפת; וריאנט הוא התצורה המדויקת שנמצאת במלאי.
-          </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label>קטגוריה</Label>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-12">
+          <div className="space-y-1.5 lg:col-span-3">
+            <Label>{t("inventoryCatalogCategory")}</Label>
             <Select
               value={form.category}
               onValueChange={(value) => setField("category", value)}
               disabled={Boolean(editing)}
               dir={direction}
             >
-              <SelectTrigger>
+              <SelectTrigger aria-label={t("inventoryCatalogCategory")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -520,6 +625,7 @@ function CatalogDialog({
                 "manufacturer",
                 "מותגים",
                 "בחר או הקלד מותג...",
+                "lg:col-span-3",
               )}
               {frameCatalogField(
                 "model",
@@ -528,9 +634,10 @@ function CatalogDialog({
                 "frameModel",
                 "דגמי מסגרות",
                 "בחר או הקלד דגם מסגרת...",
+                "lg:col-span-3",
               )}
-              {field("product_type", "סוג מסגרת")}
-              {field("material", "חומר")}
+              {field("product_type", "סוג מסגרת", "text", "lg:col-span-3")}
+              {field("material", "חומר", "text", "lg:col-span-3")}
               {frameCatalogField(
                 "supplier",
                 "preferred_supplier",
@@ -538,6 +645,7 @@ function CatalogDialog({
                 "supplier",
                 "ספקים",
                 "בחר או הקלד ספק...",
+                "lg:col-span-3",
               )}
             </>
           ) : (
@@ -549,6 +657,7 @@ function CatalogDialog({
                 "manufacturer",
                 "יצרנים",
                 "בחר או הקלד יצרן...",
+                "lg:col-span-3",
               )}
               {contactLensCatalogField(
                 "model",
@@ -557,6 +666,7 @@ function CatalogDialog({
                 "contactLensModel",
                 "דגמי עדשות מגע",
                 "בחר או הקלד דגם עדשה...",
+                "lg:col-span-3",
               )}
               {contactLensCatalogField(
                 "type",
@@ -565,6 +675,7 @@ function CatalogDialog({
                 "contactLensType",
                 "סוגי עדשות",
                 "בחר או הקלד סוג עדשה...",
+                "lg:col-span-3",
               )}
               {contactLensCatalogField(
                 "material",
@@ -573,6 +684,7 @@ function CatalogDialog({
                 "contactEyeMaterial",
                 "חומרים",
                 "בחר או הקלד חומר...",
+                "lg:col-span-3",
               )}
               {contactLensCatalogField(
                 "supplier",
@@ -581,43 +693,65 @@ function CatalogDialog({
                 "supplier",
                 "ספקים",
                 "בחר או הקלד ספק...",
+                "lg:col-span-3",
               )}
-              {field("replacement_schedule", "תדירות החלפה")}
+              {field("replacement_schedule", "תדירות החלפה", "text", "lg:col-span-3")}
             </>
           )}
         </div>
         <div className="border-t pt-4">
-          <p className="mb-3 text-sm font-medium">פרטי וריאנט מדויק</p>
-          <div className="grid gap-4 md:grid-cols-3">
-            {form.category === "frame"
-              ? frameCatalogField(
-                  "color",
-                  "color",
-                  "צבע",
-                  "color",
-                  "צבעים",
-                  "בחר או הקלד צבע...",
-                )
-              : contactLensCatalogField(
-                  "color",
-                  "color",
-                  "צבע",
-                  "color",
-                  "צבעים",
-                  "בחר או הקלד צבע...",
-                )}
-            {form.category === "frame" ? (
-              <>
-                {field("eye_size", "גודל עין", "number")}
-                {field("bridge", "גשר", "number")}
-                {field("temple_length", "אורך זרוע", "number")}
-                {field("height", "גובה", "number")}
-              </>
-            ) : null}
-            {field("sku", "SKU")}
-            {field("barcode", "ברקוד")}
-            <div className="space-y-1.5">
-              <Label>{t("defaultCurrency")}</Label>
+          <p className="mb-3 text-sm font-medium">{t("inventoryVariantDetails")}</p>
+          {form.category === "contact_lens" ? (
+            <div className="grid gap-4 lg:grid-cols-[10rem_minmax(0,1fr)]">
+              {contactLensCatalogField(
+                "color",
+                "color",
+                "צבע",
+                "color",
+                "צבעים",
+                "בחר או הקלד צבע...",
+              )}
+              <div className="grid grid-cols-[minmax(0,1fr)_minmax(8rem,1.25fr)] gap-x-3 gap-y-4 sm:grid-cols-[repeat(3,minmax(0,1fr))_minmax(9rem,1.35fr)]">
+                {contactVariantField("sph", t("inventoryContactSphere"), "0.25")}
+                {contactVariantField("bc", t("inventoryContactBaseCurve"), "0.1")}
+                {contactVariantField("dia", t("inventoryContactDiameter"), "0.1")}
+                {contactVariantField("pack_size", t("inventoryContactPackSize"), "1", "", "w-full")}
+                {isToricContactLens ? (
+                  <>
+                    {contactVariantField("cyl", t("inventoryContactCylinder"), "0.25")}
+                    {contactVariantField("axis", t("inventoryContactAxis"), "1")}
+                  </>
+                ) : null}
+                {isMultifocalContactLens ? (
+                  <>
+                    {contactVariantField("add", t("inventoryContactAdd"))}
+                    {contactVariantField("design", t("inventoryContactDesign"), undefined, "sm:col-span-2")}
+                  </>
+                ) : null}
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
+              {frameCatalogField(
+                "color",
+                "color",
+                "צבע",
+                "color",
+                "צבעים",
+                "בחר או הקלד צבע...",
+                "lg:col-span-2",
+              )}
+              {field("eye_size", "גודל עין", "number")}
+              {field("bridge", "גשר", "number")}
+              {field("temple_length", "אורך זרוע", "number")}
+              {field("height", "גובה", "number")}
+            </div>
+          )}
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-12">
+            {field("sku", "SKU", "text", "lg:col-span-4")}
+            {field("barcode", "ברקוד", "text", "lg:col-span-4")}
+            <div className="space-y-1.5 lg:col-span-2">
+              <Label>{t("inventoryCurrency")}</Label>
               <Select
                 dir={direction}
                 value={form.currency}
@@ -627,23 +761,23 @@ function CatalogDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent align={direction === "rtl" ? "end" : "start"}>
-                  <SelectItem value="ILS">{t("israeliShekel")}</SelectItem>
-                  <SelectItem value="USD">{t("usDollar")}</SelectItem>
-                  <SelectItem value="EUR">{t("euro")}</SelectItem>
+                  <SelectItem value="ILS">ILS</SelectItem>
+                  <SelectItem value="USD">USD</SelectItem>
+                  <SelectItem value="EUR">EUR</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             {canViewCost
-              ? field("default_cost", "עלות ברירת מחדל", "number")
+              ? field("default_cost", t("inventoryDefaultCost"), "number", "lg:col-span-2")
               : null}
-            {field("default_retail", "מחיר מכירה מוצע", "number")}
+            {field("default_retail", t("inventorySuggestedPrice"), "number", "lg:col-span-2")}
           </div>
         </div>
         {editing && form.category === "frame" ? (
           <div className="border-t pt-4">
             <p className="mb-3 text-sm font-medium">מדיניות מלאי</p>
             <div className="grid gap-4 md:grid-cols-2">
-              {field("reorder_point", "נקודת הזמנה מחדש", "number")}
+              {field("reorder_point", t("inventoryReorderPoint"), "number")}
               {field("target_quantity", "כמות יעד", "number")}
             </div>
           </div>
@@ -657,6 +791,8 @@ function CatalogDialog({
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           </Button>
         </DialogFooter>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -764,6 +900,434 @@ function CountDialog({
 }
 
 function DiscoveryDialog({
+  open,
+  onOpenChange,
+  onFinished,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onFinished: () => void;
+}) {
+  const { t } = useTranslation();
+  const { direction } = useAppLocale();
+  const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [run, setRun] = useState<DiscoveryRun | null>(null);
+  const [candidates, setCandidates] = useState<DiscoveryCandidate[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const dirtyCandidateIds = useRef(new Set<number>());
+  const completedRunId = useRef<number | null>(null);
+  const pageSize = 50;
+
+  const loadCandidates = useCallback(
+    async (runId: number, targetPage: number) => {
+      setPageLoading(true);
+      const response = await apiClient.getInventoryDiscoveryCandidates(
+        runId,
+        targetPage,
+        pageSize,
+      );
+      setPageLoading(false);
+      if (response.error || !response.data) {
+        toast.error(t("inventoryDiscoveryLoadCandidatesFailed"));
+        return;
+      }
+      setCandidates(response.data.items);
+      setPage(response.data.page);
+      setTotal(response.data.total);
+      setRun(response.data.run);
+    },
+    [t],
+  );
+
+  const startScan = useCallback(async () => {
+    setLoading(true);
+    const response = await apiClient.startInventoryDiscoveryRun();
+    setLoading(false);
+    if (response.error || !response.data) {
+      toast.error(t("inventoryDiscoveryStartFailed"));
+      return;
+    }
+    setRun(response.data);
+    setCandidates([]);
+    setTotal(0);
+    setPage(1);
+    toast.success(t("inventoryDiscoveryStarted"));
+  }, [t]);
+
+  const initialize = useCallback(async () => {
+    setLoading(true);
+    const response = await apiClient.getLatestInventoryDiscoveryRun();
+    setLoading(false);
+    if (response.error) {
+      toast.error(t("inventoryDiscoveryStartFailed"));
+      return;
+    }
+    const latestRun = response.data?.run;
+    if (latestRun && !["confirmed", "failed"].includes(latestRun.status)) {
+      setRun(latestRun);
+      if (latestRun.status === "ready") void loadCandidates(latestRun.id, 1);
+      return;
+    }
+    void startScan();
+  }, [loadCandidates, startScan, t]);
+
+  useEffect(() => {
+    if (open) void initialize();
+    if (!open) {
+      setRun(null);
+      setCandidates([]);
+      setPage(1);
+      setTotal(0);
+      dirtyCandidateIds.current.clear();
+    }
+  }, [initialize, open]);
+
+  useEffect(() => {
+    if (!open || !run || !["queued", "running", "confirm_queued", "confirming"].includes(run.status)) {
+      return;
+    }
+    const poll = async () => {
+      const response = await apiClient.getInventoryDiscoveryRun(run.id);
+      if (response.error || !response.data) return;
+      const nextRun = response.data;
+      setRun(nextRun);
+      if (nextRun.status === "ready" && run.status !== "ready") {
+        void loadCandidates(nextRun.id, 1);
+      }
+      if (nextRun.status === "confirmed" && completedRunId.current !== nextRun.id) {
+        completedRunId.current = nextRun.id;
+        toast.success(t("inventoryDiscoveryCompleted"));
+        onFinished();
+      }
+    };
+    void poll();
+    const timer = window.setInterval(() => void poll(), 2000);
+    return () => window.clearInterval(timer);
+  }, [loadCandidates, onFinished, open, run, t]);
+
+  const updateCandidate = (
+    index: number,
+    update: Partial<DiscoveryCandidate>,
+  ) =>
+    setCandidates((current) =>
+      current.map((candidate, currentIndex) =>
+        currentIndex === index ? { ...candidate, ...update } : candidate,
+      ),
+    );
+
+  const updateCandidateField = (
+    index: number,
+    group: "product" | "attributes",
+    field: string,
+    value: string,
+  ) =>
+    setCandidates((current) =>
+      current.map((candidate, currentIndex) =>
+        currentIndex === index
+          ? { ...candidate, [group]: { ...candidate[group], [field]: value } }
+          : candidate,
+      ),
+    );
+
+  const persistCandidate = async (candidate: DiscoveryCandidate) => {
+    if (!run || !candidate.id) return true;
+    const response = await apiClient.updateInventoryDiscoveryCandidate(
+      run.id,
+      candidate.id,
+      {
+        selected: candidate.selected,
+        product: candidate.product,
+        attributes: candidate.attributes,
+      },
+    );
+    if (response.error || !response.data) {
+      toast.error(t("inventoryDiscoverySaveFailed"));
+      return false;
+    }
+    dirtyCandidateIds.current.delete(candidate.id);
+    setCandidates((current) =>
+      current.map((item) => item.id === candidate.id ? response.data! : item),
+    );
+    return true;
+  };
+
+  const saveDirtyCandidates = async () => {
+    const dirty = candidates.filter(
+      (candidate) => candidate.id && dirtyCandidateIds.current.has(candidate.id),
+    );
+    const results = await Promise.all(dirty.map((candidate) => persistCandidate(candidate)));
+    return results.every(Boolean);
+  };
+
+  const selectPage = async () => {
+    if (!run || !candidates.length) return;
+    if (!await saveDirtyCandidates()) return;
+    const selected = !candidates.every((candidate) => candidate.selected);
+    const ids = candidates
+      .map((candidate) => candidate.id)
+      .filter((id): id is number => Boolean(id));
+    setActionLoading(true);
+    const response = await apiClient.setInventoryDiscoveryCandidatesSelection(
+      run.id,
+      ids,
+      selected,
+    );
+    setActionLoading(false);
+    if (response.error || !response.data) {
+      toast.error(t("inventoryDiscoverySaveFailed"));
+      return;
+    }
+    setCandidates((current) => current.map((candidate) => ({ ...candidate, selected })));
+    setRun((current) => current
+      ? { ...current, selected_count: response.data!.selected_count }
+      : current);
+  };
+
+  const queueConfirmation = async (mode: "selected" | "all_ready") => {
+    if (!run) return;
+    if (!await saveDirtyCandidates()) return;
+    setActionLoading(true);
+    const response = await apiClient.confirmInventoryDiscoveryRun(run.id, mode);
+    setActionLoading(false);
+    if (response.error || !response.data) {
+      toast.error(
+        response.error === "Complete required candidate details before creating items"
+          ? t("inventoryDiscoveryCompleteDetails")
+          : t("inventoryDiscoveryCreateFailed"),
+      );
+      return;
+    }
+    setRun(response.data);
+    if (mode === "all_ready") {
+      setCandidates((current) => current.map((candidate) =>
+        candidate.needs_details ? candidate : { ...candidate, selected: true },
+      ));
+    }
+    toast.success(t("inventoryDiscoveryCreationQueued"));
+  };
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const isWorking = Boolean(run && ["queued", "running", "confirm_queued", "confirming"].includes(run.status));
+  const isReady = run?.status === "ready";
+  const selectedOnPage = candidates.some((candidate) => candidate.selected);
+  const changePage = (targetPage: number) => {
+    if (!run || targetPage < 1 || targetPage > totalPages) return;
+    void loadCandidates(run.id, targetPage);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[88vh] max-w-4xl overflow-y-auto" dir={direction}>
+        <DialogHeader>
+          <DialogTitle>{t("inventoryDiscoveryTitle")}</DialogTitle>
+          <DialogDescription>{t("inventoryDiscoveryDescription")}</DialogDescription>
+        </DialogHeader>
+        {loading || !run ? (
+          <div className="flex min-h-48 items-center justify-center">
+            <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
+          </div>
+        ) : run.status === "failed" ? (
+          <div className="space-y-4 rounded-md border border-destructive/30 bg-destructive/5 p-4">
+            <p className="text-sm">{t("inventoryDiscoveryFailed")}</p>
+            {run.error ? <p className="text-muted-foreground text-xs" dir="ltr">{run.error}</p> : null}
+            <Button onClick={() => void startScan()}>{t("inventoryDiscoveryStartAgain")}</Button>
+          </div>
+        ) : (
+          <>
+            <div className="bg-muted/30 grid grid-cols-3 gap-3 rounded-md border p-3 text-center text-sm">
+              <div>
+                <strong className="block text-lg" dir="ltr">{run.scanned_orders || 0}</strong>
+                {t("inventoryDiscoveryOrdersScanned")}
+              </div>
+              <div>
+                <strong className="block text-lg" dir="ltr">{run.candidate_count || 0}</strong>
+                {t("inventoryDiscoveryItemsFound")}
+              </div>
+              <div>
+                <strong className="block text-lg" dir="ltr">{run.selected_count || 0}</strong>
+                {t("inventoryDiscoveryItemsSelected")}
+              </div>
+            </div>
+            {isWorking ? (
+              <div className="space-y-2 rounded-md border p-4">
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span>
+                    {run.status === "confirm_queued" || run.status === "confirming"
+                      ? t("inventoryDiscoveryCreatingProgress")
+                      : t("inventoryDiscoveryScanningProgress")}
+                  </span>
+                  <span className="text-muted-foreground tabular-nums" dir="ltr">{run.progress}%</span>
+                </div>
+                <div className="bg-muted h-2 overflow-hidden rounded-full">
+                  <div className="bg-primary h-full transition-[width]" style={{ width: `${run.progress}%` }} />
+                </div>
+                <p className="text-muted-foreground text-xs">{t("inventoryDiscoveryCanClose")}</p>
+              </div>
+            ) : null}
+            {isReady ? (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Button variant="outline" onClick={() => void selectPage()} disabled={actionLoading || pageLoading || !candidates.length}>
+                    {candidates.every((candidate) => candidate.selected)
+                      ? t("inventoryDiscoveryClearPage")
+                      : t("inventoryDiscoverySelectPage")}
+                  </Button>
+                  <span className="text-muted-foreground text-sm" dir="ltr">
+                    {t("inventoryDiscoveryPageSummary", { page, totalPages, total })}
+                  </span>
+                </div>
+                {pageLoading ? (
+                  <div className="flex min-h-48 items-center justify-center">
+                    <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {candidates.map((candidate, index) => (
+                      <div key={candidate.id || candidate.normalized_fingerprint} className="rounded-md border p-3">
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            checked={Boolean(candidate.selected)}
+                            onCheckedChange={(checked) => {
+                              const next = { ...candidate, selected: Boolean(checked) };
+                              updateCandidate(index, { selected: Boolean(checked) });
+                              void persistCandidate(next);
+                            }}
+                            aria-label={t("inventoryDiscoverySelectItem")}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-medium">
+                                {[candidate.product.brand, candidate.product.model].filter(Boolean).join(" ") || t("inventoryDiscoveryUnnamedItem")}
+                              </p>
+                              <Badge variant="outline">
+                                {candidate.category === "frame" ? t("inventoryDiscoveryFrames") : t("inventoryDiscoveryContactLenses")}
+                              </Badge>
+                              <Badge variant={candidate.needs_details ? "secondary" : "outline"}>
+                                <span dir="ltr">{candidate.occurrence_count}</span>&nbsp;{t("inventoryDiscoveryOccurrences")}
+                              </Badge>
+                            </div>
+                            <p className="text-muted-foreground mt-1 text-xs">
+                              {Object.entries(candidate.attributes).map(([key, value]) => `${key}: ${value}`).join(" · ")}
+                            </p>
+                            {candidate.needs_details ? (
+                              <div className="mt-3 grid gap-3 rounded-md bg-amber-50/60 p-3 md:grid-cols-4">
+                                {candidate.category === "frame" ? (
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">{t("inventoryDiscoveryBrand")}</Label>
+                                    <Input
+                                      value={String(candidate.product.brand || "")}
+                                      onChange={(event) => {
+                                        dirtyCandidateIds.current.add(candidate.id || 0);
+                                        updateCandidateField(index, "product", "brand", event.target.value);
+                                      }}
+                                      onBlur={() => void persistCandidate(candidates[index])}
+                                    />
+                                  </div>
+                                ) : null}
+                                <div className="space-y-1">
+                                  <Label className="text-xs">{t("inventoryDiscoveryModel")}</Label>
+                                  <Input
+                                    value={String(candidate.product.model || "")}
+                                    onChange={(event) => {
+                                      dirtyCandidateIds.current.add(candidate.id || 0);
+                                      updateCandidateField(index, "product", "model", event.target.value);
+                                    }}
+                                    onBlur={() => void persistCandidate(candidates[index])}
+                                  />
+                                </div>
+                                {candidate.category === "frame" ? (
+                                  <>
+                                    <div className="space-y-1">
+                                      <Label className="text-xs">{t("inventoryDiscoveryColor")}</Label>
+                                      <Input
+                                        value={String(candidate.attributes.color || "")}
+                                        onChange={(event) => {
+                                          dirtyCandidateIds.current.add(candidate.id || 0);
+                                          updateCandidateField(index, "attributes", "color", event.target.value);
+                                        }}
+                                        onBlur={() => void persistCandidate(candidates[index])}
+                                      />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <Label className="text-xs">{t("inventoryDiscoveryEyeSize")}</Label>
+                                      <Input
+                                        value={String(candidate.attributes.eye_size || "")}
+                                        onChange={(event) => {
+                                          dirtyCandidateIds.current.add(candidate.id || 0);
+                                          updateCandidateField(index, "attributes", "eye_size", event.target.value);
+                                        }}
+                                        onBlur={() => void persistCandidate(candidates[index])}
+                                      />
+                                    </div>
+                                  </>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {!candidates.length ? (
+                      <div className="text-muted-foreground rounded-md border border-dashed p-10 text-center text-sm">
+                        {t("inventoryDiscoveryNoItems")}
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+                <div className="flex items-center justify-between gap-2">
+                  <Button variant="outline" size="sm" disabled={pageLoading || page <= 1} onClick={() => changePage(page - 1)}>
+                    {t("inventoryDiscoveryPreviousPage")}
+                  </Button>
+                  <Button variant="outline" size="sm" disabled={pageLoading || page >= totalPages} onClick={() => changePage(page + 1)}>
+                    {t("inventoryDiscoveryNextPage")}
+                  </Button>
+                </div>
+                {(run.summary.needs_details || 0) > 0 ? (
+                  <p className="text-muted-foreground text-xs">
+                    {t("inventoryDiscoveryIncompleteNotice", {
+                      count: run.summary.needs_details,
+                    })}
+                  </p>
+                ) : null}
+              </>
+            ) : null}
+            {run.status === "confirmed" ? (
+              <p className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                {t("inventoryDiscoveryCompleted")}
+              </p>
+            ) : null}
+          </>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            {t("inventoryDiscoveryClose")}
+          </Button>
+          {isReady ? (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => void queueConfirmation("selected")}
+                disabled={actionLoading || (!selectedOnPage && !run.selected_count)}
+              >
+                {t("inventoryDiscoveryCreateSelected")}
+                {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              </Button>
+              <Button onClick={() => void queueConfirmation("all_ready")} disabled={actionLoading || total === 0}>
+                {t("inventoryDiscoveryCreateAll")}
+                {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              </Button>
+            </>
+          ) : null}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function LegacyDiscoveryDialog({
   open,
   onOpenChange,
   onFinished,
@@ -1190,10 +1754,17 @@ export default function InventoryPage() {
   const [visibility, setVisibility] = useState<InventoryVisibility>("active");
   const [page, setPage] = useState(1);
   const [supplierPage, setSupplierPage] = useState(1);
+  const [productPage, setProductPage] = useState(1);
+  const [selectedProductVariantPage, setSelectedProductVariantPage] =
+    useState(1);
   const [viewMode, setViewMode] = useState<InventoryViewMode>("suppliers");
   const [viewModeUserId, setViewModeUserId] = useState<number | null>(null);
   const [selectedSupplier, setSelectedSupplier] =
     useState<InventorySupplierSelection | null>(null);
+  const [groupByProduct, setGroupByProduct] = useState(false);
+  const [selectedProductId, setSelectedProductId] = useState<number | null>(
+    null,
+  );
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [editing, setEditing] = useState<CatalogVariant | null>(null);
   const [initialCatalogSupplier, setInitialCatalogSupplier] = useState<
@@ -1345,10 +1916,56 @@ export default function InventoryPage() {
     );
   }, [filteredVariants, selectedSupplier]);
 
+  const productGroups = useMemo(() => {
+    const groups = new Map<number, InventoryProductGroup>();
+    tableFilteredVariants.forEach((variant) => {
+      const existing = groups.get(variant.product_id);
+      if (existing) {
+        existing.variants.push(variant);
+        existing.onHand += variant.balance?.on_hand || 0;
+        existing.available += variant.balance?.available || 0;
+        return;
+      }
+      groups.set(variant.product_id, {
+        product: variant.product,
+        variants: [variant],
+        onHand: variant.balance?.on_hand || 0,
+        available: variant.balance?.available || 0,
+      });
+    });
+    return [...groups.values()].sort((left, right) =>
+      [left.product.brand, left.product.model]
+        .filter(Boolean)
+        .join(" ")
+        .localeCompare(
+          [right.product.brand, right.product.model].filter(Boolean).join(" "),
+          "he",
+        ),
+    );
+  }, [tableFilteredVariants]);
+
+  const selectedProduct = useMemo(
+    () =>
+      productGroups.find((group) => group.product.id === selectedProductId) ||
+      null,
+    [productGroups, selectedProductId],
+  );
+
   useEffect(() => {
     setPage(1);
     setSupplierPage(1);
+    setProductPage(1);
+    setSelectedProductVariantPage(1);
   }, [category, search, visibility]);
+
+  useEffect(() => {
+    if (
+      selectedProductId != null &&
+      !productGroups.some((group) => group.product.id === selectedProductId)
+    ) {
+      setSelectedProductId(null);
+    }
+  }, [productGroups, selectedProductId]);
 
   useEffect(() => {
     const totalPages = Math.max(
@@ -1366,6 +1983,25 @@ export default function InventoryPage() {
     if (supplierPage > totalPages) setSupplierPage(totalPages);
   }, [supplierGroups.length, supplierPage]);
 
+  useEffect(() => {
+    const totalPages = Math.max(
+      1,
+      Math.ceil(productGroups.length / INVENTORY_PAGE_SIZE),
+    );
+    if (productPage > totalPages) setProductPage(totalPages);
+  }, [productGroups.length, productPage]);
+
+  useEffect(() => {
+    const totalPages = Math.max(
+      1,
+      Math.ceil(
+        (selectedProduct?.variants.length || 0) / INVENTORY_PAGE_SIZE,
+      ),
+    );
+    if (selectedProductVariantPage > totalPages)
+      setSelectedProductVariantPage(totalPages);
+  }, [selectedProduct?.variants.length, selectedProductVariantPage]);
+
   const paginatedVariants = useMemo(
     () =>
       tableFilteredVariants.slice(
@@ -1373,6 +2009,24 @@ export default function InventoryPage() {
         page * INVENTORY_PAGE_SIZE,
       ),
     [page, tableFilteredVariants],
+  );
+
+  const paginatedProductGroups = useMemo(
+    () =>
+      productGroups.slice(
+        (productPage - 1) * INVENTORY_PAGE_SIZE,
+        productPage * INVENTORY_PAGE_SIZE,
+      ),
+    [productGroups, productPage],
+  );
+
+  const paginatedSelectedProductVariants = useMemo(
+    () =>
+      (selectedProduct?.variants || []).slice(
+        (selectedProductVariantPage - 1) * INVENTORY_PAGE_SIZE,
+        selectedProductVariantPage * INVENTORY_PAGE_SIZE,
+      ),
+    [selectedProduct?.variants, selectedProductVariantPage],
   );
 
   const exportCsv = async () => {
@@ -1450,6 +2104,8 @@ export default function InventoryPage() {
   const clearSelectedSupplier = () => {
     setSelectedSupplier(null);
     setViewMode("suppliers");
+    setGroupByProduct(false);
+    setSelectedProductId(null);
     setSupplierPage(1);
   };
 
@@ -1457,8 +2113,22 @@ export default function InventoryPage() {
     if (nextMode !== "table" && nextMode !== "suppliers") return;
     setSelectedSupplier(null);
     setViewMode(nextMode);
+    setGroupByProduct(false);
+    setSelectedProductId(null);
     setPage(1);
     setSupplierPage(1);
+  };
+
+  const toggleGroupByProduct = () => {
+    setGroupByProduct((current) => !current);
+    setSelectedProductId(null);
+    setProductPage(1);
+    setSelectedProductVariantPage(1);
+  };
+
+  const selectProduct = (productId: number) => {
+    setSelectedProductId(productId);
+    setSelectedProductVariantPage(1);
   };
 
   const openCatalogForSupplier = (supplier?: string | null) => {
@@ -1646,6 +2316,25 @@ export default function InventoryPage() {
                       <LayoutGrid aria-hidden="true" />
                     </ToggleGroupItem>
                   </ToggleGroup>
+                  {displayedViewMode === "table" ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant={groupByProduct ? "default" : "outline"}
+                          size="icon"
+                          onClick={toggleGroupByProduct}
+                          aria-label={t("inventoryGroupByProduct")}
+                          title={t("inventoryGroupByProduct")}
+                        >
+                          <Layers className="size-4" aria-hidden="true" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {t("inventoryGroupByProduct")}
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : null}
                   {selectedSupplier ? (
                     <Button
                       type="button"
@@ -1668,7 +2357,42 @@ export default function InventoryPage() {
                 </div>
               }
             />
-            {displayedViewMode === "table" ? (
+            {displayedViewMode === "table" && groupByProduct ? (
+              <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 lg:grid-cols-2">
+                <InventoryTable
+                  variants={paginatedSelectedProductVariants}
+                  total={selectedProduct?.variants.length || 0}
+                  page={selectedProductVariantPage}
+                  pageSize={INVENTORY_PAGE_SIZE}
+                  onPageChange={setSelectedProductVariantPage}
+                  loading={loading}
+                  canWrite={canWrite}
+                  canViewCost={canViewCost}
+                  clinicId={clinicId}
+                  locale={locale}
+                  compactMode
+                  emptyState={t("inventorySelectProduct")}
+                  onStockChanged={() => void load()}
+                  onHistory={(variant) => void openHistory(variant)}
+                  onEdit={(variant) => {
+                    setInitialCatalogSupplier(null);
+                    setEditing(variant);
+                    setCatalogOpen(true);
+                  }}
+                  onArchive={(variant) => void archive(variant)}
+                />
+                <InventoryProductsTable
+                  groups={paginatedProductGroups}
+                  total={productGroups.length}
+                  page={productPage}
+                  pageSize={INVENTORY_PAGE_SIZE}
+                  onPageChange={setProductPage}
+                  loading={loading}
+                  selectedProductId={selectedProductId}
+                  onSelect={selectProduct}
+                />
+              </div>
+            ) : displayedViewMode === "table" ? (
               <InventoryTable
                 variants={paginatedVariants}
                 total={tableFilteredVariants.length}
@@ -2449,6 +3173,113 @@ function StockAdjustmentDropdown({
   );
 }
 
+function InventoryProductsTable({
+  groups,
+  total,
+  page,
+  pageSize,
+  onPageChange,
+  loading,
+  selectedProductId,
+  onSelect,
+}: {
+  groups: InventoryProductGroup[];
+  total: number;
+  page: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+  loading: boolean;
+  selectedProductId: number | null;
+  onSelect: (productId: number) => void;
+}) {
+  const { t } = useTranslation();
+  const { direction } = useAppLocale();
+  const categoryLabel = (category: InventoryCategory) =>
+    category === "frame"
+      ? t("inventoryFrames")
+      : t("inventoryContactLenses");
+
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="bg-card min-h-0 flex-1 rounded-md">
+        <Table
+          dir={direction}
+          containerClassName="h-full min-h-0 overflow-auto overscroll-contain"
+          emptyState={!loading && !groups.length ? t("inventoryNoProducts") : undefined}
+          showTrailingRowBorder
+        >
+          <TableHeader className="bg-card sticky top-0 z-10">
+            <TableRow>
+              <TableHead>{t("inventoryProducts")}</TableHead>
+              <TableHead>{t("inventoryCatalogCategory")}</TableHead>
+              <TableHead>{t("inventoryVariants")}</TableHead>
+              <TableHead>{t("inventoryOnHand")}</TableHead>
+              <TableHead>{t("inventoryAvailable")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading
+              ? Array.from({ length: 5 }).map((_, index) => (
+                  <TableRow key={index}>
+                    <TableCell colSpan={5}>
+                      <Skeleton className="h-8 w-full" />
+                    </TableCell>
+                  </TableRow>
+                ))
+              : groups.map((group) => (
+                  <TableRow
+                    key={group.product.id}
+                    className={`hover:bg-muted/50 cursor-pointer ${
+                      selectedProductId === group.product.id
+                        ? "bg-primary/90 text-primary-foreground font-semibold shadow-sm hover:bg-primary/90 [&_[data-slot=badge]]:!border-primary-foreground/30 [&_[data-slot=badge]]:!bg-transparent [&_[data-slot=badge]]:!text-primary-foreground"
+                        : ""
+                    }`}
+                    onClick={() => onSelect(group.product.id)}
+                  >
+                    <TableCell className="text-start font-medium">
+                      {[group.product.brand, group.product.model]
+                        .filter(Boolean)
+                        .join(" ")}
+                    </TableCell>
+                    <TableCell className="text-start">
+                      <Badge variant="outline">
+                        {categoryLabel(group.product.category)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-start tabular-nums">
+                      {t("inventoryProductVariantsCount", {
+                        count: group.variants.length,
+                      })}
+                    </TableCell>
+                    <TableCell className="text-start tabular-nums">
+                      {group.onHand}
+                    </TableCell>
+                    <TableCell className="text-start">
+                      <Badge
+                        variant={
+                          group.available <= 0 ? "secondary" : "outline"
+                        }
+                        className="tabular-nums"
+                      >
+                        {group.available}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+          </TableBody>
+        </Table>
+      </div>
+      <TablePagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        onPageChange={onPageChange}
+        loading={loading}
+      />
+    </div>
+  );
+}
+
 function InventoryTable({
   variants,
   total,
@@ -2460,6 +3291,8 @@ function InventoryTable({
   canViewCost,
   clinicId,
   locale,
+  compactMode = false,
+  emptyState,
   onStockChanged,
   onHistory,
   onEdit,
@@ -2475,37 +3308,61 @@ function InventoryTable({
   canViewCost: boolean;
   clinicId: number;
   locale: AppLocale;
+  compactMode?: boolean;
+  emptyState?: string;
   onStockChanged: () => void;
   onHistory: (variant: CatalogVariant) => void;
   onEdit: (variant: CatalogVariant) => void;
   onArchive: (variant: CatalogVariant) => void;
 }) {
+  const { t } = useTranslation();
+  const direction = locale === "he" ? "rtl" : "ltr";
+  const machineValueAlignment =
+    direction === "rtl" ? "text-right" : "text-left";
+  const columnCount = compactMode ? 5 : canViewCost ? 10 : 9;
+
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="bg-card min-h-0 flex-1 rounded-md">
         <Table
-          dir="rtl"
+          dir={direction}
           containerClassName="h-full min-h-0 overflow-auto overscroll-contain"
           emptyState={
             !loading && !variants.length
-              ? "אין פריטים התואמים לסינון. אפשר להוסיף פריט ראשון או לגלות מוצרים מהזמנות."
+              ? emptyState ||
+                "אין פריטים התואמים לסינון. אפשר להוסיף פריט ראשון או לגלות מוצרים מהזמנות."
               : undefined
           }
           showTrailingRowBorder
         >
           <TableHeader className="bg-card sticky top-0 z-10">
             <TableRow>
-              <TableHead>מוצר</TableHead>
-              <TableHead>קטגוריה</TableHead>
-              <TableHead>וריאנט</TableHead>
-              <TableHead>SKU / ברקוד</TableHead>
-              <TableHead>במלאי</TableHead>
-              <TableHead>משוריין</TableHead>
-              <TableHead>זמין</TableHead>
-              <TableHead>מחיר מכירה</TableHead>
-              {canViewCost ? <TableHead>עלות</TableHead> : null}
-              <TableHead className="w-28">
-                <span className="sr-only">פעולות</span>
+              {!compactMode ? <TableHead>מוצר</TableHead> : null}
+              {!compactMode ? <TableHead>קטגוריה</TableHead> : null}
+              <TableHead>
+                {t("inventoryVariant")}
+              </TableHead>
+              <TableHead>
+                {compactMode ? t("inventorySkuBarcode") : "SKU / ברקוד"}
+              </TableHead>
+              {compactMode ? (
+                <TableHead>{t("inventoryStock")}</TableHead>
+              ) : (
+                <>
+                  <TableHead>במלאי</TableHead>
+                  <TableHead>משוריין</TableHead>
+                  <TableHead>זמין</TableHead>
+                  <TableHead>מחיר מכירה</TableHead>
+                  {canViewCost ? <TableHead>עלות</TableHead> : null}
+                </>
+              )}
+              {compactMode ? (
+                <TableHead>{t("inventoryPricing")}</TableHead>
+              ) : null}
+              <TableHead className={compactMode ? "w-12" : "w-28"}>
+                <span className="sr-only">
+                  {compactMode ? t("inventoryActions") : "פעולות"}
+                </span>
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -2513,7 +3370,7 @@ function InventoryTable({
             {loading
               ? Array.from({ length: 5 }).map((_, index) => (
                   <TableRow key={index}>
-                    <TableCell colSpan={canViewCost ? 10 : 9}>
+                    <TableCell colSpan={columnCount}>
                       <Skeleton className="h-8 w-full" />
                     </TableCell>
                   </TableRow>
@@ -2523,48 +3380,55 @@ function InventoryTable({
                     key={variant.id}
                     className={variant.archived_at ? "opacity-60" : ""}
                   >
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div>
-                          <button
-                            type="button"
-                            disabled={!canWrite}
-                            onClick={() => onEdit(variant)}
-                            className="focus-visible:ring-ring rounded-sm text-right font-medium outline-none hover:underline focus-visible:ring-2 disabled:pointer-events-none"
-                          >
-                            {[variant.product.brand, variant.product.model]
-                              .filter(Boolean)
-                              .join(" ")}
-                          </button>
+                    {!compactMode ? (
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div>
+                            <button
+                              type="button"
+                              disabled={!canWrite}
+                              onClick={() => onEdit(variant)}
+                              className="focus-visible:ring-ring rounded-sm text-start font-medium outline-none hover:underline focus-visible:ring-2 disabled:pointer-events-none"
+                            >
+                              {[variant.product.brand, variant.product.model]
+                                .filter(Boolean)
+                                .join(" ")}
+                            </button>
+                          </div>
+                          {!variant.is_stockable ? (
+                            <Badge variant="secondary">דורש השלמה</Badge>
+                          ) : null}
+                          {variant.archived_at ? (
+                            <Badge variant="outline">ארכיון</Badge>
+                          ) : null}
                         </div>
-                        {!variant.is_stockable ? (
-                          <Badge variant="secondary">דורש השלמה</Badge>
-                        ) : null}
-                        {variant.archived_at ? (
-                          <Badge variant="outline">ארכיון</Badge>
-                        ) : null}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {inventoryCategoryLabel(variant.product.category)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
+                      </TableCell>
+                    ) : null}
+                    {!compactMode ? (
+                      <TableCell>
+                        <Badge variant="outline">
+                          {inventoryCategoryLabel(variant.product.category)}
+                        </Badge>
+                      </TableCell>
+                    ) : null}
+                    <TableCell className="text-start">
                       {inventoryVariantDescription(variant) || ""}
                     </TableCell>
-                    <TableCell>
-                      <p className="font-mono text-xs" dir="ltr">
+                    <TableCell className="text-start">
+                      <p
+                        className={`font-mono text-xs ${machineValueAlignment}`}
+                        dir="ltr"
+                      >
                         {variant.sku || ""}
                       </p>
                       <p
-                        className="text-muted-foreground font-mono text-xs"
+                        className={`text-muted-foreground font-mono text-xs ${machineValueAlignment}`}
                         dir="ltr"
                       >
                         {variant.barcode || ""}
                       </p>
                     </TableCell>
-                    <TableCell className="group/stock tabular-nums">
+                    <TableCell className="group/stock text-start tabular-nums">
                       <div className="flex items-center gap-1">
                         {canWrite &&
                         variant.is_stockable &&
@@ -2577,57 +3441,139 @@ function InventoryTable({
                         ) : (
                           <span>{variant.balance?.on_hand || 0}</span>
                         )}
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground size-7 opacity-0 transition-opacity group-hover/stock:opacity-100 focus-visible:opacity-100"
-                          onClick={() => onHistory(variant)}
-                          aria-label={`היסטוריית מלאי עבור ${variant.display_name}`}
-                          title="היסטוריית מלאי"
-                        >
-                          <History className="size-3.5" />
-                        </Button>
+                        {!compactMode ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="text-muted-foreground size-7 opacity-0 transition-opacity group-hover/stock:opacity-100 focus-visible:opacity-100"
+                            onClick={() => onHistory(variant)}
+                            aria-label={`היסטוריית מלאי עבור ${variant.display_name}`}
+                            title="היסטוריית מלאי"
+                          >
+                            <History className="size-3.5" />
+                          </Button>
+                        ) : null}
                       </div>
                     </TableCell>
-                    <TableCell className="tabular-nums">
-                      {variant.balance?.reserved || 0}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          (variant.balance?.available || 0) <= 0
-                            ? "secondary"
-                            : "outline"
-                        }
-                      >
-                        {variant.balance?.available || 0}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {variant.default_retail == null
-                        ? ""
-                        : formatMoney(
-                            variant.default_retail,
-                            variant.currency,
-                            locale,
-                            { maximumFractionDigits: 0 },
-                          )}
-                    </TableCell>
-                    {canViewCost ? (
-                      <TableCell>
-                        {variant.default_cost == null
-                          ? ""
-                          : formatMoney(
+                    {!compactMode ? (
+                      <>
+                        <TableCell className="text-start tabular-nums">
+                          {variant.balance?.reserved || 0}
+                        </TableCell>
+                        <TableCell className="text-start">
+                          <Badge
+                            variant={
+                              (variant.balance?.available || 0) <= 0
+                                ? "secondary"
+                                : "outline"
+                            }
+                          >
+                            {variant.balance?.available || 0}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-start">
+                          {variant.default_retail == null
+                            ? ""
+                            : formatMoney(
+                                variant.default_retail,
+                                variant.currency,
+                                locale,
+                                { maximumFractionDigits: 0 },
+                              )}
+                        </TableCell>
+                        {canViewCost ? (
+                          <TableCell className="text-start">
+                            {variant.default_cost == null
+                              ? ""
+                              : formatMoney(
+                                  variant.default_cost,
+                                  variant.currency,
+                                  locale,
+                                  { maximumFractionDigits: 0 },
+                                )}
+                          </TableCell>
+                        ) : null}
+                      </>
+                    ) : (
+                      <TableCell className="text-start space-y-1 text-xs">
+                        {variant.default_retail != null ? (
+                          <p
+                            className={`font-medium ${machineValueAlignment}`}
+                            dir="ltr"
+                          >
+                            {formatMoney(
+                              variant.default_retail,
+                              variant.currency,
+                              locale,
+                              { maximumFractionDigits: 0 },
+                            )}
+                          </p>
+                        ) : null}
+                        {canViewCost && variant.default_cost != null ? (
+                          <p
+                            className={`text-muted-foreground ${machineValueAlignment}`}
+                            dir="ltr"
+                          >
+                            {formatMoney(
                               variant.default_cost,
                               variant.currency,
                               locale,
                               { maximumFractionDigits: 0 },
                             )}
+                          </p>
+                        ) : null}
                       </TableCell>
-                    ) : null}
+                    )}
                     <TableCell className="whitespace-nowrap">
-                      {canWrite ? (
+                      {compactMode ? (
+                        <DropdownMenu dir={direction}>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="text-muted-foreground size-8"
+                              aria-label={t("inventoryActions")}
+                              title={t("inventoryActions")}
+                            >
+                              <MoreHorizontal className="size-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => onHistory(variant)}>
+                              {t("inventoryStockHistory")}
+                              <History className="size-4" />
+                            </DropdownMenuItem>
+                            {canWrite ? (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => onEdit(variant)}>
+                                  {t("inventoryEditItem")}
+                                  <Pencil className="size-4" />
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className={
+                                    variant.archived_at
+                                      ? undefined
+                                      : "text-destructive focus:text-destructive"
+                                  }
+                                  onClick={() => onArchive(variant)}
+                                >
+                                  {variant.archived_at
+                                    ? t("inventoryRestoreItem")
+                                    : t("inventoryArchiveItem")}
+                                  {variant.archived_at ? (
+                                    <ArchiveRestore className="size-4" />
+                                  ) : (
+                                    <Archive className="size-4" />
+                                  )}
+                                </DropdownMenuItem>
+                              </>
+                            ) : null}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : canWrite ? (
                         <div className="flex items-center gap-0.5">
                           <Button
                             type="button"

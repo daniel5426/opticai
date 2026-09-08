@@ -17,6 +17,7 @@ import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
 import { DateSearchHelper } from "@/lib/date-search-helper"
 import { useAppLocale } from "@/localization/use-app-locale"
 import { getClientGenderLabel } from "@/lib/client-details-editor"
+import { useTranslation } from "react-i18next"
 
 const LIST_CELL_TEXT_LIMIT = 160
 
@@ -81,6 +82,7 @@ export function ClientsTable({
   onToggleMergeClient,
   fillHeight = false
 }: ClientsTableProps) {
+  const { t } = useTranslation()
   const { direction, locale } = useAppLocale()
   const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
   const [selectedGender, setSelectedGender] = React.useState<string>("all")
@@ -170,8 +172,6 @@ export function ClientsTable({
       try {
         const deletedClientId = clientToDelete.id
         onClientDeleted?.(deletedClientId)
-        toast.success("לקוח נמחק בהצלחה")
-
         const success = await deleteClient(deletedClientId)
         if (!success) {
           toast.error("אירעה שגיאה בעת מחיקת הלקוח. מרענן נתונים...")
@@ -474,16 +474,12 @@ export function ClientsTable({
       <CustomModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
-        title="מחיקת לקוח"
-        description={
-          clientToDelete
-            ? `האם אתה בטוח שברצונך למחוק את הלקוח ${clientToDelete.first_name} ${clientToDelete.last_name}? פעולה זו אינה הפיכה.`
-            : "האם אתה בטוח שברצונך למחוק לקוח זה? פעולה זו אינה הפיכה."
-        }
+        title={t("trashMoveTitle")}
+        description={t("trashMoveDescription", { item: clientToDelete ? `${clientToDelete.first_name || ""} ${clientToDelete.last_name || ""}`.trim() : t("trashTypeClient") })}
         onConfirm={handleDeleteConfirm}
-        confirmText="מחק"
+        confirmText={t("trashMoveConfirm")}
         className="text-center"
-        cancelText="בטל"
+        cancelText={t("cancel")}
         showCloseButton={false}
       />
     </div>

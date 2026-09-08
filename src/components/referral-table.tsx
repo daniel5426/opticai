@@ -17,6 +17,7 @@ import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
 import { exportReferralToDocx, exportReferralToPdf, printReferralPdf } from "@/lib/referral-docx"
 import { DateSearchHelper } from "@/lib/date-search-helper"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useTranslation } from "react-i18next"
 
 interface ReferralTableProps {
   referrals: Referral[]
@@ -61,6 +62,7 @@ export function ReferralTable({
   onSortChange,
   fillHeight = false
 }: ReferralTableProps) {
+  const { t } = useTranslation()
   const [searchTerm, setSearchTerm] = useState("")
   const [localSort, setLocalSort] = useState<SortState | undefined>()
   const searchValue = externalSearch !== undefined ? externalSearch : searchTerm
@@ -145,8 +147,6 @@ export function ReferralTable({
       try {
         const deletedReferralId = referralToDelete.id
         onReferralDeleted(deletedReferralId)
-        toast.success("ההפניה נמחקה בהצלחה")
-
         const success = await deleteReferral(deletedReferralId)
         if (!success) {
           toast.error("לא הצלחנו למחוק את ההפניה. מרענן נתונים...")
@@ -519,15 +519,11 @@ export function ReferralTable({
       <CustomModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
-        title="מחיקת הפניה"
-        description={
-          referralToDelete
-            ? `האם אתה בטוח שברצונך למחוק את ההפניה אל "${referralToDelete.recipient}"?`
-            : "האם אתה בטוח שברצונך למחוק את ההפניה?"
-        }
+        title={t("trashMoveTitle")}
+        description={t("trashMoveDescription", { item: referralToDelete?.recipient || t("trashTypeReferral") })}
         onConfirm={handleDeleteConfirm}
-        confirmText="מחק"
-        cancelText="בטל"
+        confirmText={t("trashMoveConfirm")}
+        cancelText={t("cancel")}
       />
     </div>
   )

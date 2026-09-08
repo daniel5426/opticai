@@ -36,7 +36,7 @@ gh workflow run production-promotion.yml --repo daniel5426/opticai --ref main -f
 [[actions]]
 name = "open app on mac"
 icon = "tool"
-command = "find ~/Downloads/app -name \"*.app\" -type d -exec xattr -dr com.apple.quarantine {} +"
+command = "npm run open:latest-prysm"
 
 [[actions]]
 name = "realese staging"

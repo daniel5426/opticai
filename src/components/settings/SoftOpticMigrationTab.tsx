@@ -82,6 +82,7 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
   const [uploadInFlight, setUploadInFlight] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fullScanJobId, setFullScanJobId] = useState<string | null>(null)
+  const [retainedSourceJobs, setRetainedSourceJobs] = useState<any[]>([])
 
   const exportStorageKey = useMemo(
     () => clinicId ? `migration-export-job:${clinicId}:${sourceSystem}` : null,
@@ -116,9 +117,14 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
   useEffect(() => {
     if (!clinicId || job?.id) return
     let cancelled = false
-    apiClient.listMigrationImports(clinicId, sourceSystem, true).then(response => {
+    apiClient.listMigrationImports(clinicId, sourceSystem, false).then(response => {
       if (cancelled || !Array.isArray(response.data) || response.data.length === 0) return
-      const activeJob = response.data[0] as any
+      const imports = response.data as any[]
+      setRetainedSourceJobs(imports.filter(importJob => Boolean(
+        importJob.bundle_uploaded && importJob.validation_summary?.manifest?.source_archive?.complete,
+      )))
+      const activeJob = imports.find(importJob => ["awaiting_upload", "queued", "running", "paused"].includes(importJob.status))
+      if (!activeJob) return
       setJob(activeJob)
       setProgress(activeJob.progress || 0)
       setStepText(activeJob.step || "ממתין לעובד ייבוא")
@@ -525,6 +531,17 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
     }
   }
 
+  const downloadSourceArchive = async (jobId?: string) => {
+    const sourceJobId = jobId || job?.id
+    if (!sourceJobId) return
+    const response = await apiClient.getMigrationSourceArchiveDownload(sourceJobId)
+    if (response.data?.url) {
+      window.open(response.data.url, "_blank", "noopener,noreferrer")
+    } else {
+      toast.error(response.error || t("migrationSourceArchiveUnavailable"))
+    }
+  }
+
   const busy = ["scanning", "exporting"].includes(phase) || uploadInFlight
   const optiTechLiveCounts = sourceSystem === "optitech" && job?.import_summary?.live_counts
     ? job.import_summary.live_counts as Record<string, Record<string, number>>
@@ -626,6 +643,12 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
               <Button variant="outline" onClick={downloadReport}>
                 <Download className="ml-2 h-4 w-4" />
                 Download report
+              </Button>
+            )}
+            {sourceSystem === "optitech" && job?.bundle_uploaded && job?.validation_summary?.manifest?.source_archive?.complete && (
+              <Button variant="outline" onClick={() => downloadSourceArchive()}>
+                <Download className="me-2 h-4 w-4" />
+                {t("migrationDownloadSourceArchive")}
               </Button>
             )}
           </div>
@@ -813,6 +836,28 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
                 </div>
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {sourceSystem === "optitech" && retainedSourceJobs.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-start text-base">{t("migrationRetainedSourceArchives")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {retainedSourceJobs.map(sourceJob => (
+              <div key={sourceJob.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
+                <div className="text-start text-sm">
+                  <div>{new Date(sourceJob.created_at).toLocaleString()}</div>
+                  <div className="text-xs text-muted-foreground" dir="ltr">{sourceJob.id}</div>
+                </div>
+                <Button variant="outline" onClick={() => downloadSourceArchive(sourceJob.id)}>
+                  <Download className="me-2 h-4 w-4" />
+                  {t("migrationDownloadSourceArchive")}
+                </Button>
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}

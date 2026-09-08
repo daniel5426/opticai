@@ -40,6 +40,10 @@ from models import (
     Referral,
     ReferralEye,
     SoftOpticMigrationJob,
+    TrashAuditEvent,
+    TrashItem,
+    TrashJob,
+    TrashMember,
     User,
     WorkShift,
 )
@@ -297,6 +301,12 @@ def _delete_operational_rows(db: Session, job: ClinicDataPruneJob) -> dict[str, 
     campaign_ids = db.query(Campaign.id).filter(Campaign.clinic_id == clinic_id)
     chat_ids = db.query(Chat.id).filter(Chat.clinic_id == clinic_id)
 
+    trash_item_ids = db.query(TrashItem.id).filter(TrashItem.clinic_id == clinic_id)
+    db.query(TrashJob).filter(TrashJob.trash_item_id.in_(trash_item_ids)).delete(synchronize_session=False)
+    db.query(TrashMember).filter(TrashMember.trash_item_id.in_(trash_item_ids)).delete(synchronize_session=False)
+    db.query(TrashAuditEvent).filter(TrashAuditEvent.clinic_id == clinic_id).delete(synchronize_session=False)
+    db.query(TrashItem).filter(TrashItem.clinic_id == clinic_id).delete(synchronize_session=False)
+
     if user_ids:
         db.query(WorkShift).filter(WorkShift.user_id.in_(user_ids)).delete(synchronize_session=False)
         db.query(AuthSession).filter(or_(AuthSession.clinic_id == clinic_id, AuthSession.user_id.in_(user_ids))).delete(synchronize_session=False)
@@ -333,6 +343,7 @@ def _delete_operational_rows(db: Session, job: ClinicDataPruneJob) -> dict[str, 
 
 def run_prune_job(db: Session, job: ClinicDataPruneJob, storage: FileStorageService | None) -> None:
     try:
+        db.info["include_deleted"] = True
         checkpoint = dict(job.checkpoint or {})
         if not checkpoint.get("database_deleted"):
             job.step = "Inventorying stored files"

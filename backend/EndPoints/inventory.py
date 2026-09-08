@@ -5,7 +5,7 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import PlainTextResponse
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
@@ -48,7 +48,19 @@ from services.inventory_service import (
     validate_variant_attributes,
     variant_dict,
 )
-from services.inventory_discovery_service import confirm_discovery, discover_from_orders
+from services.inventory_discovery_service import (
+    confirm_discovery,
+    create_discovery_run,
+    discovery_candidate_dict,
+    discovery_run_dict,
+    discover_from_orders,
+    get_discovery_run,
+    latest_discovery_run,
+    list_discovery_candidates,
+    queue_discovery_confirmation,
+    set_discovery_candidates_selection,
+    update_discovery_candidate,
+)
 from services.analytics_service import add_to_series, empty_series, metric_payload, resolve_analytics_window
 
 
@@ -831,9 +843,136 @@ def preview_discovery(
 ):
     require_inventory_write(current_user)
     company_id = resolve_company_id(db, current_user)
+    # Older desktop clients expect a synchronous payload. Keep that contract for
+    # small clinics only; new clients use the durable run endpoints below.
+    clinic_ids = [row[0] for row in db.query(Clinic.id).filter(Clinic.company_id == company_id).all()]
+    order_count = (
+        db.query(Order.id).filter(Order.clinic_id.in_(clinic_ids)).count()
+        + db.query(ContactLensOrder.id).filter(ContactLensOrder.clinic_id.in_(clinic_ids)).count()
+        if clinic_ids
+        else 0
+    )
+    if order_count > 500:
+        raise HTTPException(
+            status_code=409,
+            detail="Discovery now runs in the background. Update the desktop app to review the results.",
+        )
     # Deliberately read-only: persisted candidates and catalog rows are created
     # only by the confirmation endpoint.
     return discover_from_orders(db, company_id)
+
+
+@router.post("/discovery/runs", status_code=status.HTTP_202_ACCEPTED)
+def start_discovery_run(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_inventory_write(current_user)
+    company_id = resolve_company_id(db, current_user)
+    return discovery_run_dict(create_discovery_run(db, company_id=company_id, current_user=current_user))
+
+
+@router.get("/discovery/runs/latest")
+def get_latest_discovery_run(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_inventory_write(current_user)
+    company_id = resolve_company_id(db, current_user)
+    run = latest_discovery_run(db, company_id)
+    return {"run": discovery_run_dict(run) if run else None}
+
+
+@router.get("/discovery/runs/{run_id}")
+def get_discovery_run_status(
+    run_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_inventory_write(current_user)
+    company_id = resolve_company_id(db, current_user)
+    return discovery_run_dict(get_discovery_run(db, company_id, run_id))
+
+
+@router.get("/discovery/runs/{run_id}/candidates")
+def get_discovery_run_candidates(
+    run_id: int,
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=50, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_inventory_write(current_user)
+    company_id = resolve_company_id(db, current_user)
+    return list_discovery_candidates(
+        db,
+        company_id=company_id,
+        run_id=run_id,
+        page=page,
+        limit=limit,
+    )
+
+
+@router.patch("/discovery/runs/{run_id}/candidates/{candidate_id}")
+def patch_discovery_candidate(
+    run_id: int,
+    candidate_id: int,
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_inventory_write(current_user)
+    company_id = resolve_company_id(db, current_user)
+    candidate = update_discovery_candidate(
+        db,
+        company_id=company_id,
+        run_id=run_id,
+        candidate_id=candidate_id,
+        payload=payload,
+    )
+    return discovery_candidate_dict(candidate)
+
+
+@router.post("/discovery/runs/{run_id}/candidates/selection")
+def update_discovery_candidate_selection(
+    run_id: int,
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    candidate_ids = payload.get("candidate_ids")
+    if not isinstance(candidate_ids, list) or not isinstance(payload.get("selected"), bool):
+        raise HTTPException(status_code=422, detail="Candidate IDs and selected state are required")
+    require_inventory_write(current_user)
+    company_id = resolve_company_id(db, current_user)
+    try:
+        ids = [int(candidate_id) for candidate_id in candidate_ids]
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail="Invalid discovery candidate IDs") from exc
+    return set_discovery_candidates_selection(
+        db,
+        company_id=company_id,
+        run_id=run_id,
+        candidate_ids=ids,
+        selected=payload["selected"],
+    )
+
+
+@router.post("/discovery/runs/{run_id}/confirm", status_code=status.HTTP_202_ACCEPTED)
+def confirm_discovery_run(
+    run_id: int,
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_inventory_write(current_user)
+    company_id = resolve_company_id(db, current_user)
+    return discovery_run_dict(queue_discovery_confirmation(
+        db,
+        company_id=company_id,
+        run_id=run_id,
+        mode=str(payload.get("mode") or "selected"),
+    ))
 
 
 @router.post("/discovery/confirm")

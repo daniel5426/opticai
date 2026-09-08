@@ -62,6 +62,7 @@ import { AppointmentFormFields } from "@/components/appointments/appointment-for
 import { flattenActiveExamLayouts } from "@/components/appointments/exam-layouts";
 import { NewClientAppointmentModal } from "@/components/appointments/new-client-appointment-modal";
 import { CustomModal } from "@/components/ui/custom-modal";
+import { useTranslation } from "react-i18next";
 
 interface AppointmentsTableProps {
   data: Appointment[];
@@ -104,6 +105,7 @@ const AppointmentTableRow = React.memo(function AppointmentTableRow({
   onSendEmail,
   clientId,
 }: AppointmentTableRowProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   return (
@@ -163,7 +165,7 @@ const AppointmentTableRow = React.memo(function AppointmentTableRow({
               e.stopPropagation();
               onDelete(appointment);
             }}
-            title="מחיקה"
+            title={t("trashMoveConfirm")}
           >
             <Trash2 className="h-4 w-4 text-red-600" />
           </Button>
@@ -192,6 +194,7 @@ export function AppointmentsTable({
   onSortChange,
   fillHeight = false,
 }: AppointmentsTableProps) {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
   const [localSort, setLocalSort] = useState<SortState | undefined>();
   const searchValue =
@@ -869,11 +872,8 @@ export function AppointmentsTable({
       try {
         const deletedAppointmentId = appointmentToDelete.id;
         onAppointmentDeleted(deletedAppointmentId);
-        toast.success("התור נמחק בהצלחה");
-
         const result = await deleteAppointment(deletedAppointmentId);
         if (result) {
-          toast.success("התור נמחק בהצלחה");
           onAppointmentDeleted(deletedAppointmentId);
         } else {
           toast.error("שגיאה במחיקת התור");
@@ -1106,15 +1106,11 @@ export function AppointmentsTable({
       <CustomModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
-        title="מחיקת תור"
-        description={
-          appointmentToDelete
-            ? `האם אתה בטוח שברצונך למחוק את התור בתאריך ${appointmentToDelete.date ? new Date(appointmentToDelete.date).toLocaleDateString("he-IL") : ""}?`
-            : "האם אתה בטוח שברצונך למחוק את התור?"
-        }
+        title={t("trashMoveTitle")}
+        description={t("trashMoveDescription", { item: appointmentToDelete?.exam_name || t("trashTypeAppointment") })}
         onConfirm={handleDeleteConfirm}
-        confirmText="מחק"
-        cancelText="בטל"
+        confirmText={t("trashMoveConfirm")}
+        cancelText={t("cancel")}
       />
 
       <div

@@ -66,12 +66,16 @@ def create_import(
     source_metadata = payload.get("source_metadata") if isinstance(payload.get("source_metadata"), dict) else {}
     export_summary = payload.get("export_summary") if isinstance(payload.get("export_summary"), dict) else {}
     if source_system == "optitech":
+        export_manifest = export_summary.get("manifest") if isinstance(export_summary.get("manifest"), dict) else {}
+        mapping_version = export_manifest.get("mapping_version")
+        if mapping_version not in {2, 3}:
+            mapping_version = 2
         source_metadata = {
             **source_metadata,
-            "mapping_version": 2,
+            "mapping_version": mapping_version,
             "import_users": bool(options.get("import_users", False)),
         }
-        export_summary = {**export_summary, "mapping_version": 2}
+        export_summary = {**export_summary, "mapping_version": mapping_version}
     try:
         job = create_job(
             db,
@@ -131,6 +135,31 @@ def download_import_report(
     return {
         "url": storage.create_signed_url(report["bucket"], report["key"], expires_in=900),
         "file_name": f"optitech-migration-{job.id}.zip",
+    }
+
+
+@router.get("/imports/{job_id}/source-archive-download")
+def download_source_archive(
+    job_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    storage: FileStorageService = Depends(get_file_storage_service),
+):
+    job = _get_job(db, current_user, job_id)
+    if job.source_system != "optitech":
+        raise HTTPException(status_code=404, detail="OptiTech source archive is not available")
+    if not job.bundle_storage_bucket or not job.bundle_storage_key:
+        raise HTTPException(status_code=404, detail="OptiTech source archive is not available")
+    manifest = (job.validation_summary or {}).get("manifest")
+    source_archive = manifest.get("source_archive") if isinstance(manifest, dict) else None
+    if not isinstance(source_archive, dict) or not source_archive.get("complete"):
+        raise HTTPException(status_code=404, detail="This migration bundle does not contain the original database")
+    if not storage.exists(job.bundle_storage_bucket, job.bundle_storage_key):
+        raise HTTPException(status_code=404, detail="The retained OptiTech source archive is missing from storage")
+    return {
+        "url": storage.create_signed_url(job.bundle_storage_bucket, job.bundle_storage_key, expires_in=900),
+        "file_name": f"optitech-source-archive-{job.id}.zip",
+        "sha256": source_archive.get("sha256"),
     }
 
 

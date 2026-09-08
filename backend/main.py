@@ -8,7 +8,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 import logging
 from fastapi.middleware.cors import CORSMiddleware
 import config
-from EndPoints import auth, companies, clinics, users, clients, families, appointments, medical_logs, orders, referrals, files, settings, work_shifts, lookups, campaigns, billing, chats, email_logs, exam_layouts, exams, unified_exam_data, ai, ai_sidebar, control_center, dashboard, search, whatsapp_webhook, whatsapp, softoptic_migration, migration, migration_source_data, clinic_data_prune, clinic_holidays, inventory, plans, subscriptions, web_auth
+from EndPoints import auth, companies, clinics, users, clients, families, appointments, medical_logs, orders, referrals, files, settings, work_shifts, lookups, campaigns, billing, chats, email_logs, exam_layouts, exams, unified_exam_data, ai, ai_sidebar, control_center, dashboard, search, whatsapp_webhook, whatsapp, softoptic_migration, migration, migration_source_data, clinic_data_prune, clinic_holidays, inventory, plans, subscriptions, trash, web_auth
 import httpx
 import json
 from jose import JWTError, jwt
@@ -138,6 +138,7 @@ app.include_router(migration_source_data.router, prefix=config.settings.API_V1_S
 app.include_router(clinic_data_prune.router, prefix=config.settings.API_V1_STR)
 app.include_router(clinic_holidays.router, prefix=config.settings.API_V1_STR)
 app.include_router(inventory.router, prefix=config.settings.API_V1_STR)
+app.include_router(trash.router, prefix=config.settings.API_V1_STR)
 app.include_router(plans.router, prefix=config.settings.API_V1_STR)
 app.include_router(subscriptions.router, prefix=config.settings.API_V1_STR)
 app.include_router(web_auth.router, prefix=config.settings.API_V1_STR)

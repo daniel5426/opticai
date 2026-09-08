@@ -20,6 +20,7 @@ import { TablePagination } from "@/components/table-pagination"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
 import { SortableTableHead } from "@/components/sortable-table-head"
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
+import { useTranslation } from "react-i18next"
 
 interface ExamWithNames extends OpticalExam {
   username?: string
@@ -79,6 +80,7 @@ export function ExamsTable({
   onSortChange,
   fillHeight = false
 }: ExamsTableProps) {
+  const { t } = useTranslation()
   const [searchQuery, setSearchQuery] = useState("")
   const [localSort, setLocalSort] = useState<SortState | undefined>()
   const searchValue = externalSearch !== undefined ? externalSearch : searchQuery
@@ -169,8 +171,6 @@ export function ExamsTable({
         const deletedExamId = examToDelete.id
         // Optimistically update the UI
         onExamDeleted(deletedExamId)
-        toast.success("בדיקה נמחקה בהצלחה")
-
         const success = await deleteExam(deletedExamId)
         if (!success) {
           // Revert optimistic update if API call fails (you might need to refetch or pass original data back)
@@ -425,16 +425,12 @@ export function ExamsTable({
       <CustomModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
-        title="מחיקת בדיקה"
-        description={
-          examToDelete
-            ? `האם אתה בטוח שברצונך למחוק את הבדיקה של ${examToDelete.test_name || "בדיקה זו"} מיום ${examToDelete.exam_date ? new Date(examToDelete.exam_date).toLocaleDateString("he-IL") : ""}? פעולה זו אינה הפיכה.`
-            : "האם אתה בטוח שברצונך למחוק בדיקה זו? פעולה זו אינה הפיכה."
-        }
+        title={t("trashMoveTitle")}
+        description={t("trashMoveDescription", { item: examToDelete?.test_name || t("trashTypeExam") })}
         onConfirm={handleDeleteConfirm}
-        confirmText="מחק"
+        confirmText={t("trashMoveConfirm")}
         className="text-center"
-        cancelText="בטל"
+        cancelText={t("cancel")}
         showCloseButton={false}
       />
 

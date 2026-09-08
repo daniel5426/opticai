@@ -16,6 +16,7 @@ from .records import clean_text, parse_intish
 
 
 LOOKUP_NAME_COLUMNS: Mapping[str, str] = {
+    "tblBases": "BaseName",
     "tblCitys": "CityName",
     "tblRefs": "RefName",
     "tblRefsSub1": "RefsSub1Name",
@@ -41,9 +42,26 @@ LOOKUP_NAME_COLUMNS: Mapping[str, str] = {
     "tblCrdClensChecksMater": "MaterName",
     "tblCrdClensChecksTint": "TintName",
     "tblCrdClensChecksPr": "PrName",
+    "tblCrdGlassRetTypes": "RetTypeName",
+    "tblCrdGlassRetDists": "RetDistName",
+    "tblCrdGlassIOPInsts": "IOPInstName",
+    "tblCrdClinicChars": "EyeCheckCharName",
+    "tblCrdClinicFlds": "FldName",
+    "tblCrdLVArea": "LVAreaName",
+    "tblCrdLVFrame": "LVFrameName",
+    "tblCrdLVManuf": "LVManufName",
+    "tblCrdLVCap": "LVCapName",
+    "tblCrdGlassUses": "GlassUseName",
+    "tblEyes": "EyeName",
+    "tblLnsChars": "LensCharName",
+    "tblLnsMaterials": "LensMaterName",
+    "tblLnsTreatChars": "TreatCharName",
+    "tblLnsTypes": "LensTypeName",
+    "tblSapaks": "SapakName",
 }
 
 LOOKUP_ID_COLUMNS: Mapping[str, str] = {
+    "tblBases": "BaseId",
     "tblCitys": "CityId",
     "tblRefs": "RefId",
     "tblRefsSub1": "RefsSub1Id",
@@ -69,6 +87,22 @@ LOOKUP_ID_COLUMNS: Mapping[str, str] = {
     "tblCrdClensChecksMater": "MaterId",
     "tblCrdClensChecksTint": "TintId",
     "tblCrdClensChecksPr": "PrId",
+    "tblCrdGlassRetTypes": "RetTypeId",
+    "tblCrdGlassRetDists": "RetDistId",
+    "tblCrdGlassIOPInsts": "IOPInstId",
+    "tblCrdClinicChars": "EyeCheckCharId",
+    "tblCrdClinicFlds": "FldId",
+    "tblCrdLVArea": "LVAreaId",
+    "tblCrdLVFrame": "LVFrameId",
+    "tblCrdLVManuf": "LVManufId",
+    "tblCrdLVCap": "LVCapId",
+    "tblCrdGlassUses": "GlassUseId",
+    "tblEyes": "EyeId",
+    "tblLnsChars": "LensCharId",
+    "tblLnsMaterials": "LensMaterId",
+    "tblLnsTreatChars": "TreatCharId",
+    "tblLnsTypes": "LensTypeId",
+    "tblSapaks": "SapakID",
 }
 
 NULL_LOOKUP_NAMES = {"[ללא]"}

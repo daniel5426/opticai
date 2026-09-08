@@ -23,6 +23,7 @@ from database import Base, get_db
 from main import app
 from models import (
     CatalogOrderObservation,
+    CatalogDiscoverySource,
     CatalogProduct,
     CatalogVariant,
     Client,
@@ -36,6 +37,7 @@ from models import (
     User,
 )
 from services.inventory_service import get_or_create_balance
+from services.inventory_discovery_service import claim_next_discovery_job, run_discovery_job
 
 
 def _session_factory():
@@ -419,6 +421,76 @@ def test_discovery_preview_is_read_only_and_confirmation_does_not_rewrite_orders
         assert db.query(CatalogOrderObservation).count() == 1
         assert db.query(InventoryBalance).count() == 0
         assert db.query(Order).one().order_data == original_order_data
+
+
+def test_discovery_run_scans_and_confirms_without_sending_order_sources_to_client():
+    factory = _session_factory()
+    ids = _seed(factory)
+    with factory() as db:
+        db.add(Order(
+            client_id=ids["client"],
+            clinic_id=ids["clinic"],
+            type="glasses",
+            order_data={
+                "frame": {
+                    "manufacturer": "Ray-Ban",
+                    "model": "RX 5228",
+                    "color": "Black",
+                    "width": 50,
+                    "bridge": 17,
+                }
+            },
+        ))
+        db.commit()
+
+    with _client(factory, ids["worker"]) as client:
+        created = client.post("/api/v1/inventory/discovery/runs")
+        assert created.status_code == 202, created.text
+        run_id = created.json()["id"]
+
+    with factory() as db:
+        job = claim_next_discovery_job(db, "test-worker")
+        assert job and job.id == run_id
+        run_discovery_job(db, job)
+
+    with _client(factory, ids["worker"]) as client:
+        candidates = client.get(f"/api/v1/inventory/discovery/runs/{run_id}/candidates?page=1&limit=50")
+        assert candidates.status_code == 200, candidates.text
+        page = candidates.json()
+        assert page["total"] == 1
+        assert "sources" not in page["items"][0]
+        candidate_id = page["items"][0]["id"]
+        selected = client.post(
+            f"/api/v1/inventory/discovery/runs/{run_id}/candidates/selection",
+            json={"candidate_ids": [candidate_id], "selected": True},
+        )
+        assert selected.status_code == 200, selected.text
+        assert selected.json()["selected_count"] == 1
+        cleared = client.post(
+            f"/api/v1/inventory/discovery/runs/{run_id}/candidates/selection",
+            json={"candidate_ids": [candidate_id], "selected": False},
+        )
+        assert cleared.status_code == 200, cleared.text
+        assert cleared.json()["selected_count"] == 0
+        queued = client.post(
+            f"/api/v1/inventory/discovery/runs/{run_id}/confirm",
+            json={"mode": "all_ready"},
+        )
+        assert queued.status_code == 202, queued.text
+        assert queued.json()["status"] == "confirm_queued"
+        assert queued.json()["selected_count"] == 1
+
+    with factory() as db:
+        job = claim_next_discovery_job(db, "test-worker")
+        assert job and job.id == run_id
+        run_discovery_job(db, job)
+        assert db.query(CatalogDiscoverySource).count() == 1
+        assert db.query(CatalogOrderObservation).count() == 1
+
+    with _client(factory, ids["worker"]) as client:
+        complete = client.get(f"/api/v1/inventory/discovery/runs/{run_id}")
+        assert complete.status_code == 200, complete.text
+        assert complete.json()["status"] == "confirmed"
 
 
 def test_contact_discovery_groups_prescriptions_under_one_catalog_product():

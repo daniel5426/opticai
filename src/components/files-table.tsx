@@ -18,6 +18,7 @@ import { SortableTableHead } from "@/components/sortable-table-head"
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
 import { Input } from "@/components/ui/input"
 import { DateSearchHelper } from "@/lib/date-search-helper"
+import { useTranslation } from "react-i18next"
 
 interface FilesTableProps {
   data: FileType[]
@@ -64,6 +65,7 @@ export function FilesTable({
   onSortChange,
   fillHeight = false
 }: FilesTableProps) {
+  const { t } = useTranslation()
   const [searchQuery, setSearchQuery] = useState("")
   const [localSort, setLocalSort] = useState<SortState | undefined>()
   const searchValue = externalSearch !== undefined ? externalSearch : searchQuery
@@ -143,7 +145,6 @@ export function FilesTable({
         const success = await deleteFile(deletedFileId)
         if (success) {
           onFileDeleted(deletedFileId)
-          toast.success("הקובץ נמחק בהצלחה")
         } else {
           toast.error("שגיאה במחיקת הקובץ. מרענן נתונים...")
           onFileDeleteFailed()
@@ -600,15 +601,11 @@ export function FilesTable({
       <CustomModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
-        title="מחיקת קובץ"
-        description={
-          fileToDelete
-            ? `האם אתה בטוח שברצונך למחוק את הקובץ "${fileToDelete.file_name}"?`
-            : "האם אתה בטוח שברצונך למחוק את הקובץ?"
-        }
+        title={t("trashMoveTitle")}
+        description={t("trashMoveDescription", { item: fileToDelete?.file_name || t("trashTypeFile") })}
         onConfirm={handleDeleteConfirm}
-        confirmText="מחק"
-        cancelText="בטל"
+        confirmText={t("trashMoveConfirm")}
+        cancelText={t("cancel")}
       />
 
       <CustomModal

@@ -66,6 +66,7 @@ class Settings:
     SUPABASE_SERVICE_ROLE_KEY: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
     SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
     SUPABASE_BUCKET: str = os.getenv("SUPABASE_BUCKET", "opticai")
+    TRASH_PURGE_ENABLED: bool = os.getenv("TRASH_PURGE_ENABLED", "false").strip().lower() in {"1", "true", "yes"}
 
     # Google OAuth
     GOOGLE_DESKTOP_CLIENT_ID: str = os.getenv("GOOGLE_DESKTOP_CLIENT_ID", "")

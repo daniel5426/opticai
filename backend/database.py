@@ -1,7 +1,7 @@
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, event, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker, with_loader_criteria
 from sqlalchemy.pool import NullPool, QueuePool
 from fastapi import HTTPException
 from config import settings
@@ -50,6 +50,40 @@ else:
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
+
+
+@event.listens_for(Session, "do_orm_execute")
+def _hide_soft_deleted_rows(execute_state):
+    if (
+        not execute_state.is_select
+        or execute_state.execution_options.get("include_deleted")
+        or execute_state.session.info.get("include_deleted")
+    ):
+        return
+    # Import lazily to avoid the database/models import cycle during startup.
+    from models import ExamLayoutInstance, OpticalExam, Referral, ReferralEye, SoftDeletableMixin
+
+    execute_state.statement = execute_state.statement.options(
+        with_loader_criteria(
+            SoftDeletableMixin,
+            lambda model: model.deleted_at.is_(None),
+            include_aliases=True,
+        ),
+        with_loader_criteria(
+            ExamLayoutInstance,
+            lambda instance: instance.exam_id.in_(
+                select(OpticalExam.id).where(OpticalExam.deleted_at.is_(None))
+            ),
+            include_aliases=True,
+        ),
+        with_loader_criteria(
+            ReferralEye,
+            lambda eye: eye.referral_id.in_(
+                select(Referral.id).where(Referral.deleted_at.is_(None))
+            ),
+            include_aliases=True,
+        ),
+    )
 
 def get_db():
     db = SessionLocal()

@@ -18,6 +18,7 @@ from security.scope import (
     require_company_admin,
     resolve_company_id,
 )
+from services.trash_service import move_to_trash
 
 
 CEO_LEVEL = 4
@@ -291,21 +292,9 @@ def delete_appointment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    appointment = get_scoped_appointment(db, current_user, appointment_id)
-    client_id = appointment.client_id
-    db.delete(appointment)
-    db.commit()
-    # bump client_updated_date and clear ai_appointment_state to avoid stale AI
-    try:
-        if client_id:
-            client = db.query(Client).filter(Client.id == client_id).first()
-            if client:
-                client.client_updated_date = func.now()
-                client.ai_appointment_state = None
-                db.commit()
-    except Exception:
-        pass
-    return {"message": "Appointment deleted successfully"}
+    get_scoped_appointment(db, current_user, appointment_id)
+    item = move_to_trash(db, current_user, "appointment", appointment_id)
+    return {"message": "Appointment deleted successfully", "trash_item_id": item.id, "expires_at": item.expires_at, "side_effects": "backend"}
 
 @router.put("/{appointment_id}/google-event-id")
 def update_appointment_google_event_id(

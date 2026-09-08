@@ -245,7 +245,9 @@ export function FamiliesTable({
                 <TableRow
                   key={family.id}
                   className={`hover:bg-muted/50 cursor-pointer ${
-                    selectedFamilyId === family.id ? "bg-muted border-primary border-r-2" : ""
+                    selectedFamilyId === family.id
+                      ? "bg-primary/90 text-primary-foreground font-semibold shadow-sm hover:bg-primary/90 [&_.text-muted-foreground]:!text-primary-foreground/80 [&_.text-primary]:!text-primary-foreground"
+                      : ""
                   }`}
                   onClick={() => handleRowClick(family)}
                 >

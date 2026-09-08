@@ -1,8 +1,16 @@
 import * as React from "react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { IconDots } from "@tabler/icons-react";
-import { Loader2, SquarePen, UserPlus, Users } from "lucide-react";
+import {
+  History,
+  Loader2,
+  SquarePen,
+  User as UserIcon,
+  UserPlus,
+  Users,
+} from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 import { AppointmentFormFields } from "@/components/appointments/appointment-form-fields";
 import { flattenActiveExamLayouts } from "@/components/appointments/exam-layouts";
@@ -31,11 +39,13 @@ import { getAllExamLayouts } from "@/lib/db/exam-layouts-db";
 import { createFile } from "@/lib/db/files-db";
 import { getAllUsers } from "@/lib/db/users-db";
 import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels";
+import { apiClient } from "@/lib/api-client";
 import { useAppLocale } from "@/localization/use-app-locale";
 import {
   Appointment,
   Client,
   ExamLayout,
+  RecentClientVisit,
   User,
 } from "@/lib/db/schema-interface";
 
@@ -46,7 +56,8 @@ export type SidebarQuickAction =
   | "order"
   | "inventory"
   | "referral"
-  | "file";
+  | "file"
+  | "recent-clients";
 
 type ClientPickerFlow = "appointment" | "exam" | "file" | "order" | "referral";
 type OrderType = "contact" | "regular";
@@ -118,7 +129,8 @@ const QuickActionButton = React.forwardRef<
   }
 >(({ action, type = "button", ...props }, ref) => {
   const isInventory = action === "inventory";
-  const label = isInventory ? "פעולות מלאי" : "פעולה מהירה";
+  const isRecentClients = action === "recent-clients";
+  const label = props["aria-label"] || (isInventory ? "פעולות מלאי" : "פעולה מהירה");
 
   return (
     <SidebarMenuAction
@@ -126,10 +138,10 @@ const QuickActionButton = React.forwardRef<
       showOnHover
       type={type}
       aria-label={label}
-      title={label}
+      title={props.title || label}
       {...props}
     >
-      {isInventory ? <IconDots /> : <SquarePen />}
+      {isInventory ? <IconDots /> : isRecentClients ? <History /> : <SquarePen />}
     </SidebarMenuAction>
   );
 });
@@ -144,6 +156,7 @@ export function SidebarQuickActions({
 }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useTranslation();
   const { currentClinic, currentUser } = useUser();
   const { settings } = useSettings();
   const { direction } = useAppLocale();
@@ -186,6 +199,28 @@ export function SidebarQuickActions({
     React.useState(false);
   const [duplicateWarning, setDuplicateWarning] =
     React.useState<DuplicateWarning | null>(null);
+  const [recentClients, setRecentClients] = React.useState<RecentClientVisit[]>([]);
+  const [recentClientsLoading, setRecentClientsLoading] = React.useState(false);
+  const [recentClientsError, setRecentClientsError] = React.useState(false);
+
+  const loadRecentClients = React.useCallback(async () => {
+    if (!currentClinic?.id) {
+      setRecentClients([]);
+      return;
+    }
+    setRecentClientsLoading(true);
+    setRecentClientsError(false);
+    try {
+      const response = await apiClient.getRecentClients(currentClinic.id, 10);
+      setRecentClients(response.data || []);
+    } catch (error) {
+      console.error("Error loading recent clients from sidebar:", error);
+      setRecentClients([]);
+      setRecentClientsError(true);
+    } finally {
+      setRecentClientsLoading(false);
+    }
+  }, [currentClinic?.id]);
 
   const resetAppointmentDrafts = React.useCallback(() => {
     setSelectedAppointmentClient(null);
@@ -523,6 +558,62 @@ export function SidebarQuickActions({
 
   const renderQuickAction = React.useCallback(
     (action: SidebarQuickAction) => {
+      if (action === "recent-clients") {
+        return (
+          <DropdownMenu
+            dir={direction}
+            onOpenChange={(open) => open && void loadRecentClients()}
+          >
+            <DropdownMenuTrigger asChild>
+              <QuickActionButton
+                action={action}
+                aria-label={t("recentClients")}
+                title={t("recentClients")}
+              />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              side={direction === "rtl" ? "left" : "right"}
+              align="start"
+              sideOffset={8}
+              className="w-72"
+            >
+              {recentClientsLoading ? (
+                <DropdownMenuItem disabled>{t("loading")}</DropdownMenuItem>
+              ) : recentClientsError ? (
+                <DropdownMenuItem disabled>
+                  {t("recentClientsLoadError")}
+                </DropdownMenuItem>
+              ) : recentClients.length === 0 ? (
+                <DropdownMenuItem disabled>{t("noRecentClients")}</DropdownMenuItem>
+              ) : (
+                recentClients.map((visit) => {
+                  const name = `${visit.client?.first_name || ""} ${visit.client?.last_name || ""}`.trim();
+                  return (
+                    <DropdownMenuItem
+                      key={visit.id}
+                      className="gap-2.5 py-2"
+                      onClick={() =>
+                        navigate({
+                          to: "/clients/$clientId",
+                          params: { clientId: String(visit.client_id) },
+                          search: { tab: "details" },
+                        })
+                      }
+                    >
+                      <UserIcon className="text-muted-foreground h-4 w-4 shrink-0" />
+                      <div className="min-w-0 flex-1 text-start">
+                        <div className="truncate text-sm font-medium">
+                          {name || t("recentClientFallback", { id: visit.client_id })}
+                        </div>
+                      </div>
+                    </DropdownMenuItem>
+                  );
+                })
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        );
+      }
       if (action === "client") {
         return (
           <QuickActionButton
@@ -685,9 +776,14 @@ export function SidebarQuickActions({
       examLayouts,
       isExamLayoutsLoading,
       loadExamLayouts,
+      loadRecentClients,
       navigate,
       openClientPicker,
+      recentClients,
+      recentClientsError,
+      recentClientsLoading,
       resetAppointmentDrafts,
+      t,
       triggerInventoryAction,
     ],
   );

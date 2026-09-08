@@ -658,7 +658,7 @@ def execute_phase2(
         catalog = load_lookup_catalog()
         summary: Dict[str, Any] = {
             "source_system": OPTITECH_SOURCE_SYSTEM,
-            "mapping_version": 2,
+            "mapping_version": 3,
             "target_clinic_id": clinic.id,
             "target_company_id": clinic.company_id,
             "dry_run": dry_run,

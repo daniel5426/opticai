@@ -179,7 +179,7 @@ def test_rename_updates_display_name_only():
         assert row.storage_key == original_key
 
 
-def test_strict_delete_keeps_row_when_storage_delete_fails():
+def test_trash_delete_keeps_storage_object_and_hides_row():
     SessionLocal = _session_factory()
     storage = FakeStorage()
     storage.fail_remove = True
@@ -189,9 +189,13 @@ def test_strict_delete_keeps_row_when_storage_delete_fails():
     with _client(SessionLocal, ids["user_a"], storage) as client:
         response = client.delete(f"/api/v1/files/{ids['file_a']}")
 
-    assert response.status_code == 502
+    assert response.status_code == 200
+    assert response.json()["trash_item_id"]
+    assert storage.removes == []
     with SessionLocal() as db:
-        assert db.query(File).filter(File.id == ids["file_a"]).first() is not None
+        assert db.query(File).filter(File.id == ids["file_a"]).first() is None
+        trashed = db.query(File).execution_options(include_deleted=True).filter(File.id == ids["file_a"]).one()
+        assert trashed.deleted_at is not None
 
 
 def test_upload_rejects_oversized_and_disallowed_files():
