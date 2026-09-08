@@ -1,6 +1,6 @@
 """merge catalog discovery and patient-record trash migration heads
 
-Revision ID: 0040_merge_catalog_discovery_and_trash_heads
+Revision ID: 0040_merge_heads
 Revises: 0030_discovery_source_rls, 0039_patient_record_trash
 Create Date: 2026-09-08
 """
@@ -8,7 +8,7 @@ Create Date: 2026-09-08
 from typing import Sequence, Union
 
 
-revision: str = "0040_merge_catalog_discovery_and_trash_heads"
+revision: str = "0040_merge_heads"
 down_revision: Union[str, Sequence[str], None] = (
     "0030_discovery_source_rls",
     "0039_patient_record_trash",
