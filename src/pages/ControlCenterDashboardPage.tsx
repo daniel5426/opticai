@@ -30,8 +30,12 @@ import { useAnalyticsRange } from "@/hooks/useAnalyticsRange";
 import { apiClient } from "@/lib/api-client";
 import { formatMoney } from "@/lib/money";
 import { useAppLocale } from "@/localization/use-app-locale";
-import type { AnalyticsRange, CompanyAnalyticsResponse } from "@/lib/analytics";
-import type { Company, User } from "@/lib/db/schema-interface";
+import { rangeForPreset, type AnalyticsRange, type CompanyAnalyticsResponse } from "@/lib/analytics";
+import type { Clinic, Company, User } from "@/lib/db/schema-interface";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MobileCompanyDashboard } from "@/pages/control-center/MobileCompanyDashboard";
+import { useTranslation } from "react-i18next";
 
 const integerFormatter = new Intl.NumberFormat("he-IL", { maximumFractionDigits: 0 });
 const ORDER_MIX_COLORS = [
@@ -44,8 +48,8 @@ const ORDER_MIX_COLORS = [
 const ANALYTICS_CACHE_TTL_MS = 60_000;
 const analyticsCache = new Map<string, { data: CompanyAnalyticsResponse; expiresAt: number }>();
 
-function analyticsCacheKey(companyId: number, range: AnalyticsRange, currency?: string) {
-  return [companyId, range.startDate, range.endDate, range.bucket, currency || "ILS"].join(":");
+function analyticsCacheKey(companyId: number, range: AnalyticsRange, currency?: string, clinicId?: number) {
+  return [companyId, range.startDate, range.endDate, range.bucket, currency || "ILS", clinicId || "all"].join(":");
 }
 
 function parseStored<T>(value: string | null): T | null {
@@ -58,16 +62,23 @@ function parseStored<T>(value: string | null): T | null {
 }
 
 export default function ControlCenterDashboardPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const search = useSearch({ from: "/control-center/dashboard" });
   const { range, setRange } = useAnalyticsRange("30d");
   const { locale, direction } = useAppLocale();
+  const isMobile = useIsMobile();
   const [company, setCompany] = React.useState<Company | null>(() =>
     parseStored<Company>(localStorage.getItem("controlCenterCompany")),
   );
   const [data, setData] = React.useState<CompanyAnalyticsResponse | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [clinics, setClinics] = React.useState<Clinic[]>([]);
+  const [clinicsLoading, setClinicsLoading] = React.useState(true);
+  const [selectedClinicId, setSelectedClinicId] = React.useState("all");
+  const [weeklyData, setWeeklyData] = React.useState<CompanyAnalyticsResponse | null>(null);
+  const [weeklyLoading, setWeeklyLoading] = React.useState(true);
 
   React.useEffect(() => {
     if (company?.id) return;
@@ -89,7 +100,22 @@ export default function ControlCenterDashboardPage() {
 
   React.useEffect(() => {
     if (!company?.id) return;
-    const cacheKey = analyticsCacheKey(company.id, range, company.default_currency);
+    let cancelled = false;
+    setClinicsLoading(true);
+    void apiClient.getControlCenterClinics(company.id).then((response) => {
+      if (cancelled) return;
+      setClinics(((response.data as { clinics?: Clinic[] } | undefined)?.clinics || []).filter((clinic) => clinic.id));
+      setClinicsLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [company?.id]);
+
+  React.useEffect(() => {
+    if (!company?.id) return;
+    const clinicId = selectedClinicId === "all" ? undefined : Number(selectedClinicId);
+    const cacheKey = analyticsCacheKey(company.id, range, company.default_currency, clinicId);
     const cached = analyticsCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       setData(cached.data);
@@ -101,7 +127,7 @@ export default function ControlCenterDashboardPage() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    void apiClient.getControlCenterAnalytics(company.id, range).then((response) => {
+    void apiClient.getControlCenterAnalytics(company.id, range, clinicId).then((response) => {
       if (cancelled) return;
       if (response.error || !response.data) {
         setError(String(response.error || "טעינת הנתונים נכשלה"));
@@ -118,7 +144,35 @@ export default function ControlCenterDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [company?.default_currency, company?.id, range]);
+  }, [company?.default_currency, company?.id, range, selectedClinicId]);
+
+  React.useEffect(() => {
+    if (!company?.id) return;
+    const weeklyRange = rangeForPreset("7d");
+    const clinicId = selectedClinicId === "all" ? undefined : Number(selectedClinicId);
+    const cacheKey = analyticsCacheKey(company.id, weeklyRange, company.default_currency, clinicId);
+    const cached = analyticsCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      setWeeklyData(cached.data);
+      setWeeklyLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setWeeklyLoading(true);
+    void apiClient.getControlCenterAnalytics(company.id, weeklyRange, clinicId).then((response) => {
+      if (cancelled) return;
+      if (response.data) {
+        analyticsCache.set(cacheKey, { data: response.data, expiresAt: Date.now() + ANALYTICS_CACHE_TTL_MS });
+        setWeeklyData(response.data);
+      } else {
+        setWeeklyData(null);
+      }
+      setWeeklyLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [company?.default_currency, company?.id, selectedClinicId]);
 
   const formatCurrency = React.useCallback(
     (value: number) => formatMoney(value, data?.currency || company?.default_currency, locale, { maximumFractionDigits: 0 }),
@@ -136,17 +190,56 @@ export default function ControlCenterDashboardPage() {
     [data?.order_mix],
   );
 
+  const clinicSelector = (
+    <Select value={selectedClinicId} onValueChange={setSelectedClinicId} disabled={clinicsLoading} clearable={false}>
+      <SelectTrigger className="w-52" aria-label={t("mobileDashboardClinicFilter")}>
+        <SelectValue placeholder={t("mobileDashboardAllClinics")} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">{t("mobileDashboardAllClinics")}</SelectItem>
+        {clinics.map((clinic) => <SelectItem key={clinic.id} value={String(clinic.id)}>{clinic.name}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  );
+  const selectedClinic = clinics.find((clinic) => String(clinic.id) === selectedClinicId);
+
+  if (isMobile) {
+    return (
+      <>
+        <SiteHeader title={t("dashboard")} />
+        <MobileCompanyDashboard
+          company={company}
+          clinics={clinics}
+          clinicsLoading={clinicsLoading}
+          selectedClinicId={selectedClinicId}
+          onClinicChange={setSelectedClinicId}
+          range={range}
+          onRangeChange={setRange}
+          data={data}
+          weeklyData={weeklyData}
+          loading={loading}
+          weeklyLoading={weeklyLoading}
+          error={error}
+          formatCurrency={formatCurrency}
+        />
+      </>
+    );
+  }
+
   return (
     <>
-      <SiteHeader title="לוח בקרה" />
+      <SiteHeader title={t("dashboard")} />
       <main className="min-h-0 flex-1 overflow-y-auto p-4 lg:p-6" dir={direction}>
         <div className="mx-auto max-w-[1600px] space-y-5">
           <ListPageHeader
-            title="תמונה פיננסית ותפעולית מאוחדת לכל המרפאות"
+            title={selectedClinic
+              ? t("mobileDashboardClinicSubtitle", { clinic: selectedClinic.name })
+              : t("mobileDashboardSubtitle")}
             titleClassName="text-lg text-muted-foreground"
             className="mb-0 items-center pb-2"
             actions={
               <div className="flex items-center gap-2">
+                {clinicSelector}
                 <AnalyticsRangePicker value={range} onChange={setRange} disabled={loading} />
               </div>
             }

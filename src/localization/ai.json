@@ -1,0 +1,26 @@
+{
+  "he": {
+    "failed": "לא ניתן להשלים את בקשת הבינה המלאכותית. בדקו פעולות שכבר בוצעו לפני ניסיון נוסף.",
+    "limit": "הבקשה הגיעה למגבלת הפעולות. בדקו פעולות שכבר בוצעו לפני ניסיון נוסף.",
+    "invalidMessage": "הזינו בקשה תקינה.",
+    "invalidChat": "השיחה אינה תקינה.",
+    "invalidHistory": "היסטוריית השיחה אינה תקינה.",
+    "invalidPart": "תחום התובנות אינו תקין."
+  },
+  "en": {
+    "failed": "The AI request could not be completed. Check completed actions before trying again.",
+    "limit": "The request reached its action limit. Check completed actions before trying again.",
+    "invalidMessage": "Enter a valid request.",
+    "invalidChat": "Invalid chat.",
+    "invalidHistory": "Invalid conversation history.",
+    "invalidPart": "Invalid insight section."
+  },
+  "fr": {
+    "failed": "La demande IA n’a pas pu être terminée. Vérifiez les actions effectuées avant de réessayer.",
+    "limit": "La demande a atteint sa limite d’actions. Vérifiez les actions effectuées avant de réessayer.",
+    "invalidMessage": "Saisissez une demande valide.",
+    "invalidChat": "Conversation invalide.",
+    "invalidHistory": "Historique de conversation invalide.",
+    "invalidPart": "Section d’observations invalide."
+  }
+}

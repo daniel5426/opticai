@@ -60,7 +60,7 @@ async def handle_webhook(
         raw_body = await request.body()
         _verify_meta_signature(raw_body, request.headers.get("x-hub-signature-256"))
         payload = json.loads(raw_body.decode("utf-8") or "{}")
-        logger.info(f"Received WhatsApp webhook: {payload}")
+        logger.info("WhatsApp webhook received")
 
         # Extract message information
         # WhatsApp payload structure is nested: entry -> changes -> value -> messages
@@ -76,7 +76,7 @@ async def handle_webhook(
                     
                     if msg_type == "text":
                         body = msg.get("text", {}).get("body")
-                        logger.info(f"Incoming message from {from_phone}: {body}")
+                        logger.info("WhatsApp text message received")
                         
                         # Process in background to respond 200 OK to Meta quickly
                         bot_service = BotService(db)
@@ -91,6 +91,6 @@ async def handle_webhook(
         return {"status": "success"}
 
     except Exception as e:
-        logger.error(f"Error processing WhatsApp webhook: {str(e)}")
+        logger.warning("WhatsApp webhook failed code=webhook.failed")
         # Still return 200 to Meta to avoid retries if the error is on our end
-        return {"status": "error", "detail": str(e)}
+        return {"status": "error", "detail": "webhook.failed"}

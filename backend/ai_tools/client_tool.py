@@ -26,17 +26,17 @@ class ClientOperationsTool(BaseTool):
     def execute(self, action: Any, **kwargs) -> str:
         """Execute with flexible action parameter parsing."""
         from .base import logger
-        logger.info(f"ClientOperationsTool.execute called with action={action}, kwargs={kwargs}")
+        logger.debug("ai_tool_event tool=client_operations")
         
         action, kwargs = self._parse_action_and_kwargs(action, **kwargs)
-        logger.info(f"After parsing: action={action}, kwargs={kwargs}")
+        logger.debug("ai_tool_event tool=client_operations")
         
         session = self.get_session()
         try:
             if action == "search":
-                logger.info(f"Executing search with kwargs: {kwargs}")
+                logger.debug("ai_tool_event tool=client_operations")
                 result = self._search(session, **kwargs)
-                logger.info(f"Search result: {str(result)[:200]}")
+                logger.debug("ai_tool_event tool=client_operations")
                 return result
             elif action == "get":
                 return self._get(session, **kwargs)
@@ -50,10 +50,10 @@ class ClientOperationsTool(BaseTool):
                 return self._update(session, **kwargs)
             else:
                 error_msg = f"פעולה לא נתמכת: {action}. השתמש ב: search, get, get_summary, list_recent, create, update"
-                logger.error(f"Unsupported action: {action}")
+                logger.debug("ai_tool_event tool=client_operations")
                 return ToolResponse.error(error_msg)
         except Exception as e:
-            logger.error(f"Exception in execute: {e}\n{traceback.format_exc()}")
+            logger.debug("ai_tool_event tool=client_operations")
             return self.handle_error(e, action)
         finally:
             session.close()

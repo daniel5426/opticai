@@ -13,13 +13,10 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 python-multipart==0.0.6
 asyncpg==0.29.0
-langchain==0.3.27
-langgraph==0.2.76
-langchain-openai==0.2.14
 orjson==3.10.7
 requests==2.32.5
 stripe==15.4.0
 rapidfuzz==3.14.2
 websockets==12.0
-openai==1.58.1
 tiktoken==0.11.0
+openai==3.24.0

@@ -39,6 +39,22 @@ class Settings:
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
     
+    # All features use the same direct provider and privacy boundary.
+    AI_ASSISTANT_MODEL: str = os.getenv("AI_ASSISTANT_MODEL", "gpt-6.1-sol")
+    AI_INSIGHTS_MODEL: str = os.getenv("AI_INSIGHTS_MODEL", "gpt-6.1-sol")
+    AI_CAMPAIGN_MODEL: str = os.getenv("AI_CAMPAIGN_MODEL", "gpt-6-luna")
+    AI_WHATSAPP_MODEL: str = os.getenv("AI_WHATSAPP_MODEL", "gpt-6-luna")
+    AI_ASSISTANT_REASONING: str = os.getenv("AI_ASSISTANT_REASONING", "low")
+    AI_INSIGHTS_REASONING: str = os.getenv("AI_INSIGHTS_REASONING", "medium")
+    AI_CAMPAIGN_REASONING: str = os.getenv("AI_CAMPAIGN_REASONING", "none")
+    AI_WHATSAPP_REASONING: str = os.getenv("AI_WHATSAPP_REASONING", "none")
+    AI_ASSISTANT_OUTPUT_TOKENS: int = int(os.getenv("AI_ASSISTANT_OUTPUT_TOKENS", "8192"))
+    AI_INSIGHTS_OUTPUT_TOKENS: int = int(os.getenv("AI_INSIGHTS_OUTPUT_TOKENS", "8192"))
+    AI_CAMPAIGN_OUTPUT_TOKENS: int = int(os.getenv("AI_CAMPAIGN_OUTPUT_TOKENS", "4096"))
+    AI_WHATSAPP_OUTPUT_TOKENS: int = int(os.getenv("AI_WHATSAPP_OUTPUT_TOKENS", "1024"))
+    AI_TIMEOUT_SECONDS: float = float(os.getenv("AI_TIMEOUT_SECONDS", "90"))
+    AI_MAX_ROUNDS: int = 8
+
     # Security
     SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-here")
     TOKEN_ENCRYPTION_KEY: str = os.getenv("TOKEN_ENCRYPTION_KEY", "")

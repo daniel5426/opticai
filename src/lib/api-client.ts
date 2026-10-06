@@ -1,3 +1,5 @@
+import { getActiveLocale } from "@/localization/locale";
+import i18n from "@/localization/i18n";
 import { 
   User, Company, Clinic, Client, Family, Settings, OpticalExam, Appointment, 
   File, MedicalLog, Order, ClientOrdersContext, Billing, BillingPayment, ExamLayout, ExamLayoutInstance,
@@ -2333,7 +2335,7 @@ class ApiClient {
   async aiChat(message: string, conversationHistory: any[], chatId?: number) {
     return this.request('/ai/chat', {
       method: 'POST',
-      body: JSON.stringify({ message, conversationHistory, chat_id: chatId }),
+      body: JSON.stringify({ message, conversationHistory, locale: getActiveLocale(), chat_id: chatId }),
     });
   }
 
@@ -2341,9 +2343,10 @@ class ApiClient {
     message: string,
     conversationHistory: any[],
     chatId: number | null,
-    onChunk: (chunk: string, fullMessage: string, parts?: any[]) => void,
+    onChunk: (chunk: string, fullMessage: string, currentPart?: string | any[]) => void,
     onDone: (fullMessage: string, parts?: any[]) => void,
-    onTool?: (evt: { phase: 'start'|'end'; name?: string; args?: any; output?: any; parts?: any[] }) => void
+    onTool?: (evt: { phase: 'start'|'end'|'error'; name?: string; args?: any; output?: any; parts?: any[] }) => void,
+    signal?: AbortSignal
   ) {
     const url = `${this.baseUrl}/ai/chat/stream`;
     const headers: Record<string, string> = {
@@ -2353,14 +2356,12 @@ class ApiClient {
     const res = await fetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ message, conversationHistory, chat_id: chatId ?? undefined }),
+      signal,
+      body: JSON.stringify({ message, conversationHistory, locale: getActiveLocale(), chat_id: chatId ?? undefined }),
     });
-    if (!res.ok) throw new Error('stream request failed');
+    if (!res.ok) throw new Error(i18n.t('ai.failed'));
     const reader = res.body?.getReader();
-    if (!reader) {
-      onDone('', []);
-      return;
-    }
+    if (!reader) throw new Error(i18n.t('ai.failed'));
     const decoder = new TextDecoder();
     let buffer = '';
     let doneReceived = false;
@@ -2378,8 +2379,13 @@ class ApiClient {
         if (!line) continue;
         if (line.startsWith('data:')) {
           const dataStr = line.slice(5).trim();
-          try {
-            const payload = JSON.parse(dataStr);
+          let payload;
+          try { payload = JSON.parse(dataStr); } catch { continue; }
+          {
+            if (payload.error) {
+              await reader.cancel();
+              throw new Error(payload.errorCode ? i18n.t(payload.errorCode) : i18n.t('ai.failed'));
+            }
             if (payload.tool && onTool) {
               const { phase, name, args, output } = payload.tool;
               onTool({ phase, name, args, output, parts: payload.parts });
@@ -2399,12 +2405,12 @@ class ApiClient {
               lastParts = Array.isArray(payload.parts) ? payload.parts : lastParts;
               onChunk(payload.chunk || '', lastFullMessage, lastParts);
             }
-          } catch {}
+          }
         }
       }
     }
     if (!doneReceived) {
-      onDone(lastFullMessage || '', lastParts || []);
+      throw new Error(i18n.t('ai.failed'));
     }
   }
 
@@ -2422,13 +2428,13 @@ class ApiClient {
   }
 
   async aiGeneratePartState(clientId: number, part: string) {
-    return this.request(`/ai/generate-part-state/${clientId}/${part}`, {
+    return this.request(`/ai/generate-part-state/${clientId}/${part}?locale=${getActiveLocale()}`, {
       method: 'POST',
     });
   }
 
   async aiGenerateAllStates(clientId: number) {
-    return this.request(`/ai/generate-all-states/${clientId}`, {
+    return this.request<{ success: boolean; states: Record<string, string>; locale: string }>(`/ai/generate-all-states/${clientId}?locale=${getActiveLocale()}`, {
       method: 'POST',
     });
   }
@@ -2436,7 +2442,7 @@ class ApiClient {
   async aiCreateCampaignFromPrompt(prompt: string, clinicId?: number) {
     return this.request('/ai/create-campaign-from-prompt', {
       method: 'POST',
-      body: JSON.stringify({ prompt, clinic_id: clinicId }),
+      body: JSON.stringify({ prompt, clinic_id: clinicId, locale: getActiveLocale() }),
     });
   }
 

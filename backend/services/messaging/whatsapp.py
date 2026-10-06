@@ -73,7 +73,7 @@ class WhatsAppService(MessagingService):
                 response.raise_for_status()
                 return response.json()
             except Exception as e:
-                logger.error(f"Error fetching WhatsApp message status: {str(e)}")
+                logger.warning("WhatsApp status error code=status.failed")
                 return {"error": str(e)}
 
     async def mark_message_as_read(self, message_id: str) -> bool:
@@ -108,17 +108,17 @@ class WhatsAppService(MessagingService):
 
                     response_data = response.json()
                     if response.status_code >= 400:
-                        logger.error(f"WhatsApp API Error: {response_data}")
+                        logger.warning("WhatsApp API error code=delivery.failed")
                         return False
                     
                     logger.info(f"WhatsApp message sent successfully: {response_data.get('messages', [{}])[0].get('id')}")
                     return True
 
                 except httpx.HTTPError as e:
-                    logger.error(f"HTTP error occurred while calling WhatsApp API: {str(e)}")
+                    logger.warning("WhatsApp HTTP error code=delivery.failed")
                     return False
                 except Exception as e:
-                    logger.error(f"Unexpected error calling WhatsApp API: {str(e)}")
+                    logger.warning("WhatsApp delivery error code=delivery.failed")
                     return False
 
 # Singleton instance

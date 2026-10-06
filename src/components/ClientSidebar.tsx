@@ -258,6 +258,7 @@ export function ClientSidebar() {
   const [isLoading, setIsLoading] = useState(false)
   const [aiPartCache, setAiPartCache] = useState<Record<string, string | null>>({})
   const requestSeqRef = useRef(0)
+  const generatedAiRef = useRef<{ key: string; updated: string | undefined; states: Record<string, string> } | null>(null)
   const [mounted, setMounted] = useState(false)
   const [hasAiLoadedOnce, setHasAiLoadedOnce] = useState(false)
   const [currentPart, setCurrentPart] = useState<string | null>(null)
@@ -394,123 +395,54 @@ export function ClientSidebar() {
     localStorage.setItem('client-sidebar-ai-block-open', JSON.stringify(newState))
   }, [isAiBlockOpen])
 
-  const checkIfAiStatesNeedUpdate = useCallback(async (clientId: number): Promise<boolean> => {
-    try {
-      const clientResponse = await apiClient.getClientById(clientId);
-      const client = clientResponse.data;
-      if (!client) return true
-      
-      const aiUpdatedDate = client.ai_updated_date
-      const clientUpdatedDate = client.client_updated_date
-      
-      if (!aiUpdatedDate || !clientUpdatedDate) return true
-      
-      return new Date(clientUpdatedDate) > new Date(aiUpdatedDate)
-    } catch (error) {
-      console.error('Error checking AI states update:', error)
-      return true
-    }
-  }, [])
+  useEffect(() => {
+    requestSeqRef.current += 1
+    generatedAiRef.current = null
+    setAiPartCache({})
+    setAiInfo(null)
+    setLastClientUpdateDate(null)
+  }, [currentClient?.id, locale])
 
   const loadAiInfo = useCallback(async (forceRegenerate = false) => {
     if (!currentClient?.id || !currentPart || !isOpen || !isAiBlockOpen) return
-    
+    const mySeq = ++requestSeqRef.current
+    const key = `${currentClient.id}:${locale}`
+    setIsLoading(true)
     try {
-      const mySeq = ++requestSeqRef.current
-      if (!aiInfo) {
-        setIsLoading(true)
-      }
-      // Get fresh client data to check current state
-      const clientResponse = await apiClient.getClientById(currentClient.id);
-      if (mySeq !== requestSeqRef.current) return
-      const client = clientResponse.data;
-      if (!client) return
-      
-      const aiPartState = client[`ai_${currentPart}_state` as keyof typeof client] as string
-      const aiUpdatedDate = client.ai_updated_date
-      const clientUpdatedDate = client.client_updated_date
-      
-      // If we have a part state and not forcing regeneration, check if it's still valid
-      if (aiPartState && !forceRegenerate) {
-        // Part state is valid if AI was updated after the client data was last updated
-        if (aiUpdatedDate && clientUpdatedDate && new Date(aiUpdatedDate) >= new Date(clientUpdatedDate)) {
-          if (mySeq !== requestSeqRef.current) return
-          setAiInfo(aiPartState)
-          updateAiPartCache(extractAiPartCache(client))
-          setIsLoading(false)
-          setHasAiLoadedOnce(true)
-          return
-        }
-      }
-      
-      // No valid part state available, outdated, or forced regeneration - automatically generate
-      // Clear old content immediately to prevent flickering
-      if (mySeq !== requestSeqRef.current) return
-      setAiInfo(null)
-      setIsGenerating(true)
-      
-      // Check if AI states need update (only if client data was updated or forced)
-      const needsAiUpdate = forceRegenerate || await checkIfAiStatesNeedUpdate(currentClient.id)
-      if (mySeq !== requestSeqRef.current) return
-      
-      if (needsAiUpdate) {
-        await apiClient.aiGenerateAllStates(currentClient.id)
+      const response = await apiClient.getClientById(currentClient.id)
+      if (mySeq !== requestSeqRef.current || !response.data) return
+      const updated = response.data.client_updated_date
+      let cached = generatedAiRef.current
+      if (forceRegenerate || cached?.key !== key || cached.updated !== updated) {
+        setIsGenerating(true)
+        const result = await apiClient.aiGenerateAllStates(currentClient.id)
         if (mySeq !== requestSeqRef.current) return
+        if (result.error || !result.data?.states || result.data.locale !== locale) throw new Error('ai.failed')
+        cached = { key, updated, states: result.data.states }
+        generatedAiRef.current = cached
       }
-      
-      // Get the updated part state
-      const updatedClientResponse = await apiClient.getClientById(currentClient.id);
-      if (mySeq !== requestSeqRef.current) return
-      const updatedClient = updatedClientResponse.data;
-      if (updatedClient) {
-        const partState = updatedClient[`ai_${currentPart}_state` as keyof typeof updatedClient] as string
-        if (mySeq !== requestSeqRef.current) return
-        const nextCache = extractAiPartCache(updatedClient)
-        if (partState) {
-          setAiInfo(partState)
-        } else {
-          setAiInfo(null)
-        }
-        updateAiPartCache(nextCache)
-      }
-      
-      setIsGenerating(false)
-      setIsLoading(false)
+      const nextCache = extractAiPartCache(cached.states)
+      setAiInfo(nextCache[currentPart] ?? null)
+      updateAiPartCache(nextCache)
       setHasAiLoadedOnce(true)
-    } catch (error) {
-      console.error('Error loading AI info:', error)
-      if (requestSeqRef.current === 0) return
-      setIsGenerating(false)
-      setIsLoading(false)
+    } catch {
+      if (mySeq === requestSeqRef.current) setAiInfo(t('ai.failed'))
+    } finally {
+      if (mySeq === requestSeqRef.current) {
+        setIsGenerating(false)
+        setIsLoading(false)
+      }
     }
-  }, [currentClient?.id, currentPart, isOpen, isAiBlockOpen, checkIfAiStatesNeedUpdate, updateAiPartCache])
+  }, [currentClient?.id, currentPart, isOpen, isAiBlockOpen, locale, t, updateAiPartCache])
 
-  // Separate effect for loading AI info - only when sidebar is open, AI block is open, and part or client changes
   useEffect(() => {
     if (currentPart && currentClient?.id && isOpen && isAiBlockOpen) {
-      const cached = aiPartCache[currentPart]
-      if (typeof cached !== 'undefined') {
-        setAiInfo(cached)
-        setIsLoading(false)
-        setHasAiLoadedOnce(true)
-      } else {
-        const snapshot = (currentClient as any)[`ai_${currentPart}_state`]
-        if (snapshot) {
-          setAiInfo(snapshot as string)
-          updateAiPartCache(extractAiPartCache(currentClient))
-          setIsLoading(false)
-          setHasAiLoadedOnce(true)
-        }
-      }
-      // refresh in background without clearing existing content to avoid flicker
-      loadAiInfo()
+      void loadAiInfo()
     } else {
-      if (!currentClient?.id || !isOpen) {
-        setAiInfo(null)
-      }
+      setAiInfo(null)
       setIsLoading(false)
     }
-  }, [currentPart, currentClient?.id, isOpen, isAiBlockOpen, loadAiInfo, aiPartCache, updateAiPartCache])
+  }, [currentPart, currentClient?.id, isOpen, isAiBlockOpen, loadAiInfo])
 
   // Polling effect to detect data changes and trigger immediate loading
   useEffect(() => {

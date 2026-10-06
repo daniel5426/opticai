@@ -169,108 +169,16 @@ class BaseTool(ABC):
         self.company_id = user.company_id  # Always scope by company
     
     def _parse_action_and_kwargs(self, action_or_dict: Any, **kwargs) -> tuple[str, Dict[str, Any]]:
-        """
-        Parse action and kwargs from LangChain tool call.
-        Handles various LangChain parameter formats: __arg1, JSON strings, nested dicts, etc.
-        """
-        if "__arg1" in kwargs:
-            arg1 = kwargs.pop("__arg1")
-            logger.info(f"_parse_action_and_kwargs: Found __arg1={arg1}, type={type(arg1).__name__}, kwargs={kwargs}")
-            if isinstance(arg1, str):
-                arg1_stripped = arg1.strip()
-                if arg1_stripped.startswith("{") and arg1_stripped.endswith("}"):
-                    try:
-                        import json
-                        parsed = json.loads(arg1_stripped)
-                        if isinstance(parsed, dict):
-                            logger.info(f"Parsed __arg1 JSON: {parsed}")
-                            result = self._parse_action_and_kwargs(parsed, **kwargs)
-                            logger.info(f"JSON parse result: action={result[0]}, kwargs={result[1]}")
-                            return result
-                    except Exception as e:
-                        logger.warning(f"Failed to parse __arg1 as JSON: {arg1_stripped[:100]}, error: {e}")
-                
-                for separator in [":", "="]:
-                    if separator in arg1_stripped and not arg1_stripped.startswith("{"):
-                        parts = arg1_stripped.split(separator, 1)
-                        if len(parts) == 2:
-                            action = parts[0].strip()
-                            value = parts[1].strip()
-                            logger.info(f"Parsed __arg1 {separator} format: action={action}, value={value}")
-                            if action in ["search", "get", "get_summary", "list_recent", "list", "create", "check_conflicts", "get_latest", "get_by_client"]:
-                                param_mapping = {
-                                    "search": "search",
-                                    "get": "client_id",
-                                    "get_summary": "client_id",
-                                    "list_recent": "limit",
-                                    "get_latest": "client_id",
-                                    "get_by_client": "client_id"
-                                }
-                                param_name = param_mapping.get(action, "value")
-                                kwargs[param_name] = value
-                                result = (action, kwargs)
-                                logger.info(f"Parse result: action={result[0]}, kwargs={result[1]}")
-                                return result
-                
-                logger.info(f"Treating __arg1 as action only: {arg1_stripped}")
-                result = (arg1_stripped, kwargs)
-                logger.info(f"Parse result (action only): action={result[0]}, kwargs={result[1]}")
-                return result
-            elif isinstance(arg1, dict):
-                logger.info(f"__arg1 is dict: {arg1}")
-                return self._parse_action_and_kwargs(arg1, **kwargs)
-            else:
-                logger.info(f"__arg1 is other type: {type(arg1).__name__}, converting to string")
-                return str(arg1), kwargs
-        
-        if isinstance(action_or_dict, str):
-            action_stripped = action_or_dict.strip()
-            if action_stripped.startswith("{") and action_stripped.endswith("}") and "action" in action_stripped:
-                try:
-                    import json
-                    parsed = json.loads(action_stripped)
-                    if isinstance(parsed, dict):
-                        return self._parse_action_and_kwargs(parsed, **kwargs)
-                except Exception as e:
-                    logger.warning(f"Failed to parse action JSON string: {action_stripped[:100]}, error: {e}")
-            return action_or_dict, kwargs
-        
         if isinstance(action_or_dict, dict):
-            action_dict = dict(action_or_dict)
-            if "action" in action_dict:
-                action = action_dict.pop("action")
-                kwargs = {**action_dict, **kwargs}
-                return action, kwargs
-            else:
-                kwargs = {**action_dict, **kwargs}
-                if "action" in kwargs:
-                    action = kwargs.pop("action")
-                    return self._parse_action_and_kwargs(action, **kwargs)
-        
-        if action_or_dict is None and "action" in kwargs:
-            action = kwargs.pop("action")
-            return self._parse_action_and_kwargs(action, **kwargs)
-        
-        for key, value in list(kwargs.items()):
-            if isinstance(value, dict) and "action" in value:
-                action_dict = kwargs.pop(key)
-                action = action_dict.pop("action")
-                kwargs = {**action_dict, **kwargs}
-                return action, kwargs
-            elif isinstance(value, str) and value.strip().startswith("{") and "action" in value:
-                try:
-                    import json
-                    parsed = json.loads(value)
-                    if isinstance(parsed, dict) and "action" in parsed:
-                        kwargs.pop(key)
-                        action = parsed.pop("action")
-                        kwargs = {**parsed, **kwargs}
-                        return action, kwargs
-                except Exception:
-                    pass
-        
-        raise ValueError(f"Could not parse action from: {action_or_dict}")
-    
+            values = dict(action_or_dict)
+            action = values.pop("action", None)
+            if not isinstance(action, str):
+                raise ValueError("invalid action")
+            return action, {**values, **kwargs}
+        if not isinstance(action_or_dict, str):
+            raise ValueError("invalid action")
+        return action_or_dict, kwargs
+
     @abstractmethod
     def execute(self, action: str, **kwargs) -> str:
         """Execute the tool action. Must be implemented by subclasses."""
@@ -309,8 +217,8 @@ class BaseTool(ABC):
     
     def handle_error(self, error: Exception, context: str) -> str:
         """Standard error handling."""
-        logger.error(f"{self.__class__.__name__} error in {context}: {str(error)}\n{traceback.format_exc()}")
-        return ToolResponse.error(f"שגיאה: {str(error)}")
+        logger.warning("ai_tool_failed tool=%s code=ai.toolFailed", self.__class__.__name__)
+        return ToolResponse.error("ai.toolFailed")
     
     def coerce_int(self, value: Any) -> int:
         """Coerce value to int with validation."""

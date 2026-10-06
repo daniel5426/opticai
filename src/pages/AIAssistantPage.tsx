@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle, CheckCircle2, History, Loader2, Paperclip, Plus, SearchIcon, Send, StopCircle, X, XCircle } from 'lucide-react';
 import { SiteHeader } from '../components/site-header';
@@ -160,6 +161,8 @@ const ChatComposer = ({ onSubmit, onStop, isReady, isStreaming }: ChatComposerPr
 
 
 export function AIAssistantPage() {
+  const { t } = useTranslation();
+  const streamAbortRef = useRef<AbortController | null>(null);
   const [messages, setMessages] = useState<ThreadMessage[]>([]);
   const [currentChatId, setCurrentChatId] = useState<number | null>(null);
   const [chatsModalOpen, setChatsModalOpen] = useState(false);
@@ -256,6 +259,7 @@ export function AIAssistantPage() {
   }, []);
 
   const handleStopStreaming = useCallback(() => {
+    streamAbortRef.current?.abort();
     if (!activeStreamRef.current) return;
     const streamId = activeStreamRef.current;
     activeStreamRef.current = null;
@@ -330,6 +334,7 @@ export function AIAssistantPage() {
       setMessages((prev) => [...prev, assistantMessage]);
 
     try {
+      streamAbortRef.current = new AbortController();
       await apiClient.aiChatStream(
           userMessage.text,
           history,
@@ -383,9 +388,11 @@ export function AIAssistantPage() {
                   : message
               )
             );
-        }
+        },
+        streamAbortRef.current.signal
       );
     } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
         activeStreamRef.current = null;
         setActiveStreamId(null);
         setMessages((prev) =>
@@ -393,7 +400,7 @@ export function AIAssistantPage() {
             message.id === assistantMessageId
               ? {
                   ...message,
-                  text: 'מצטער, אירעה שגיאה בחיבור לשרת.',
+                  text: error instanceof Error ? error.message : t('ai.failed'),
                   status: 'error',
                   currentTextPart: undefined,
                 }
@@ -402,7 +409,7 @@ export function AIAssistantPage() {
         );
       }
     },
-    [createNewChat, currentChatId, messages, saveMessageToChat]
+    [createNewChat, currentChatId, messages, saveMessageToChat, t]
   );
 
   const handleConfirmAction = useCallback(async () => {

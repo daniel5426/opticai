@@ -41,6 +41,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/backend
         run: >
           python -m pytest
+          backend/tests/test_ai_responses.py
           backend/tests/test_production_hardening.py
           backend/tests/test_files_api.py
           backend/tests/test_default_exam_layout_seeds.py

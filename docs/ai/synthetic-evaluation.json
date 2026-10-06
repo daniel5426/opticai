@@ -1,0 +1,332 @@
+{
+  "synthetic_only": true,
+  "price_source": "https://developers.openai.com/api/docs/pricing",
+  "cost_method": "Standard uncached estimate; actual billing/cache discounts may differ.",
+  "manual_review_required": "Clinical correctness and locale quality require broader representative evaluation before production.",
+  "results": [
+    {
+      "feature": "assistant_stream",
+      "locale": "he",
+      "version": "baseline",
+      "model": "gpt-5-chat-latest",
+      "passed": false,
+      "error": "NotFoundError",
+      "duration_ms": 600
+    },
+    {
+      "feature": "assistant_stream",
+      "locale": "he",
+      "version": "target",
+      "model": "gpt-6.1-sol",
+      "passed": true,
+      "input_tokens": 1529,
+      "output_tokens": 41,
+      "estimated_uncached_usd": 0.003468,
+      "duration_ms": 2880
+    },
+    {
+      "feature": "assistant",
+      "locale": "he",
+      "version": "baseline",
+      "model": "gpt-5",
+      "passed": true,
+      "input_tokens": 1529,
+      "output_tokens": 219,
+      "estimated_uncached_usd": 0.004101,
+      "duration_ms": 2881
+    },
+    {
+      "feature": "assistant",
+      "locale": "he",
+      "version": "target",
+      "model": "gpt-6.1-sol",
+      "passed": true,
+      "input_tokens": 1529,
+      "output_tokens": 41,
+      "estimated_uncached_usd": 0.003468,
+      "duration_ms": 2013
+    },
+    {
+      "feature": "insights",
+      "locale": "he",
+      "version": "baseline",
+      "model": "gpt-5.4-mini-2026-03-17",
+      "passed": true,
+      "input_tokens": 175,
+      "output_tokens": 68,
+      "estimated_uncached_usd": 0.000437,
+      "duration_ms": 1453
+    },
+    {
+      "feature": "insights",
+      "locale": "he",
+      "version": "target",
+      "model": "gpt-6.1-sol",
+      "passed": true,
+      "input_tokens": 175,
+      "output_tokens": 28,
+      "estimated_uncached_usd": 0.00063,
+      "duration_ms": 3993
+    },
+    {
+      "feature": "campaign",
+      "locale": "he",
+      "version": "baseline",
+      "model": "gpt-5.4-mini-2026-03-17",
+      "passed": true,
+      "input_tokens": 1272,
+      "output_tokens": 197,
+      "estimated_uncached_usd": 0.00184,
+      "duration_ms": 2292
+    },
+    {
+      "feature": "campaign",
+      "locale": "he",
+      "version": "target",
+      "model": "gpt-6-luna",
+      "passed": true,
+      "input_tokens": 1272,
+      "output_tokens": 87,
+      "estimated_uncached_usd": 0.000171,
+      "duration_ms": 1773
+    },
+    {
+      "feature": "whatsapp",
+      "locale": "he",
+      "version": "baseline",
+      "model": "gpt-4o",
+      "passed": true,
+      "input_tokens": 53,
+      "output_tokens": 37,
+      "estimated_uncached_usd": 0.000503,
+      "duration_ms": 1879
+    },
+    {
+      "feature": "whatsapp",
+      "locale": "he",
+      "version": "target",
+      "model": "gpt-6-luna",
+      "passed": true,
+      "input_tokens": 52,
+      "output_tokens": 35,
+      "estimated_uncached_usd": 2.3e-05,
+      "duration_ms": 1502
+    },
+    {
+      "feature": "assistant_stream",
+      "locale": "en",
+      "version": "baseline",
+      "model": "gpt-5-chat-latest",
+      "passed": false,
+      "error": "NotFoundError",
+      "duration_ms": 411
+    },
+    {
+      "feature": "assistant_stream",
+      "locale": "en",
+      "version": "target",
+      "model": "gpt-6.1-sol",
+      "passed": true,
+      "input_tokens": 1529,
+      "output_tokens": 41,
+      "estimated_uncached_usd": 0.003468,
+      "duration_ms": 2131
+    },
+    {
+      "feature": "assistant",
+      "locale": "en",
+      "version": "baseline",
+      "model": "gpt-5",
+      "passed": true,
+      "input_tokens": 1529,
+      "output_tokens": 188,
+      "estimated_uncached_usd": 0.003791,
+      "duration_ms": 3072
+    },
+    {
+      "feature": "assistant",
+      "locale": "en",
+      "version": "target",
+      "model": "gpt-6.1-sol",
+      "passed": true,
+      "input_tokens": 1529,
+      "output_tokens": 41,
+      "estimated_uncached_usd": 0.003468,
+      "duration_ms": 2526
+    },
+    {
+      "feature": "insights",
+      "locale": "en",
+      "version": "baseline",
+      "model": "gpt-5.4-mini-2026-03-17",
+      "passed": true,
+      "input_tokens": 175,
+      "output_tokens": 44,
+      "estimated_uncached_usd": 0.000329,
+      "duration_ms": 1075
+    },
+    {
+      "feature": "insights",
+      "locale": "en",
+      "version": "target",
+      "model": "gpt-6.1-sol",
+      "passed": true,
+      "input_tokens": 175,
+      "output_tokens": 28,
+      "estimated_uncached_usd": 0.00063,
+      "duration_ms": 1804
+    },
+    {
+      "feature": "campaign",
+      "locale": "en",
+      "version": "baseline",
+      "model": "gpt-5.4-mini-2026-03-17",
+      "passed": true,
+      "input_tokens": 1272,
+      "output_tokens": 128,
+      "estimated_uncached_usd": 0.00153,
+      "duration_ms": 1600
+    },
+    {
+      "feature": "campaign",
+      "locale": "en",
+      "version": "target",
+      "model": "gpt-6-luna",
+      "passed": true,
+      "input_tokens": 1272,
+      "output_tokens": 77,
+      "estimated_uncached_usd": 0.000166,
+      "duration_ms": 4427
+    },
+    {
+      "feature": "whatsapp",
+      "locale": "en",
+      "version": "baseline",
+      "model": "gpt-4o",
+      "passed": true,
+      "input_tokens": 53,
+      "output_tokens": 24,
+      "estimated_uncached_usd": 0.000373,
+      "duration_ms": 963
+    },
+    {
+      "feature": "whatsapp",
+      "locale": "en",
+      "version": "target",
+      "model": "gpt-6-luna",
+      "passed": true,
+      "input_tokens": 52,
+      "output_tokens": 22,
+      "estimated_uncached_usd": 1.6e-05,
+      "duration_ms": 1186
+    },
+    {
+      "feature": "assistant_stream",
+      "locale": "fr",
+      "version": "baseline",
+      "model": "gpt-5-chat-latest",
+      "passed": false,
+      "error": "NotFoundError",
+      "duration_ms": 289
+    },
+    {
+      "feature": "assistant_stream",
+      "locale": "fr",
+      "version": "target",
+      "model": "gpt-6.1-sol",
+      "passed": true,
+      "input_tokens": 1529,
+      "output_tokens": 41,
+      "estimated_uncached_usd": 0.003468,
+      "duration_ms": 1962
+    },
+    {
+      "feature": "assistant",
+      "locale": "fr",
+      "version": "baseline",
+      "model": "gpt-5",
+      "passed": true,
+      "input_tokens": 1529,
+      "output_tokens": 140,
+      "estimated_uncached_usd": 0.003311,
+      "duration_ms": 3373
+    },
+    {
+      "feature": "assistant",
+      "locale": "fr",
+      "version": "target",
+      "model": "gpt-6.1-sol",
+      "passed": true,
+      "input_tokens": 1529,
+      "output_tokens": 41,
+      "estimated_uncached_usd": 0.003468,
+      "duration_ms": 2769
+    },
+    {
+      "feature": "insights",
+      "locale": "fr",
+      "version": "baseline",
+      "model": "gpt-5.4-mini-2026-03-17",
+      "passed": true,
+      "input_tokens": 175,
+      "output_tokens": 49,
+      "estimated_uncached_usd": 0.000352,
+      "duration_ms": 986
+    },
+    {
+      "feature": "insights",
+      "locale": "fr",
+      "version": "target",
+      "model": "gpt-6.1-sol",
+      "passed": true,
+      "input_tokens": 175,
+      "output_tokens": 28,
+      "estimated_uncached_usd": 0.00063,
+      "duration_ms": 5960
+    },
+    {
+      "feature": "campaign",
+      "locale": "fr",
+      "version": "baseline",
+      "model": "gpt-5.4-mini-2026-03-17",
+      "passed": true,
+      "input_tokens": 1272,
+      "output_tokens": 150,
+      "estimated_uncached_usd": 0.001629,
+      "duration_ms": 1888
+    },
+    {
+      "feature": "campaign",
+      "locale": "fr",
+      "version": "target",
+      "model": "gpt-6-luna",
+      "passed": true,
+      "input_tokens": 1272,
+      "output_tokens": 84,
+      "estimated_uncached_usd": 0.000169,
+      "duration_ms": 1661
+    },
+    {
+      "feature": "whatsapp",
+      "locale": "fr",
+      "version": "baseline",
+      "model": "gpt-4o",
+      "passed": true,
+      "input_tokens": 53,
+      "output_tokens": 32,
+      "estimated_uncached_usd": 0.000452,
+      "duration_ms": 1395
+    },
+    {
+      "feature": "whatsapp",
+      "locale": "fr",
+      "version": "target",
+      "model": "gpt-6-luna",
+      "passed": true,
+      "input_tokens": 52,
+      "output_tokens": 29,
+      "estimated_uncached_usd": 2e-05,
+      "duration_ms": 1638
+    }
+  ]
+}
