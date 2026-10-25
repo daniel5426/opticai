@@ -23,9 +23,6 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -46,28 +43,8 @@ import {
 } from "@/lib/db/work-shifts-db"
 import { toast } from "sonner"
 import { GuardedRouterLink } from "@/components/GuardedRouterLink"
-import {
-  ColorTheme,
-  getColorTheme,
-  previewColorTheme,
-  setColorTheme,
-} from "@/helpers/theme_helpers"
 import { useTranslation } from "react-i18next"
 import { getActiveLocale, getDirection, normalizeLocale } from "@/localization/locale"
-
-const colorThemes: Array<{
-  value: ColorTheme
-  labelKey: string
-}> = [
-  { value: "blue", labelKey: "colorThemeClassicBlue" },
-  { value: "ice", labelKey: "colorThemeIceBlue" },
-  { value: "neutral", labelKey: "colorThemeGraphite" },
-  { value: "forest", labelKey: "colorThemeForest" },
-  { value: "bronze", labelKey: "colorThemeBronze" },
-  { value: "plum", labelKey: "colorThemePlum" },
-  { value: "monochrome", labelKey: "colorThemeMonochrome" },
-  { value: "openai", labelKey: "colorThemeOpenAI" },
-]
 
 export function NavUser({
   currentUser,
@@ -86,9 +63,6 @@ export function NavUser({
   const [currentTime, setCurrentTime] = React.useState(new Date())
   const [activeShift, setActiveShift] = React.useState<WorkShift | null>(null)
   const [isStartingShift, setIsStartingShift] = React.useState(false)
-  const [colorTheme, setColorThemeState] = React.useState<ColorTheme>(() =>
-    getColorTheme(currentUser?.id),
-  )
 
   React.useEffect(() => {
     const timer = setInterval(() => {
@@ -133,11 +107,6 @@ export function NavUser({
 
   const openProfileModal = () => {
     setShowProfileModal(true)
-  }
-
-  const handleColorThemeChange = (theme: ColorTheme) => {
-    setColorTheme(theme, currentUser?.id)
-    setColorThemeState(theme)
   }
 
   const handleStartShift = async () => {
@@ -354,30 +323,6 @@ export function NavUser({
               )}
               <DropdownMenuSeparator />
 
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>{t("colorAppearance")}</DropdownMenuSubTrigger>
-                <DropdownMenuSubContent
-                  className="w-40"
-                  onPointerLeave={() => previewColorTheme(getColorTheme(currentUser?.id))}
-                >
-                  {colorThemes.map(({ value, labelKey }) => (
-                    <DropdownMenuItem
-                      key={value}
-                      onPointerEnter={() => previewColorTheme(value)}
-                      onFocus={() => previewColorTheme(value)}
-                      onClick={() => handleColorThemeChange(value)}
-                      className={`justify-start ${
-                        colorTheme === value
-                          ? "bg-accent text-accent-foreground"
-                          : ""
-                      }`}
-                    >
-                      {t(labelKey)}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              <DropdownMenuSeparator />
               
               <DropdownMenuGroup>
                 <DropdownMenuItem 

@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { FILTER_FIELDS, OPERATORS } from "@/lib/campaign-filter-options";
 import { useUser } from "@/contexts/UserContext";
+import { usePrysmAgent } from "@/contexts/PrysmAgentContext";
 import { apiClient } from "@/lib/api-client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateInput } from "@/components/ui/date";
@@ -523,6 +524,7 @@ function CampaignModal({
 }
 
 export default function CampaignsPage() {
+  const aiAvailable = usePrysmAgent()?.available === true;
   const navigate = useNavigate();
   const { currentClinic } = useUser();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -544,6 +546,8 @@ export default function CampaignsPage() {
   const [isSavingCampaign, setIsSavingCampaign] = useState(false);
   const aiTextareaRef = useRef<HTMLTextAreaElement>(null);
   const isSavingCampaignRef = useRef(false);
+
+  useEffect(() => { if (!aiAvailable) setAiModalOpen(false); }, [aiAvailable]);
 
   const loadCampaigns = async () => {
     try {
@@ -862,7 +866,7 @@ export default function CampaignsPage() {
   const handleAICreateCampaign = async () => {
     setAiError(null);
     setAiSuccess(null);
-    if (!aiInput.trim()) return;
+    if (!aiAvailable || !aiInput.trim()) return;
     setAiLoading(true);
     try {
       const result = await apiClient.aiCreateCampaignFromPrompt(
@@ -903,7 +907,7 @@ export default function CampaignsPage() {
                 </p>
               </div>
               <div className="flex gap-2">
-                <Button
+                {aiAvailable && <Button
                   onClick={() => setAiModalOpen(true)}
                   size="lg"
                   variant="outline"
@@ -911,7 +915,7 @@ export default function CampaignsPage() {
                   title="צור קמפיין עם AI"
                 >
                   <StarsIcon className="h-5 w-5" />
-                </Button>
+                </Button>}
                 <Button onClick={() => openModal()} size="lg" className="gap-2">
                   קמפיין חדש
                   <Plus className="h-5 w-5" />
@@ -1023,7 +1027,7 @@ export default function CampaignsPage() {
               </p>
             </div>
             <div className="flex gap-2">
-              <Button
+              {aiAvailable && <Button
                 onClick={() => setAiModalOpen(true)}
                 size="lg"
                 variant="outline"
@@ -1031,7 +1035,7 @@ export default function CampaignsPage() {
                 title="צור קמפיין עם AI"
               >
                 <StarsIcon className="h-5 w-5" />
-              </Button>
+              </Button>}
               <Button onClick={() => openModal()} size="lg" className="gap-2">
                 קמפיין חדש
                 <Plus className="h-5 w-5" />
@@ -1266,7 +1270,7 @@ export default function CampaignsPage() {
       />
       {/* AI Campaign Modal */}
       <CustomModal
-        isOpen={aiModalOpen}
+        isOpen={aiAvailable && aiModalOpen}
         onClose={() => !aiLoading && setAiModalOpen(false)}
         title="צור קמפיין עם AI"
         width="max-w-lg"

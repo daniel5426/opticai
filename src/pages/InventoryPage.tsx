@@ -57,6 +57,7 @@ import {
 } from "@/components/inventory/FrameCatalogCombobox";
 import { TableFiltersBar } from "@/components/table-filters-bar";
 import { TablePagination } from "@/components/table-pagination";
+import { canvasSurfaceClassName } from "@/components/ui/canvas-surface";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -1683,7 +1684,7 @@ function ImportDialog({
               <SummaryCard title="דורשות תיקון" value={preview.invalid} />
             </div>
             <div className="max-h-72 overflow-auto rounded-md border">
-              <Table>
+              <Table elevated={false}>
                 <TableHeader>
                   <TableRow>
                     <TableHead>שורה</TableHead>
@@ -2186,68 +2187,6 @@ export default function InventoryPage() {
         className="flex h-full min-h-0 flex-1 flex-col gap-5 overflow-hidden p-4 lg:p-6"
         dir="rtl"
       >
-        {activeTab === "stock" ? (
-          <section
-            aria-label="פעולות מלאי"
-            className="flex h-9 shrink-0 items-center justify-between gap-3"
-          >
-            <h2 className="text-muted-foreground text-xl font-semibold tracking-tight">
-              {t("inventoryManagementSubtitle")}
-            </h2>
-            <div className="flex items-center gap-2">
-              {canWrite ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      size="icon"
-                      onClick={() => openCatalogForSupplier()}
-                      aria-label="הוסף פריט"
-                    >
-                      <Plus className="size-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>הוסף פריט</TooltipContent>
-                </Tooltip>
-              ) : null}
-              <DropdownMenu dir="rtl">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        aria-label="פעולות מלאי"
-                      >
-                        <MoreHorizontal className="size-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                  </TooltipTrigger>
-                  <TooltipContent>פעולות מלאי</TooltipContent>
-                </Tooltip>
-                <DropdownMenuContent align="end">
-                  {canWrite ? (
-                    <>
-                      <DropdownMenuItem onClick={() => setCountOpen(true)}>
-                        ספירת מלאי <ClipboardCheck className="h-4 w-4" />
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setDiscoveryOpen(true)}>
-                        גילוי מהזמנות <ScanSearch className="h-4 w-4" />
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setImportOpen(true)}>
-                        ייבוא CSV <Upload className="h-4 w-4" />
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                    </>
-                  ) : null}
-                  <DropdownMenuItem onClick={() => void exportCsv()}>
-                    ייצוא CSV <ArrowDownToLine className="h-4 w-4" />
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </section>
-        ) : null}
-
         <Tabs
           value={activeTab}
           onValueChange={(value) => setActiveTab(value as InventoryTab)}
@@ -2263,19 +2202,72 @@ export default function InventoryPage() {
               onSearchChange={setSearch}
               searchPlaceholder="חיפוש לפי מותג, דגם, SKU או ברקוד..."
               navigation={
-                <Tabs
-                  value={visibility}
-                  onValueChange={(value) =>
-                    setVisibility(value as InventoryVisibility)
-                  }
-                  className="gap-0"
-                >
-                  <TabsList>
-                    <TabsTrigger value="active">פעילים</TabsTrigger>
-                    <TabsTrigger value="archived">ארכיון</TabsTrigger>
-                    <TabsTrigger value="all">הכל</TabsTrigger>
-                  </TabsList>
-                </Tabs>
+                <>
+                  <div className="flex items-center gap-2">
+                  {canWrite ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size="icon"
+                          onClick={() => openCatalogForSupplier()}
+                          aria-label="הוסף פריט"
+                        >
+                          <Plus className="size-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>הוסף פריט</TooltipContent>
+                    </Tooltip>
+                  ) : null}
+                  <DropdownMenu dir="rtl">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            aria-label="פעולות מלאי"
+                          >
+                            <MoreHorizontal className="size-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                      </TooltipTrigger>
+                      <TooltipContent>פעולות מלאי</TooltipContent>
+                    </Tooltip>
+                    <DropdownMenuContent align="end">
+                      {canWrite ? (
+                        <>
+                          <DropdownMenuItem onClick={() => setCountOpen(true)}>
+                            ספירת מלאי <ClipboardCheck className="h-4 w-4" />
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setDiscoveryOpen(true)}>
+                            גילוי מהזמנות <ScanSearch className="h-4 w-4" />
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setImportOpen(true)}>
+                            ייבוא CSV <Upload className="h-4 w-4" />
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                        </>
+                      ) : null}
+                      <DropdownMenuItem onClick={() => void exportCsv()}>
+                        ייצוא CSV <ArrowDownToLine className="h-4 w-4" />
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  </div>
+                  <Tabs
+                    value={visibility}
+                    onValueChange={(value) =>
+                      setVisibility(value as InventoryVisibility)
+                    }
+                    className="gap-0"
+                  >
+                    <TabsList>
+                      <TabsTrigger value="active">פעילים</TabsTrigger>
+                      <TabsTrigger value="archived">ארכיון</TabsTrigger>
+                      <TabsTrigger value="all">הכל</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </>
               }
               filters={[
                 {
@@ -2977,7 +2969,8 @@ export function SupplierCards({
             {Array.from({ length: 6 }).map((_, index) => (
               <div
                 key={index}
-                className="bg-card min-h-28 rounded-md border p-3.5"
+                data-canvas-surface=""
+                className={`${canvasSurfaceClassName} min-h-28 p-3.5`}
               >
                 <Skeleton className="h-5 w-2/3" />
                 <Skeleton className="mt-4 h-4 w-2/3" />
@@ -2989,7 +2982,8 @@ export function SupplierCards({
             {paginatedGroups.map((supplier) => (
               <article
                 key={supplier.key}
-                className="bg-card hover:border-primary/45 flex min-h-28 rounded-md border p-3.5 transition-colors"
+                data-canvas-surface=""
+                className={`${canvasSurfaceClassName} hover:bg-accent/40 flex min-h-28 p-3.5 transition-colors`}
               >
                 <button
                   type="button"
@@ -3028,7 +3022,10 @@ export function SupplierCards({
             ))}
           </div>
         ) : (
-          <div className="text-muted-foreground flex min-h-52 items-center justify-center rounded-md border border-dashed px-6 text-center text-sm">
+          <div
+            data-canvas-surface=""
+            className={`${canvasSurfaceClassName} text-muted-foreground flex min-h-52 items-center justify-center px-6 text-center text-sm`}
+          >
             אין ספקים התואמים לסינון הנוכחי.
           </div>
         )}
@@ -3201,7 +3198,7 @@ function InventoryProductsTable({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="bg-card min-h-0 flex-1 rounded-md">
+      <div className="min-h-0 flex-1">
         <Table
           dir={direction}
           containerClassName="h-full min-h-0 overflow-auto overscroll-contain"
@@ -3323,7 +3320,7 @@ function InventoryTable({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="bg-card min-h-0 flex-1 rounded-md">
+      <div className="min-h-0 flex-1">
         <Table
           dir={direction}
           containerClassName="h-full min-h-0 overflow-auto overscroll-contain"

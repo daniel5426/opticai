@@ -1,3 +1,4 @@
+import { getAppearanceStore } from "@/lib/appearance";
 import React, {
   useCallback,
   useMemo,
@@ -31,6 +32,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { UsersTab } from "@/components/settings/UsersTab";
 import { FieldDataTab } from "@/components/settings/FieldDataTab";
 import { PersonalProfileTab } from "@/components/settings/PersonalProfileTab";
+import { AppearanceTab } from "@/components/settings/AppearanceTab";
 import { AboutTab } from "@/components/settings/AboutTab";
 import { MigrationTab } from "@/components/settings/MigrationTab";
 import { ClinicHolidaysTab } from "@/components/settings/ClinicHolidaysTab";
@@ -511,7 +513,7 @@ export default function SettingsPage() {
           profile_picture: personalProfile.profile_picture,
           primary_theme_color: personalProfile.primary_theme_color,
           secondary_theme_color: personalProfile.secondary_theme_color,
-          theme_preference: personalProfile.theme_preference,
+          theme_preference: getAppearanceStore().getSnapshot().mode,
           system_vacation_dates: personalProfile.system_vacation_dates,
           added_vacation_dates: personalProfile.added_vacation_dates,
           va_format: personalProfile.va_format,
@@ -1212,6 +1214,10 @@ export default function SettingsPage() {
                     />
                   </TabsContent>
 
+                  <TabsContent value="appearance" className="mt-0 space-y-6">
+                    <AppearanceTab />
+                  </TabsContent>
+
                   <TabsContent value="about" className="mt-0 space-y-6">
                     <AboutTab />
                   </TabsContent>
@@ -1252,6 +1258,12 @@ export default function SettingsPage() {
                       className="w-full justify-start text-start"
                     >
                       {t("personalProfile")}
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="appearance"
+                      className="w-full justify-start text-start"
+                    >
+                      {t("appearanceMenu")}
                     </TabsTrigger>
                     {isRoleAtLeast(
                       currentUser?.role_level,

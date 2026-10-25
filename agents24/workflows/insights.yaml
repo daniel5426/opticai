@@ -1,0 +1,14 @@
+schema: agents24.workflow/v1
+name: Prysm Sidebar Insights
+description: Existing sidebar insights on Agents24.
+inputs:
+  text: string
+outputs:
+  response: object
+entry: insights
+nodes:
+  insights:
+    uses: ../agents/insights.md
+flow:
+  - from: insights.output_json
+    to: output.response

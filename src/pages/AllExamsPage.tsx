@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
+import { TableListPageContent } from "@/components/table-list-layout"
+import { useTranslation } from "react-i18next"
 import { SiteHeader } from "@/components/site-header"
 import { getPaginatedEnrichedExams } from "@/lib/db/exams-db"
 import { OpticalExam } from "@/lib/db/schema-interface"
@@ -13,6 +15,7 @@ import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
 import { deferPaginationTotal } from "@/lib/deferred-pagination"
 
 export default function AllExamsPage() {
+  const { t } = useTranslation()
   const { currentClinic } = useUser()
   const search = useSearch({ from: "/exams" })
   const navigate = useNavigate()
@@ -136,8 +139,8 @@ export default function AllExamsPage() {
 
   return (
     <>
-      <SiteHeader title="בדיקות" />
-      <div className="flex h-full min-h-0 flex-1 flex-col p-4 lg:p-6" dir="rtl" style={{ scrollbarWidth: "none" }}>
+      <SiteHeader title={t("exams")} />
+      <TableListPageContent>
         <ExamsTable
           data={exams}
           clientId={0}
@@ -174,7 +177,7 @@ export default function AllExamsPage() {
               })
           }}
         />
-      </div>
+      </TableListPageContent>
     </>
   )
 }

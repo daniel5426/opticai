@@ -116,7 +116,7 @@ export function AnalyticsMetricCard({
 }) {
   if (loading) {
     return (
-      <Card className="gap-0 rounded-lg py-0 shadow-none">
+      <Card data-canvas-surface="" className="gap-0 rounded-lg py-0 shadow-none">
         <CardContent className="grid h-28 grid-rows-[18px_1fr_18px] gap-1.5 p-4">
           <Skeleton className="h-4 w-24" />
           <div className="flex items-center justify-between gap-3"><Skeleton className="h-7 w-24" /><Skeleton className="h-9 w-20" /></div>
@@ -128,7 +128,7 @@ export function AnalyticsMetricCard({
 
   if (!metric) {
     return (
-      <Card className="gap-0 rounded-lg py-0 shadow-none">
+      <Card data-canvas-surface="" className="gap-0 rounded-lg py-0 shadow-none">
         <CardContent className="grid h-28 grid-rows-[18px_1fr_18px] gap-1.5 p-4 text-start" dir="rtl">
           <p className="truncate text-sm text-muted-foreground">נתון לא זמין</p>
           <p className="self-center text-2xl font-semibold text-muted-foreground">—</p>
@@ -144,7 +144,7 @@ export function AnalyticsMetricCard({
     ? `${analyticsChangeLabel(metric.value, metric.previous, metric.change_percent)} · מול התקופה הקודמת`
     : metric.context || "תמונת מצב נוכחית";
   return (
-    <Card className="min-w-0 gap-0 rounded-lg py-0 shadow-none">
+    <Card data-canvas-surface="" className="min-w-0 gap-0 rounded-lg py-0 shadow-none">
       <CardContent className="grid h-28 min-w-0 grid-rows-[18px_1fr_18px] gap-1.5 p-4 text-start" dir="rtl">
         <p className="truncate text-sm text-muted-foreground" title={metric.label}>{metric.label}</p>
         <div className="flex min-w-0 items-center justify-between gap-3">
@@ -206,7 +206,7 @@ export function AnalyticsPanel({
   }
 
   return (
-    <Card className={cn("gap-3 rounded-lg py-4 shadow-none", className)} dir="rtl">
+    <Card data-canvas-surface="" className={cn("gap-3 rounded-lg py-4 shadow-none", className)} dir="rtl">
       <CardHeader className="gap-1 px-4 pb-0 text-start">
         <CardTitle className="truncate text-base" title={title}>{title}</CardTitle>
         {description ? <p className="truncate text-sm text-muted-foreground" title={description}>{description}</p> : null}
@@ -254,7 +254,7 @@ export function RankedMetricTable<T>({
   emptyLabel?: string;
 }) {
   return (
-    <Table className="min-w-[680px] bg-card" containerClassName="border-border bg-card" dir="rtl">
+    <Table elevated={false} className="min-w-[680px] bg-card" containerClassName="rounded-md border border-border bg-card" dir="rtl">
       <TableHeader><TableRow>{columns.map((column) => <TableHead key={column.key} className={column.className}>{column.label}</TableHead>)}</TableRow></TableHeader>
       <TableBody>
         {rows.map((row) => <TableRow key={getKey(row)}>{columns.map((column) => <TableCell key={column.key} className={column.className}>{column.render(row)}</TableCell>)}</TableRow>)}

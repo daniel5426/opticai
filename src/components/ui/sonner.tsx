@@ -4,12 +4,12 @@ import { Toaster as Sonner, ToasterProps } from "sonner";
 import { useAppLocale } from "@/localization/use-app-locale";
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme();
+  const { resolvedMode } = useTheme();
   const { direction } = useAppLocale();
 
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
+      theme={resolvedMode}
       className="toaster group"
       dir={direction}
       position={direction === "rtl" ? "bottom-left" : "bottom-right"}
@@ -18,6 +18,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
           background: "hsl(var(--background))",
           color: "hsl(var(--foreground))",
           border: "1px solid hsl(var(--border))",
+          borderRadius: "var(--radius-md)",
         },
       }}
       {...props}

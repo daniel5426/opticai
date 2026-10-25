@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { canvasSurfaceClassName } from "@/components/ui/canvas-surface";
 import { cn } from "@/utils/tailwind";
 
 type TableProps = React.ComponentProps<"table"> & {
@@ -9,6 +10,7 @@ type TableProps = React.ComponentProps<"table"> & {
   containerStyle?: React.CSSProperties;
   emptyState?: React.ReactNode;
   showTrailingRowBorder?: boolean;
+  elevated?: boolean;
 };
 
 function Table({
@@ -17,6 +19,7 @@ function Table({
   containerStyle,
   emptyState,
   showTrailingRowBorder = false,
+  elevated = true,
   ...props
 }: TableProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -47,8 +50,10 @@ function Table({
     <div
       ref={containerRef}
       data-slot="table-container"
+      data-canvas-surface={elevated ? "" : undefined}
       className={cn(
-        "relative w-full overflow-x-auto rounded-md border",
+        "relative w-full overflow-x-auto",
+        elevated && canvasSurfaceClassName,
         containerClassName,
       )}
       style={containerStyle}

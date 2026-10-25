@@ -1,0 +1,44 @@
+{
+  "en": {
+    "search": "Search exams…",
+    "kind": "Exam type",
+    "all": "All exams",
+    "unknown": "Unknown",
+    "date": "Exam date",
+    "client": "Client",
+    "clinic": "Clinic",
+    "examiner": "Examiner",
+    "empty": "No exams to display",
+    "add": "Add exam",
+    "delete": "Delete",
+    "preview": "Quick preview"
+  },
+  "he": {
+    "search": "חיפוש בדיקות…",
+    "kind": "סוג בדיקה",
+    "all": "כל הבדיקות",
+    "unknown": "לא ידוע",
+    "date": "תאריך בדיקה",
+    "client": "לקוח",
+    "clinic": "סניף",
+    "examiner": "בודק",
+    "empty": "לא נמצאו בדיקות לתצוגה",
+    "add": "הוסף בדיקה",
+    "delete": "מחיקה",
+    "preview": "צפייה מהירה"
+  },
+  "fr": {
+    "search": "Rechercher des examens…",
+    "kind": "Type d’examen",
+    "all": "Tous les examens",
+    "unknown": "Inconnu",
+    "date": "Date de l’examen",
+    "client": "Client",
+    "clinic": "Clinique",
+    "examiner": "Examinateur",
+    "empty": "Aucun examen à afficher",
+    "add": "Ajouter un examen",
+    "delete": "Supprimer",
+    "preview": "Aperçu rapide"
+  }
+}

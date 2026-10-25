@@ -155,130 +155,14 @@ def metric_payload(
     }
 
 
-def _company_sales_rows(
-    db: Session,
-    company_id: int,
-    end_date: date,
-    *,
-    start_date: date | None = None,
-    clinic_id: int | None = None,
-    currency: str = DEFAULT_CURRENCY,
-) -> list[dict[str, Any]]:
-    from models import Billing, Clinic, ContactLensOrder, Order
-
-    def apply_filters(query, order_model):
-        query = query.filter(
-            Clinic.company_id == company_id,
-            order_model.order_date <= end_date,
-            Billing.currency == currency,
-        )
-        if start_date:
-            query = query.filter(order_model.order_date >= start_date)
-        if clinic_id:
-            query = query.filter(order_model.clinic_id == clinic_id)
-        return query
-
-    regular = apply_filters(
-        db.query(
-            Order.order_date,
-            Clinic.id,
-            Clinic.name,
-            Order.type,
-            func.coalesce(func.sum(Billing.total_after_discount), 0),
-            func.count(func.distinct(Billing.id)),
-        )
-        .join(Order, Billing.order_id == Order.id)
-        .join(Clinic, Order.clinic_id == Clinic.id)
-        .group_by(Order.order_date, Clinic.id, Clinic.name, Order.type),
-        Order,
-    ).all()
-    contacts = apply_filters(
-        db.query(
-            ContactLensOrder.order_date,
-            Clinic.id,
-            Clinic.name,
-            ContactLensOrder.type,
-            func.coalesce(func.sum(Billing.total_after_discount), 0),
-            func.count(func.distinct(Billing.id)),
-        )
-        .join(ContactLensOrder, Billing.contact_lens_id == ContactLensOrder.id)
-        .join(Clinic, ContactLensOrder.clinic_id == Clinic.id)
-        .group_by(ContactLensOrder.order_date, Clinic.id, Clinic.name, ContactLensOrder.type),
-        ContactLensOrder,
-    ).all()
-    return [
-        {
-            "date": row[0],
-            "clinic_id": row[1],
-            "clinic_name": row[2] or "ללא שם",
-            "type": row[3] or fallback,
-            "amount": float(row[4] or 0),
-            "orders": int(row[5] or 0),
-        }
-        for rows, fallback in ((regular, "הזמנה רגילה"), (contacts, "עדשות מגע"))
-        for row in rows
-    ]
+def _company_sales_rows(db, company_id, end_date, *, start_date=None, clinic_id=None, currency=DEFAULT_CURRENCY):
+    from services.clinic_finance import analytics_sales
+    return analytics_sales(db, company_id, end_date, start_date, clinic_id, currency)
 
 
-def _company_payment_rows(
-    db: Session,
-    company_id: int,
-    end_date: date,
-    *,
-    start_date: date | None = None,
-    clinic_id: int | None = None,
-    currency: str = DEFAULT_CURRENCY,
-) -> list[dict[str, Any]]:
-    from models import Billing, BillingPayment, Clinic, ContactLensOrder, Order
-
-    def apply_filters(query, order_model):
-        query = query.filter(
-            Clinic.company_id == company_id,
-            BillingPayment.paid_at <= end_date,
-            BillingPayment.currency == currency,
-        )
-        if start_date:
-            query = query.filter(BillingPayment.paid_at >= start_date)
-        if clinic_id:
-            query = query.filter(order_model.clinic_id == clinic_id)
-        return query
-
-    regular = apply_filters(
-        db.query(
-            BillingPayment.paid_at,
-            Clinic.id,
-            Clinic.name,
-            func.coalesce(func.sum(BillingPayment.amount), 0),
-        )
-        .join(Billing, BillingPayment.billing_id == Billing.id)
-        .join(Order, Billing.order_id == Order.id)
-        .join(Clinic, Order.clinic_id == Clinic.id)
-        .group_by(BillingPayment.paid_at, Clinic.id, Clinic.name),
-        Order,
-    ).all()
-    contacts = apply_filters(
-        db.query(
-            BillingPayment.paid_at,
-            Clinic.id,
-            Clinic.name,
-            func.coalesce(func.sum(BillingPayment.amount), 0),
-        )
-        .join(Billing, BillingPayment.billing_id == Billing.id)
-        .join(ContactLensOrder, Billing.contact_lens_id == ContactLensOrder.id)
-        .join(Clinic, ContactLensOrder.clinic_id == Clinic.id)
-        .group_by(BillingPayment.paid_at, Clinic.id, Clinic.name),
-        ContactLensOrder,
-    ).all()
-    return [
-        {
-            "date": row[0],
-            "clinic_id": row[1],
-            "clinic_name": row[2] or "ללא שם",
-            "amount": float(row[3] or 0),
-        }
-        for rows in (regular, contacts)
-        for row in rows
-    ]
+def _company_payment_rows(db, company_id, end_date, *, start_date=None, clinic_id=None, currency=DEFAULT_CURRENCY):
+    from services.clinic_finance import analytics_payments
+    return analytics_payments(db, company_id, end_date, start_date, clinic_id, currency)
 
 
 def _company_outstanding_by_clinic(
@@ -289,90 +173,15 @@ def _company_outstanding_by_clinic(
     clinic_id: int | None = None,
     currency: str = DEFAULT_CURRENCY,
 ) -> dict[int, dict[str, float]]:
-    """Return current and previous open balances without materializing billing rows."""
-    from models import Billing, BillingPayment, Clinic, ContactLensOrder, Order
-
-    def balance_query(order_model, join_condition):
-        query = (
-            db.query(
-                Billing.id.label("billing_id"),
-                order_model.order_date.label("order_date"),
-                Clinic.id.label("clinic_id"),
-                func.coalesce(Billing.total_after_discount, 0).label("amount"),
-                func.coalesce(
-                    func.sum(
-                        case(
-                            (BillingPayment.paid_at <= window.end_date, BillingPayment.amount),
-                            else_=0.0,
-                        )
-                    ),
-                    0.0,
-                ).label("current_paid"),
-                func.coalesce(
-                    func.sum(
-                        case(
-                            (BillingPayment.paid_at <= window.previous_end, BillingPayment.amount),
-                            else_=0.0,
-                        )
-                    ),
-                    0.0,
-                ).label("previous_paid"),
-            )
-            .select_from(Billing)
-            .join(order_model, join_condition)
-            .join(Clinic, order_model.clinic_id == Clinic.id)
-            .filter(Billing.currency == currency)
-            .outerjoin(
-                BillingPayment,
-                and_(
-                    BillingPayment.billing_id == Billing.id,
-                    BillingPayment.paid_at <= window.end_date,
-                ),
-            )
-            .filter(
-                Clinic.company_id == company_id,
-                order_model.order_date <= window.end_date,
-            )
-            .group_by(Billing.id, order_model.order_date, Clinic.id, Billing.total_after_discount)
-        )
-        if clinic_id:
-            query = query.filter(order_model.clinic_id == clinic_id)
-        return query
-
-    billing_balances = balance_query(Order, Billing.order_id == Order.id).union_all(
-        balance_query(ContactLensOrder, Billing.contact_lens_id == ContactLensOrder.id),
-    ).subquery("analytics_billing_balances")
-
-    amount = func.coalesce(billing_balances.c.amount, 0.0)
-    current_balance = amount - func.coalesce(billing_balances.c.current_paid, 0.0)
-    previous_balance = amount - func.coalesce(billing_balances.c.previous_paid, 0.0)
-    current_open = case((current_balance > 0, current_balance), else_=0.0)
-    previous_open = case((previous_balance > 0, previous_balance), else_=0.0)
-
-    rows = (
-        db.query(
-            billing_balances.c.clinic_id,
-            func.coalesce(func.sum(current_open), 0.0),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (billing_balances.c.order_date <= window.previous_end, previous_open),
-                        else_=0.0,
-                    )
-                ),
-                0.0,
-            ),
-        )
-        .group_by(billing_balances.c.clinic_id)
-        .all()
-    )
-    return {
-        int(row[0]): {
-            "current": float(row[1] or 0),
-            "previous": float(row[2] or 0),
-        }
-        for row in rows
-    }
+    from services.clinic_finance import outstanding_at
+    from models import Clinic
+    clinics = db.query(Clinic.id).filter(Clinic.company_id == company_id)
+    if clinic_id:
+        clinics = clinics.filter(Clinic.id == clinic_id)
+    return {row.id: {
+        'current': outstanding_at(db, row.id, window.end_date, currency, company_id),
+        'previous': outstanding_at(db, row.id, window.previous_end, currency, company_id),
+    } for row in clinics}
 
 
 def build_company_analytics(
@@ -383,7 +192,7 @@ def build_company_analytics(
     clinic_id: int | None = None,
     currency: str = DEFAULT_CURRENCY,
 ) -> dict[str, Any]:
-    from models import Appointment, Client, Clinic, ContactLensOrder, Order, OrderLineItem, Billing
+    from models import Appointment, Client, Clinic, ContactLensOrder, Order, OrderGroup, OrderLineItem, Billing
 
     clinics_query = db.query(Clinic.id, Clinic.name).filter(Clinic.company_id == company_id)
     if clinic_id:
@@ -501,17 +310,19 @@ def build_company_analytics(
         query = (
             db.query(OrderLineItem.sku, OrderLineItem.description, func.sum(OrderLineItem.quantity), func.sum(OrderLineItem.line_total))
             .join(Billing, OrderLineItem.billings_id == Billing.id)
-            .join(order_model, (Billing.contact_lens_id if contact else Billing.order_id) == order_model.id)
+            .join(order_model, (Billing.order_group_id if order_model is OrderGroup else Billing.contact_lens_id if contact else Billing.order_id) == order_model.id)
             .join(Clinic, order_model.clinic_id == Clinic.id)
             .filter(Clinic.company_id == company_id, order_model.order_date >= window.start_date, order_model.order_date <= window.end_date)
             .filter(OrderLineItem.currency == currency)
         )
         if clinic_id:
             query = query.filter(order_model.clinic_id == clinic_id)
+        if order_model is OrderGroup:
+            query = query.filter(Billing.order_id.is_(None), Billing.contact_lens_id.is_(None))
         return query.group_by(OrderLineItem.sku, OrderLineItem.description).all()
 
     product_map: dict[str, dict[str, Any]] = {}
-    for row in [*line_item_query(Order, False), *line_item_query(ContactLensOrder, True)]:
+    for row in [*line_item_query(Order, False), *line_item_query(ContactLensOrder, True), *line_item_query(OrderGroup, False)]:
         name = row[1] or row[0] or "ללא תיאור"
         item = product_map.setdefault(name, {"name": name, "sku": row[0], "quantity": 0.0, "sales": 0.0})
         item["quantity"] += float(row[2] or 0)

@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { canvasSurfaceClassName } from "@/components/ui/canvas-surface";
 import { cn } from "@/utils/tailwind";
 import { useAppLocale } from "@/localization/use-app-locale";
 import { useTranslation } from "react-i18next";
@@ -79,7 +80,7 @@ export function TableFiltersBar({
         );
 
   return (
-    <div className={cn("w-full", className)}>
+    <div data-canvas-toolbar className={cn("w-full", className)}>
       <div
         dir="ltr"
         className={cn(
@@ -116,7 +117,8 @@ export function TableFiltersBar({
                 placeholder={resolvedSearchPlaceholder}
                 value={searchValue}
                 onChange={(event) => onSearchChange(event.target.value)}
-                className="border-border/80 bg-card h-9 rounded-lg ps-9 shadow-none"
+                data-canvas-surface=""
+                className={cn(canvasSurfaceClassName, "h-9 ps-9")}
                 dir={direction}
               />
             </div>
@@ -145,8 +147,10 @@ export function TableFiltersBar({
             >
               <SelectTrigger
                 aria-label={filter.ariaLabel || filter.placeholder}
+                data-canvas-surface=""
                 className={cn(
-                  "border-border/80 bg-card h-9 rounded-lg shadow-none",
+                  canvasSurfaceClassName,
+                  "h-9",
                   filter.widthClassName || "w-[160px]",
                 )}
               >

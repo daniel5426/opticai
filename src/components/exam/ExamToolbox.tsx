@@ -117,7 +117,7 @@ export function ExamToolbox({
   const hasAnyAction = canCopyLeft() || canCopyRight() || canCopyBelow() || canPaste()
 
   return (
-    <div className="absolute top-2 right-2 z-30 pointer-events-none" dir="ltr">
+    <div data-exam-toolbox className="absolute top-0 right-0 z-30 pointer-events-none transition-opacity" dir="ltr">
       <div
         className={`flex items-center transition-all duration-300 ease-out pointer-events-auto ${isExpanded ? 'bg-white rounded-lg shadow-lg border p-1 gap-1' : 'gap-0'
           }`}
@@ -249,6 +249,7 @@ export function ExamToolbox({
           variant="ghost"
           size="sm"
           onMouseEnter={() => setIsExpanded(true)}
+          onFocus={() => setIsExpanded(true)}
           className={`h-7 w-7 p-0 transition-all duration-300 ease-out ${isExpanded
             ? 'hover:bg-gray-100 text-gray-600 hover:text-gray-800'
             : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700 opacity-60 hover:opacity-100'

@@ -6,11 +6,14 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EXAM_FIELDS, PDFieldConfigProvider } from "./data/exam-field-definitions"
 import { PDCalculationUtils } from "./data/exam-constants"
 import { FastInput, FastSelect, inputSyncManager } from "./shared/OptimizedInputs"
+import { getExamInputGridTemplate } from "@/components/exam/shared/examInputGrid";
 import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
 import { CylTitle } from "./shared/CylTitle"
 import { useAxisWarning } from "./shared/useAxisWarning"
 import { AxisWarningInput } from "./shared/AxisWarningInput"
 import { ToggleTextNumberInput } from "./shared/ToggleTextNumberInput"
+import { useAppLocale } from "@/localization/use-app-locale"
+import { useTranslation } from "react-i18next"
 
 interface RetinoscopTabProps {
   retinoscopData: RetinoscopExam;
@@ -27,6 +30,8 @@ export function RetinoscopTab({
   hideEyeLabels = false,
   needsMiddleSpacer = false
 }: RetinoscopTabProps) {
+  const { direction } = useAppLocale();
+  const { t } = useTranslation();
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
   const { fieldWarnings, handleAxisChange, handleAxisBlur } = useAxisWarning(
@@ -113,32 +118,33 @@ export function RetinoscopTab({
     <Card className="w-full examcard pb-4 pt-3">
       <CardContent className="px-4 " style={{ scrollbarWidth: 'none' }}>
         <div className="space-y-3">
-          <div className="flex justify-center mb-1">
+          <div className="flex h-9 items-start justify-center mb-1 -translate-y-2">
             <Tabs
               value={retinoscopData.method || "retinoscopy"}
               onValueChange={(val) => onRetinoscopChange("method", val)}
               className="w-fit"
+              dir={direction}
             >
-              <TabsList className="h-8 p-1 bg-muted/50 border">
+              <TabsList className="grid h-8 w-auto grid-cols-2 bg-transparent dark:bg-transparent">
                 <TabsTrigger
                   value="retinoscopy"
                   disabled={!isEditing}
-                  className="h-6 text-[11px] px-4 whitespace-nowrap data-[state=active]:bg-background"
+                  className="py-0.5 bg-transparent text-muted-foreground data-[state=active]:text-foreground data-[state=active]:bg-foreground/10 data-[state=active]:shadow-none dark:data-[state=active]:bg-foreground/10 dark:data-[state=active]:border-transparent"
                 >
-                  Retinoscopy
+                  {t("examRetinoscopy")}
                 </TabsTrigger>
                 <TabsTrigger
                   value="auto_refractor"
                   disabled={!isEditing}
-                  className="h-6 text-[11px] px-4 whitespace-nowrap data-[state=active]:bg-background"
+                  className="py-0.5 bg-transparent text-muted-foreground data-[state=active]:text-foreground data-[state=active]:bg-foreground/10 data-[state=active]:shadow-none dark:data-[state=active]:bg-foreground/10 dark:data-[state=active]:border-transparent"
                 >
-                  Auto Refractor
+                  {t("examAutoRefractor")}
                 </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
 
-          <div className={`grid ${hideEyeLabels ? 'grid-cols-[1fr_1fr_1fr_2fr_1fr_1fr]' : 'grid-cols-[20px_1fr_1fr_1fr_2fr_1fr_1fr]'} gap-2 items-center`}>
+          <div className="grid gap-2 items-center" style={{ gridTemplateColumns: getExamInputGridTemplate(columns, hideEyeLabels) }}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
               <div key={key} className={`h-4 flex items-center justify-center ${key === 'reflex' ? 'col-span-1' : ''}`}>

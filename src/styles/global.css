@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./appearance.css";
 
 @plugin 'tailwindcss-animate';
 
@@ -34,14 +35,21 @@
 
   --color-general-primary: hsl(var(--general-primary));
   --color-general-secondary: hsl(var(--general-secondary));
+  --color-general-primary-foreground: hsl(var(--general-primary-foreground));
+  --color-general-secondary-foreground: hsl(var(--general-secondary-foreground));
 
   --font-sans: Geist, sans-serif;
   --font-mono: Geist Mono, monospace;
   --font-tomorrow: Tomorrow, sans-serif;
 
   --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: max(0px, calc(var(--radius) - 2px));
+  --radius-sm: max(0px, calc(var(--radius) - 4px));
+  --radius-xs: var(--appearance-radius-xs);
+  --radius-xl: var(--appearance-radius-xl);
+  --radius-2xl: var(--appearance-radius-2xl);
+  --radius-3xl: var(--appearance-radius-3xl);
+  --radius-4xl: var(--appearance-radius-4xl);
 
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
@@ -165,11 +173,17 @@
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 215.4 16.3% 46.9%;
 
     --radius: 0.5rem;
+    --canvas-shadow-flat: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+    --canvas-shadow-lift: inset 0 1px 0 rgb(255 255 255 / 0.95), inset 0 -2px 3px -1px rgb(0 0 0 / 0.08), -3px -3px 6px rgb(255 255 255 / 0.9), 3px 4px 8px rgb(0 0 0 / 0.12), 0 1px 1px rgb(0 0 0 / 0.05);
+    --canvas-shadow: var(--canvas-shadow-lift);
+  }
+
+  :root[data-canvas-elevation="flat"] {
+    --canvas-shadow: var(--canvas-shadow-flat);
   }
 
   .dark {
@@ -206,9 +220,9 @@
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
+    --canvas-shadow-lift: inset 0 1px 0 rgb(255 255 255 / 0.07), inset 0 -2px 3px -1px rgb(0 0 0 / 0.35), -3px -3px 6px rgb(255 255 255 / 0.04), 3px 4px 9px rgb(0 0 0 / 0.55);
   }
 }
 
@@ -223,8 +237,65 @@
   .draglayer button {
     -webkit-app-region: no-drag;
   }
+  [data-slot="card"],
+  [data-exam-surface],
+  [data-order-surface] {
+    --shadow-sm: var(--canvas-shadow-flat);
+  }
+  [data-canvas-surface],
+  [data-canvas-toolbar] {
+    --shadow-sm: var(--canvas-shadow);
+  }
   .examcard {
-    @apply !border !shadow-none;
+    @apply !border;
+  }
+  /* Scale field utilities locally; grid tracks and surrounding labels stay intact.
+     Fixed token values prevent nested composite controls from scaling twice. */
+  :is([data-slot="input-wrapper"], [data-slot="input"], [data-slot="textarea"], [data-slot="textarea-mirror"], [data-slot="select-trigger"], [data-slot="optimized-select"], [data-slot="va-select"], [data-slot="date-input"], .field-view) {
+    --color-muted-foreground: hsl(var(--field-muted-foreground));
+    --spacing: calc(0.25rem * var(--field-scale));
+    --text-xs: calc(0.75rem * var(--field-scale));
+    --text-sm: calc(0.875rem * var(--field-scale));
+    --text-base: calc(1rem * var(--field-scale));
+    --text-lg: calc(1.125rem * var(--field-scale));
+  }
+  /* Keep field surfaces stable across modes, including legacy per-page colors.
+     Explicitly transparent controls belong to inline or composite layouts. */
+  :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"], [data-slot="optimized-select"], [data-slot="va-select"]):not(.bg-transparent):not(.\!bg-transparent):not(.bg-card) {
+    background-color: hsl(var(--field)) !important;
+  }
+  /* A transparent border preserves field geometry when entering edit mode. */
+  :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"], [data-slot="optimized-select"], [data-slot="va-select"]):is(:disabled, [readonly], [data-disabled]) {
+    border-color: transparent !important;
+    box-shadow: none !important;
+    opacity: 1 !important;
+  }
+  /* Exam-page cards sit slightly inset into the tab panel. */
+  [data-exam-card] [data-slot="card"] {
+    background-color: hsl(var(--muted)) !important;
+    border-width: 0 !important;
+    box-shadow: var(--appearance-exam-inset-shadow) !important;
+  }
+  [data-exam-card] :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"], [data-slot="optimized-select"], [data-slot="va-select"], .field-view):not(.bg-transparent):not(.\!bg-transparent) {
+    border-width: 1px !important;
+    border-style: solid !important;
+  }
+  [data-exam-card] :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"], [data-slot="optimized-select"], [data-slot="va-select"], .field-view):is(:disabled, [readonly], [data-disabled], .field-view):not(.bg-transparent):not(.\!bg-transparent) {
+    border-color: hsl(var(--input)) !important;
+  }
+  [data-exam-card] [data-exam-toolbox] {
+    opacity: 0;
+  }
+  [data-exam-card] [data-exam-toolbox] > div {
+    pointer-events: none !important;
+  }
+  [data-exam-card]:hover [data-exam-toolbox],
+  [data-exam-card] [data-exam-toolbox]:focus-within {
+    opacity: 1;
+  }
+  [data-exam-card]:hover [data-exam-toolbox] > div,
+  [data-exam-card] [data-exam-toolbox]:focus-within > div {
+    pointer-events: auto !important;
   }
 
   button {
@@ -233,6 +304,36 @@
 }
 
 @layer utilities {
+  [data-canvas-toolbar] [data-slot="button"]:not([data-variant="ghost"]):not([data-variant="link"]) {
+    border-width: 0 !important;
+    border-radius: var(--radius-xl) !important;
+    box-shadow: var(--shadow-sm) !important;
+  }
+  [data-canvas-toolbar] [data-slot="button"][data-variant="outline"] {
+    background-color: hsl(var(--card)) !important;
+  }
+  [data-canvas-toolbar] [data-slot="toggle-group"],
+  [data-canvas-toolbar] [data-slot="tabs-list"] {
+    overflow: hidden;
+    border-radius: var(--radius-xl) !important;
+    background-color: hsl(var(--card)) !important;
+    box-shadow: var(--shadow-sm) !important;
+  }
+  [data-canvas-toolbar] [data-slot="toggle-group-item"] {
+    border-width: 0 !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+  }
+  [data-canvas-toolbar] [data-slot="toggle-group-item"][data-state="on"],
+  [data-canvas-toolbar] [data-slot="tabs-trigger"][data-state="active"] {
+    background-color: color-mix(in oklab, hsl(var(--foreground)) 14%, hsl(var(--card))) !important;
+    box-shadow: none !important;
+  }
+  [data-canvas-surface] {
+    border-width: 0 !important;
+    border-radius: var(--radius-xl) !important;
+    box-shadow: var(--shadow-sm) !important;
+  }
   /*
    * The legacy renderer has Hebrew-first component boundaries and physical
    * `text-right` utilities. This must live in the utilities layer so it wins
@@ -258,6 +359,7 @@
   }
 }
 
+@layer base {
 :root {
   --sidebar: hsl(240 4.8% 95.9%);
   --sidebar-foreground: hsl(0, 0%, 0%);
@@ -265,7 +367,7 @@
   --sidebar-primary-foreground: hsl(0 0% 98%);
   --sidebar-accent: hsl(240 4.8% 95.9%);
   --sidebar-accent-foreground: hsl(240 5.9% 10%);
-  --sidebar-border: hsl(220 13% 91%);
+  --sidebar-border: hsl(var(--border));
   --sidebar-ring: hsl(217.2 91.2% 59.8%);
 }
 
@@ -276,8 +378,10 @@
   --sidebar-primary-foreground: hsl(0 0% 100%);
   --sidebar-accent: hsl(240 3.7% 15.9%);
   --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
-  --sidebar-border: hsl(240 3.7% 15.9%);
+  --sidebar-border: hsl(var(--border));
   --sidebar-ring: hsl(217.2 91.2% 59.8%);
+}
+
 }
 
 @theme inline {
@@ -336,4 +440,30 @@
 
 [dir="ltr"] .__react-dnd-preview {
   display: none !important;
+}
+
+@layer base {
+  .order-group-content [data-clinical-nav-card] [data-exam-toolbox] { opacity: 0; }
+  .order-group-content [data-clinical-nav-card] [data-exam-toolbox] > div { pointer-events: none !important; }
+  .order-group-content [data-clinical-nav-card]:hover [data-exam-toolbox],
+  .order-group-content [data-exam-toolbox]:focus-within { opacity: 1; }
+  .order-group-content [data-clinical-nav-card]:hover [data-exam-toolbox] > div,
+  .order-group-content [data-exam-toolbox]:focus-within > div { pointer-events: auto !important; }
+  [data-quiet-fields] [data-slot="input"]:not(:focus-visible) {
+    border-color: transparent !important;
+    box-shadow: none !important;
+  }
+  [data-order-sheet] [data-slot="card"] {
+    border: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+  }
+  [data-group-billing] [data-slot="card"] {
+    border: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0;
+    background: transparent;
+  }
+  [data-group-billing] :is([data-slot="card-header"], [data-slot="card-content"]) { padding-inline: 0; }
 }

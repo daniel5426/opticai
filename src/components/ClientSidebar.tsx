@@ -1,3 +1,7 @@
+import { WorkspaceSidePanel } from "@/components/ui/workspace-side-panel"
+import { AgentChatPanel } from '@/components/agent/AgentChatPanel'
+import { usePrysmAgent } from '@/contexts/PrysmAgentContext'
+import { Bot } from 'lucide-react'
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useClientSidebar } from '@/contexts/ClientSidebarContext'
 import { Button } from '@/components/ui/button'
@@ -247,7 +251,9 @@ function AIInformationSection({
 }
 
 export function ClientSidebar() {
-  const { isOpen, closeSidebar, currentClient, isClientSpacePage, activeTab: contextActiveTab } = useClientSidebar()
+  const agent = usePrysmAgent()
+  const aiAvailable = agent?.available === true
+  const { isOpen, closeSidebar, panelMode, setPanelHost, currentClient, isClientSpacePage, activeTab: contextActiveTab } = useClientSidebar()
   const { i18n, t } = useTranslation()
   const locale = normalizeLocale(i18n.resolvedLanguage ?? i18n.language) ?? getActiveLocale()
   const direction = getDirection(locale)
@@ -404,7 +410,7 @@ export function ClientSidebar() {
   }, [currentClient?.id, locale])
 
   const loadAiInfo = useCallback(async (forceRegenerate = false) => {
-    if (!currentClient?.id || !currentPart || !isOpen || !isAiBlockOpen) return
+    if (!aiAvailable || !currentClient?.id || !currentPart || !isOpen || !isAiBlockOpen) return
     const mySeq = ++requestSeqRef.current
     const key = `${currentClient.id}:${locale}`
     setIsLoading(true)
@@ -433,26 +439,29 @@ export function ClientSidebar() {
         setIsLoading(false)
       }
     }
-  }, [currentClient?.id, currentPart, isOpen, isAiBlockOpen, locale, t, updateAiPartCache])
+  }, [aiAvailable, currentClient?.id, currentPart, isOpen, isAiBlockOpen, locale, t, updateAiPartCache])
 
   useEffect(() => {
-    if (currentPart && currentClient?.id && isOpen && isAiBlockOpen) {
+    if (aiAvailable && currentPart && currentClient?.id && isOpen && isAiBlockOpen) {
       void loadAiInfo()
     } else {
+      requestSeqRef.current += 1
       setAiInfo(null)
       setIsLoading(false)
+      setIsGenerating(false)
     }
-  }, [currentPart, currentClient?.id, isOpen, isAiBlockOpen, loadAiInfo])
+  }, [aiAvailable, currentPart, currentClient?.id, isOpen, isAiBlockOpen, loadAiInfo])
 
   // Polling effect to detect data changes and trigger immediate loading
   useEffect(() => {
-    if (!currentClient?.id || !isOpen || !isAiBlockOpen) return
+    if (!aiAvailable || !currentClient?.id || !isOpen || !isAiBlockOpen) return
+    let cancelled = false
 
     const pollForDataChanges = async () => {
       try {
         const clientResponse = await apiClient.getClientById(currentClient.id!);
         const client = clientResponse.data;
-        if (!client) return
+        if (cancelled || !client) return
 
         const currentUpdateDate = client.client_updated_date
         
@@ -477,8 +486,8 @@ export function ClientSidebar() {
     // Set up polling every 2 seconds when sidebar is open
     const interval = setInterval(pollForDataChanges, 1500)
 
-    return () => clearInterval(interval)
-  }, [currentClient?.id, isOpen, isAiBlockOpen, lastClientUpdateDate, currentPart, loadAiInfo])
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [aiAvailable, currentClient?.id, isOpen, isAiBlockOpen, lastClientUpdateDate, currentPart, loadAiInfo])
 
   if (!isClientSpacePage) {
     return <div className="w-0 overflow-hidden" />
@@ -493,37 +502,13 @@ export function ClientSidebar() {
   const transitionClass = mounted && !isResizing ? 'transition-[width,margin] duration-300 ease-in-out' : ''
 
   return (
-    <Card
-      ref={sidebarRef}
-      className={`relative my-5 h-[calc(100%-2.5rem)] min-h-0 shrink-0 overflow-hidden bg-card pt-0 ${reserveSpace ? 'me-6' : 'me-0'} ${transitionClass}`}
-      style={{ width: reserveSpace ? `${sidebarWidth}px` : 0 }}
-    >
-      {reserveSpace && (
-        <div
-          aria-label={t('clientSidebarResize')}
-          aria-orientation="vertical"
-          aria-valuemax={MAX_CLIENT_SIDEBAR_WIDTH}
-          aria-valuemin={MIN_CLIENT_SIDEBAR_WIDTH}
-          aria-valuenow={sidebarWidth}
-          className={`absolute inset-y-0 z-20 w-2 cursor-col-resize touch-none outline-none focus-visible:bg-primary/20 ${direction === 'rtl' ? 'right-0' : 'left-0'}`}
-          onKeyDown={handleResizeKeyDown}
-          onPointerDown={handleResizePointerDown}
-          role="separator"
-          tabIndex={0}
-        />
-      )}
-      <div className="flex h-full min-w-0 flex-col" dir={direction} style={{scrollbarWidth: 'none'}}>
-        <div className="absolute top-2 start-2 z-10">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={closeSidebar}
-            className="h-8 w-8 p-0"
-          >
-            <PanelLeftIcon className="h-4 w-4" />
-          </Button>
-        </div>
-
+    <WorkspaceSidePanel open={reserveSpace} onClose={closeSidebar} width={sidebarWidth} resizing={isResizing} panelRef={sidebarRef} onResizePointerDown={handleResizePointerDown} onResizeKeyDown={handleResizeKeyDown} resizeLabel={t('clientSidebarResize')}>
+        <div ref={setPanelHost} className={panelMode === "billing" ? "flex h-full min-h-0 flex-col" : "hidden"} />
+        {panelMode === "billing" ? null : aiAvailable && agent?.chatOpen ? <AgentChatPanel compact /> : <>
+        {aiAvailable && <div className="flex shrink-0 justify-end px-3 pt-2">
+          <Button variant="ghost" size="icon" disabled={!currentClient?.id} aria-label={t('agent.openChat')}
+            onClick={() => currentClient?.id && agent?.openPatientChat(currentClient.id)}><Bot className="size-4" /></Button>
+        </div>}
         <div className="min-h-0 flex-1 space-y-4 overflow-auto p-4" style={{scrollbarWidth: 'none'}}>
           <div className="flex flex-col items-center space-y-3">
             {isClientLoading ? (
@@ -554,7 +539,7 @@ export function ClientSidebar() {
             </div>
           </div>
 
-          <AIInformationSection
+          {aiAvailable && <AIInformationSection
             currentPart={currentPart}
             aiInfo={aiInfo}
             isGenerating={isGenerating}
@@ -562,7 +547,7 @@ export function ClientSidebar() {
             hasLoaded={hasAiLoadedOnce}
             isAiBlockOpen={isAiBlockOpen}
             onToggleAiBlock={handleToggleAiBlock}
-          />
+          />}
 
           <Separator />
 
@@ -700,7 +685,7 @@ export function ClientSidebar() {
             </>
           )}
         </div>
-      </div>
-    </Card>
+        </>}
+    </WorkspaceSidePanel>
   )
 }

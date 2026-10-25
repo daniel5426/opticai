@@ -5,6 +5,11 @@ import { getClientById } from "@/lib/db/clients-db"
 
 interface ClientSidebarContextType {
   isOpen: boolean
+  panelMode: "info" | "billing"
+  panelHost: HTMLDivElement | null
+  setPanelHost: (host: HTMLDivElement | null) => void
+  openBillingPanel: () => void
+  resetPanelMode: () => void
   toggleSidebar: () => void
   openSidebar: () => void
   closeSidebar: () => void
@@ -32,6 +37,10 @@ export function ClientSidebarProvider({ children }: ClientSidebarProviderProps) 
       return false
     }
   })
+  const [panelMode, setPanelMode] = useState<"info" | "billing">("info")
+  const [panelHost, setPanelHost] = useState<HTMLDivElement | null>(null)
+  const resetPanelMode = useCallback(() => setPanelMode("info"), [])
+  const openBillingPanel = useCallback(() => { setPanelMode("billing"); setIsOpen(true) }, [])
   const [currentClient, setCurrentClient] = useState<Client | null>(null)
   const params = useParams({ strict: false }) as { clientId?: string }
   const clientIdNum = params.clientId ? Number(params.clientId) : undefined
@@ -68,16 +77,18 @@ export function ClientSidebarProvider({ children }: ClientSidebarProviderProps) 
   const toggleSidebar = useCallback(() => {
     if (!isClientSpacePage || !currentClient) return
     
+    setPanelMode("info")
     setIsOpen(prev => {
-      const newState = !prev
+      const newState = panelMode === "billing" ? true : !prev
       localStorage.setItem('client-sidebar-last-state', newState.toString())
       return newState
     })
-  }, [isClientSpacePage, currentClient])
+  }, [isClientSpacePage, currentClient, panelMode])
 
   const openSidebar = useCallback(() => {
     if (!isClientSpacePage || !currentClient) return
     
+    setPanelMode("info")
     setIsOpen(true)
     localStorage.setItem('client-sidebar-last-state', 'true')
   }, [isClientSpacePage, currentClient])
@@ -110,6 +121,7 @@ export function ClientSidebarProvider({ children }: ClientSidebarProviderProps) 
 
   const value = useMemo(() => ({
     isOpen,
+    panelMode, panelHost, setPanelHost, openBillingPanel, resetPanelMode,
     toggleSidebar,
     openSidebar,
     closeSidebar,
@@ -122,6 +134,7 @@ export function ClientSidebarProvider({ children }: ClientSidebarProviderProps) 
     setActiveTab: handleSetActiveTab
   }), [
     isOpen,
+    panelMode, panelHost, setPanelHost, openBillingPanel, resetPanelMode,
     toggleSidebar,
     openSidebar,
     closeSidebar,

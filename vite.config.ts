@@ -5,14 +5,19 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import electron from 'vite-plugin-electron'
 import electronRenderer from 'vite-plugin-electron-renderer'
+import { normalizeApiBaseUrl } from './src/services/api-base-url'
 
 const configDir = path.dirname(fileURLToPath(import.meta.url))
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '')
+  const env = { ...loadEnv(mode, process.cwd(), ''), ...process.env }
+  const apiBaseUrl = normalizeApiBaseUrl(env.VITE_API_URL)
+  const apiOrigin = new URL(apiBaseUrl).origin
+  const electronOutDir = env.PRYSM_DEV_DATA_DIR ? '.agent-data/electron-build' : 'dist-electron'
   
   return {
+    cacheDir: 'node_modules/.vite/prysm-electron',
     plugins: [
       tailwindcss(),
       react(),
@@ -20,7 +25,11 @@ export default defineConfig(({ mode }) => {
         {
           // Main process entry file
           entry: 'src/main.ts',
+          onstart: env.PRYSM_DEV_DATA_DIR
+            ? ({ startup }) => startup([path.resolve(configDir, electronOutDir, 'main.js')])
+            : undefined,
           vite: {
+            define: { '__PRYSM_AGENT_API_URL__': JSON.stringify(apiBaseUrl) },
             resolve: {
               alias: {
                 '@': path.resolve(configDir, './src'),
@@ -29,7 +38,7 @@ export default defineConfig(({ mode }) => {
             build: {
               sourcemap: false,
               minify: mode === 'production',
-              outDir: 'dist-electron',
+              outDir: electronOutDir,
               rollupOptions: {
                 external: [
                   'better-sqlite3',
@@ -65,7 +74,7 @@ export default defineConfig(({ mode }) => {
             build: {
               sourcemap: false,
               minify: mode === 'production',
-              outDir: 'dist-electron',
+              outDir: electronOutDir,
               rollupOptions: {
                 external: ['electron']
               }
@@ -88,8 +97,12 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: 5126,
+      proxy: {
+        '/api/agents24': { target: apiOrigin, changeOrigin: true },
+        '/api/v1/agent': { target: apiOrigin, changeOrigin: true },
+      },
       watch: {
-        ignored: ['**/qdrant_storage/**', '**/release/**', '**/dist-electron/**'],
+        ignored: ['**/qdrant_storage/**', '**/release/**', '**/dist-electron/**', '**/.agent-data/**', '**/backend/**', '**/docs/**', '**/scripts/**', '**/src/tests/**'],
       },
     },
     build: {
@@ -118,7 +131,7 @@ export default defineConfig(({ mode }) => {
       chunkSizeWarningLimit: 1000,
     },
     optimizeDeps: {
-      include: ['react', 'react-dom', '@tanstack/react-router'],
+      include: ['react', 'react-dom', '@tanstack/react-router', '@agents24/chat-react/ui', '@agents24/chat-react/runtime'],
     },
   }
 })

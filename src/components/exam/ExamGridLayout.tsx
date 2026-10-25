@@ -14,6 +14,7 @@ interface ExamGridLayoutProps {
   columns?: number;
   className?: string;
   itemClassName?: string;
+  separators?: boolean;
   renderItem: (
     item: GridLayoutItem,
     index: number,
@@ -27,6 +28,7 @@ export function ExamGridLayout({
   columns = EXAM_LAYOUT_GRID_COLUMNS,
   className,
   itemClassName,
+  separators = false,
   renderItem,
 }: ExamGridLayoutProps) {
   const sortedItems = sortGridItems(items);
@@ -44,11 +46,12 @@ export function ExamGridLayout({
 
   return (
     <div
-      className={cn("grid w-full gap-4", className)}
+      className={cn("grid w-full gap-4", separators && "gap-0", className)}
       dir="ltr"
       style={{
         gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
         alignItems: "start",
+        alignContent: separators ? "start" : undefined,
       }}
     >
       {resolvedLanes.map((lane) => {
@@ -67,6 +70,29 @@ export function ExamGridLayout({
           />
         );
       })}
+      {separators && sortedItems.map((item) => {
+        const laneItems = sortedItems.filter((candidate) => candidate.y === item.y);
+        const nextItem = laneItems[laneItems.findIndex((candidate) => candidate.id === item.id) + 1];
+        const hasStartSeparator = laneItems[0]?.id !== item.id || item.x > 0;
+        const hasEndSeparator = item.x + item.w < (nextItem?.x ?? columns);
+
+        return (
+          <div
+            key={`card-separator-${item.id}`}
+            aria-hidden="true"
+            className="pointer-events-none relative self-stretch"
+            style={{
+              gridColumn: `${item.x + 1} / span ${item.w}`,
+              gridRow: item.y + 1,
+            }}
+          >
+            {item.y !== resolvedLanes[0] && <div className="absolute inset-x-0 top-0 border-t border-border" />}
+            <div className="absolute inset-x-0 -bottom-px border-t border-border" />
+            {hasStartSeparator && <div className="absolute inset-y-0 start-0 border-s border-border" />}
+            {hasEndSeparator && <div className="absolute inset-y-0 end-0 border-e border-border" />}
+          </div>
+        );
+      })}
       {sortedItems.map((item) => {
         const laneItems = sortedItems.filter(
           (candidate) => candidate.y === item.y,
@@ -80,6 +106,7 @@ export function ExamGridLayout({
             key={item.id}
             className={cn(
               "min-w-0",
+              separators && "self-stretch px-5 py-3",
               item.type === "notes" && "h-full self-stretch",
               itemClassName,
             )}

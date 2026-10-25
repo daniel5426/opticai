@@ -1,0 +1,6 @@
+Generated with the built-in imagegen tool, October 18, 2026.
+
+Use case: stylized-concept
+Asset type: atmospheric full-bleed background for Prysm's clinic AI agent workspace, landscape 3:2.
+Primary request: a beautifully painted pastel sky inspired by the attached reference's airy dreamy cloudscape. No interface, no text. Expansive cornflower blue sky across the top, luminous peach pink and cream cumulus clouds rising at the far left and right edges, wispy lilac clouds crossing the upper sky. The clouds open into a large quiet central clearing; the lower half dissolves naturally into very pale warm ivory/sage mist, almost solid at the bottom. Subtle nostalgic anime background painting, confident delicate brushwork, calm and optimistic daylight, refined color harmony. Wide composition suitable for cover cropping on desktop and portrait. Keep cloud detail mostly in the upper half and outer edges; middle and lower center must have generous calm space for an overlay composer.
+Constraints: background image only, no people, no land, no objects, no logos, no typography, no interface, no borders. Do not bake a dot texture into the image; a live halftone/dither overlay will be added in the application. Generate the actual cloud artwork.

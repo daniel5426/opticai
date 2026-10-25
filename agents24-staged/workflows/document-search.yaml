@@ -1,0 +1,18 @@
+schema: agents24.workflow/v1
+name: Prysm File Retrieval
+description: Native retrieval only; Prysm reauthorizes each source before displaying it.
+inputs:
+  text: string
+outputs:
+  results: array
+entry: retrieve
+nodes:
+  retrieve:
+    type: vector_search
+    with:
+      knowledge_store_id: ../stores/documents.yaml
+      namespace_dynamic: true
+      top_k: 50
+flow:
+  - from: retrieve.results
+    to: output.results

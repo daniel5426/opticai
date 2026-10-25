@@ -29,6 +29,7 @@ import type { TrashEntityType, TrashItem } from "@/lib/trash"
 
 const PAGE_SIZE = 25
 const ENTITY_TYPES: TrashEntityType[] = [
+  "order_group",
   "client",
   "order",
   "contact_lens_order",
@@ -40,6 +41,7 @@ const ENTITY_TYPES: TrashEntityType[] = [
 ]
 
 const TYPE_KEYS: Record<TrashEntityType, string> = {
+  order_group: "orderGroupTitle",
   client: "trashTypeClient",
   order: "trashTypeOrder",
   contact_lens_order: "trashTypeContactLensOrder",
@@ -98,6 +100,7 @@ const PREVIEW_KEYS: Record<string, string> = {
 function recordPath(item: TrashItem): string | null {
   const clientId = item.client_id ?? (item.root_entity_type === "client" ? item.root_entity_id : null)
   if (item.root_entity_type === "client" && clientId) return `/clients/${clientId}`
+  if (item.root_entity_type === "order_group" && clientId) return `/clients/${clientId}/orders/group-${item.root_entity_id}`
   if (item.root_entity_type === "order" && clientId) return `/clients/${clientId}/orders/${item.root_entity_id}`
   if (item.root_entity_type === "exam" && clientId) return `/clients/${clientId}/exams/${item.root_entity_id}`
   if (item.root_entity_type === "referral" && clientId) return `/clients/${clientId}/referrals/${item.root_entity_id}`

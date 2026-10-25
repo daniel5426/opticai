@@ -2,7 +2,6 @@ import React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { DateInput } from "@/components/ui/date";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -15,12 +14,9 @@ import { Button } from "@/components/ui/button";
 import { NotesCard } from "@/components/ui/notes-card";
 import { CustomModal } from "@/components/ui/custom-modal";
 import { History, Loader2, Plus, Trash2 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Billing, BillingPayment, OrderLineItem } from "@/lib/db/schema-interface";
+import { BillingPaymentMenu } from "@/components/billing/BillingPaymentMenu";
+import { CompactBillingView } from "@/components/billing/CompactBillingView";
 import {
   createBillingPayment,
   deleteBillingPayment,
@@ -88,6 +84,9 @@ const isClientOrdersContextKey = (queryKey: readonly unknown[]) =>
   queryKey[0] === "client" && queryKey[2] === "orders-context";
 
 interface BillingTabProps {
+  compact?: boolean;
+  canPay?: boolean;
+  paymentAdapter?: { create: (payment: {amount: number; paid_at: string; kind: "payment"}) => Promise<BillingPayment>; remove: (paymentId: number) => Promise<boolean> };
   billingFormData: Billing;
   setBillingFormData: React.Dispatch<React.SetStateAction<Billing>>;
   orderLineItems: OrderLineItem[];
@@ -97,6 +96,9 @@ interface BillingTabProps {
 }
 
 export function BillingTab({
+  compact = false,
+  canPay = true,
+  paymentAdapter,
   billingFormData,
   setBillingFormData,
   orderLineItems,
@@ -105,7 +107,7 @@ export function BillingTab({
   handleDeleteOrderLineItem,
 }: BillingTabProps) {
   const queryClient = useQueryClient();
-  const { locale } = useAppLocale();
+  const { locale, direction } = useAppLocale();
   const { t } = useTranslation();
   const billingCurrency = billingFormData.currency || "ILS";
   const formatCurrency = (value?: number | null, currency = billingCurrency) =>
@@ -230,19 +232,19 @@ export function BillingTab({
   const handleAddPayment = async () => {
     const billingId = billingFormData.id;
     if (!billingId) {
-      toast.error("יש לשמור את ההזמנה לפני הוספת תשלום");
+      toast.error(t("orderGroupSaveBeforePayment"));
       return;
     }
 
     const amount = Number.parseFloat(newPaymentAmount);
     if (!Number.isFinite(amount) || amount <= 0) {
-      toast.error("יש להזין סכום תשלום חיובי");
+      toast.error(t("orderGroupPositivePayment"));
       return;
     }
 
     setSavingNewPayment(true);
     try {
-      const savedPayment = await createBillingPayment(billingId, {
+      const savedPayment = await (paymentAdapter ? paymentAdapter.create : (payment: {amount: number; paid_at: string; kind: "payment"}) => createBillingPayment(billingId, payment))({
         amount: roundToTwoDecimals(amount),
         paid_at: newPaymentDate || getLocalDateInputValue(),
         kind: "payment",
@@ -261,9 +263,9 @@ export function BillingTab({
       }
       setNewPaymentAmount("");
       setNewPaymentDate(getLocalDateInputValue());
-      toast.success("תשלום נוסף נשמר");
+      toast.success(t("orderGroupPaymentSaved"));
     } catch (error) {
-      toast.error("שגיאה בעדכון תשלום");
+      toast.error(t("orderGroupPaymentError"));
     } finally {
       setSavingNewPayment(false);
     }
@@ -273,9 +275,9 @@ export function BillingTab({
     if (!billingFormData.id || !payment.id) return;
     setDeletingPaymentIds((prev) => ({ ...prev, [payment.id!]: true }));
     const billingId = billingFormData.id;
-    const success = await deleteBillingPayment(billingId, payment.id);
+    const success = paymentAdapter ? await paymentAdapter.remove(payment.id) : await deleteBillingPayment(billingId, payment.id);
     if (!success) {
-      toast.error("שגיאה במחיקת תשלום");
+      toast.error(t("orderGroupPaymentDeleteError"));
       setDeletingPaymentIds((prev) => ({ ...prev, [payment.id!]: false }));
       return;
     }
@@ -290,13 +292,13 @@ export function BillingTab({
         contactLensId: billingFormData.contact_lens_id,
       });
     }
-    toast.success("התשלום נמחק");
+    toast.success(t("orderGroupPaymentDeleted"));
     setDeletingPaymentIds((prev) => ({ ...prev, [payment.id!]: false }));
   };
 
-  // Auto-calculate total from line items
+  // In the group panel, opening it or removing a tab must preserve the invoice.
   React.useEffect(() => {
-    if (!isEditing) return;
+    if (!isEditing || compact) return;
 
     const sum = orderLineItems.reduce(
       (acc, item) => acc + toSafeNumber(item.line_total),
@@ -430,7 +432,7 @@ export function BillingTab({
     setOrderLineItems((prev) =>
       prev.map((item) => {
         if (item.id === id) {
-          const updatedItem = { ...item };
+          const updatedItem = { ...item, manually_edited: true };
           const numericFields = ["price", "quantity", "discount"];
           if (numericFields.includes(field)) {
             (updatedItem as any)[field] = parseNumberInput(value);
@@ -449,7 +451,7 @@ export function BillingTab({
             const quantity = toSafeNumber(updatedItem.quantity);
             const discount = toSafeNumber(updatedItem.discount);
             updatedItem.line_total = roundToTwoDecimals(
-              price * quantity - discount,
+              compact ? Math.max(0, price * quantity - discount) : price * quantity - discount,
             );
           }
 
@@ -487,6 +489,122 @@ export function BillingTab({
     handleDeleteOrderLineItem(id);
   };
 
+  const openPaymentMenu = (open: boolean) => {
+    setIsPaymentDropdownOpen(open);
+    if (!open) return;
+    setNewPaymentAmount("");
+    setNewPaymentDate((prev) => prev || getLocalDateInputValue());
+    void refreshPaymentState();
+  };
+
+  const paymentMenu = (
+    <BillingPaymentMenu
+      direction={direction}
+      open={isPaymentDropdownOpen}
+      onOpenChange={openPaymentMenu}
+      saving={savingNewPayment}
+      disabled={!billingFormData.id || !canPay}
+      amount={newPaymentAmount}
+      onAmountChange={setNewPaymentAmount}
+      date={newPaymentDate}
+      onDateChange={setNewPaymentDate}
+      onSubmit={() => void handleAddPayment()}
+      paidSummary={`${formatCurrency(billingFormData.prepayment_amount)} / ${formatCurrency(billingFormData.total_after_discount)}`}
+      balance={formatCurrency(balanceDue)}
+      recentPayments={paymentHistory}
+      formatCurrency={formatCurrency}
+      formatDate={formatPaymentDate}
+    />
+  );
+
+  const paymentHistoryModal = (
+      <CustomModal
+        isOpen={isPaymentHistoryOpen}
+        onClose={() => setIsPaymentHistoryOpen(false)}
+        title={t("orderGroupPaymentHistory")} direction={direction}
+        width="max-w-xl"
+      >
+        {paymentHistoryLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-5 w-5 animate-spin" />
+          </div>
+        ) : paymentHistory.length > 0 ? (
+          <div className="overflow-hidden rounded-md border">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40">
+                <tr>
+                  <th className="px-3 py-2 text-right font-medium">{t("orderGroupDate")}</th>
+                  <th className="px-3 py-2 text-right font-medium">{t("orderGroupAmount")}</th>
+                  <th className="px-3 py-2 text-right font-medium">{t("orderGroupType")}</th>
+                  <th className="w-10 px-2 py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {paymentHistory.map((payment) => (
+                  <tr key={payment.id} className="border-t">
+                    <td className="px-3 py-2">{formatPaymentDate(payment.paid_at)}</td>
+                    <td className="px-3 py-2 tabular-nums">
+                      {formatCurrency(payment.amount, payment.currency)}
+                    </td>
+                    <td className="px-3 py-2">
+                      {payment.kind === "adjustment" ? t("orderGroupAdjustment") : t("orderGroupPayment")}
+                    </td>
+                    <td className="px-2 py-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                        onClick={() => handleDeletePayment(payment)}
+                        disabled={payment.id ? deletingPaymentIds[payment.id] : true}
+                        aria-label={t("orderGroupDeletePayment")}
+                      >
+                        {payment.id && deletingPaymentIds[payment.id] ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            {t("orderGroupNoPayments")}
+          </div>
+        )}
+      </CustomModal>
+  );
+
+  if (compact) {
+    return (
+      <div
+        data-group-billing
+        className="flex min-h-0 flex-1 flex-col"
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+      >
+        <CompactBillingView
+          items={orderLineItems}
+          billing={billingFormData}
+          isEditing={isEditing}
+          balanceDue={balanceDue}
+          formatCurrency={formatCurrency}
+          formatNumber={(value) => formatNumberInputValue(value, true)}
+          onAddItem={addNewLineItem}
+          onItemChange={handleLineItemChange}
+          onDeleteItem={deleteLineItem}
+          onBillingInput={handleBillingInputChange}
+          onOpenHistory={openPaymentHistory}
+          paymentMenu={paymentMenu}
+        />
+        {paymentHistoryModal}
+      </div>
+    );
+  }
+
   return (
     <div
       className="pt-4 pb-10"
@@ -494,7 +612,7 @@ export function BillingTab({
     >
       <Card className="shadow-md">
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">פריטי חיוב</CardTitle>
+          <CardTitle className="text-base">{t("orderGroupBillingItems")}</CardTitle>
           <Button
             variant="outline"
             size="sm"
@@ -505,7 +623,7 @@ export function BillingTab({
             className="h-8"
           >
             <Plus className="ml-1 h-4 w-4" />
-            הוסף פריט
+            {t("orderGroupAddItem")}
           </Button>
         </CardHeader>
         <CardContent>
@@ -522,13 +640,13 @@ export function BillingTab({
               </colgroup>
               <thead>
                 <tr className="border-b">
-                  <th className="p-2 text-right text-sm font-medium">תיאור</th>
-                  <th className="p-2 text-right text-sm font-medium">SKU</th>
-                  <th className="p-2 text-right text-sm font-medium">מחיר</th>
-                  <th className="p-2 text-right text-sm font-medium">כמות</th>
-                  <th className="p-2 text-right text-sm font-medium">הנחה</th>
-                  <th className="p-2 text-right text-sm font-medium">סופק</th>
-                  <th className="p-2 text-right text-sm font-medium">סה"כ</th>
+                  <th className="p-2 text-right text-sm font-medium">{t("orderGroupDescription")}</th>
+                  <th className="p-2 text-right text-sm font-medium">{t("orderGroupSku")}</th>
+                  <th className="p-2 text-right text-sm font-medium">{t("orderGroupPrice")}</th>
+                  <th className="p-2 text-right text-sm font-medium">{t("orderGroupQuantity")}</th>
+                  <th className="p-2 text-right text-sm font-medium">{t("orderGroupDiscount")}</th>
+                  <th className="p-2 text-right text-sm font-medium">{t("orderGroupSupplied")}</th>
+                  <th className="p-2 text-right text-sm font-medium">{t("orderGroupTotal")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -644,20 +762,20 @@ export function BillingTab({
                           }
                         >
                           <SelectTrigger className="h-8 w-full text-xs">
-                            <SelectValue placeholder="בחר" />
+                            <SelectValue placeholder={t("orderGroupChoose")} />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="true" className="text-sm">
-                              כן
+                              {t("orderGroupYes")}
                             </SelectItem>
                             <SelectItem value="false" className="text-sm">
-                              לא
+                              {t("orderGroupNo")}
                             </SelectItem>
                           </SelectContent>
                         </Select>
                       ) : (
                         <span className="block w-full truncate text-sm">
-                          {item.supplied ? "כן" : "לא"}
+                          {item.supplied ? t("orderGroupYes") : t("orderGroupNo")}
                         </span>
                       )}
                     </td>
@@ -692,7 +810,7 @@ export function BillingTab({
           <CardContent>
             <div className="grid grid-cols-2 items-end gap-3 md:grid-cols-3">
               <div>
-                <Label className="text-sm">מספר תשלומים</Label>
+                <Label className="text-sm">{t("orderGroupInstallments")}</Label>
                 <div className="mt-1.5">
                   <Input
                     name="installment_count"
@@ -710,14 +828,14 @@ export function BillingTab({
               </div>
               <div>
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm">שולם</Label>
+                  <Label className="text-sm">{t("orderGroupPaid")}</Label>
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
                     className="h-7 w-7 p-0"
                     onClick={openPaymentHistory}
-                    aria-label="היסטוריית תשלומים"
+                    aria-label={t("orderGroupPaymentHistory")}
                   >
                     <History className="h-4 w-4" />
                   </Button>
@@ -738,7 +856,7 @@ export function BillingTab({
                 </div>
               </div>
               <div>
-                <Label className="text-sm">סה"כ לפני הנחה</Label>
+                <Label className="text-sm">{t("orderGroupBeforeDiscount")}</Label>
                 <div className="mt-1.5">
                   <Input
                     name="total_before_discount"
@@ -771,7 +889,7 @@ export function BillingTab({
                 />
               </div>
               <div>
-                <Label className="text-sm">הנחה (%)</Label>
+                <Label className="text-sm">{t("orderGroupDiscountPercent")}</Label>
                 <Input
                   name="discount_percent"
                   type="number"
@@ -788,7 +906,7 @@ export function BillingTab({
               </div>
 
               <div>
-                <Label className="text-sm">אחרי הנחה</Label>
+                <Label className="text-sm">{t("orderGroupAfterDiscount")}</Label>
                 <div className="mt-1.5">
                   <Input
                     name="total_after_discount"
@@ -806,110 +924,7 @@ export function BillingTab({
               </div>
               <div className="md:col-span-3">
                 <div>
-                  <DropdownMenu
-                    dir="rtl"
-                    open={isPaymentDropdownOpen}
-                    onOpenChange={(open) => {
-                      setIsPaymentDropdownOpen(open);
-                      if (open) {
-                        setNewPaymentAmount("");
-                        setNewPaymentDate((prev) => prev || getLocalDateInputValue());
-                        void refreshPaymentState();
-                      }
-                    }}
-                  >
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        type="button"
-                        className="h-10 w-full"
-                        disabled={savingNewPayment || !billingFormData.id}
-                      >
-                        {savingNewPayment ? (
-                          <Loader2 className="ml-1 h-4 w-4 animate-spin" />
-                        ) : (
-                          <Plus className="ml-1 h-4 w-4" />
-                        )}
-                        הוסף תשלום
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-80 p-3">
-                      <div className="mb-3 rounded-md border bg-muted/30 px-3 py-2 text-sm">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-muted-foreground">שולם / סה"כ</span>
-                          <span className="font-medium tabular-nums">
-                            {formatCurrency(billingFormData.prepayment_amount)} /{" "}
-                            {formatCurrency(billingFormData.total_after_discount)}
-                          </span>
-                        </div>
-                        <div className="mt-1 flex items-center justify-between gap-3 border-t pt-1">
-                          <span className="text-muted-foreground">יתרה לתשלום</span>
-                          <span className="font-medium tabular-nums">
-                            {formatCurrency(balanceDue)}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="border-t pt-3">
-                        <div className="mb-2 text-xs font-medium text-muted-foreground">
-                          תשלום חדש
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <div className="mb-1 text-xs text-muted-foreground">סכום</div>
-                            <Input
-                              type="number"
-                              step={MONEY_STEP}
-                              value={newPaymentAmount}
-                              onChange={(e) => setNewPaymentAmount(e.target.value)}
-                              className="h-9"
-                            />
-                          </div>
-                          <div>
-                            <div className="mb-1 text-xs text-muted-foreground">תאריך</div>
-                            <DateInput
-                              name="new_payment_date"
-                              value={newPaymentDate}
-                              onChange={(e) => setNewPaymentDate(e.target.value)}
-                              className="h-9"
-                            />
-                          </div>
-                        </div>
-                        <div className="mt-3 flex justify-start">
-                          <Button
-                            size="sm"
-                            onClick={handleAddPayment}
-                            disabled={savingNewPayment}
-                          >
-                            {savingNewPayment ? "שומר..." : "הוסף תשלום"}
-                          </Button>
-                        </div>
-                      </div>
-
-                      {paymentHistory.length > 0 && (
-                        <div className="mt-4 border-t pt-3">
-                          <div className="mb-2 text-xs font-medium text-muted-foreground">
-                            תשלומים אחרונים
-                          </div>
-                          <div className="space-y-1.5 text-xs">
-                            {paymentHistory.slice(0, 3).map((payment) => (
-                              <div
-                                key={payment.id}
-                                className="flex items-center justify-between"
-                              >
-                                <span className="text-muted-foreground">
-                                  {formatPaymentDate(payment.paid_at)}
-                                  {payment.kind === "adjustment" ? " · תיקון" : ""}
-                                </span>
-                                <span className="tabular-nums">
-                                  {formatCurrency(payment.amount, payment.currency)}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  {paymentMenu}
                 </div>
               </div>
             </div>
@@ -918,76 +933,18 @@ export function BillingTab({
         <div className="col-span-2 h-full">
           <NotesCard
             height="full"
-            title="הערות"
+            title={t("orderGroupNotes")}
             value={billingFormData.notes || ""}
             onChange={(value) =>
               setBillingFormData((prev) => ({ ...prev, notes: value }))
             }
             disabled={!isEditing}
-            placeholder="הערות נוספות..."
+            placeholder={t("orderGroupNotesPlaceholder")}
           />
         </div>
       </div>
 
-      <CustomModal
-        isOpen={isPaymentHistoryOpen}
-        onClose={() => setIsPaymentHistoryOpen(false)}
-        title="היסטוריית תשלומים"
-        width="max-w-xl"
-      >
-        {paymentHistoryLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-5 w-5 animate-spin" />
-          </div>
-        ) : paymentHistory.length > 0 ? (
-          <div className="overflow-hidden rounded-md border">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/40">
-                <tr>
-                  <th className="px-3 py-2 text-right font-medium">תאריך</th>
-                  <th className="px-3 py-2 text-right font-medium">סכום</th>
-                  <th className="px-3 py-2 text-right font-medium">סוג</th>
-                  <th className="w-10 px-2 py-2"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {paymentHistory.map((payment) => (
-                  <tr key={payment.id} className="border-t">
-                    <td className="px-3 py-2">{formatPaymentDate(payment.paid_at)}</td>
-                    <td className="px-3 py-2 tabular-nums">
-                      {formatCurrency(payment.amount, payment.currency)}
-                    </td>
-                    <td className="px-3 py-2">
-                      {payment.kind === "adjustment" ? "תיקון" : "תשלום"}
-                    </td>
-                    <td className="px-2 py-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                        onClick={() => handleDeletePayment(payment)}
-                        disabled={payment.id ? deletingPaymentIds[payment.id] : true}
-                        aria-label="מחיקת תשלום"
-                      >
-                        {payment.id && deletingPaymentIds[payment.id] ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="py-8 text-center text-sm text-muted-foreground">
-            אין היסטוריית תשלומים
-          </div>
-        )}
-      </CustomModal>
+      {paymentHistoryModal}
     </div>
   );
 }

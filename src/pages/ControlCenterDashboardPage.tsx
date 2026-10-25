@@ -185,6 +185,7 @@ export default function ControlCenterDashboardPage() {
   );
   const financialSeries = React.useMemo(() => [...(data?.financial_series || [])].reverse(), [data?.financial_series]);
   const activitySeries = React.useMemo(() => [...(data?.activity.series || [])].reverse(), [data?.activity.series]);
+  const translatedOrderMix = (data?.order_mix || []).map(item => ({ ...item, type: item.type === "order_group" ? t("orderGroupTitle") : item.type }));
   const orderMixTotal = React.useMemo(
     () => (data?.order_mix || []).reduce((total, item) => total + item.count, 0),
     [data?.order_mix],
@@ -285,7 +286,7 @@ export default function ControlCenterDashboardPage() {
             <AnalyticsPanel title="תמהיל הזמנות" description="חלוקת ההזמנות המחויבות בטווח" loading={loading} error={Boolean(error)} empty={!data?.order_mix.length}>
               <div className="grid h-64 grid-cols-[minmax(0,1fr)_minmax(120px,0.8fr)] items-center gap-3" dir="rtl">
                 <div className="min-w-0 space-y-2">
-                  {(data?.order_mix || []).map((item, index) => (
+                  {translatedOrderMix.map((item, index) => (
                     <div key={item.type} className="flex min-w-0 items-center justify-between gap-3 text-sm">
                       <span className="flex min-w-0 items-center gap-2">
                         <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: ORDER_MIX_COLORS[index % ORDER_MIX_COLORS.length] }} />
@@ -301,7 +302,7 @@ export default function ControlCenterDashboardPage() {
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={data?.order_mix || []}
+                        data={translatedOrderMix}
                         dataKey="count"
                         nameKey="type"
                         cx="50%"
@@ -313,7 +314,7 @@ export default function ControlCenterDashboardPage() {
                         strokeWidth={2}
                         isAnimationActive={false}
                       >
-                        {(data?.order_mix || []).map((item, index) => (
+                        {translatedOrderMix.map((item, index) => (
                           <Cell key={item.type} fill={ORDER_MIX_COLORS[index % ORDER_MIX_COLORS.length]} />
                         ))}
                       </Pie>

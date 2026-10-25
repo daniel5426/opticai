@@ -226,7 +226,7 @@ export function ExamLayoutRenderer({
     <div
       data-clinical-nav-scope="true"
       dir="ltr"
-      className="no-scrollbar"
+      className="no-scrollbar flex flex-1 flex-col p-4"
       style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
     >
       <ExamGridLayout
@@ -236,11 +236,13 @@ export function ExamLayoutRenderer({
           const rowIndex = lanes.findIndex((lane) => lane === item.y);
           return (
             <div
+              data-exam-card="true"
               data-clinical-nav-card="true"
               className={item.type === "notes" ? "h-full" : undefined}
               style={{
                 contentVisibility: "auto",
                 containIntrinsicSize: "0 190px",
+                overflowClipMargin: "8px",
               }}
             >
               <ExamCardRenderer

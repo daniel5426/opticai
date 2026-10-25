@@ -1,4 +1,5 @@
 import React, { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
@@ -12,6 +13,7 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { EXAM_FIELDS, PDFieldConfigProvider } from "@/components/exam/data/exam-field-definitions";
 import { BASE_VALUES_SIMPLE, PDCalculationUtils } from "@/components/exam/data/exam-constants";
 import { FastInput, FastSelect } from "@/components/exam/shared/OptimizedInputs";
+import { getExamInputGridTemplate } from "@/components/exam/shared/examInputGrid";
 import { usePrescriptionLogic } from "@/components/exam/shared/usePrescriptionLogic";
 import { CylTitle } from "@/components/exam/shared/CylTitle";
 import { useAxisWarning } from "@/components/exam/shared/useAxisWarning";
@@ -41,6 +43,7 @@ export function OrderFinalPrescriptionTab({
   isEditing,
   hideEyeLabels = false,
 }: OrderFinalPrescriptionTabProps) {
+  const { t } = useTranslation();
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
   const selectedAddType = normalizeAdditionAddType(finalPrescriptionData.add_type) || "";
   const visibleAddTypeOptions = [...ADDITION_ADD_TYPES];
@@ -268,12 +271,13 @@ export function OrderFinalPrescriptionTab({
                 clearable={false}
               >
                 <SelectTrigger
+                  aria-label={t("orderGroupType")}
                   size="xs"
                   centered
                   hideIcon
                   className="h-5 w-[58px] rounded-md px-1 py-0 text-center text-[10px] font-normal leading-none text-muted-foreground shadow-none disabled:cursor-default disabled:opacity-70 *:data-[slot=select-value]:justify-center *:data-[slot=select-value]:leading-none"
                 >
-                  <SelectValue placeholder="TYPE" />
+                  <SelectValue placeholder="" />
                 </SelectTrigger>
                 <SelectContent align="start" sideOffset={4} className="min-w-[72px]">
                   {visibleAddTypeOptions.map((type) => (
@@ -290,12 +294,13 @@ export function OrderFinalPrescriptionTab({
             </div>
 
             <div className="flex-1 text-center">
-              <h3 className="font-medium text-muted-foreground">מרשם סופי</h3>
+              <h3 className="font-medium text-muted-foreground">{t("orderWorkspace.prescription")}</h3>
             </div>
           </div>
 
           <div
-            className={`grid ${hideEyeLabels ? "grid-cols-[repeat(9,1fr)]" : "grid-cols-[20px_repeat(9,1fr)]"} items-center gap-2`}
+            className="grid items-center gap-2"
+            style={{ gridTemplateColumns: getExamInputGridTemplate(columns, hideEyeLabels) }}
           >
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (

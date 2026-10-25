@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
+import { useAppLocale } from "@/localization/use-app-locale";
+import { ClientSearchDetails } from "@/components/search/ClientSearchDetails";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { CardContent } from "@/components/ui/card";
@@ -28,6 +31,7 @@ import {
   Clinic,
   RecentClientVisit,
   PrescriptionSearchResult,
+  SearchClientDetails,
 } from "@/lib/db/schema-interface";
 import { useUser } from "@/contexts/UserContext";
 import { apiClient } from "@/lib/api-client";
@@ -51,6 +55,7 @@ interface SearchResult {
   title: string;
   subtitle?: string;
   description?: string;
+  clientDetails?: SearchClientDetails;
   data: any;
   matchedFields: string[];
 }
@@ -61,6 +66,8 @@ interface GlobalSearchProps {
 }
 
 export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
+  const { t } = useTranslation();
+  const { direction } = useAppLocale();
   // Safely get user context with error handling
   let currentClinic: Clinic | null = null;
   try {
@@ -149,6 +156,7 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
   }, [query]);
 
   useEffect(() => {
+    let cancelled = false;
     const run = async () => {
       if (!isOpen) return;
       if (activePanel && activePanel !== "search") return;
@@ -157,6 +165,7 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
       if (q.length < 2) {
         setResults([]);
         setTotal(0);
+        setLoading(false);
         return;
       }
       setLoading(true);
@@ -167,13 +176,14 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
           offset,
         });
         const data = res.data;
-        if (data) {
+        if (data && !cancelled) {
           const mapped: SearchResult[] = data.items.map((it) => ({
             id: `${it.type}-${it.id}`,
             type: it.type as SearchResult["type"],
             title: it.title,
             subtitle: it.subtitle,
             description: it.description,
+            clientDetails: it.client_details,
             data: it,
             matchedFields: [],
           }));
@@ -183,10 +193,11 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
       } catch (e) {
         console.error("Unified search error:", e);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     run();
+    return () => { cancelled = true; };
   }, [activePanel, isOpen, currentClinic?.id, debouncedQuery, page]);
 
   const normalizeDate = (dateStr: string): string => {
@@ -850,29 +861,19 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
   };
 
   const getResultTypeLabel = (type: SearchResult["type"]) => {
-    switch (type) {
-      case "client":
-        return "לקוח";
-      case "exam":
-        return "בדיקה";
-      case "medical-log":
-        return "רישום רפואי";
-      case "family":
-        return "משפחה";
-      case "referral":
-        return "הפניה";
-      case "appointment":
-        return "תור";
-      case "campaign":
-        return "קמפיין";
-      default:
-        return "";
-    }
+    return t(`globalSearch.${type}`);
   };
 
   useEffect(() => {
     setHighlightedResultIndex(0);
   }, [results, activePanel]);
+
+  useEffect(() => {
+    if (inModal && activePanel === "search") {
+      containerRef.current?.querySelector(`[data-search-result-index="${highlightedResultIndex}"]`)
+        ?.scrollIntoView?.({ block: "nearest" });
+    }
+  }, [inModal, activePanel, highlightedResultIndex, results]);
 
   const handleSearchKeyDown = (
     event: React.KeyboardEvent<HTMLInputElement>,
@@ -913,6 +914,7 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
 
   return (
     <div
+      dir={direction}
       className={`pointer-events-auto ${inModal ? "flex flex-col" : "relative z-9999 pt-2"}`}
       ref={containerRef}
       style={{ pointerEvents: "auto" }}
@@ -922,12 +924,13 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
         style={{ pointerEvents: "auto" }}
       >
         <Search
-          className={`text-muted-foreground pointer-events-none absolute top-1/2 -translate-y-1/2 transform ${inModal ? "right-3 h-4 w-4" : "right-3 h-3 w-4"}`}
+          className={`text-muted-foreground pointer-events-none absolute top-1/2 -translate-y-1/2 transform ${inModal ? "start-3 h-4 w-4" : "start-3 h-3 w-4"}`}
         />
         <Input
           ref={inputRef}
           type="text"
-          placeholder="חיפוש גלובלי..."
+          placeholder={t("globalSearch.placeholder")}
+          aria-label={t("search")}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -938,17 +941,18 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
             setIsOpen(true);
           }}
           onKeyDown={handleSearchKeyDown}
-          className={`${inModal ? "h-auto w-0 flex-1 rounded-none border-0 bg-transparent py-3 pr-8 pl-20 text-base shadow-none focus-visible:ring-0" : "h-7 w-lg border-1 border-cyan-800/30 pr-10 pl-24 text-sm"} pointer-events-auto`}
-          style={{ direction: "rtl", pointerEvents: "auto" }}
+          className={`${inModal ? "h-auto w-0 flex-1 rounded-none border-0 bg-transparent py-3 ps-8 pe-20 text-base shadow-none focus-visible:ring-0" : "h-7 w-lg border-1 border-cyan-800/30 ps-10 pe-24 text-sm"} pointer-events-auto`}
+          style={{ direction, pointerEvents: "auto" }}
         />
         <div
-          className={`absolute top-1/2 left-1 flex -translate-y-1/2 items-center gap-1 ${inModal ? "left-3" : ""}`}
+          className={`absolute top-1/2 flex -translate-y-1/2 items-center gap-1 ${inModal ? "end-3" : "end-1"}`}
         >
           <Button
             variant="ghost"
             size="icon"
             className={inModal ? "h-7 w-7" : "h-6 w-6"}
-            title="לקוחות אחרונים"
+            title={t("recentClients")}
+            aria-label={t("recentClients")}
             onClick={openRecentPanel}
           >
             <History className={inModal ? "h-3.5 w-3.5" : "h-3.5 w-3.5"} />
@@ -957,7 +961,8 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
             variant="ghost"
             size="icon"
             className={inModal ? "h-7 w-7" : "h-6 w-6"}
-            title="חיפוש לפי מרשם"
+            title={t("globalSearch.prescriptionSearch")}
+            aria-label={t("globalSearch.prescriptionSearch")}
             onClick={openPrescriptionPanel}
           >
             <Glasses className={inModal ? "h-3.5 w-3.5" : "h-3.5 w-3.5"} />
@@ -967,8 +972,8 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
 
       {isOpen && (activePanel || query || results.length > 0) && (
         <div
-          dir="rtl"
-          className={`${inModal ? "max-h-[460px] overflow-y-auto border-t p-2" : "bg-card text-card-foreground absolute top-full z-50 mt-1 rounded-xl border border-slate-300/80 ring-1 ring-black/10"} ${
+          dir={direction}
+          className={`${inModal ? "max-h-[min(460px,calc(90vh-5rem))] overflow-y-auto border-t p-2" : "bg-card text-card-foreground absolute top-full z-50 mt-1 rounded-xl border border-slate-300/80 ring-1 ring-black/10"} ${
             activePanel === "prescription"
               ? inModal
                 ? "w-full"
@@ -991,7 +996,7 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
           >
             {activePanel === "recent" ? (
               <div
-                className={inModal ? "space-y-1" : "max-h-96 overflow-auto"}
+                className={inModal ? "divide-border divide-y" : "max-h-96 overflow-auto"}
                 style={{ scrollbarWidth: "none" }}
               >
                 {recentLoading ? (
@@ -1006,13 +1011,14 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
                     <button
                       key={visit.id}
                       type="button"
-                      className={`${inModal ? "hover:bg-muted focus-visible:bg-muted flex min-h-10 w-full items-center gap-2.5 rounded-lg px-2 text-start text-sm transition-colors outline-none" : "hover:bg-muted block w-full border-b p-3 text-right transition-colors last:border-b-0"}`}
+                      className={`${inModal ? "hover:bg-muted focus-visible:bg-muted flex min-h-10 w-full items-start gap-2.5 rounded-lg px-2 py-2.5 text-start text-sm transition-colors outline-none" : "hover:bg-muted block w-full border-b p-3 text-start transition-colors last:border-b-0"}`}
                       onClick={() => handleClientClick(visit.client_id)}
                     >
-                      <div className="flex min-w-0 flex-1 items-center gap-2.5">
-                        <User className="text-muted-foreground h-4 w-4" />
+                      <div className="flex min-w-0 flex-1 items-start gap-2.5">
+                        <User className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
                         <div className="min-w-0 flex-1">
                           <div
+                            data-no-localize
                             className={
                               inModal
                                 ? "truncate text-sm font-medium"
@@ -1020,26 +1026,30 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
                             }
                           >
                             {`${visit.client?.first_name || ""} ${visit.client?.last_name || ""}`.trim() ||
-                              `לקוח ${visit.client_id}`}
+                              t("recentClientFallback", { id: visit.client_id })}
                           </div>
-                          <div
-                            className={
-                              inModal
-                                ? "text-muted-foreground truncate text-xs"
-                                : "text-muted-foreground text-xs"
-                            }
-                          >
-                            {visit.client?.phone_mobile ||
-                              visit.client?.national_id ||
-                              ""}
-                          </div>
+                          {inModal && visit.client ? (
+                            <ClientSearchDetails client={visit.client} />
+                          ) : (
+                            <div
+                              className={
+                                inModal
+                                  ? "text-muted-foreground truncate text-xs"
+                                  : "text-muted-foreground text-xs"
+                              }
+                            >
+                              {visit.client?.phone_mobile ||
+                                visit.client?.national_id ||
+                                ""}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </button>
                   ))
                 ) : (
                   <div className="text-muted-foreground p-4 text-center text-sm">
-                    אין לקוחות אחרונים
+                    {t("noRecentClients")}
                   </div>
                 )}
               </div>
@@ -1198,7 +1208,7 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
                       <button
                         key={`${result.source_type}-${result.source_id}-${result.client_id}`}
                         type="button"
-                        className="hover:bg-muted block w-full border-b p-3 text-right transition-colors last:border-b-0"
+                        className="hover:bg-muted block w-full border-b p-3 text-start transition-colors last:border-b-0"
                         onClick={() => handleClientClick(result.client_id)}
                       >
                         <div className="flex items-center gap-3">
@@ -1232,19 +1242,19 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
                 className={inModal ? "space-y-1" : "max-h-96 overflow-auto"}
                 style={{ scrollbarWidth: "none" }}
               >
-                {Array.from({ length: 6 }).map((_, idx) => (
+                {Array.from({ length: inModal ? 4 : 6 }).map((_, idx) => (
                   <div
                     key={idx}
                     className={
                       inModal
-                        ? "flex min-h-10 items-center gap-2.5 rounded-lg px-2"
+                        ? "flex min-h-24 items-start gap-2.5 rounded-lg px-2 py-2.5"
                         : "border-b p-3 last:border-b-0"
                     }
                   >
                     <div
                       className={
                         inModal
-                          ? "flex min-w-0 items-center gap-2.5"
+                          ? "flex w-full min-w-0 items-start gap-2.5"
                           : "flex items-center gap-6 px-4"
                       }
                     >
@@ -1252,8 +1262,9 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
                         <Skeleton className="h-5 w-5 rounded" />
                       </div>
                       <div className="w-0 min-w-0 flex-1">
-                        <Skeleton className="mb-2 h-4 w-52" />
-                        <Skeleton className="h-3 w-36" />
+                        <Skeleton className="mb-2 h-4 w-52 max-w-full" />
+                        <Skeleton className="h-3 w-36 max-w-full" />
+                        {inModal && <Skeleton className="mt-2 h-3 w-64 max-w-full" />}
                       </div>
                     </div>
                   </div>
@@ -1261,7 +1272,7 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
               </div>
             ) : results.length > 0 ? (
               <div
-                className={inModal ? "space-y-1" : "max-h-96 overflow-auto"}
+                className={inModal ? "divide-border divide-y" : "max-h-96 overflow-auto"}
                 style={{ scrollbarWidth: "none" }}
               >
                 {results.map((result, index) => (
@@ -1270,20 +1281,21 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
                     type="button"
                     className={
                       inModal
-                        ? `flex min-h-10 w-full items-center gap-2.5 rounded-lg px-2 text-start text-sm transition-colors outline-none ${
+                        ? `flex min-h-10 w-full items-start gap-2.5 rounded-lg px-2 py-2.5 text-start text-sm transition-colors outline-none ${
                             highlightedResultIndex === index
                               ? "bg-muted"
                               : "hover:bg-muted focus-visible:bg-muted"
                           }`
-                        : "hover:bg-muted block w-full cursor-pointer border-b p-3 text-right transition-colors last:border-b-0"
+                        : "hover:bg-muted block w-full cursor-pointer border-b p-3 text-start transition-colors last:border-b-0"
                     }
+                    data-search-result-index={index}
                     onMouseMove={() => setHighlightedResultIndex(index)}
                     onClick={() => handleResultClick(result)}
                   >
                     <div
                       className={
                         inModal
-                          ? "text-muted-foreground flex-shrink-0"
+                          ? "text-muted-foreground mt-0.5 flex-shrink-0"
                           : "text-muted-foreground flex-shrink-0 py-4"
                       }
                     >
@@ -1294,6 +1306,7 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
                     </div>
                     <div className="w-0 min-w-0 flex-1">
                       <div
+                        data-no-localize
                         className={
                           inModal
                             ? "truncate text-sm font-medium"
@@ -1302,35 +1315,39 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
                       >
                         {result.title}
                       </div>
-                      <div
-                        className={
-                          inModal
-                            ? "text-muted-foreground truncate text-xs"
-                            : "text-muted-foreground mb-1 truncate text-xs"
-                        }
-                        title={[
-                          getResultTypeLabel(result.type),
-                          result.subtitle,
-                          result.description,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      >
-                        {[
-                          getResultTypeLabel(result.type),
-                          result.subtitle,
-                          result.description,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </div>
+                      {inModal && result.type === "client" && result.clientDetails ? (
+                        <ClientSearchDetails client={result.clientDetails} />
+                      ) : (
+                        <div
+                          className={
+                            inModal
+                              ? "text-muted-foreground truncate text-xs"
+                              : "text-muted-foreground mb-1 truncate text-xs"
+                          }
+                          title={[
+                            getResultTypeLabel(result.type),
+                            result.subtitle,
+                            result.description,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        >
+                          {[
+                            getResultTypeLabel(result.type),
+                            result.subtitle,
+                            result.description,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </div>
+                      )}
                     </div>
                   </button>
                 ))}
               </div>
             ) : query ? (
               <div className="text-muted-foreground p-4 text-center text-sm">
-                לא נמצאו תוצאות עבור "{query}"
+                {t("globalSearch.noResults", { query })}
               </div>
             ) : null}
           </CardContent>

@@ -7,6 +7,7 @@ import { createHash, randomUUID } from "crypto";
 import { parse as parseCsv } from "csv-parse/sync";
 import http from "http";
 import https from "https";
+import { installAgentTransport } from './lib/agent-native-transport';
 
 // Load the appropriate .env file based on environment
 if (process.env.NODE_ENV === 'production') {
@@ -94,6 +95,13 @@ function copyProfileIfNeeded(fromDir: string, toDir: string): boolean {
 
 function configureAppStoragePaths() {
   app.setName(APP_PROFILE_NAME);
+  if (!app.isPackaged && process.env.PRYSM_DEV_DATA_DIR) {
+    const isolated = path.resolve(process.env.PRYSM_DEV_DATA_DIR);
+    fs.mkdirSync(isolated, { recursive: true });
+    app.setPath('userData', isolated);
+    app.setPath('sessionData', isolated);
+    return;
+  }
 
   const appDataPath = app.getPath('appData');
   const stableUserDataPath = path.join(appDataPath, APP_PROFILE_NAME);
@@ -389,10 +397,11 @@ function createWindow() {
   });
 
   if (inDevelopment) {
-    mainWindow.loadURL('http://localhost:5126');
+    mainWindow.loadURL(process.env.PRYSM_RENDERER_URL || 'http://localhost:5126');
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
+  installAgentTransport(mainWindow);
 
 
   

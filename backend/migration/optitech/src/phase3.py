@@ -34,6 +34,7 @@ try:
         Order,
         WorkShift,
     )
+    from services import order_group_service  # Register group compatibility hooks for standalone imports.
     from services.prescription_search_index import rebuild_clinic_prescription_search_index
 except ModuleNotFoundError:
     from backend.models import (
@@ -47,6 +48,7 @@ except ModuleNotFoundError:
         Order,
         WorkShift,
     )
+    from backend.services import order_group_service
     from backend.services.prescription_search_index import rebuild_clinic_prescription_search_index
 
 from .exam_layouts import CONTACT_LENS_COMPONENTS, GLASSES_COMPONENTS, build_instance_layout_data

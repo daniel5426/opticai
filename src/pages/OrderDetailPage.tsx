@@ -1,3 +1,5 @@
+import { OrderGroupGate } from "@/components/order-groups/OrderGroupWorkspace";
+import { serializeEntry, type EntryWorkspace } from "@/lib/order-groups";
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   useParams,
@@ -146,7 +148,8 @@ import {
   InventorySelection,
 } from "@/lib/inventory";
 
-interface OrderDetailPageProps {
+export interface OrderDetailPageProps {
+  workspace?: EntryWorkspace;
   mode?: "view" | "edit" | "new";
   clientId?: string;
   orderId?: string;
@@ -222,7 +225,8 @@ const getNextBagNumber = (orders: Order[]): string => {
   return String(maxBagNumber + 1);
 };
 
-export default function OrderDetailPage({
+export function LegacyOrderDetailPage({
+  workspace,
   mode = "view",
   clientId: propClientId,
   orderId: propOrderId,
@@ -246,8 +250,8 @@ export default function OrderDetailPage({
     }
   }
 
-  const clientId = propClientId || routeClientId;
-  const orderId = propOrderId || routeOrderId;
+  const clientId = workspace ? String(workspace.client.id) : propClientId || routeClientId;
+  const orderId = workspace ? workspace.record.id?.toString() : propOrderId || routeOrderId;
 
   let searchTypeParam: string | undefined,
     examIdFromSearch: string | null = null,
@@ -278,11 +282,18 @@ export default function OrderDetailPage({
       addTypeFromSearch = null;
     }
   }
-  const isContactMode = searchTypeParam === "contact";
+  if (workspace && workspace.key !== "initial") {
+    importSourceId = null;
+    importSourceType = null;
+    examIdFromSearch = null;
+    addTypeFromSearch = null;
+  }
+  const isContactMode = workspace ? workspace.kind === "contact" : searchTypeParam === "contact";
   const selectedAdditionAddType = normalizeAdditionAddType(addTypeFromSearch);
   const examId = propExamId || examIdFromSearch || undefined;
 
   const [loading, setLoading] = useState(true);
+  const [workspaceLoadFailed, setWorkspaceLoadFailed] = useState(false);
   const [order, setOrder] = useState<Order | null>(null);
   const [exam, setExam] = useState<OpticalExam | null>(null);
   const [billing, setBilling] = useState<Billing | null>(null);
@@ -316,7 +327,8 @@ export default function OrderDetailPage({
   const { currentUser, currentClinic } = useUser();
   const { company } = useSettings();
   const { t } = useTranslation();
-  const { currentClient } = useClientSidebar();
+  const { currentClient: sidebarClient } = useClientSidebar();
+  const currentClient = workspace?.client || sidebarClient;
   const [orderIdForData, setOrderIdForData] = useState<number | null>(null);
 
   const isNewMode = mode === "new";
@@ -330,7 +342,7 @@ export default function OrderDetailPage({
         clinic_id: currentClinic?.id,
         supply_in_clinic_id: currentClinic?.id,
         order_date: new Date().toISOString().split("T")[0],
-        type: "עדשות מגע",
+        type: workspace?.record.type || "עדשות מגע",
         dominant_eye: "",
         user_id: currentUser?.id,
         advisor: currentUser?.full_name || currentUser?.username,
@@ -356,7 +368,7 @@ export default function OrderDetailPage({
       return {
         client_id: Number(clientId),
         order_date: new Date().toISOString().split("T")[0],
-        type: "",
+        type: workspace?.record.type || "",
         dominant_eye: "",
         user_id: currentUser?.id,
         comb_va: undefined,
@@ -542,6 +554,7 @@ export default function OrderDetailPage({
     getSerializedState,
     isEditing,
     isNewMode,
+    enabled: !workspace,
   });
   const [isExportInFlight, setIsExportInFlight] = useState(false);
   const [isPdfExportInFlight, setIsPdfExportInFlight] = useState(false);
@@ -630,6 +643,7 @@ export default function OrderDetailPage({
     const loadData = async () => {
       try {
         setLoading(true);
+        setWorkspaceLoadFailed(false);
 
         // Load users for display purposes
         const usersData = await getAllUsers();
@@ -665,8 +679,8 @@ export default function OrderDetailPage({
         }
 
         if (orderId && !isContactMode) {
-          const orderData = await getOrderById(Number(orderId));
-          setOrder(orderData || null);
+          const orderData = workspace?.record || await getOrderById(Number(orderId));
+          setOrder((orderData as Order) || null);
 
           if (orderData) {
             const fp = (orderData as any).order_data?.["final-prescription"];
@@ -707,7 +721,7 @@ export default function OrderDetailPage({
                 ),
               );
             }
-            const billingData = await getBillingByOrderId(Number(orderId));
+            const billingData = workspace ? null : await getBillingByOrderId(Number(orderId));
             setBilling(billingData || null);
             if (billingData) {
               setBillingFormData((prev) => ({
@@ -729,7 +743,7 @@ export default function OrderDetailPage({
             }
           }
         } else if (orderId && isContactMode) {
-          const clOrder = await getContactLensOrderById(Number(orderId));
+          const clOrder = workspace?.record || await getContactLensOrderById(Number(orderId));
           if (clOrder) {
             setContactFormData({ ...clOrder });
             const od = (clOrder as any).order_data || {};
@@ -746,7 +760,7 @@ export default function OrderDetailPage({
               setSchirmerData({ ...(od["schirmer-test"] as any) });
             if (od["contact-lens-diameters"])
               setDiametersData({ ...(od["contact-lens-diameters"] as any) });
-            const billingData = await getBillingByContactLensId(
+            const billingData = workspace ? null : await getBillingByContactLensId(
               Number(orderId),
             );
             setBilling(billingData || null);
@@ -985,6 +999,7 @@ export default function OrderDetailPage({
         }
       } catch (error) {
         console.error("Error loading data:", error);
+        if (workspace) setWorkspaceLoadFailed(true);
       } finally {
         setLoading(false);
       }
@@ -1028,7 +1043,9 @@ export default function OrderDetailPage({
     previous: InventorySelection | null,
     variant: CatalogVariant | null,
     quantity: number,
+    slot?: InventoryComponent,
   ) => {
+    if (workspace && slot) { workspace.suggest(workspace.key, slot, variant, quantity); return; }
     setOrderLineItems((currentItems) => {
       const previousSku = previous?.variant?.sku;
       const previousDescription = previous?.variant?.display_name;
@@ -1122,7 +1139,7 @@ export default function OrderDetailPage({
     inventorySelectionsRef.current = next;
     setInventorySelections(next);
     setInventorySelectionsLoaded(true);
-    replaceSuggestedBillingLine(previous, variant, quantity);
+    replaceSuggestedBillingLine(previous, variant, quantity, component);
   };
 
   const clearInventorySelection = (component: InventoryComponent) => {
@@ -1139,7 +1156,7 @@ export default function OrderDetailPage({
     );
     inventorySelectionsRef.current = next;
     setInventorySelections(next);
-    replaceSuggestedBillingLine(previous, null, 1);
+    replaceSuggestedBillingLine(previous, null, 1, component);
     return true;
   };
 
@@ -1952,7 +1969,7 @@ export default function OrderDetailPage({
   };
 
   useKeyboardSave({
-    enabled: !loading && (isEditing || isNewMode),
+    enabled: !workspace && !loading && (isEditing || isNewMode),
     isSaving: isSaveInFlight,
     canSave: Boolean(currentClinic?.id && currentUser),
     onSave: handleSave,
@@ -2043,6 +2060,105 @@ export default function OrderDetailPage({
       setIsPrintInFlight(false);
     }
   };
+
+  useEffect(() => {
+    if (workspace) setIsEditing(workspace.editing);
+  }, [workspace?.editing]);
+
+  useEffect(() => {
+    if (!workspace) return;
+    const snapshot = () => ({
+      formData: formDataRef.current, contactFormData: contactFormDataRef.current,
+      lensFrameTab: lensFrameTabRef.current, orderDetailsFormData: orderDetailsFormDataRef.current,
+      finalPrescriptionFormData: finalPrescriptionFormDataRef.current,
+      contactLensExamData: contactLensExamDataRef.current, contactLensDetailsData: contactLensDetailsDataRef.current,
+      keratoCLData: keratoCLDataRef.current, schirmerData: schirmerDataRef.current, diametersData: diametersDataRef.current,
+      inventorySelections: inventorySelectionsRef.current, inventorySelectionsLoaded,
+    });
+    workspace.register(workspace.key, {
+      ready: !loading && !workspaceLoadFailed,
+      serialize: () => serializeEntry(workspace, snapshot()),
+      setMetadata: patch => {
+        if (isContactMode) setContactFormData((previous: any) => ({ ...previous, ...patch }));
+        else setFormData(previous => ({ ...previous, ...patch }));
+      },
+    });
+    return () => workspace.register(workspace.key, null);
+  }, [workspace?.key, workspace?.register, loading, workspaceLoadFailed, inventorySelectionsLoaded, isContactMode]);
+
+  useEffect(() => {
+    if (workspace && !loading) workspace.onChange(workspace.key, getSerializedState());
+  }, [workspace?.key, workspace?.onChange, loading, getSerializedState]);
+
+  if (workspace) {
+    if (workspace.active === false) return null;
+    if (workspaceLoadFailed) return <div className="p-5 text-sm text-destructive">{t("orderGroupLoadError")}</div>;
+    if (loading) {
+      return (
+        <div className="space-y-4 p-4" aria-hidden="true">
+          <Skeleton className="h-36" />
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Skeleton className="h-40" />
+            <Skeleton className="h-40" />
+          </div>
+        </div>
+      );
+    }
+    return isContactMode ? (
+                <ContactOrderTab hideMetadata
+                  formRef={formRef}
+                  isEditing={isEditing}
+                  users={users}
+                  contactFormData={contactFormData}
+                  setContactFormData={setContactFormData}
+                  contactLensDetailsData={contactLensDetailsData}
+                  setContactLensDetailsData={setContactLensDetailsData}
+                  contactLensExamData={contactLensExamData}
+                  setContactLensExamData={setContactLensExamData}
+                  clinicId={Number(
+                    contactFormData.clinic_id || currentClinic?.id || 0,
+                  )}
+                  rightInventorySelection={selectionFor("contact_right")}
+                  leftInventorySelection={selectionFor("contact_left")}
+                  onInventorySelect={handleContactInventorySelect}
+                  onInventoryClear={(side) =>
+                    clearInventorySelection(
+                      side === "right" ? "contact_right" : "contact_left",
+                    )
+                  }
+                  onInventoryRelevantFieldChange={
+                    handleContactInventoryRelevantFieldChange
+                  }
+                  clientOrderIndex={clientOrderIndex}
+                />
+    ) : (
+                <RegularOrderTab hideMetadata
+                  formRef={formRef}
+                  isEditing={isEditing}
+                  users={users}
+                  formData={formData}
+                  setFormData={setFormData}
+                  onSelectChange={handleSelectChange}
+                  finalPrescriptionData={finalPrescriptionFormData}
+                  onFinalPrescriptionChange={handleFinalPrescriptionChange}
+                  currentCard={currentCard}
+                  allRows={allRows}
+                  clipboardSourceType={clipboardSourceType}
+                  onToolboxClearData={() => toolboxActions.clearData(type)}
+                  onToolboxCopy={handleCopy}
+                  onToolboxPaste={handlePaste}
+                  lensFrameTab={lensFrameTab}
+                  onLensFieldChange={handleLensFieldChange}
+                  onFrameFieldChange={handleFrameFieldChange}
+                  selectedFrameInventory={selectionFor("frame")}
+                  onFrameInventorySelect={handleFrameInventorySelect}
+                  onFrameInventoryClear={() => clearInventorySelection("frame")}
+                  orderDetailsFormData={orderDetailsFormData}
+                  setOrderDetailsFormData={setOrderDetailsFormData}
+                  clientOrderIndex={clientOrderIndex}
+                />
+    );
+  }
 
   if (loading || !currentClient) {
     return (
@@ -2401,4 +2517,8 @@ export default function OrderDetailPage({
       />
     </>
   );
+}
+
+export default function OrderDetailPage(props: OrderDetailPageProps = {}) {
+  return <OrderGroupGate {...props} />;
 }

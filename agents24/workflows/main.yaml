@@ -1,0 +1,76 @@
+schema: agents24.workflow/v1
+name: Prysm Clinic Agent
+description: Clinic search and reports with native document and screenshot processing.
+inputs:
+  text:
+    type: string
+    semantic_type: text
+    enabled: true
+    required: false
+  files:
+    type: list
+    semantic_type: files
+    enabled: true
+    required: false
+  images:
+    type: list
+    semantic_type: images
+    enabled: true
+    required: false
+outputs:
+  response: string
+start:
+  attachment_retention:
+    mode: duration
+    seconds: 18000
+entry: document_extract
+nodes:
+  document_extract:
+    type: document_extract
+    with:
+      mime_types:
+        - text/plain
+        - text/markdown
+        - text/csv
+        - application/json
+        - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+      input_sources:
+        - id: files
+          value_ref:
+            namespace: workflow_input
+            key: files
+  ocr:
+    type: ocr
+    with:
+      model_id: $models.ocr
+      mime_types:
+        - application/pdf
+        - image/png
+        - image/jpeg
+        - image/webp
+      input_sources:
+        - id: files
+          value_ref:
+            namespace: workflow_input
+            key: files
+        - id: images
+          value_ref:
+            namespace: workflow_input
+            key: images
+  assistant:
+    uses: ../agents/assistant.md
+    inputs:
+      - text
+      - from: document_extract.text
+        label: Document contents
+      - from: ocr.text
+        label: Screenshot and scanned document contents
+flow:
+  - from: start
+    to: ocr
+  - from: document_extract
+    to: assistant
+  - from: ocr
+    to: assistant
+  - from: assistant.output_text
+    to: output.response

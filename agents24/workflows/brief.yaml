@@ -1,0 +1,14 @@
+schema: agents24.workflow/v1
+name: Prysm Daily Clinic Brief
+description: Read-only clinic summary, scheduled by Prysm at 06:00 Israel time.
+inputs:
+  text: string
+outputs:
+  response: object
+entry: brief
+nodes:
+  brief:
+    uses: ../agents/brief.md
+flow:
+  - from: brief.output_json
+    to: output.response

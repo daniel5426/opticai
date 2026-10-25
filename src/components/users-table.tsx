@@ -258,8 +258,7 @@ export function UsersTable({
         />
       )}
 
-      <div className="bg-card rounded-md">
-        <Table
+      <Table
           dir="rtl"
           containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain"
           containerStyle={{ scrollbarWidth: "none" }}
@@ -403,8 +402,7 @@ export function UsersTable({
               </TableRow>
             )}
           </TableBody>
-        </Table>
-      </div>
+      </Table>
 
       {pagination ? (
         <TablePagination

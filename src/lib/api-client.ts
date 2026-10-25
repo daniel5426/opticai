@@ -1,3 +1,4 @@
+import { normalizeApiBaseUrl } from '@/services/api-base-url';
 import { getActiveLocale } from "@/localization/locale";
 import i18n from "@/localization/i18n";
 import { 
@@ -21,7 +22,7 @@ import {
   ObjectiveExam, SubjectiveExam, AdditionExam, FinalSubjectiveExam,
   FinalPrescriptionExam, RetinoscopExam, RetinoscopDilationExam,
   CompactPrescriptionExam, RecentClientVisit, PrescriptionSearchCriteria,
-  PrescriptionSearchResult, ClientMergeResult
+  PrescriptionSearchResult, ClientMergeResult, SearchClientDetails
 } from './db/schema-interface';
 import { CalendarHoliday } from './clinic-holidays';
 import {
@@ -39,21 +40,6 @@ import type {
   WorkforceAnalyticsResponse,
 } from "./analytics";
 import type { TrashItem, TrashPage } from "./trash";
-
-function normalizeApiBaseUrl(rawUrl?: string): string {
-  const fallback = 'http://localhost:8001/api/v1';
-  if (!rawUrl) return fallback;
-
-  try {
-    const url = new URL(rawUrl);
-    if (url.hostname === '0.0.0.0') {
-      url.hostname = 'localhost';
-    }
-    return url.toString().replace(/\/$/, '');
-  } catch {
-    return rawUrl.replace('://0.0.0.0', '://localhost').replace(/\/$/, '');
-  }
-}
 
 const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_URL);
 
@@ -129,6 +115,7 @@ class ApiClient {
   private token: string | null = null;
   private refreshToken: string | null = null;
   private clinicTrustToken: string | null = null;
+  private clinicTrustClinicId: number | null = null;
   private refreshTokenPromise: Promise<boolean> | null = null;
 
   private emitTrashCreated(endpoint: string, options: RequestInit, data: any) {
@@ -148,6 +135,11 @@ class ApiClient {
       this.token = localStorage.getItem('auth_token');
       this.refreshToken = localStorage.getItem('auth_refresh_token');
       this.clinicTrustToken = localStorage.getItem('clinicTrustToken');
+      try {
+        // Older installations bind their trust to the clinic already stored on this device.
+        this.clinicTrustClinicId = Number(localStorage.getItem('clinicTrustClinicId')) ||
+          JSON.parse(localStorage.getItem('selectedClinic') || 'null')?.id || null;
+      } catch {}
     }
   }
 
@@ -211,6 +203,23 @@ class ApiClient {
         this.refreshTokenPromise = null;
       }
     }
+  }
+
+  public orderGroupRequest<T>(path: string, options?: RequestInit) {
+    return this.request<T>(`/order-groups${path}`, options);
+  }
+
+  public async agentFetch(path: string, options: RequestInit = {}, nativeFetch?: typeof fetch): Promise<Response> {
+    if (!/^\/api\/(agents24(?:\/|$)|v1\/agent(?:\/|$))/.test(path)) throw new Error('Invalid agent request');
+    const headers = new Headers(options.headers);
+    const perform = () => {
+      if (this.token) headers.set('Authorization', `Bearer ${this.token}`);
+      const url = nativeFetch ? new URL(path, new URL(this.baseUrl).origin).toString() : path;
+      return (nativeFetch || fetch)(url, { ...options, headers, redirect: 'error' });
+    };
+    let response = await perform();
+    if (response.status === 401 && await this.refreshTokenIfPossible()) response = await perform();
+    return response;
   }
 
   private async request<T>(
@@ -351,24 +360,32 @@ class ApiClient {
     }
   }
 
-  setClinicTrustToken(token: string) {
+  setClinicTrustToken(token: string, clinicId: number) {
     this.clinicTrustToken = token;
+    this.clinicTrustClinicId = clinicId;
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('clinicTrustToken', token);
+      localStorage.setItem('clinicTrustClinicId', String(clinicId));
     }
   }
 
-  getClinicTrustToken() {
-    if (this.clinicTrustToken) return this.clinicTrustToken;
-    if (typeof localStorage === 'undefined') return null;
-    this.clinicTrustToken = localStorage.getItem('clinicTrustToken');
+  getClinicTrustToken(clinicId?: number) {
+    if (typeof localStorage !== 'undefined') {
+      const storedToken = localStorage.getItem('clinicTrustToken');
+      const storedClinicId = Number(localStorage.getItem('clinicTrustClinicId')) || null;
+      if (storedClinicId) this.clinicTrustClinicId = storedClinicId;
+      this.clinicTrustToken = storedToken;
+    }
+    if (clinicId !== undefined && clinicId !== this.clinicTrustClinicId) return null;
     return this.clinicTrustToken;
   }
 
   clearClinicTrustToken() {
     this.clinicTrustToken = null;
+    this.clinicTrustClinicId = null;
     if (typeof localStorage !== 'undefined') {
       localStorage.removeItem('clinicTrustToken');
+      localStorage.removeItem('clinicTrustClinicId');
     }
   }
 
@@ -821,6 +838,8 @@ class ApiClient {
   }
 
   async deleteClient(id: number) {
+    const capabilities = await this.orderGroupRequest<{available: boolean}>("/capabilities");
+    if (capabilities.data?.available) return this.orderGroupRequest(`/client/${id}`, {method: "DELETE"});
     return this.request(`/clients/${id}`, {
       method: 'DELETE',
     });
@@ -853,6 +872,8 @@ class ApiClient {
   }
 
   async restoreTrashItem(id: number) {
+    const capabilities = await this.orderGroupRequest<{available: boolean}>("/capabilities");
+    if (capabilities.data?.available) return this.orderGroupRequest<{ trash_item_id: number; status: string; restored: Array<{type: string; id: number}>; warnings: Array<{code: string}> }>(`/restore/${id}`, {method: "POST"});
     return this.request<{ trash_item_id: number; status: string; restored: Array<{ type: string; id: number }>; warnings: Array<{ code: string }> }>(`/trash/${id}/restore`, { method: "POST" })
   }
 
@@ -2154,7 +2175,7 @@ class ApiClient {
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
     if (options?.offset !== undefined) params.append('offset', String(options.offset));
     const qs = params.toString();
-    return this.request<{ items: Array<{ type: string; id: number; title: string; subtitle?: string; description?: string; client_id?: number }>; total: number }>(`/search?${qs}`);
+    return this.request<{ items: Array<{ type: string; id: number; title: string; subtitle?: string; description?: string; client_id?: number; client_details?: SearchClientDetails }>; total: number }>(`/search?${qs}`);
   }
 
   async searchPrescription(criteria: PrescriptionSearchCriteria) {

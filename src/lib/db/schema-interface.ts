@@ -100,6 +100,12 @@ export interface Client {
   merge_snapshot?: Record<string, unknown> | null;
 }
 
+export type SearchClientDetails = Pick<Client,
+  | 'national_id' | 'phone_mobile' | 'phone_home' | 'phone_work'
+  | 'additional_phone' | 'email' | 'date_of_birth' | 'health_fund'
+  | 'address_city' | 'address_street' | 'address_number' | 'postal_code'
+>;
+
 export interface RecentClientVisit {
   id: number;
   user_id: number;

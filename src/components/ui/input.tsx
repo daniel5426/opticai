@@ -181,9 +181,9 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     const formatValue = React.useCallback(
       (val: string | number) => {
         if (!isNumericInput) return (val ?? "").toString();
-        return formatSignedNumber(val, !!showPlus, undefined); // Don't force precision while typing
+        return formatSignedNumber(val, !!showPlus, stepPrecision || undefined);
       },
-      [isNumericInput, showPlus],
+      [isNumericInput, showPlus, stepPrecision],
     );
 
     const initialValue = extractValue(props.value ?? props.defaultValue);
@@ -207,8 +207,10 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       const newNumeric =
         typeof newVal === "string" ? parseSignedNumber(newVal) : newVal;
 
-      // Only update if the numeric value actually changed (to avoid cursor jumps while typing)
+      // Preserve incomplete decimals while editing; format loaded values even when
+      // their numeric value matches the current display.
       if (
+        document.activeElement !== internalRef.current ||
         currentNumeric !== newNumeric ||
         (newVal === "" && localValue !== "")
       ) {
@@ -405,6 +407,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
 
     return (
       <div
+        data-slot="input-wrapper"
         dir={effectiveDir}
         className={cn(
           "group flex w-full items-center",
@@ -423,7 +426,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
               "group-hover:opacity-100",
               showLeadingOverlay ? "opacity-100" : "opacity-0",
             )}
-            style={{ width: `${leadingOverlayWidth}px` }}
+            style={{ width: `calc(${leadingOverlayWidth}px * var(--field-scale))` }}
           >
             {leadingOverlay}
           </div>
@@ -440,7 +443,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           dir={effectiveDir}
           data-slot="input"
           className={cn(
-            `${props.disabled ? "!bg-accent/50 dark:!bg-accent/50" : "!bg-card dark:!bg-card"}`,
+            `${props.disabled ? "!bg-accent/50 dark:!bg-accent/50" : "bg-field dark:bg-field"}`,
             type === "number" || center
               ? "text-center"
               : effectiveDir === "rtl"
@@ -451,7 +454,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
             "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
             hasLeadingOverlay ? "" : prefix ? "pl-5.5" : "px-1",
-            suffix ? "pr-5.5" : showButtons ? "pr-4" : "",
+            suffix ? "pr-6.5" : showButtons ? "pr-4" : "",
             className,
           )}
           {...(() => {
@@ -595,8 +598,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             className={cn(
               "pointer-events-none absolute top-1/2 z-10 -translate-y-1/2",
               isPrismDeltaSuffix(suffix)
-                ? "right-1.5 flex items-center"
-                : "text-muted-foreground right-1 text-[10px] font-medium",
+                ? "right-2 flex items-center"
+                : "text-muted-foreground right-2 text-[length:calc(0.625rem*var(--field-scale))] font-medium",
             )}
           >
             {isPrismDeltaSuffix(suffix) ? <PrismDeltaIcon /> : suffix}

@@ -302,7 +302,7 @@ export function ReferralTable({
         }
       />
 
-      <div className={fillHeight ? "bg-card min-h-0 flex-1 overflow-hidden rounded-lg" : "bg-card overflow-hidden rounded-lg"} style={{ scrollbarWidth: "none" }}>
+      <div className={fillHeight ? "min-h-0 flex-1" : undefined} style={{ scrollbarWidth: "none" }}>
         <Table
           dir="rtl"
           containerClassName={fillHeight ? "h-full min-h-0 overflow-y-auto overscroll-contain" : "max-h-[70vh] overflow-y-auto overscroll-contain"}

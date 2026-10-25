@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react"
 import { useNavigate } from "@tanstack/react-router"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Plus, Trash2 } from "lucide-react"
@@ -10,13 +10,12 @@ import { CustomModal } from "@/components/ui/custom-modal"
 import { deleteExam } from "@/lib/db/exams-db"
 import { getAllExamLayouts } from "@/lib/db/exam-layouts-db"
 import { toast } from "sonner"
-import { Skeleton } from "@/components/ui/skeleton"
 import { DateSearchHelper } from "@/lib/date-search-helper"
 import { useUser } from "@/contexts/UserContext"
 import { Eye } from "lucide-react"
 import { ExamPreviewModal } from "@/components/exam/ExamPreviewModal"
-import { TableFiltersBar } from "@/components/table-filters-bar"
-import { TablePagination } from "@/components/table-pagination"
+import { TableListLayout } from "@/components/table-list-layout"
+import { useAppLocale } from "@/localization/use-app-locale"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
 import { SortableTableHead } from "@/components/sortable-table-head"
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
@@ -81,6 +80,7 @@ export function ExamsTable({
   fillHeight = false
 }: ExamsTableProps) {
   const { t } = useTranslation()
+  const { locale, direction } = useAppLocale()
   const [searchQuery, setSearchQuery] = useState("")
   const [localSort, setLocalSort] = useState<SortState | undefined>()
   const searchValue = externalSearch !== undefined ? externalSearch : searchQuery
@@ -188,46 +188,45 @@ export function ExamsTable({
   }
 
   return (
-    <div className={fillHeight ? "flex min-h-0 flex-1 flex-col gap-2.5" : "space-y-2.5"} dir="rtl" style={{ scrollbarWidth: "none" }}>
-      <TableFiltersBar
-        searchValue={searchValue}
-        onSearchChange={(value) => (onSearchChange ? onSearchChange(value) : setSearchQuery(value))}
-        searchPlaceholder="חיפוש בדיקות…"
-        filters={[
+    <>
+      <TableListLayout fillHeight={fillHeight} columnCount={clientId === 0 ? 6 : 5} loading={loading}
+        toolbar={{searchValue:searchValue,
+onSearchChange:(value) => (onSearchChange ? onSearchChange(value) : setSearchQuery(value)),
+searchPlaceholder:t("examList.search"),
+filters:[
           {
             key: "test-name",
             value: testNameFilter,
             onChange: handleTestNameFilterChange,
-            placeholder: "סוג בדיקה",
+            placeholder: t("examList.kind"),
             options: [
-              { value: ALL_FILTER_VALUE, label: "כל הבדיקות" },
+              { value: ALL_FILTER_VALUE, label: t("examList.all") },
               ...uniqueTestNames.map((testName) => ({
                 value: testName || "unknown",
-                label: testName || "unknown"
+                label: testName || t("examList.unknown")
               }))
             ],
             widthClassName: "w-[190px]"
           }
-        ]}
-        hasActiveFilters={Boolean(searchValue.trim()) || testNameFilter !== ALL_FILTER_VALUE}
-        onReset={() => {
+        ],
+hasActiveFilters:Boolean(searchValue.trim()) || testNameFilter !== ALL_FILTER_VALUE,
+onReset:() => {
           if (onSearchChange) onSearchChange("")
           else setSearchQuery("")
           handleTestNameFilterChange(ALL_FILTER_VALUE)
-        }}
-        actions={
-          clientId > 0 ? (
+        },
+actions:clientId > 0 ? (
             activeLayouts.length > 0 ? (
-              <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
-                <DropdownMenuTrigger dir="rtl" asChild>
-                  <Button>
+              <DropdownMenu dir={direction} open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+                <DropdownMenuTrigger dir={direction} asChild>
+                  <Button aria-label={t("examList.add")}>
                     <Plus className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
                   {activeLayouts.map((layout) => (
                     <DropdownMenuItem
-                      dir="rtl"
+                      dir={direction}
                       key={layout.id}
                       onClick={() => {
                         navigate({
@@ -244,7 +243,7 @@ export function ExamsTable({
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Button>
+              <Button aria-label={t("examList.add")}>
                 <Plus className="h-4 w-4" />
               </Button>
             )
@@ -259,88 +258,56 @@ export function ExamsTable({
                 })
               }}
             />
-          )
-        }
-      />
-
-      <div className={fillHeight ? "bg-card min-h-0 flex-1 rounded-md" : "bg-card rounded-md"}>
-        <Table
-          dir="rtl"
-          containerClassName={fillHeight ? "h-full min-h-0 overflow-y-auto overscroll-contain" : "max-h-[70vh] overflow-y-auto overscroll-contain"}
-          containerStyle={{ scrollbarWidth: "none" }}
-          emptyState={!loading && displayData.length === 0 ? "לא נמצאו בדיקות לתצוגה" : undefined}
-          showTrailingRowBorder={fillHeight}
-        >
-          <TableHeader className="bg-card sticky top-0 z-0">
-            <TableRow>
+          )}}
+        header={<TableRow>
               <SortableTableHead
                 sortKey="exam_date"
                 sort={activeSort}
                 onSortChange={handleSortChange}
-                className="text-right"
+                className="text-start"
               >
-                תאריך בדיקה
+                {t("examList.date")}
               </SortableTableHead>
               <SortableTableHead
                 sortKey="test_name"
                 sort={activeSort}
                 onSortChange={handleSortChange}
-                className="text-right"
+                className="text-start"
               >
-                סוג בדיקה
+                {t("examList.kind")}
               </SortableTableHead>
               {clientId === 0 && (
                 <SortableTableHead
                   sortKey="client"
                   sort={activeSort}
                   onSortChange={handleSortChange}
-                  className="text-right"
+                  className="text-start"
                 >
-                  לקוח
+                  {t("examList.client")}
                 </SortableTableHead>
               )}
               <SortableTableHead
                 sortKey="clinic"
                 sort={activeSort}
                 onSortChange={handleSortChange}
-                className="text-right"
+                className="text-start"
               >
-                סניף
+                {t("examList.clinic")}
               </SortableTableHead>
               <SortableTableHead
                 sortKey="examiner"
                 sort={activeSort}
                 onSortChange={handleSortChange}
-                className="text-right"
+                className="text-start"
               >
-                בודק
+                {t("examList.examiner")}
               </SortableTableHead>
-              <TableHead className="w-[50px] text-right"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              Array.from({ length: 14 }).map((_, i) => (
-                <TableRow key={i} className="cursor-pointer">
-                  <TableCell>
-                    <Skeleton className="my-2 h-4 w-[70%]" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="my-2 h-4 w-[70%]" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="my-2 h-4 w-[70%]" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="my-2 h-4 w-[70%]" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="my-2 h-4 w-[70%]" />
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : displayData.length > 0 ? (
-              displayData.map((exam) => (
+              <TableHead className="w-[50px] text-start"></TableHead>
+            </TableRow>}
+        emptyState={displayData.length === 0 ? t('examList.empty') : undefined}
+        pagination={pagination ? {page:pagination.page,pageSize:pagination.pageSize,total:pagination.total,hasMore:pagination.hasMore,onPageChange:pagination.setPage,loading} : undefined}
+      >
+        {displayData.map((exam) => (
                 <TableRow
                   key={exam.id}
                   className="cursor-pointer"
@@ -354,7 +321,7 @@ export function ExamsTable({
                     })
                   }}
                 >
-                  <TableCell>{exam.exam_date ? new Date(exam.exam_date).toLocaleDateString("he-IL") : ""}</TableCell>
+                  <TableCell>{exam.exam_date ? new Date(exam.exam_date).toLocaleDateString({he:"he-IL",en:"en-US",fr:"fr-FR"}[locale]) : ""}</TableCell>
                   <TableCell>{exam.test_name}</TableCell>
                   {clientId === 0 && (
                     <TableCell>
@@ -387,7 +354,7 @@ export function ExamsTable({
                         setExamToDelete(exam)
                         setIsDeleteModalOpen(true)
                       }}
-                      title="מחיקה"
+                      title={t("examList.delete")}
                     >
                       <Trash2 className="h-4 w-4 text-red-600" />
                     </Button>
@@ -399,28 +366,14 @@ export function ExamsTable({
                         setPreviewExamId(exam.id || null)
                         setIsPreviewOpen(true)
                       }}
-                      title="צפייה מהירה"
+                      title={t("examList.preview")}
                     >
                       <Eye className="text-muted-foreground h-4 w-4" />
                     </Button>
                   </TableCell>
                 </TableRow>
-              ))
-            ) : null}
-          </TableBody>
-        </Table>
-      </div>
-
-      {pagination ? (
-        <TablePagination
-          page={pagination.page}
-          pageSize={pagination.pageSize}
-          total={pagination.total}
-          hasMore={pagination.hasMore}
-          onPageChange={pagination.setPage}
-          loading={loading}
-        />
-      ) : null}
+              ))}
+      </TableListLayout>
 
       <CustomModal
         isOpen={isDeleteModalOpen}
@@ -459,7 +412,7 @@ export function ExamsTable({
           return index > 0
         })()}
       />
-    </div>
+    </>
   )
 }
 
@@ -470,6 +423,8 @@ function NewExamButtonWithoutClient({
   activeLayouts: ExamLayout[]
   onClientSelect: (clientId: number, layoutId?: number) => void
 }) {
+  const { direction } = useAppLocale()
+  const { t } = useTranslation()
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [isClientModalOpen, setIsClientModalOpen] = useState(false)
   const [selectedLayoutId, setSelectedLayoutId] = useState<number | undefined>()
@@ -489,15 +444,15 @@ function NewExamButtonWithoutClient({
   if (activeLayouts.length > 0) {
     return (
       <>
-        <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+        <DropdownMenu dir={direction} open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
           <DropdownMenuTrigger asChild>
-            <Button>
+            <Button aria-label={t("examList.add")}>
               <Plus className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
             {activeLayouts.map((layout) => (
-              <DropdownMenuItem dir="rtl" key={layout.id} onClick={() => handleLayoutSelect(layout.id!)}>
+              <DropdownMenuItem dir={direction} key={layout.id} onClick={() => handleLayoutSelect(layout.id!)}>
                 {layout.name}
               </DropdownMenuItem>
             ))}
@@ -516,7 +471,7 @@ function NewExamButtonWithoutClient({
   }
 
   return (
-    <Button>
+    <Button aria-label={t("examList.add")}>
       <Plus className="h-4 w-4" />
     </Button>
   )

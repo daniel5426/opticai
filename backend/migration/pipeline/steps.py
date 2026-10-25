@@ -1,5 +1,6 @@
 from .common import *
 from pathlib import Path
+from services import order_group_service  # Register legacy import/group compatibility hooks.
 
 
 def migrate_lookups(db: Session, csv_dir: str, clinic_ids: List[int]):

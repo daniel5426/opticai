@@ -18,6 +18,18 @@ export interface AuthSession {
 
 type StateChangeListener = (state: AuthState, session: AuthSession | null) => void
 
+export class ClinicTrustRequiredError extends Error {
+  constructor() {
+    super('Clinic PIN is required')
+    this.name = 'ClinicTrustRequiredError'
+  }
+}
+
+const clinicTrustErrors = new Set([
+  'Clinic trust required', 'Invalid clinic trust', 'Device mismatch',
+  'Clinic trust revoked', 'Invalid clinic',
+])
+
 class AuthService {
   private state: AuthState = AuthState.LOADING
   private session: AuthSession | null = null
@@ -26,6 +38,9 @@ class AuthService {
   private router: any = null
   private routerHistory: any = null
   private isHandlingUnauthorized = false
+  private clinicContextVersion = 0
+  private clinicEntryRequest: { clinicUniqueId: string; contextVersion: number; promise: Promise<Clinic | null> } | null = null
+  private clinicTrustRequest: { clinicId: number; contextVersion: number; promise: Promise<boolean> } | null = null
 
   constructor() {
     this.initialize()
@@ -142,75 +157,113 @@ class AuthService {
   }
 
   async createClinicTrustSession(clinicUniqueId: string, pin?: string): Promise<Clinic | null> {
-    const response = await apiClient.createClinicSession({
-      clinic_unique_id: clinicUniqueId,
-      pin,
-      device_id: this.getClinicDeviceId()
-    })
-    if (response.error) throw new Error(response.error)
-    if (!response.data?.clinic_trust_token || !response.data.clinic) return null
-    apiClient.setClinicTrustToken(response.data.clinic_trust_token)
-    this.storeClinic(response.data.clinic as Clinic)
-    return response.data.clinic as Clinic
+    const contextVersion = this.clinicContextVersion
+    if (this.clinicEntryRequest?.clinicUniqueId === clinicUniqueId &&
+        this.clinicEntryRequest.contextVersion === contextVersion) return this.clinicEntryRequest.promise
+
+    const promise = (async () => {
+      const response = await apiClient.createClinicSession({
+        clinic_unique_id: clinicUniqueId, pin, device_id: this.getClinicDeviceId(),
+      })
+      if (response.error === 'Clinic PIN is required') throw new ClinicTrustRequiredError()
+      if (response.error) throw new Error(response.error)
+      if (contextVersion !== this.clinicContextVersion) return null
+      if (!response.data?.clinic_trust_token || !response.data.clinic) return null
+      apiClient.setClinicTrustToken(response.data.clinic_trust_token, response.data.clinic.id!)
+      this.storeClinic(response.data.clinic as Clinic)
+      return response.data.clinic as Clinic
+    })()
+    this.clinicEntryRequest = { clinicUniqueId, contextVersion, promise }
+    try {
+      return await promise
+    } finally {
+      if (this.clinicEntryRequest?.promise === promise) this.clinicEntryRequest = null
+    }
   }
 
   private async createAuthenticatedClinicTrust(clinic: Clinic, user?: User): Promise<boolean> {
-    const isCeo = isRoleAtLeast(user?.role_level, ROLE_LEVELS.ceo)
-    if (!clinic.id || !isCeo) {
-      return !!apiClient.getClinicTrustToken()
-    }
+    // User login/logout must not rotate a working device credential. In particular,
+    // a close timeout can destroy the renderer after rotation but before it saves the response.
+    if (apiClient.getClinicTrustToken(clinic.id)) return true
+    if (!clinic.id || !isRoleAtLeast(user?.role_level, ROLE_LEVELS.ceo)) return false
+    if (this.clinicTrustRequest?.clinicId === clinic.id &&
+        this.clinicTrustRequest.contextVersion === this.clinicContextVersion) return this.clinicTrustRequest.promise
 
-    const response = await apiClient.createAuthenticatedClinicSession({
-      clinic_id: clinic.id,
-      device_id: this.getClinicDeviceId(),
-    })
-    if (response.error || !response.data?.clinic_trust_token) {
-      return false
+    const contextVersion = this.clinicContextVersion
+    const promise = (async () => {
+      const response = await apiClient.createAuthenticatedClinicSession({
+        clinic_id: clinic.id!, device_id: this.getClinicDeviceId(),
+      })
+      if (contextVersion !== this.clinicContextVersion || response.error || !response.data?.clinic_trust_token) {
+        return false
+      }
+      apiClient.setClinicTrustToken(response.data.clinic_trust_token, clinic.id!)
+      return true
+    })()
+    this.clinicTrustRequest = { clinicId: clinic.id, contextVersion, promise }
+    try {
+      return await promise
+    } finally {
+      if (this.clinicTrustRequest?.promise === promise) this.clinicTrustRequest = null
     }
-    apiClient.setClinicTrustToken(response.data.clinic_trust_token)
-    this.storeClinic(response.data.clinic as Clinic)
-    return true
+  }
+
+  private async withClinicTrust<T>(
+    clinic: Clinic,
+    login: (token: string | null) => Promise<{ data?: T; error?: string; status?: number }>,
+  ) {
+    const contextVersion = this.clinicContextVersion
+    const response = await login(apiClient.getClinicTrustToken(clinic.id))
+    if (contextVersion !== this.clinicContextVersion) throw new Error('Clinic selection changed')
+    if (response.status !== 401 || !clinicTrustErrors.has(response.error || '')) return response
+
+    // Re-establish unprotected clinic access once. Protected clinics require their
+    // actual PIN; never turn an invalid device credential into passwordless access.
+    const restored = await this.createClinicTrustSession(clinic.unique_id)
+    if (!restored || contextVersion !== this.clinicContextVersion) throw new Error('Clinic authentication failed')
+    const retried = await login(apiClient.getClinicTrustToken(clinic.id))
+    if (contextVersion !== this.clinicContextVersion) throw new Error('Clinic selection changed')
+    if (retried.status === 401 && clinicTrustErrors.has(retried.error || '')) {
+      throw new ClinicTrustRequiredError()
+    }
+    return retried
   }
 
   async signInClinicUser(username: string, password?: string): Promise<User | null> {
     const clinic = this.session?.clinic || this.getStoredClinic()
-    const clinicTrustToken = apiClient.getClinicTrustToken()
     if (!clinic) return null
-    if (!password && !clinicTrustToken) return null
 
-    const response = password
-      ? await apiClient.loginPassword(
-          clinicTrustToken
-            ? { identifier: username, password, clinic_id: clinic.id, device_id: this.getClinicDeviceId() }
-            : { identifier: username, password, device_id: this.getClinicDeviceId() },
-          clinicTrustToken
+    const response = await this.withClinicTrust(clinic, token => password
+      ? apiClient.loginPassword(
+          { identifier: username, password, clinic_id: clinic.id, device_id: this.getClinicDeviceId() },
+          token,
         )
-      : await apiClient.loginQuick(
-          { username, device_id: this.getClinicDeviceId() },
-          clinicTrustToken
-        )
-    if (!response.data || response.error || response.data.status !== 'authenticated') return null
+      : apiClient.loginQuick({ username, device_id: this.getClinicDeviceId() }, token || '')
+    )
+    if (!response.data || response.error || response.data.status !== 'authenticated') {
+      if (response.status === 401 && response.error === 'Invalid credentials') return null
+      throw new Error(response.error || 'Authentication failed')
+    }
     this.storeAuthPayload(response.data)
     return response.data.user as User
   }
 
   async signInClinicUserWithGoogle(userId: number): Promise<void> {
     const clinic = this.session?.clinic || this.getStoredClinic()
-    const clinicTrustToken = apiClient.getClinicTrustToken()
     if (!clinic) throw new Error('Missing clinic session')
 
     const result = await window.electronAPI.googleOAuthAuthenticate()
     if (result.success === false || !result.tokens?.access_token) {
       throw new Error(result.error || 'Google authentication failed')
     }
-    const response = await apiClient.loginGoogle({
+    const response = await this.withClinicTrust(clinic, token => apiClient.loginGoogle({
       access_token: result.tokens.access_token,
       refresh_token: result.tokens.refresh_token,
       id_token: result.tokens.id_token,
-      user_id: clinicTrustToken ? userId : undefined,
+      user_id: userId,
       device_id: this.getClinicDeviceId(),
       user_info: result.userInfo,
-    }, clinicTrustToken)
+    }, token))
     if (!response.data || response.error || response.data.status !== 'authenticated') {
       throw new Error(response.error || 'Clinic Google login failed')
     }
@@ -258,6 +311,7 @@ class AuthService {
   }
 
   setClinicSession(clinic: Clinic, user?: User): void {
+    if (this.session?.clinic?.id !== clinic.id) this.clinicContextVersion += 1
     this.storeClinic(clinic)
     if (user) {
       void this.createAuthenticatedClinicTrust(clinic, user).catch(() => undefined)
@@ -288,6 +342,7 @@ class AuthService {
   }
 
   async logoutClinic(): Promise<void> {
+    this.clinicContextVersion += 1
     await apiClient.logout().catch(() => undefined)
     this.clearAllStorage()
     apiClient.clearToken()
@@ -522,6 +577,7 @@ class AuthService {
       'auth_token',
       'auth_refresh_token',
       'clinicTrustToken',
+      'clinicTrustClinicId',
       'pendingCompanySetup',
       'pendingClinicUserId',
       'isClinicGoogleAuth',

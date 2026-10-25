@@ -34,7 +34,11 @@ export function ListPageHeader({
           <p className="text-muted-foreground mt-1 text-sm">{description}</p>
         ) : null}
       </div>
-      {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
+      {actions ? (
+        <div data-canvas-toolbar className="flex flex-wrap gap-2">
+          {actions}
+        </div>
+      ) : null}
     </header>
   );
 }

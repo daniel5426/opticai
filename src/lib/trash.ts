@@ -1,4 +1,5 @@
 export type TrashEntityType =
+  | "order_group"
   | "client"
   | "order"
   | "contact_lens_order"

@@ -4,6 +4,7 @@ from sqlalchemy import engine_from_config, pool
 
 from config import settings
 from models import Base
+import agent.models  # Additive application-owned integration tables.
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)

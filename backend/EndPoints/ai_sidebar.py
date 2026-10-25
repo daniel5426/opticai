@@ -1,6 +1,7 @@
 """Scoped insights and campaign generation with explicit AI inputs."""
 import json
 from datetime import datetime
+from agent.config import now
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
@@ -34,6 +35,10 @@ def _collect_all_client_data(db, client_id, current_user):
 
 async def _insights(db, client_id, current_user, language):
     data = _collect_all_client_data(db, client_id, current_user)
+    from agent.config import enabled
+    if enabled():
+        from agent.insights import sections
+        return await sections(db, current_user, client_id, language, data)
     instructions = f'''You assist optical-clinic staff. Reply in {LANGUAGES[language]}.
 Return short actionable insights for each workflow section, based ONLY on the supplied records.
 Identify relevant cross-domain facts and contradictions without inventing clinical findings or diagnoses.
@@ -53,7 +58,7 @@ async def generate_all_states(client_id: int, locale: str = 'he', db: Session = 
     client = get_scoped_client(db, current_user, client_id)
     for part, content in sections.model_dump().items():
         setattr(client, f'ai_{part}_state', content.strip() or translated('ai.noInsights', language))
-    client.ai_updated_date = datetime.utcnow()
+    client.ai_updated_date = now()
     db.commit()
     return {'success': True, 'locale': language, 'states': {f'ai_{part}_state': getattr(client, f'ai_{part}_state') for part in sections.model_fields}}
 
@@ -66,7 +71,7 @@ async def generate_part_state(client_id: int, part: str, locale: str = 'he', db:
     sections = await _insights(db, client_id, current_user, language)
     client = get_scoped_client(db, current_user, client_id)
     setattr(client, f'ai_{part}_state', getattr(sections, part).strip() or translated('ai.noInsights', language))
-    client.ai_updated_date = datetime.utcnow()
+    client.ai_updated_date = now()
     db.commit()
     return {'success': True}
 

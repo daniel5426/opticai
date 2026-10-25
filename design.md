@@ -8,7 +8,25 @@ Prysm uses a restrained, operational interface for optical-clinic workflows. The
 - Use `Geist`, the existing semantic color tokens, and the shared spacing/radius scale.
 - Use color to communicate state or priority, not as decoration.
 - Add borders, backgrounds, and shadows only when they clarify grouping or elevation.
+- Shared cards, including exam and order cards, use `border-border/50` and `shadow-sm` in both appearance styles. Order cards retain their own padding and gaps; compact sidebar billing keeps its flat grouping.
+- On the exam detail page, cards use `bg-muted`, rounded corners, no border, and a subtle inset shadow, keeping their gaps. Fields inside these cards retain their muted backgrounds and visible borders in both modes. The tab panel and active tabs use the order workspace's borderless `shadow-sm` treatment in both appearance styles.
+- Labeled order fields have empty placeholders to avoid repeating their labels. Keep validation and lookup menu feedback visible.
+- General borders use the shared `--border` token in `src/styles/appearance.css`, including sidebar dividers. Tune it per style and mode; input borders and focus rings keep their separate tokens.
 - Preserve the real page shell while data loads; skeletonize only unavailable content.
+
+## Appearance themes
+
+- `Classic` is the default and preserves the current appearance and its accent palettes. `Pro` uses neutral light/dark surfaces and square rectangular controls; status, appointment, and chart colors keep their meaning.
+- `src/lib/appearance.ts` owns document appearance and the style/palette registry. The single root `ThemeProvider` exposes its state; legacy helpers delegate to it. Do not set theme classes or appearance variables from pages.
+- Define style tokens in `src/styles/appearance.css`, scoped to the root `data-style` attribute and light/dark mode. A new style needs a registry entry, translated label, and token definitions; selectors derive their choices from the registry.
+- Use `bg-canvas` for application canvas, `bg-field` for controls, existing semantic text/state tokens, and the shared radius scale. Use `shadow-floating` or `shadow-dialog` for elevated overlays; do not tie generic cards to clinical styling.
+- Fields use the same muted `bg-field` surface in view and edit modes. Editable fields show a border; disabled or read-only fields use a transparent border to preserve their size. Explicitly transparent inline controls retain their surrounding surface.
+- Shared fields use `--field-scale: 0.9` for height, padding, icons, and font sizes in both modes. Keep textarea minimum heights on spacing utilities and mark plain view-mode field containers with `field-view`. Surrounding labels and layout tracks keep their normal scale.
+- Themes change presentation only. Preserve font metrics, spacing, sizing, grid tracks, and breakpoints. Circular avatars, status indicators, and switch mechanics remain circular in Pro.
+- Style selection is stored per user on the device. Keep existing mode/palette keys and database `theme_preference` compatible; persisted appointment colors are independent.
+- `Bloom blue` adds the grainy blue gradient only to the sidebar and outer app wrapper; page canvases use a much lighter grained gradient tinted by the active palette. It uses the existing device-local palette preference and has a darker variant for dark mode.
+- Settings → Appearance owns style, display mode, palette, raised surfaces, and page backgrounds. Style, mode, palette, and elevation save immediately. The background editor offers theme default, solid color, or gradient with two colors, direction, strength, and grain. Background changes preview live; Save commits the device-local per-user override, Cancel discards it, and Restore default previews the palette-aware canvas until saved. Existing gradient preferences remain compatible. Page backgrounds do not change the breadcrumb header, sidebar gradient, or clinical state colors.
+- `/dev/appearance` is a development-only gallery of synthetic shared-component fixtures, with locale/style/mode controls. Use it to check Hebrew RTL and English/French LTR without changing production locale routing.
 
 ## RTL behavior
 
@@ -22,9 +40,10 @@ Prysm uses a restrained, operational interface for optical-clinic workflows. The
 ## List and table pages
 
 - Use `ListPageHeader` for the title, optional subtitle, and page-level actions so sibling list pages share the same top spacing and hierarchy.
-- Use `TableFiltersBar` for search, filters, secondary navigation, and actions.
-- Keep search and filters flat. Do not wrap the toolbar in a `Card`.
-- Keep data tables flat and consistent with the clients, orders, and exams pages. A simple `rounded-md bg-card` table shell is sufficient; do not wrap tables in `Card`.
+- Use `TableListPageContent` for list page padding and `TableListLayout` for the toolbar, table, loading rows, empty state, and pagination. Orders and exams share these wrappers; keep spacing, scrolling, and header placement in the wrappers.
+- Use `TableFiltersBar` for search, filters, secondary navigation, and actions. Pass its props through `TableListLayout.toolbar` on shared list pages.
+- Keep search and filters out of a `Card`. Controls that sit on the canvas — search, filter menus, page actions, and pagination — use the shared canvas surface: `rounded-xl`, no border, `bg-card`, and `shadow-sm` in both appearance styles. `canvasSurfaceClassName` and `data-canvas-toolbar` own that treatment.
+- List tables use the same canvas surface on the table container (`elevated`, the default). Do not add a second card shell around them. Nested tables inside an existing panel pass `elevated={false}`.
 - Primary tabs that represent distinct page sections belong in `SiteHeader`, matching the client workspace.
 - Do not create separate tabs when the only difference is hiding columns. Merge the columns into one table and use filters for states such as active or archived.
 - Use cards only for independent summaries, insights, or semantic panels—not as default containers around every region.
@@ -32,6 +51,7 @@ Prysm uses a restrained, operational interface for optical-clinic workflows. The
 - Use `TablePagination` below paginated tables for the shared page count and previous/next controls.
 - Do not add arbitrary bottom margins to table roots; page padding and the shared pagination component own the surrounding spacing.
 - In fixed-height app layouts, the page, tab content, and table shell must use a `min-h-0` flex chain. Only the table container scrolls; pagination remains visible outside it.
+- Shared list tables shrink to their rows and scroll only when the available height is exceeded. Keep empty messages in a compact table row. `TableListLayout` owns the pagination gap; do not add another margin inside it.
 - App-shell children must size with `h-full`, not `h-screen`; the desktop title bar already consumes part of the viewport.
 
 ## Dialogs

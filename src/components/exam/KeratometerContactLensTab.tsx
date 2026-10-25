@@ -9,6 +9,7 @@ import { CylTitle } from "./shared/CylTitle"
 import { useAxisWarning } from "./shared/useAxisWarning"
 import { AxisWarningInput } from "./shared/AxisWarningInput"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useAppLocale } from "@/localization/use-app-locale"
 import { convertKeratometerValue, getKeratometerRange, getKeratometerStep, KeratometerUnit } from "@/utils/keratometer-utils"
 
 interface KeratometerContactLensTabProps {
@@ -26,6 +27,7 @@ export function KeratometerContactLensTab({
   hideEyeLabels = false,
   needsMiddleSpacer = false
 }: KeratometerContactLensTabProps) {
+  const { direction } = useAppLocale();
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
   const [unit, setUnit] = useState<KeratometerUnit>("mm")
 
@@ -128,18 +130,19 @@ export function KeratometerContactLensTab({
               <Tabs
                 value={unit}
                 onValueChange={handleUnitChange}
-                className="w-fit"
+                className="w-fit -translate-y-1"
+                dir={direction}
               >
-                <TabsList className="h-7 p-1 bg-muted/50 border">
+                <TabsList className="grid h-8 w-auto grid-cols-2">
                   <TabsTrigger
                     value="mm"
-                    className="h-5 text-[10px] px-3 data-[state=active]:bg-background"
+                    className="py-0.5"
                   >
                     mm
                   </TabsTrigger>
                   <TabsTrigger
                     value="D"
-                    className="h-5 text-[10px] px-3 data-[state=active]:bg-background"
+                    className="py-0.5"
                   >
                     D
                   </TabsTrigger>

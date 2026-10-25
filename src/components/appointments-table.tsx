@@ -1116,8 +1116,8 @@ export function AppointmentsTable({
       <div
         className={
           fillHeight
-            ? "bg-card min-h-0 flex-1 rounded-md"
-            : "bg-card rounded-md"
+            ? "min-h-0 flex-1"
+            : undefined
         }
       >
         <Table

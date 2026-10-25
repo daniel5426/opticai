@@ -149,10 +149,7 @@ def _credentials_exception() -> HTTPException:
     )
 
 
-def get_current_auth_session(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db),
-) -> AuthSession:
+def access_session_id(credentials: HTTPAuthorizationCredentials) -> str:
     try:
         payload = jwt.decode(
             credentials.credentials,
@@ -167,13 +164,28 @@ def get_current_auth_session(
     session_id = payload.get("session_id")
     if not session_id:
         raise _credentials_exception()
-    auth_session = db.query(AuthSession).filter(AuthSession.id == session_id).first()
-    if (
-        not auth_session
-        or auth_session.revoked_at is not None
-        or is_expired(auth_session.expires_at)
-    ):
+    return session_id
+
+
+def validate_auth_session(auth_session: AuthSession | None) -> AuthSession:
+    if not auth_session or auth_session.revoked_at is not None or is_expired(auth_session.expires_at):
         raise _credentials_exception()
+    return auth_session
+
+
+def validate_current_user(user: User | None) -> User:
+    if user is None or not user.is_active:
+        raise _credentials_exception()
+    return ensure_user_role_level(user)
+
+
+def get_current_auth_session(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+) -> AuthSession:
+    session_id = access_session_id(credentials)
+    auth_session = db.query(AuthSession).filter(AuthSession.id == session_id).first()
+    validate_auth_session(auth_session)
     auth_session.last_seen_at = utcnow()
     return auth_session
 
@@ -183,6 +195,4 @@ def get_current_user(
     db: Session = Depends(get_db),
 ) -> User:
     user = db.query(User).filter(User.id == auth_session.user_id).first()
-    if user is None or not user.is_active:
-        raise _credentials_exception()
-    return ensure_user_role_level(user)
+    return validate_current_user(user)

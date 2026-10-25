@@ -76,6 +76,7 @@ def _extract_rows_from_component(
     clinic_id: int,
     source_date: date | None,
     card_type: str,
+    component_key: str,
     exam_id: int | None = None,
     layout_instance_id: int | None = None,
 ) -> list[PrescriptionSearchIndex]:
@@ -104,6 +105,7 @@ def _extract_rows_from_component(
                 exam_id=exam_id,
                 layout_instance_id=layout_instance_id,
                 card_type=card_type,
+                component_key=component_key,
                 source_date=source_date,
                 eye=eye,
                 sph=sph,
@@ -117,7 +119,7 @@ def _extract_rows_from_component(
     return rows
 
 
-def _iter_components(payload: Any) -> Iterable[tuple[str, dict[str, Any]]]:
+def _iter_components(payload: Any) -> Iterable[tuple[str, str, dict[str, Any]]]:
     if not isinstance(payload, dict):
         return
     for key, value in payload.items():
@@ -136,7 +138,7 @@ def _iter_components(payload: Any) -> Iterable[tuple[str, dict[str, Any]]]:
             for eye in ("r", "l")
             for field in ("sph", "cyl", "ax", "add", "ad", "va", "pd")
         ):
-            yield card_type, value
+            yield key_text, card_type, value
 
 
 def _delete_source_rows(db: Session, source_type: str, source_id: int) -> None:
@@ -172,7 +174,7 @@ def rebuild_exam_instance_index(db: Session, instance: ExamLayoutInstance) -> No
 
     _delete_source_rows(db, "exam", instance.id)
     rows: list[PrescriptionSearchIndex] = []
-    for card_type, component in _iter_components(instance.exam_data or {}):
+    for component_key, card_type, component in _iter_components(instance.exam_data or {}):
         rows.extend(
             _extract_rows_from_component(
                 component,
@@ -182,6 +184,7 @@ def rebuild_exam_instance_index(db: Session, instance: ExamLayoutInstance) -> No
                 clinic_id=exam.clinic_id,
                 source_date=_date(exam.exam_date),
                 card_type=card_type,
+                component_key=component_key,
                 exam_id=exam.id,
                 layout_instance_id=instance.id,
             )
@@ -327,7 +330,7 @@ def rebuild_order_index(db: Session, order: Order) -> None:
     if not order.client_id or not order.clinic_id:
         return
     rows: list[PrescriptionSearchIndex] = []
-    for card_type, component in _iter_components(order.order_data or {}):
+    for component_key, card_type, component in _iter_components(order.order_data or {}):
         rows.extend(
             _extract_rows_from_component(
                 component,
@@ -337,6 +340,7 @@ def rebuild_order_index(db: Session, order: Order) -> None:
                 clinic_id=order.clinic_id,
                 source_date=_date(order.order_date),
                 card_type=card_type,
+                component_key=component_key,
             )
         )
     db.add_all(rows)
@@ -347,7 +351,7 @@ def rebuild_contact_lens_order_index(db: Session, order: ContactLensOrder) -> No
     if not order.client_id or not order.clinic_id:
         return
     rows: list[PrescriptionSearchIndex] = []
-    for card_type, component in _iter_components(order.order_data or {}):
+    for component_key, card_type, component in _iter_components(order.order_data or {}):
         rows.extend(
             _extract_rows_from_component(
                 component,
@@ -357,6 +361,7 @@ def rebuild_contact_lens_order_index(db: Session, order: ContactLensOrder) -> No
                 clinic_id=order.clinic_id,
                 source_date=_date(order.order_date),
                 card_type=card_type,
+                component_key=component_key,
             )
         )
     db.add_all(rows)
@@ -367,7 +372,7 @@ def rebuild_referral_index(db: Session, referral: Referral) -> None:
     if not referral.client_id or not referral.clinic_id:
         return
     rows: list[PrescriptionSearchIndex] = []
-    for card_type, component in _iter_components(referral.referral_data or {}):
+    for component_key, card_type, component in _iter_components(referral.referral_data or {}):
         rows.extend(
             _extract_rows_from_component(
                 component,
@@ -377,6 +382,7 @@ def rebuild_referral_index(db: Session, referral: Referral) -> None:
                 clinic_id=referral.clinic_id,
                 source_date=_date(referral.date),
                 card_type=card_type,
+                component_key=component_key,
             )
         )
 
@@ -389,6 +395,7 @@ def rebuild_referral_index(db: Session, referral: Referral) -> None:
                 client_id=referral.client_id,
                 clinic_id=referral.clinic_id,
                 card_type="referral-eye",
+                component_key="referral-eye",
                 source_date=_date(referral.date),
                 eye=eye,
                 sph=eye_row.sph,

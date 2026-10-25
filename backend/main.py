@@ -4,11 +4,13 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.responses import ORJSONResponse
-from fastapi.middleware.gzip import GZipMiddleware
+from services.agent_transport import ClinicGZipMiddleware
 import logging
 from fastapi.middleware.cors import CORSMiddleware
 import config
-from EndPoints import auth, companies, clinics, users, clients, families, appointments, medical_logs, orders, referrals, files, settings, work_shifts, lookups, campaigns, billing, chats, email_logs, exam_layouts, exams, unified_exam_data, ai, ai_sidebar, control_center, dashboard, search, whatsapp_webhook, whatsapp, softoptic_migration, migration, migration_source_data, clinic_data_prune, clinic_holidays, inventory, plans, subscriptions, trash, web_auth
+from EndPoints import order_groups, auth, companies, clinics, users, clients, families, appointments, medical_logs, orders, referrals, files, settings, work_shifts, lookups, campaigns, billing, chats, email_logs, exam_layouts, exams, unified_exam_data, ai, ai_sidebar, control_center, dashboard, search, whatsapp_webhook, whatsapp, softoptic_migration, migration, migration_source_data, clinic_data_prune, clinic_holidays, inventory, plans, subscriptions, trash, web_auth
+from EndPoints import agent as prysm_agent
+from agent.config import enabled as agents24_enabled
 import httpx
 import json
 from jose import JWTError, jwt
@@ -34,8 +36,14 @@ def seed_initial_data():
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    seed_initial_data()
-    yield
+    from agent.local_startup import local_agent_services
+    from agent.runtime import close_runtime_clients
+    try:
+        async with local_agent_services():
+            seed_initial_data()
+            yield
+    finally:
+        await close_runtime_clients()
 
 
 app = FastAPI(
@@ -54,7 +62,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.add_middleware(GZipMiddleware, minimum_size=1024)
+app.add_middleware(ClinicGZipMiddleware, minimum_size=1024)
 
 
 @app.middleware("http")
@@ -67,6 +75,7 @@ async def enforce_subscription_access(request, call_next):
     if (
         config.settings.SUBSCRIPTION_ENFORCEMENT_MODE != "enforce"
         or request.method in {"GET", "HEAD", "OPTIONS"}
+        or request.url.path.startswith("/api/agents24/")
         or request.url.path.startswith(f"{config.settings.API_V1_STR}/auth")
         or request.url.path.startswith(f"{config.settings.API_V1_STR}/subscriptions")
     ):
@@ -110,6 +119,7 @@ app.include_router(clients.router, prefix=config.settings.API_V1_STR)
 app.include_router(families.router, prefix=config.settings.API_V1_STR)
 app.include_router(appointments.router, prefix=config.settings.API_V1_STR)
 app.include_router(medical_logs.router, prefix=config.settings.API_V1_STR)
+app.include_router(order_groups.router, prefix=config.settings.API_V1_STR)
 app.include_router(orders.router, prefix=config.settings.API_V1_STR)
 app.include_router(orders.cl_router, prefix=config.settings.API_V1_STR)
 app.include_router(referrals.router, prefix=config.settings.API_V1_STR)
@@ -127,6 +137,10 @@ app.include_router(exams.router, prefix=config.settings.API_V1_STR)
 app.include_router(unified_exam_data.router, prefix=config.settings.API_V1_STR)
 app.include_router(ai.router, prefix=config.settings.API_V1_STR)
 app.include_router(ai_sidebar.router, prefix=config.settings.API_V1_STR)
+app.include_router(prysm_agent.router, prefix=config.settings.API_V1_STR)
+if agents24_enabled():
+    from agent.runtime import bff_router
+    app.include_router(bff_router())
 app.include_router(control_center.router, prefix=config.settings.API_V1_STR)
 app.include_router(dashboard.router, prefix=config.settings.API_V1_STR)
 app.include_router(search.router, prefix=config.settings.API_V1_STR)
@@ -165,26 +179,4 @@ async def database_health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    import socket
-
-    def is_port_in_use(port: int) -> bool:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            try:
-                s.bind(('0.0.0.0', port))
-                return False
-            except socket.error:
-                return True
-
-    port = config.settings.PORT
-    # Try 8000 first if the default is 8000 or if we want to be proactive
-    # The user specifically mentioned 8000 being taken, so let's try 8000 then 8001
-    primary_port = 8000
-    fallback_port = 8001
-    
-    if not is_port_in_use(primary_port):
-        port = primary_port
-    else:
-        print(f"Port {primary_port} is busy, trying {fallback_port}...")
-        port = fallback_port
-
-    uvicorn.run(app, host=config.settings.HOST, port=port)
+    uvicorn.run(app, host=config.settings.HOST, port=config.settings.PORT)

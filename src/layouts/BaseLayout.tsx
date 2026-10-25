@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -12,6 +11,7 @@ import {
 import { Company, Settings, User } from "@/lib/db/schema-interface";
 import { SettingsContext } from "@/contexts/SettingsContext";
 import { ClientSidebarProvider } from "@/contexts/ClientSidebarContext";
+import { PrysmAgentProvider } from "@/contexts/PrysmAgentContext";
 import { NavigationGuardProvider } from "@/contexts/NavigationGuardContext";
 import { useUser } from "@/contexts/UserContext";
 import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels";
@@ -83,6 +83,7 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const location = useLocation();
+  const isAppearanceGallery = import.meta.env.DEV && location.pathname === "/dev/appearance";
   const routerLocation = useRouterState({ select: (state) => state.location });
 
   // Safe access to user context (handles HMR gracefully)
@@ -320,23 +321,27 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
     }
   }, [routerLocation?.pathname, routerLocation?.search, routerLocation?.hash]);
 
+  // Synthetic development fixtures use their own shell and never depend on clinic access.
+  if (isAppearanceGallery) return <div className="flex h-screen flex-col"><main className="min-h-0 flex-1">{children}</main></div>;
+
   // Show loading during auth initialization (except on callback route)
   if (isUserLoading && !isCallbackRoute) {
     return (
-      <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+      <>
         <div className="bg-background flex h-screen flex-col items-center justify-center">
           <Loader size="lg" />
         </div>
         <Toaster />
-      </ThemeProvider>
+      </>
     );
   }
 
   return (
     <>
-      <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+      <>
         <SettingsContext.Provider value={{ settings, company, updateSettings, updateCompany }}>
           <ClientSidebarProvider>
+            <PrysmAgentProvider>
             <NavigationGuardProvider>
               {isControlCenterRoute &&
               currentUser &&
@@ -377,7 +382,7 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
                             <div id="header-container" />
                           </div>
                           <main
-                            className="bg-muted dark:bg-muted/50 no-scrollbar flex min-h-0 flex-1 overflow-auto"
+                            className="bg-canvas no-scrollbar flex min-h-0 flex-1 overflow-auto"
                             style={{ scrollbarWidth: "none" }}
                           >
                             <div className="no-scrollbar flex min-h-0 flex-1 flex-col overflow-auto">
@@ -418,7 +423,7 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
                             <div id="header-container" />
                           </div>
                           <main
-                            className="bg-muted dark:bg-muted/50 no-scrollbar flex min-h-0 flex-1 overflow-auto"
+                            className="bg-canvas no-scrollbar flex min-h-0 flex-1 overflow-auto"
                             style={{ scrollbarWidth: "none" }}
                           >
                             <div className="no-scrollbar flex min-h-0 flex-1 flex-col overflow-auto">
@@ -438,10 +443,11 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
                 </div>
               )}
             </NavigationGuardProvider>
+            </PrysmAgentProvider>
           </ClientSidebarProvider>
         </SettingsContext.Provider>
         <Toaster />
-      </ThemeProvider>
+      </>
     </>
   );
 }
@@ -458,12 +464,12 @@ export default function BaseLayout({
   return (
     <React.Suspense
       fallback={
-        <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+        <>
           <div className="flex h-screen items-center justify-center">
             <Loader size="lg" />
           </div>
           <Toaster />
-        </ThemeProvider>
+        </>
       }
     >
       <BaseLayoutContent>{children}</BaseLayoutContent>

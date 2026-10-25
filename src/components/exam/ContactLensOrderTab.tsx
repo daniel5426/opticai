@@ -45,7 +45,7 @@ const fieldClass =
   "mt-1.5 h-9 w-full text-sm disabled:cursor-default disabled:opacity-100";
 const labelClass = "text-sm text-muted-foreground block text-right";
 const viewFieldClass =
-  "mt-1.5 flex h-9 w-full items-center rounded-md border bg-accent/50 px-3 text-sm";
+  "field-view mt-1.5 flex h-9 w-full items-center rounded-md border border-transparent bg-field px-3 text-sm";
 
 export function ContactLensOrderTab({
   contactLensOrder,
@@ -163,9 +163,7 @@ export function ContactLensOrderTab({
               >
                 <SelectTrigger className={`${fieldClass} bg-white text-right`}>
                   <SelectValue
-                    placeholder={
-                      isLoadingCompanyClinics ? "טוען סניפים..." : "בחר סניף"
-                    }
+                    placeholder=""
                   />
                 </SelectTrigger>
                 <SelectContent>
@@ -197,7 +195,7 @@ export function ContactLensOrderTab({
                 }
               >
                 <SelectTrigger className={`${fieldClass} bg-white text-right`}>
-                  <SelectValue placeholder="בחר סטטוס" />
+                  <SelectValue placeholder="" />
                 </SelectTrigger>
                 <SelectContent>
                   {ORDER_STATUS_OPTIONS.map((status) => (
@@ -223,7 +221,7 @@ export function ContactLensOrderTab({
                 onValueChange={(value) => handleFieldChange("advisor", value)}
               >
                 <SelectTrigger className={`${fieldClass} bg-white text-right`}>
-                  <SelectValue placeholder="בחר מוכר" />
+                  <SelectValue placeholder="" />
                 </SelectTrigger>
                 <SelectContent>
                   {workerOptions.map((name) => (
@@ -249,7 +247,7 @@ export function ContactLensOrderTab({
                 onValueChange={(value) => handleFieldChange("deliverer", value)}
               >
                 <SelectTrigger className={`${fieldClass} bg-white text-right`}>
-                  <SelectValue placeholder="בחר עובד" />
+                  <SelectValue placeholder="" />
                 </SelectTrigger>
                 <SelectContent>
                   {workerOptions.map((name) => (
@@ -275,7 +273,7 @@ export function ContactLensOrderTab({
                 onChange={(value) =>
                   handleFieldChange("cleaning_solution", value)
                 }
-                placeholder="בחר תמיסת ניקוי"
+                placeholder=""
                 className={`${fieldClass} text-right [&_input]:h-9 [&_input]:text-sm`}
                 disabled={false}
               />
@@ -295,7 +293,7 @@ export function ContactLensOrderTab({
                 onChange={(value) =>
                   handleFieldChange("disinfection_solution", value)
                 }
-                placeholder="בחר תמיסת חיטוי"
+                placeholder=""
                 className={`${fieldClass} text-right [&_input]:h-9 [&_input]:text-sm`}
                 disabled={false}
               />
@@ -315,7 +313,7 @@ export function ContactLensOrderTab({
                 onChange={(value) =>
                   handleFieldChange("rinsing_solution", value)
                 }
-                placeholder="בחר תמיסת שטיפה"
+                placeholder=""
                 className={`${fieldClass} text-right [&_input]:h-9 [&_input]:text-sm`}
                 disabled={false}
               />

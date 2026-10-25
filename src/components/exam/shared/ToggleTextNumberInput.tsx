@@ -8,6 +8,7 @@ import React, {
 import { createPortal } from "react-dom";
 import { cn } from "@/utils/tailwind";
 import { FastInput, inputSyncManager } from "./OptimizedInputs";
+import { useTranslation } from "react-i18next";
 import { ChevronDown } from "lucide-react";
 
 const PRESET_TRIGGER_WIDTH_PX = 12;
@@ -37,6 +38,7 @@ export function ToggleTextNumberInput({
   numericProps,
   className,
 }: ToggleTextNumberInputProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -246,7 +248,7 @@ export function ToggleTextNumberInput({
             type="button"
             tabIndex={-1}
             disabled={disabled || textOptions.length === 0}
-            aria-label="Choose text preset"
+            aria-label={t("appearanceChoosePreset")}
             aria-haspopup="listbox"
             aria-expanded={open}
             className={cn(
@@ -306,7 +308,7 @@ export function ToggleTextNumberInput({
           <div
             ref={menuRef}
             role="listbox"
-            className="border-border bg-popover text-popover-foreground fixed z-[9999] w-fit min-w-16 overflow-hidden rounded-md border p-1 shadow-md"
+            className="border-border bg-popover text-popover-foreground fixed z-[9999] w-fit min-w-16 overflow-hidden rounded-md border p-1 shadow-floating"
             style={{
               left: menuPosition.left,
               top: menuPosition.top,

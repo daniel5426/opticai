@@ -1,8 +1,5 @@
 import React, { useEffect, Suspense, ReactNode } from "react";
-import {
-  syncThemeWithLocal,
-  applyUserThemeFromStorage,
-} from "./helpers/theme_helpers";
+import { ThemeProvider } from "@/components/theme-provider";
 import { useTranslation } from "react-i18next";
 import "./localization/i18n";
 import { updateAppLanguage } from "./helpers/language_helpers";
@@ -79,10 +76,6 @@ export default function App() {
   const { i18n, t } = useTranslation();
 
   useEffect(() => {
-    // Apply user's theme colors immediately from localStorage to prevent flash
-    applyUserThemeFromStorage();
-    // Then sync theme mode settings
-    syncThemeWithLocal();
     updateAppLanguage(i18n);
 
     // Listen for Google OAuth codes from other tabs (system browser redirect)
@@ -113,6 +106,7 @@ export default function App() {
   }, []);
 
   return (
+    <ThemeProvider>
     <ErrorBoundary
       title={t("appError")}
       description={t("appErrorDescription")}
@@ -125,6 +119,7 @@ export default function App() {
         </Suspense>
       </QueryClientProvider>
     </ErrorBoundary>
+    </ThemeProvider>
   );
 }
 

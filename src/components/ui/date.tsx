@@ -7,6 +7,9 @@ import {
   PopoverContent,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { useAppLocale } from "@/localization/use-app-locale";
+import { getDateLocale } from "@/localization/date-locale";
+import { useTranslation } from "react-i18next";
 
 interface DateInputProps {
   name: string;
@@ -14,6 +17,8 @@ interface DateInputProps {
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   className?: string;
   disabled?: boolean;
+  dir?: "rtl" | "ltr";
+  "aria-label"?: string;
 }
 
 export function DateInput({
@@ -22,7 +27,11 @@ export function DateInput({
   onChange,
   className,
   disabled = false,
+  dir,
+  "aria-label": ariaLabel,
 }: DateInputProps) {
+  const { locale, direction } = useAppLocale();
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = React.useState(false);
   const [textValue, setTextValue] = React.useState<string>("");
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -205,23 +214,26 @@ export function DateInput({
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <div className="relative">
+      <div data-slot="date-input" className="relative">
         <Input
           ref={inputRef}
           type="text"
           name={name}
+          aria-label={ariaLabel}
+          dir={dir}
           value={textValue}
           onChange={handleTextChange}
           onBlur={handleTextBlur}
           disabled={disabled}
           style={{ scrollbarWidth: "none" }}
-          className={`h-9 pr-10 text-sm ${disabled ? "bg-accent/50" : "bg-white"} disabled:cursor-default disabled:opacity-100 ${className || ""}`}
+          className={`h-9 pr-10 text-sm ${disabled ? "bg-accent/50" : "bg-field"} disabled:cursor-default disabled:opacity-100 ${className || ""}`}
           placeholder=""
         />
         <PopoverTrigger asChild>
           <button
             type="button"
             disabled={disabled}
+            aria-label={t("chooseDate")}
             className="pointer-events-auto absolute top-1/2 right-3 -translate-y-1/2 transform disabled:pointer-events-none disabled:opacity-50"
           >
             <svg
@@ -239,9 +251,15 @@ export function DateInput({
             </svg>
           </button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="end">
+        <PopoverContent className="w-auto p-0" align="end" dir={direction}>
           <Calendar
             mode="single"
+            dir={direction}
+            locale={getDateLocale(locale)}
+            formatters={{
+              formatMonthDropdown: (date) =>
+                new Intl.DateTimeFormat(locale, { month: "short" }).format(date),
+            }}
             selected={selectedDate}
             onSelect={handleCalendarSelect}
             initialFocus

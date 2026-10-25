@@ -1,0 +1,36 @@
+schema: agents24.rag/v1
+name: Prysm Native Document Intake
+description: Extract native DOCX and text documents with source evidence.
+mode: ingestion
+steps:
+  source:
+    uses: file_source
+    with:
+      ingestion_type: managed_file_batches
+      batch_size: 1
+  extract:
+    uses: document_extract
+  chunk:
+    uses: chunker
+    with:
+      strategy: structure
+      chunk_size: 512
+      chunk_overlap: 50
+  embed:
+    uses: model_embedder
+    with:
+      model_id: $models.embedding
+  store:
+    uses: knowledge_store_sink
+    with:
+      knowledge_store_id: ../stores/documents.yaml
+      namespace_dynamic: true
+flow:
+- from: source
+  to: extract
+- from: extract
+  to: chunk
+- from: chunk
+  to: embed
+- from: embed
+  to: store

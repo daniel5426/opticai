@@ -136,7 +136,7 @@ export function LookupTableManager({
                 <div className="w-8 h-8 border-4 border-primary rounded-full animate-spin"></div>
               </div>
             ) : null}
-            <Table>
+            <Table elevated={false}>
               <TableBody>
                 {!isLoading && items.length === 0 ? (
                   <TableRow>

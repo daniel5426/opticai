@@ -46,9 +46,11 @@ import { cn } from "@/utils/tailwind";
 import { User, Clinic } from "@/lib/db/schema-interface";
 import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels";
 import { useTranslation } from "react-i18next";
+import { useAppLocale } from "@/localization/use-app-locale";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { SidebarQuickActions } from "@/components/sidebar-quick-actions";
+import { usePrysmAgent } from "@/contexts/PrysmAgentContext";
 
 const showBetaSidebarItems = import.meta.env.DEV;
 
@@ -56,6 +58,7 @@ const getNavData = (
   t: (key: string) => string,
   currentUser?: User,
   onOpenSearch?: () => void,
+  agentAvailable = false,
 ) => ({
   navMain: [
     {
@@ -70,7 +73,7 @@ const getNavData = (
       icon: IconUsers,
       quickAction: "client" as const,
     },
-    ...(showBetaSidebarItems
+    ...(showBetaSidebarItems && agentAvailable
       ? [
           {
             title: t("smartAssistant"),
@@ -168,11 +171,13 @@ export function AppSidebar({
   currentClinic?: Clinic | null;
 }) {
   const { t } = useTranslation();
+  const { direction } = useAppLocale();
   const { state } = useSidebar();
   const hasLogo = logoPath;
   const [isLogoVisible, setIsLogoVisible] = React.useState(false);
   const [isSearchOpen, setIsSearchOpen] = React.useState(false);
-  const navData = getNavData(t, currentUser, () => setIsSearchOpen(true));
+  const agent = usePrysmAgent();
+  const navData = getNavData(t, currentUser, () => setIsSearchOpen(true), agent?.available);
 
   React.useEffect(() => {
     if (state === "collapsed") {
@@ -253,7 +258,7 @@ export function AppSidebar({
       </SidebarFooter>
       <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
         <DialogContent
-          dir="rtl"
+          dir={direction}
           showCloseButton={false}
           className="!top-[10vh] max-h-[calc(90vh-1rem)] w-[98vw] !translate-y-0 !gap-0 overflow-hidden rounded-lg !p-0 shadow-lg sm:max-w-screen-sm"
         >

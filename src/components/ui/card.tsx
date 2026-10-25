@@ -2,12 +2,14 @@ import * as React from "react"
 
 import { cn } from "@/utils/tailwind"
 
-function Card({ className, ...props }: React.ComponentProps<"div">) {
+function Card({ className, appearance = "panel", ...props }: React.ComponentProps<"div"> & { appearance?: "panel" | "clinical" }) {
   return (
     <div
       data-slot="card"
+      data-appearance={appearance}
       className={cn(
-        "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border examcard py-6",
+        "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border! border-border/50 shadow-sm! py-6",
+        appearance === "clinical" && "examcard",
         className
       )}
       {...props}

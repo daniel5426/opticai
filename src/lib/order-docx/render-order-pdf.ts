@@ -280,7 +280,7 @@ function notesRow(
   </table>`;
 }
 
-export function renderRegularOrderPdfHtml(data: RegularOrderPrintModel, logoUrl?: string): string {
+export function renderRegularOrderPdfHtml(data: RegularOrderPrintModel, logoUrl?: string, includeBilling = true): string {
   const body = [
     '<div class="spacer"></div>',
     combinedFieldTable([
@@ -338,20 +338,20 @@ export function renderRegularOrderPdfHtml(data: RegularOrderPrintModel, logoUrl?
       ["אורך זרוע", data.frame_length],
       ["סופק על ידי", data.frame_supplied_by],
     ], 3),
-    sectionTitle("סיכום כספי"),
+    ...(includeBilling ? [sectionTitle("סיכום כספי"),
     combinedFieldTable([
       ['סה"כ', data.total_price],
       ["שולם", data.amount_paid],
       ["יתרה", data.balance_due],
       ["סטטוס תשלום", data.payment_status],
-    ], 4),
+    ], 4)] : []),
     notesRow("הערות קליניות", data.clinic_notes, "הערות לספק", data.supplier_notes),
   ].join("");
 
   return documentHtml("הזמנה רגילה", data.clinic_info || data.clinic_name, body, logoUrl);
 }
 
-export function renderContactOrderPdfHtml(data: ContactOrderPrintModel, logoUrl?: string): string {
+export function renderContactOrderPdfHtml(data: ContactOrderPrintModel, logoUrl?: string, includeBilling = true): string {
   const body = [
     '<div class="spacer"></div>',
     combinedFieldTable([
@@ -398,13 +398,13 @@ export function renderContactOrderPdfHtml(data: ContactOrderPrintModel, logoUrl?
       ["חיטוי", data.disinfection_solution],
       ["שטיפה", data.rinsing_solution],
     ], 3),
-    sectionTitle("סיכום כספי"),
+    ...(includeBilling ? [sectionTitle("סיכום כספי"),
     combinedFieldTable([
       ['סה"כ', data.total_price],
       ["שולם", data.amount_paid],
       ["יתרה", data.balance_due],
       ["סטטוס תשלום", data.payment_status],
-    ], 4),
+    ], 4)] : []),
     notesRow("הערות קליניות", data.clinic_notes, "הערות לספק", data.supplier_notes),
   ].join("");
 
@@ -415,14 +415,16 @@ export function renderOrderPdfHtml({
   kind,
   data,
   logoUrl,
+  includeBilling = true,
 }: {
   kind: OrderExportKind;
   data: RegularOrderPrintModel | ContactOrderPrintModel;
   logoUrl?: string;
+  includeBilling?: boolean;
 }) {
   return kind === "contact"
-    ? renderContactOrderPdfHtml(data as ContactOrderPrintModel, logoUrl)
-    : renderRegularOrderPdfHtml(data as RegularOrderPrintModel, logoUrl);
+    ? renderContactOrderPdfHtml(data as ContactOrderPrintModel, logoUrl, includeBilling)
+    : renderRegularOrderPdfHtml(data as RegularOrderPrintModel, logoUrl, includeBilling);
 }
 
 export async function renderOrderPdf({

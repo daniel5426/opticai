@@ -31,6 +31,9 @@ For 'my appointments/exams', use the clinic records. Tools support payload lists
 
 
 def _context(body, user, db):
+    from agent.config import enabled
+    if enabled():
+        raise HTTPException(410, detail='agent.legacyReadOnly')
     message = body.get('message')
     if not isinstance(message, str) or not message.strip() or len(message) > 20000:
         raise HTTPException(422, detail='ai.invalidMessage')

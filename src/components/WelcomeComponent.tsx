@@ -139,7 +139,7 @@ export function WelcomeComponent({ onControlCenterClick, onClinicEntranceClick }
           >
             <CardHeader className="text-center pb-3">
               <div className="w-16 h-16 bg-general-secondary rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:bg-general-primary/80 transition-all duration-300 shadow-sm">
-                <Building2 className="w-8 h-8 text-white" />
+                <Building2 className="w-8 h-8 text-general-secondary-foreground group-hover:text-general-primary-foreground" />
               </div>
               <CardTitle className="text-xl font-bold text-slate-900 dark:text-slate-100">
                 מרכז בקרה
@@ -172,7 +172,7 @@ export function WelcomeComponent({ onControlCenterClick, onClinicEntranceClick }
           >
             <CardHeader className="text-center pb-3">
               <div className="w-16 h-16 bg-general-secondary rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:bg-general-primary/80 transition-all duration-300 shadow-sm">
-                <Stethoscope className="w-8 h-8 text-white" />
+                <Stethoscope className="w-8 h-8 text-general-secondary-foreground group-hover:text-general-primary-foreground" />
               </div>
               <CardTitle className="text-xl font-bold text-slate-900 dark:text-slate-100">
                 כניסה למרפאה

@@ -1,0 +1,237 @@
+/* Appearance changes geometry-free tokens; layout and clinical state colors stay independent. */
+@theme inline {
+  --color-canvas: var(--appearance-canvas);
+  --color-field: hsl(var(--field));
+  --color-tab-surface: var(--appearance-tab-surface);
+  --color-skeleton: var(--appearance-skeleton);
+  --shadow-floating: var(--appearance-shadow-floating);
+  --shadow-dialog: var(--appearance-shadow-dialog);
+}
+
+@layer base {
+  :root {
+    --appearance-exam-inset-shadow: inset 0 1px 3px rgb(0 0 0 / 0.07), inset 0 -1px 0 rgb(255 255 255 / 0.45);
+    --border: 214.3 31.8% 93.5%;
+    --field: 0 0% 96%;
+    --field-muted-foreground: 215.4 16.3% 44%;
+    --field-scale: 0.9;
+    --general-primary-foreground: 0 0% 100%;
+    --general-secondary-foreground: 0 0% 100%;
+    --appearance-canvas: hsl(var(--background));
+    --appearance-canvas-tint-strength: 0.3;
+    --appearance-tab-surface: color-mix(in oklab, var(--color-cyan-800) 10%, transparent);
+    --appearance-skeleton: var(--color-gray-200);
+    --appearance-radius-xs: 0.125rem;
+    --appearance-radius-xl: 0.75rem;
+    --appearance-radius-2xl: 1rem;
+    --appearance-radius-3xl: 1.5rem;
+    --appearance-radius-4xl: 2rem;
+    --appearance-radius-badge: 9999px;
+    --appearance-radius-checkbox: 4px;
+    --appearance-shadow-floating: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --appearance-shadow-dialog: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  }
+
+  .dark {
+    --appearance-exam-inset-shadow: inset 0 1px 3px rgb(0 0 0 / 0.2), inset 0 -1px 0 rgb(255 255 255 / 0.03);
+    --border: 217.2 32.6% 15.5%;
+    --field: 217.2 32.6% 19.5%;
+    --field-muted-foreground: var(--muted-foreground);
+    --appearance-canvas: hsl(var(--muted) / 0.5);
+    --appearance-canvas-tint-strength: 1;
+    --appearance-tab-surface: hsl(var(--card) / 0.5);
+    --appearance-skeleton: var(--color-slate-700);
+  }
+
+  :root[data-style="pro"] {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 6.67%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 6.67%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 6.67%;
+    --primary: 0 0% 0%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 94.12%;
+    --secondary-foreground: 0 0% 6.67%;
+    --muted: 0 0% 94.12%;
+    --muted-foreground: 0 0% 40%;
+    --field: 0 0% 92.12%;
+    --field-muted-foreground: var(--muted-foreground);
+    --accent: 0 0% 94.12%;
+    --accent-foreground: 0 0% 6.67%;
+    --border: 0 0% 85.5%;
+    --input: 0 0% 64%;
+    --ring: 0 0% 6.67%;
+    --general-primary: 0 0% 6.67%;
+    --general-secondary: 0 0% 0% / 0.67;
+    --sidebar: hsl(0 0% 100%);
+    --sidebar-foreground: hsl(0 0% 6.67%);
+    --sidebar-primary: hsl(0 0% 0%);
+    --sidebar-primary-foreground: hsl(0 0% 100%);
+    --sidebar-accent: hsl(0 0% 94.12%);
+    --sidebar-accent-foreground: hsl(0 0% 6.67%);
+    --sidebar-border: hsl(var(--border));
+    --sidebar-ring: hsl(0 0% 6.67%);
+    --appearance-canvas: hsl(var(--background));
+    --appearance-tab-surface: hsl(var(--secondary));
+    --appearance-skeleton: hsl(var(--muted));
+    --color-slate-50: var(--color-neutral-50);
+    --color-slate-100: var(--color-neutral-100);
+    --color-slate-200: var(--color-neutral-200);
+    --color-slate-300: var(--color-neutral-300);
+    --color-slate-400: var(--color-neutral-400);
+    --color-slate-500: var(--color-neutral-500);
+    --color-slate-600: var(--color-neutral-600);
+    --color-slate-700: var(--color-neutral-700);
+    --color-slate-800: var(--color-neutral-800);
+    --color-slate-900: var(--color-neutral-900);
+    --color-slate-950: var(--color-neutral-950);
+    --color-zinc-50: var(--color-neutral-50);
+    --color-zinc-100: var(--color-neutral-100);
+    --color-zinc-200: var(--color-neutral-200);
+    --color-zinc-300: var(--color-neutral-300);
+    --color-zinc-400: var(--color-neutral-400);
+    --color-zinc-500: var(--color-neutral-500);
+    --color-zinc-600: var(--color-neutral-600);
+    --color-zinc-700: var(--color-neutral-700);
+    --color-zinc-800: var(--color-neutral-800);
+    --color-zinc-900: var(--color-neutral-900);
+    --color-zinc-950: var(--color-neutral-950);
+    --radius: 0px;
+    --appearance-radius-xs: 0px;
+    --appearance-radius-xl: 0px;
+    --appearance-radius-2xl: 0px;
+    --appearance-radius-3xl: 0px;
+    --appearance-radius-4xl: 0px;
+    --appearance-radius-badge: 0px;
+    --appearance-radius-checkbox: 0px;
+    --shadow-2xs: 0 0 #0000;
+    --shadow-xs: 0 0 #0000;
+    --shadow-sm: 0 0 #0000;
+    --shadow-md: 0 0 #0000;
+    --shadow-lg: 0 0 #0000;
+    --shadow-xl: 0 0 #0000;
+    --shadow-2xl: 0 0 #0000;
+    --appearance-shadow-floating: 0 4px 12px rgb(0 0 0 / 0.08);
+    --appearance-shadow-dialog: 0 8px 24px rgb(0 0 0 / 0.12);
+  }
+
+  :root[data-style="pro"].dark {
+    --background: 0 0% 6.67%;
+    --foreground: 0 0% 96.08%;
+    --card: 0 0% 9.02%;
+    --card-foreground: 0 0% 96.08%;
+    --popover: 0 0% 9.02%;
+    --popover-foreground: 0 0% 96.08%;
+    --primary: 0 0% 100%;
+    --primary-foreground: 0 0% 6.67%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 96.08%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.92%;
+    --field: 0 0% 16.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 96.08%;
+    --border: 0 0% 23.1%;
+    --input: 0 0% 45%;
+    --ring: 0 0% 96.08%;
+    --general-primary: 0 0% 96.08%;
+    --general-primary-foreground: 0 0% 6.67%;
+    --general-secondary: 0 0% 100% / 0.12;
+    --sidebar: hsl(0 0% 6.67%);
+    --sidebar-foreground: hsl(0 0% 96.08%);
+    --sidebar-primary: hsl(0 0% 100%);
+    --sidebar-primary-foreground: hsl(0 0% 6.67%);
+    --sidebar-accent: hsl(0 0% 14.9%);
+    --sidebar-accent-foreground: hsl(0 0% 96.08%);
+    --sidebar-border: hsl(var(--border));
+    --sidebar-ring: hsl(0 0% 96.08%);
+    --appearance-shadow-floating: 0 4px 12px rgb(0 0 0 / 0.3);
+    --appearance-shadow-dialog: 0 8px 24px rgb(0 0 0 / 0.4);
+  }
+}
+
+/* Bloom is an opt-in shell palette, independent of the lighter page canvas. */
+@layer base {
+  :root[data-style="classic"][data-palette="bloom"] {
+    --bloom-neutral: 210 234 252;
+    --appearance-canvas-ink: 207 78% 51%;
+    --bloom-blue: 27 159 254;
+    --bloom-cyan: 74 201 255;
+    --bloom-background:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='.5'/%3E%3C/svg%3E"),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E"),
+      radial-gradient(circle at 67.04% 45.93%, rgb(var(--bloom-neutral)) 0%, rgb(var(--bloom-neutral) / .844) 19.02%, rgb(var(--bloom-neutral) / .5) 38.05%, rgb(var(--bloom-neutral) / .156) 57.07%, rgb(var(--bloom-neutral) / 0) 76.1%),
+      radial-gradient(circle at 35.47% 65.92%, rgb(var(--bloom-blue) / .55) 0%, rgb(var(--bloom-blue) / .464) 12.9%, rgb(var(--bloom-blue) / .275) 25.8%, rgb(var(--bloom-blue) / .086) 38.7%, rgb(var(--bloom-blue) / 0) 51.6%),
+      radial-gradient(circle at 48.33% 20.11%, rgb(var(--bloom-blue) / .55) 0%, rgb(var(--bloom-blue) / .464) 16.75%, rgb(var(--bloom-blue) / .275) 33.5%, rgb(var(--bloom-blue) / .086) 50.25%, rgb(var(--bloom-blue) / 0) 67%),
+      linear-gradient(180deg, rgb(var(--bloom-blue)) 0%, rgb(var(--bloom-cyan)) 24%, rgb(var(--bloom-neutral)) 55%, rgb(var(--bloom-blue)) 100%);
+  }
+
+  :root[data-style="classic"][data-palette="bloom"].dark {
+    --bloom-neutral: 20 42 65;
+    --bloom-blue: 22 65 110;
+    --bloom-cyan: 26 83 115;
+  }
+}
+
+@layer utilities {
+  /* Match the existing dark canvas composite without revealing the shell below. */
+  :root[data-style="classic"][data-palette="bloom"].dark .bg-canvas {
+    background-color: var(--canvas-gradient-base, color-mix(in srgb, hsl(var(--muted)) 50%, hsl(var(--background))));
+  }
+
+  :root[data-style="classic"][data-palette="bloom"] :is([data-slot="sidebar-wrapper"], [data-slot="sidebar"]:not([data-variant])) {
+    background-color: rgb(var(--bloom-neutral));
+    background-image: var(--bloom-background);
+    background-size: 120px 120px, 120px 120px, auto, auto, auto, auto;
+    background-blend-mode: overlay, overlay, normal, normal, normal, normal;
+  }
+
+  /* All shell surfaces sample one viewport-aligned field. */
+  :root[data-style="classic"][data-palette="bloom"] :is([data-slot="sidebar-wrapper"], [data-slot="sidebar"]:not([data-variant])) {
+    background-attachment: fixed;
+    background-size: 120px 120px, 120px 120px, 100vw 100vh, 100vw 100vh, 100vw 100vh, 100vw 100vh;
+    background-position: 0 0;
+  }
+
+  /* Reveal the stationary shell field; fixed blended backgrounds on the sliding
+     desktop sidebar can lose their paint when it moves offscreen and back. */
+  :root[data-style="classic"][data-palette="bloom"] [data-slot="sidebar-inner"] {
+    background: transparent;
+  }
+}
+
+@layer utilities {
+  /* A light, palette-aware version of the grained Bloom field for page canvases. */
+  .bg-canvas {
+    background-color: color-mix(in srgb, hsl(var(--appearance-canvas-ink, var(--primary))) calc(3% * var(--appearance-canvas-tint-strength)), var(--appearance-canvas));
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='.035'/%3E%3C/svg%3E"),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.15'/%3E%3C/svg%3E"),
+      radial-gradient(circle at 22% 78%, hsl(var(--background) / .25) 0%, hsl(var(--background) / 0) 67%),
+      radial-gradient(circle at 100% 0%, hsl(var(--appearance-canvas-ink, var(--primary)) / calc(.19 * var(--appearance-canvas-tint-strength))) 0%, hsl(var(--appearance-canvas-ink, var(--primary)) / 0) 85%),
+      radial-gradient(circle at 45% 35%, hsl(var(--appearance-canvas-ink, var(--primary)) / calc(.14 * var(--appearance-canvas-tint-strength))) 0%, hsl(var(--appearance-canvas-ink, var(--primary)) / 0) 67%),
+      radial-gradient(circle at 80.81% 88.03%, hsl(var(--appearance-canvas-ink, var(--primary)) / calc(.10 * var(--appearance-canvas-tint-strength))) 0%, hsl(var(--appearance-canvas-ink, var(--primary)) / 0) 41.1%);
+    background-size: 120px 120px, 120px 120px, auto, auto, auto, auto;
+    background-blend-mode: normal, overlay, normal, normal, normal, normal;
+  }
+}
+
+@layer utilities {
+  :root[data-canvas-gradient="custom"].dark {
+    --canvas-gradient-surface: color-mix(in srgb, hsl(var(--muted)) 50%, hsl(var(--background)));
+  }
+
+  :root[data-canvas-gradient="custom"] .bg-canvas {
+    background-color: var(--canvas-gradient-base);
+    background-image: var(--canvas-gradient-image);
+  }
+
+  .canvas-gradient-preview {
+    background-color: var(--canvas-gradient-base);
+    background-image: var(--canvas-gradient-image);
+    background-size: 120px 120px, 120px 120px, auto, auto, auto, auto;
+    background-blend-mode: normal, overlay, normal, normal, normal, normal;
+  }
+}

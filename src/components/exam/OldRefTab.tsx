@@ -31,7 +31,7 @@ export function OldRefTab({
               className="text-sm pt-1 bg-white"
             />
           ) : (
-            <div className="border h-9 px-3 rounded-md text-sm flex items-center bg-accent/50">{oldRefData.role || ''}</div>
+            <div className="field-view border border-transparent h-9 px-3 rounded-md text-sm flex items-center bg-field">{oldRefData.role || ''}</div>
           )}
         </div>
         <div className="col-span-1">
@@ -46,7 +46,7 @@ export function OldRefTab({
               className="text-sm bg-white"
             />
           ) : (
-            <div className="border h-9 px-3 rounded-md text-sm flex items-center bg-accent/50">{oldRefData.source || ''}</div>
+            <div className="field-view border border-transparent h-9 px-3 rounded-md text-sm flex items-center bg-field">{oldRefData.source || ''}</div>
           )}
         </div>
         <div className="col-span-1">
@@ -61,7 +61,7 @@ export function OldRefTab({
               className="text-sm bg-white"
             />
           ) : (
-            <div className="border h-9 px-3 rounded-md text-sm flex items-center bg-accent/50">{oldRefData.contacts || ''}</div>
+            <div className="field-view border border-transparent h-9 px-3 rounded-md text-sm flex items-center bg-field">{oldRefData.contacts || ''}</div>
           )}
         </div>
       </div>

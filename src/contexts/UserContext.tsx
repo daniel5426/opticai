@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react'
 import { User, Clinic } from '@/lib/db/schema-interface'
 import { authService, AuthState, AuthSession } from '@/lib/auth/AuthService'
-import { applyUserThemeComplete, cacheCompanyThemeColors } from '@/helpers/theme_helpers'
+import { cacheCompanyThemeColors } from '@/helpers/theme_helpers'
 import { apiClient } from '@/lib/api-client'
+import { getAppearanceStore } from '@/lib/appearance'
 
 interface UserContextType {
   currentUser: User | null
@@ -18,7 +19,12 @@ interface UserContextType {
   clinicRefreshTrigger: number
 }
 
-const UserContext = createContext<UserContextType | undefined>(undefined)
+// Router instances can retain the previous provider during Vite hot updates.
+// Preserve context identity when changing the shared appearance registry in development.
+const hot = (import.meta as ImportMeta & { hot?: { data: Record<string, unknown> } }).hot
+const UserContext = (hot?.data.userContext as React.Context<UserContextType | undefined> | undefined)
+  ?? createContext<UserContextType | undefined>(undefined)
+if (hot) hot.data.userContext = UserContext
 
 interface UserProviderProps {
   children: ReactNode
@@ -35,24 +41,17 @@ export function UserProvider({ children }: UserProviderProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [clinicRefreshTrigger, setClinicRefreshTrigger] = useState(0)
 
-  const isInitialLoginRef = React.useRef(true)
-  const previousAuthStateRef = React.useRef<AuthState>(AuthState.LOADING)
-
   useEffect(() => {
     // Subscribe to auth state changes
     const unsubscribe = authService.subscribe(async (state: AuthState, session: AuthSession | null) => {
       console.log('[UserContext] Auth state changed:', state, 'Session:', !!session)
       
-      const wasLoading = previousAuthStateRef.current === AuthState.LOADING
-      const isAuthenticated = state === AuthState.AUTHENTICATED
-      const isInitialLogin = isInitialLoginRef.current && wasLoading && isAuthenticated && !!session?.user
-      
-      previousAuthStateRef.current = state
       setAuthState(state)
       setIsLoading(state === AuthState.LOADING)
 
       // Update state IMMEDIATELY - no blocking on async operations
       if (session?.user) {
+        getAppearanceStore().activateUser(session.user.id, session.user.theme_preference)
         setCurrentUser(session.user)
         setCurrentClinic(session.clinic || null)
         
@@ -81,25 +80,11 @@ export function UserProvider({ children }: UserProviderProps) {
             console.error('[UserContext] Failed to load company for theme colors:', error)
           }
           
-          // ONLY apply user theme on initial login, not on clinic navigation
-          // ThemeProvider manages theme state after initial load
-          if (isInitialLogin) {
-            try {
-              await applyUserThemeComplete(session.user.id!, session.user)
-              isInitialLoginRef.current = false
-            } catch (error) {
-              console.error('[UserContext] Failed to apply theme:', error)
-              isInitialLoginRef.current = false
-            }
-          }
         })
       } else {
+        getAppearanceStore().activateUser(undefined)
         setCurrentUser(null)
         setCurrentClinic(session?.clinic || null)
-        // Reset initial login flag on logout
-        if (state === AuthState.UNAUTHENTICATED) {
-          isInitialLoginRef.current = true
-        }
       }
     })
 

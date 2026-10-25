@@ -1,0 +1,12 @@
+schema: agents24.artifact/v1
+name: Prysm Clinic Tools
+description: Authenticated clinic services, reporting and reviewable changes.
+execution_target: self_hosted
+server:
+  auth:
+    mode: hmac_sha256
+    secret: $secrets.artifact-signing
+development:
+  base_url: http://127.0.0.1:4316
+production:
+  transport: relay

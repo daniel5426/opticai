@@ -279,6 +279,7 @@ export const VASelect = memo(function VASelect({
   return (
     <div
       data-slot="va-select"
+      data-disabled={disabled ? "" : undefined}
       className={cn(
         "flex items-center w-full group h-8 border border-input rounded-md transition-shadow relative min-w-0",
         !disabled ? "!bg-card dark:!bg-card" : "!bg-accent/50 dark:!bg-accent/50",
@@ -365,7 +366,7 @@ export const VASelect = memo(function VASelect({
         disabled={disabled}
         tabIndex={-1}
         className={cn(
-          "absolute rounded-tr-md rounded-br-md px-1 right-0 top-0 w-5 h-full text-[10px] font-bold flex items-center justify-center transition-all border-none focus:outline-none",
+          "absolute rounded-tr-md rounded-br-md px-1 right-0 top-0 w-5 h-full text-[length:calc(0.625rem*var(--field-scale))] font-bold flex items-center justify-center transition-all border-none focus:outline-none",
           modifier ? "text-primary bg-primary/5" : "text-muted-foreground/30",
           !disabled && "hover:text-accent-foreground hover:bg-accent",
           disabled && "!bg-transparent"

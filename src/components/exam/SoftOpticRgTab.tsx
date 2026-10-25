@@ -54,7 +54,7 @@ export function SoftOpticRgTab({
               {STATUSES.map((status) => (
                 <div
                   key={status}
-                  className={`flex h-8 items-center justify-between gap-2 rounded-md border px-2 ${isEditing ? "bg-white" : "bg-accent/50"}`}
+                  className={`field-view flex h-8 items-center justify-between gap-2 rounded-md border px-2 bg-field ${isEditing ? "border-input" : "border-transparent"}`}
                 >
                   <Checkbox
                     id={`softoptic-rg-${status}`}
@@ -81,7 +81,7 @@ export function SoftOpticRgTab({
                   allowImportedValue
                   size="xs"
                   center
-                  triggerClassName={`h-8 w-full min-w-0 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                  triggerClassName={`h-8 w-full min-w-0 text-xs bg-field ${isEditing ? "border-input" : "border-transparent"} disabled:cursor-default disabled:opacity-100`}
                 />
               )}
             </div>
@@ -121,7 +121,7 @@ export function SoftOpticRgTab({
                   allowImportedValue
                   size="xs"
                   center
-                  triggerClassName={`h-8 w-full min-w-0 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                  triggerClassName={`h-8 w-full min-w-0 text-xs bg-field ${isEditing ? "border-input" : "border-transparent"} disabled:cursor-default disabled:opacity-100`}
                 />
                 <FastInput
                   type="number"
@@ -142,7 +142,7 @@ export function SoftOpticRgTab({
                   allowImportedValue
                   size="xs"
                   center
-                  triggerClassName={`h-8 w-full min-w-0 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                  triggerClassName={`h-8 w-full min-w-0 text-xs bg-field ${isEditing ? "border-input" : "border-transparent"} disabled:cursor-default disabled:opacity-100`}
                 />
               </div>
             </div>

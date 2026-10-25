@@ -8,6 +8,7 @@ import { VASelect } from "./shared/VASelect"
 import { EXAM_FIELDS, PDFieldConfigProvider } from "./data/exam-field-definitions"
 import { BASE_VALUES_SIMPLE, PDCalculationUtils } from "./data/exam-constants"
 import { FastInput, FastSelect } from "./shared/OptimizedInputs"
+import { getExamInputGridTemplate } from "@/components/exam/shared/examInputGrid";
 import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
 import { CylTitle } from "./shared/CylTitle"
 import { NVJSelect } from "./shared/NVJSelect"
@@ -245,7 +246,7 @@ export function OldRefractionExtensionTab({
             onUpdateType={onUpdateType}
           />
 
-          <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(12,1fr)]' : 'grid-cols-[20px_repeat(12,1fr)]'} gap-2 items-center`}>
+          <div className="grid gap-2 items-center" style={{ gridTemplateColumns: getExamInputGridTemplate(columns, hideEyeLabels) }}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
               <div key={key} className="h-4 flex items-center justify-center">

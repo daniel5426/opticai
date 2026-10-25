@@ -16,6 +16,7 @@ from models import (
     MedicalLog,
     Order,
     OrderLineItem,
+    OrderGroup,
     Referral,
     Settings,
     User,
@@ -116,16 +117,18 @@ def assert_clinic_scope(
     *,
     allow_maintenance: bool = False,
 ) -> None:
-    if clinic_id is None:
+    clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first() if clinic_id is not None else None
+    validate_loaded_clinic_scope(current_user, clinic, resolve_company_id(db, current_user), allow_maintenance=allow_maintenance)
+
+
+def validate_loaded_clinic_scope(current_user: User, clinic: Clinic | None, company_id: int, *, allow_maintenance: bool = False) -> None:
+    """Canonical policy shared by ordinary and joined authorization reads."""
+    if clinic is None or clinic.company_id != company_id:
         raise HTTPException(status_code=403, detail="Access denied")
-    company_id = resolve_company_id(db, current_user)
-    assert_clinic_belongs_to_company(db, clinic_id, company_id)
-    if (current_user.role_level or 1) < CEO_LEVEL and current_user.clinic_id != clinic_id:
+    if (current_user.role_level or 1) < CEO_LEVEL and current_user.clinic_id != clinic.id:
         raise HTTPException(status_code=403, detail="Access denied")
-    if not allow_maintenance:
-        maintenance_mode = db.query(Clinic.maintenance_mode).filter(Clinic.id == clinic_id).scalar()
-        if maintenance_mode:
-            raise HTTPException(status_code=423, detail="Clinic is in maintenance mode")
+    if not allow_maintenance and clinic.maintenance_mode:
+        raise HTTPException(status_code=423, detail="Clinic is in maintenance mode")
 
 
 def get_allowed_clinic_ids(db: Session, current_user: User, clinic_id: Optional[int] = None) -> list[int]:
@@ -342,6 +345,11 @@ def get_scoped_billing(db: Session, current_user: User, billing_id: int) -> Bill
 
 
 def assert_billing_scope(db: Session, current_user: User, billing: Billing) -> None:
+    if billing.order_group_id:
+        group = db.query(OrderGroup).filter(OrderGroup.id == billing.order_group_id).first()
+        if group:
+            assert_clinic_scope(db, current_user, group.clinic_id)
+            return
     if billing.order_id:
         order = db.query(Order).filter(Order.id == billing.order_id).first()
         if order:

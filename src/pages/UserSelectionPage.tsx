@@ -8,7 +8,9 @@ import { Badge } from '@/components/ui/badge'
 import { ROLE_LEVELS, getRoleBadgeVariant, getRoleLabel, isRoleAtLeast } from '@/lib/role-levels'
 import { toast } from 'sonner'
 import { apiClient } from '@/lib/api-client'
-import { authService } from '@/lib/auth/AuthService'
+import { authService, ClinicTrustRequiredError } from '@/lib/auth/AuthService'
+import { useTranslation } from 'react-i18next'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 
 const usesGoogleAuth = (user: User) =>
   user.auth_provider === 'google'
@@ -22,6 +24,10 @@ const usesPasswordlessAuth = (user: User) =>
   !isRoleAtLeast(user.role_level, ROLE_LEVELS.ceo)
 
 export default function UserSelectionPage() {
+  const { t, i18n } = useTranslation()
+  const [needsClinicPin, setNeedsClinicPin] = useState(false)
+  const [clinicPin, setClinicPin] = useState('')
+  const [isVerifyingClinic, setIsVerifyingClinic] = useState(false)
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
@@ -83,7 +89,7 @@ export default function UserSelectionPage() {
   // ============================================================================
 
   const handlePasswordLogin = async () => {
-    if (!selectedUser || !password) return
+    if (!selectedUser || !password || isLoggingIn) return
 
     setIsLoggingIn(true)
     try {
@@ -94,20 +100,24 @@ export default function UserSelectionPage() {
       if (user) {
         authService.setClinicSession(selectedClinic, user)
       } else {
-        toast.error('שגיאה בהתחברות - בדוק את הסיסמה')
+        toast.error(t('authLogin.invalidPassword'))
         setPassword('')
       }
     } catch (error) {
       console.error('[UserSelection] Login error:', error)
-      toast.error('שגיאה בהתחברות')
-      setPassword('')
+      if (error instanceof ClinicTrustRequiredError) {
+        setNeedsClinicPin(true)
+      } else {
+        toast.error(t('authLogin.failed'))
+        setPassword('')
+      }
     } finally {
       setIsLoggingIn(false)
     }
   }
 
   const handlePasswordlessLogin = async () => {
-    if (!selectedUser) return
+    if (!selectedUser || isLoggingIn) return
     if (!usesPasswordlessAuth(selectedUser)) {
       toast.error('משתמש זה חייב להתחבר עם סיסמה או Google')
       return
@@ -122,18 +132,19 @@ export default function UserSelectionPage() {
       if (user) {
         authService.setClinicSession(selectedClinic, user)
       } else {
-        toast.error('שגיאה בהתחברות')
+        toast.error(t('authLogin.failed'))
       }
     } catch (error) {
       console.error('[UserSelection] Passwordless login error:', error)
-      toast.error('שגיאה בהתחברות')
+      if (error instanceof ClinicTrustRequiredError) setNeedsClinicPin(true)
+      else toast.error(t('authLogin.failed'))
     } finally {
       setIsLoggingIn(false)
     }
   }
 
   const handleGoogleLogin = async () => {
-    if (!selectedUser || !usesGoogleAuth(selectedUser)) return
+    if (!selectedUser || !usesGoogleAuth(selectedUser) || isLoggingIn) return
 
     setIsLoggingIn(true)
     try {
@@ -143,8 +154,30 @@ export default function UserSelectionPage() {
       // OAuth will handle the rest via popup
     } catch (error: any) {
       console.error('[UserSelection] Google login error:', error)
-      toast.error(error.message || 'שגיאה בהתחברות עם Google')
+      if (error instanceof ClinicTrustRequiredError) setNeedsClinicPin(true)
+      else toast.error(t('authLogin.failed'))
       setIsLoggingIn(false)
+    }
+  }
+
+  const verifyClinicAndRetry = async (event: React.FormEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!selectedClinic || !selectedUser || !clinicPin || isVerifyingClinic) return
+    setIsVerifyingClinic(true)
+    try {
+      const clinic = await authService.createClinicTrustSession(selectedClinic.unique_id, clinicPin)
+      if (!clinic) throw new Error('Clinic authentication failed')
+      setNeedsClinicPin(false)
+      setClinicPin('')
+      if (usesGoogleAuth(selectedUser)) await handleGoogleLogin()
+      else if (usesPasswordAuth(selectedUser)) await handlePasswordLogin()
+      else await handlePasswordlessLogin()
+    } catch (error) {
+      toast.error(t(error instanceof Error && error.message === 'Invalid clinic credentials'
+        ? 'authLogin.invalidClinicPin' : 'authLogin.clinicVerificationFailed'))
+    } finally {
+      setIsVerifyingClinic(false)
     }
   }
 
@@ -266,6 +299,39 @@ export default function UserSelectionPage() {
           />
         )}
       </div>
+
+      <Dialog open={needsClinicPin} onOpenChange={open => {
+        if (isVerifyingClinic) return
+        setNeedsClinicPin(open)
+        if (!open) {
+          setClinicPin('')
+          setPassword('')
+        }
+      }}>
+        <DialogContent dir={i18n.dir()} onKeyDown={event => event.stopPropagation()}>
+          <form onSubmit={verifyClinicAndRetry} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle>{t('authLogin.clinicVerificationTitle')}</DialogTitle>
+              <DialogDescription>{t('authLogin.clinicVerificationDescription')}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label htmlFor="clinic-recovery-pin">{t('authLogin.clinicPin')}</Label>
+              <Input id="clinic-recovery-pin" type="password" dir="ltr" autoFocus
+                autoComplete="off" value={clinicPin} disabled={isVerifyingClinic}
+                onChange={event => setClinicPin(event.target.value)} />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" disabled={isVerifyingClinic}
+                onClick={() => { setNeedsClinicPin(false); setClinicPin(''); setPassword('') }}>
+                {t('authLogin.cancel')}
+              </Button>
+              <Button type="submit" disabled={!clinicPin || isVerifyingClinic}>
+                {t('authLogin.continue')}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <style>{`
         .group {

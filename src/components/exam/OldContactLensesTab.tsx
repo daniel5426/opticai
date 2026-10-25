@@ -293,7 +293,7 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                         center={true}
                       />
                     ) : (
-                      <div className="bg-accent/50 flex h-8 items-center rounded-md border px-2 text-xs">
+                      <div className="field-view bg-field flex h-8 items-center rounded-md border border-transparent px-2 text-xs">
                         {getFieldValue("L", key) || ""}
                       </div>
                     )

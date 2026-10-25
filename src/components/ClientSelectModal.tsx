@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next"
+import { useAppLocale } from "@/localization/use-app-locale"
 import React, { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,6 +10,7 @@ import { useUser } from "@/contexts/UserContext"
 import { Skeleton } from "@/components/ui/skeleton"
 
 interface ClientSelectModalProps {
+  preferredClient?: Client | null
   triggerText?: string
   onClientSelect: (clientId: number) => void
   triggerVariant?: "secondary" | "link" | "default" | "destructive" | "outline" | "ghost" | null | undefined
@@ -15,7 +18,9 @@ interface ClientSelectModalProps {
   onClose?: () => void
 }
 
-export function ClientSelectModal({ triggerText, onClientSelect, triggerVariant = "default", isOpen, onClose }: ClientSelectModalProps) {
+export function ClientSelectModal({ preferredClient, triggerText, onClientSelect, triggerVariant = "default", isOpen, onClose }: ClientSelectModalProps) {
+  const { t } = useTranslation()
+  const { direction } = useAppLocale()
   const { currentClinic } = useUser()
   const [clients, setClients] = useState<Client[]>([])
   const [total, setTotal] = useState(0)
@@ -134,16 +139,22 @@ export function ClientSelectModal({ triggerText, onClientSelect, triggerVariant 
       <CustomModal
         isOpen={modalOpen}
         onClose={handleModalClose}
-        title="בחר לקוח"
+        title={t("orderGroupSelectClient")} direction={direction}
       >
         <div className="space-y-4 w-md">
           <Input
             placeholder="חיפוש לקוח..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            dir="rtl"
+            dir={direction}
             autoFocus={false}
           />
+          {preferredClient && (
+            <button type="button" className="mb-2 w-full rounded-md border border-primary/40 bg-primary/5 p-3 text-start" onClick={() => handleClientSelect(preferredClient.id!)}>
+              <span className="font-medium">{preferredClient.first_name} {preferredClient.last_name}</span>
+              <span className="ms-2 text-xs text-muted-foreground">{t("orderGroupCurrentClient")}</span>
+            </button>
+          )}
           <div ref={listRef} className="h-[300px] overflow-y-auto" style={{scrollbarWidth: 'none'}}>
             {loading ? (
               <div className="space-y-2 p-1">
@@ -161,10 +172,10 @@ export function ClientSelectModal({ triggerText, onClientSelect, triggerVariant 
               </div>
             ) : clients.length === 0 ? (
               <div className="flex justify-center items-center h-full">
-                <div className="text-gray-500">לא נמצאו לקוחות</div>
+                <div className="text-gray-500">{t("orderGroupNoClients")}</div>
               </div>
             ) : (
-              clients.map((client) => (
+              clients.filter(client => client.id !== preferredClient?.id).map((client) => (
                 <div
                   key={`client-${client.id}`}
                   className="p-3 border rounded-md cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 mb-2"
@@ -180,7 +191,7 @@ export function ClientSelectModal({ triggerText, onClientSelect, triggerVariant 
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{client.first_name} {client.last_name}</span>
                     {client.national_id && (
-                      <span className="text-sm text-gray-500">ת.ז: {client.national_id}</span>
+                      <span className="text-sm text-gray-500">{t("orderGroupNationalId")}: <span dir="ltr">{client.national_id}</span></span>
                     )}
                   </div>
                   {client.phone_mobile && (

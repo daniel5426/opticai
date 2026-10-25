@@ -7,24 +7,9 @@ from models import Client, OpticalExam, MedicalLog, Family, Referral, Appointmen
 from schemas import PrescriptionSearchRequest, PrescriptionSearchResponse
 from auth import get_current_user
 from security.scope import get_allowed_clinic_ids
+from services.clinic_catalog import scope_conditions
 
 router = APIRouter(prefix="/search", tags=["search"])
-
-
-def _criteria_fields(criteria):
-    if not criteria:
-        return {}
-    return {
-        key: value
-        for key, value in criteria.dict(exclude_none=True).items()
-        if value not in (None, "")
-    }
-
-
-def _apply_prescription_criteria(query, alias, criteria):
-    for field, value in criteria.items():
-        query = query.filter(getattr(alias, field) == value)
-    return query
 
 
 @router.post("/prescription", response_model=PrescriptionSearchResponse)
@@ -33,80 +18,9 @@ def prescription_search(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    right_criteria = _criteria_fields(request.right)
-    left_criteria = _criteria_fields(request.left)
-    if not right_criteria and not left_criteria:
-        return {"items": [], "total": 0}
-
-    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, request.clinic_id)
-    if not allowed_clinic_ids:
-        return {"items": [], "total": 0}
-
-    right_index = aliased(PrescriptionSearchIndex)
-    left_index = aliased(PrescriptionSearchIndex)
-    primary = right_index if right_criteria else left_index
-
-    query = (
-        db.query(
-            Client.id.label("client_id"),
-            func.concat(func.coalesce(Client.first_name, ""), literal(" "), func.coalesce(Client.last_name, "")).label("client_full_name"),
-            Client.national_id.label("national_id"),
-            Client.phone_mobile.label("phone_mobile"),
-            primary.source_type.label("source_type"),
-            primary.source_id.label("source_id"),
-            primary.source_date.label("source_date"),
-            primary.card_type.label("card_type"),
-        )
-        .join(primary, primary.client_id == Client.id)
-        .filter(Client.clinic_id.in_(allowed_clinic_ids))
-        .filter(Client.merged_into_client_id.is_(None))
-        .filter(primary.clinic_id.in_(allowed_clinic_ids))
-    )
-
-    matched_eyes = []
-    if right_criteria:
-        query = query.filter(right_index.eye == "R")
-        query = _apply_prescription_criteria(query, right_index, right_criteria)
-        matched_eyes.append("R")
-    if left_criteria:
-        if right_criteria:
-            query = query.join(
-                left_index,
-                (left_index.client_id == Client.id)
-                & (left_index.source_type == right_index.source_type)
-                & (left_index.source_id == right_index.source_id),
-            )
-        query = query.filter(left_index.eye == "L")
-        query = query.filter(left_index.clinic_id.in_(allowed_clinic_ids))
-        query = _apply_prescription_criteria(query, left_index, left_criteria)
-        matched_eyes.append("L")
-
-    total = query.distinct().count()
-    rows = (
-        query.order_by(primary.source_date.desc().nulls_last(), primary.source_id.desc())
-        .offset(max(0, request.offset))
-        .limit(min(max(1, request.limit), 100))
-        .distinct()
-        .all()
-    )
-
-    return {
-        "items": [
-            {
-                "client_id": row.client_id,
-                "client_full_name": row.client_full_name.strip(),
-                "national_id": row.national_id,
-                "phone_mobile": row.phone_mobile,
-                "source_type": row.source_type,
-                "source_id": row.source_id,
-                "source_date": row.source_date,
-                "card_type": row.card_type,
-                "matched_eyes": matched_eyes,
-            }
-            for row in rows
-        ],
-        "total": total,
-    }
+    from services.prescription_matching import legacy_search
+    allowed = get_allowed_clinic_ids(db, current_user, request.clinic_id)
+    return legacy_search(db, allowed, request)
 
 
 @router.get("")
@@ -169,7 +83,7 @@ def unified_search(
     client_condition = create_entity_condition(Client, client_fields, search_terms)
     client_score = create_score_expression(client_fields, search_terms)
 
-    clients_filter = []
+    clients_filter = scope_conditions(Client, allowed_clinic_ids)
     if client_condition is not None:
         clients_filter.append(client_condition)
     clients_filter.append(Client.clinic_id.in_(allowed_clinic_ids))
@@ -193,7 +107,7 @@ def unified_search(
     exam_condition = create_entity_condition(OpticalExam, exam_fields, search_terms)
     exam_score = create_score_expression(exam_fields, search_terms)
 
-    exams_filter = []
+    exams_filter = scope_conditions(OpticalExam, allowed_clinic_ids)
     if exam_condition is not None:
         exams_filter.append(exam_condition)
     exams_filter.append(OpticalExam.clinic_id.in_(allowed_clinic_ids))
@@ -216,7 +130,7 @@ def unified_search(
     medical_condition = create_entity_condition(MedicalLog, medical_fields, search_terms)
     medical_score = create_score_expression(medical_fields, search_terms)
 
-    medical_filter = []
+    medical_filter = scope_conditions(MedicalLog, allowed_clinic_ids)
     if medical_condition is not None:
         medical_filter.append(medical_condition)
     medical_filter.append(MedicalLog.clinic_id.in_(allowed_clinic_ids))
@@ -239,7 +153,7 @@ def unified_search(
     family_condition = create_entity_condition(Family, family_fields, search_terms)
     family_score = create_score_expression(family_fields, search_terms)
 
-    families_filter = []
+    families_filter = scope_conditions(Family, allowed_clinic_ids)
     if family_condition is not None:
         families_filter.append(family_condition)
     families_filter.append(Family.clinic_id.in_(allowed_clinic_ids))
@@ -265,7 +179,7 @@ def unified_search(
     referral_condition = create_entity_condition(Referral, referral_fields, search_terms)
     referral_score = create_score_expression(referral_fields, search_terms)
 
-    referrals_filter = []
+    referrals_filter = scope_conditions(Referral, allowed_clinic_ids)
     if referral_condition is not None:
         referrals_filter.append(referral_condition)
     referrals_filter.append(Referral.clinic_id.in_(allowed_clinic_ids))
@@ -291,7 +205,7 @@ def unified_search(
     appointment_condition = create_entity_condition(Appointment, appointment_fields, search_terms)
     appointment_score = create_score_expression(appointment_fields, search_terms)
 
-    appointments_filter = []
+    appointments_filter = scope_conditions(Appointment, allowed_clinic_ids)
     if appointment_condition is not None:
         appointments_filter.append(appointment_condition)
     appointments_filter.append(Appointment.clinic_id.in_(allowed_clinic_ids))
@@ -314,7 +228,7 @@ def unified_search(
     campaign_condition = create_entity_condition(Campaign, campaign_fields, search_terms)
     campaign_score = create_score_expression(campaign_fields, search_terms)
 
-    campaigns_filter = []
+    campaigns_filter = scope_conditions(Campaign, allowed_clinic_ids)
     if campaign_condition is not None:
         campaigns_filter.append(campaign_condition)
     campaigns_filter.append(Campaign.clinic_id.in_(allowed_clinic_ids))
@@ -371,5 +285,27 @@ def unified_search(
         }
         for r in rows
     ]
+
+    # Enrich only client hits on this page, with one clinic-scoped query.
+    # Existing result fields remain intact for older desktop clients.
+    client_ids = [item["id"] for item in items if item["type"] == "client"]
+    if client_ids:
+        detail_fields = (
+            "national_id", "phone_mobile", "phone_home", "phone_work",
+            "additional_phone", "email", "date_of_birth", "health_fund",
+            "address_city", "address_street", "address_number", "postal_code",
+        )
+        clients = db.query(Client.id, *(getattr(Client, field) for field in detail_fields)).filter(
+            Client.id.in_(client_ids),
+            Client.clinic_id.in_(allowed_clinic_ids),
+            Client.merged_into_client_id.is_(None),
+        ).all()
+        client_details = {
+            client.id: {field: getattr(client, field) for field in detail_fields}
+            for client in clients
+        }
+        for item in items:
+            if item["type"] == "client" and item["id"] in client_details:
+                item["client_details"] = client_details[item["id"]]
 
     return {"items": items, "total": total}

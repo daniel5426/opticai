@@ -20,6 +20,9 @@ export interface ElectronAPI {
 
   // AI Agent operations
   aiInitialize: () => Promise<{ success: boolean; error?: string }>;
+  agentFetch: (request: { id: string; path: string; method: string; headers: Record<string, string>; body?: number[] },
+    onChunk: (chunk: number[]) => void, onEnd: (error: string | null) => void) => Promise<{ status: number; headers: Record<string, string> }>;
+  agentFetchAbort: (id: string) => Promise<void>;
   aiChat: (message: string, conversationHistory: any[]) => Promise<{ success: boolean; message: string; data?: any; error?: string }>;
   aiChatStream: (message: string, conversationHistory: any[]) => Promise<{ success: boolean; message: string; data?: any; error?: string }>;
   aiExecuteAction: (action: string, data: any) => Promise<{ success: boolean; message: string; data?: any; error?: string }>;

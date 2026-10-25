@@ -19,9 +19,11 @@ interface UserSelectProps {
   users?: User[]
   onUsersLoaded?: (users: User[]) => void
   autoDefaultToCurrentUser?: boolean
+  dir?: "rtl" | "ltr"
+  "aria-labelledby"?: string
 }
 
-export function UserSelect({ value, onValueChange, placeholder = "בחר משתמש", disabled = false, users: usersProp, onUsersLoaded, autoDefaultToCurrentUser = true }: UserSelectProps) {
+export function UserSelect({ value, onValueChange, placeholder = "בחר משתמש", disabled = false, users: usersProp, onUsersLoaded, autoDefaultToCurrentUser = true, dir = "rtl", "aria-labelledby": ariaLabelledby }: UserSelectProps) {
   const [users, setUsers] = useState<User[]>(usersProp || [])
   const [loading, setLoading] = useState(!usersProp)
   const { currentUser, currentClinic } = useUser()
@@ -81,9 +83,9 @@ export function UserSelect({ value, onValueChange, placeholder = "בחר משת�
         value={value && value > 0 ? value.toString() : ''}
         onValueChange={() => {}}
         disabled
-        dir="rtl"
+        dir={dir}
       >
-        <SelectTrigger className="w-full">
+        <SelectTrigger className="w-full" aria-labelledby={ariaLabelledby}>
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent />
@@ -96,9 +98,9 @@ export function UserSelect({ value, onValueChange, placeholder = "בחר משת�
       value={value && value > 0 ? value.toString() : ""}
       onValueChange={(stringValue) => onValueChange(parseInt(stringValue))}
       disabled={disabled}
-      dir="rtl"
+      dir={dir}
     >
-      <SelectTrigger disabled={disabled}>
+      <SelectTrigger disabled={disabled} aria-labelledby={ariaLabelledby}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
@@ -110,4 +112,4 @@ export function UserSelect({ value, onValueChange, placeholder = "בחר משת�
       </SelectContent>
     </Select>
   )
-} 
+}

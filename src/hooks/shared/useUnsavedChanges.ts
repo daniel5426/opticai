@@ -3,12 +3,13 @@ import { useBlocker } from '@tanstack/react-router'
 import { useNavigationGuard } from '@/contexts/NavigationGuardContext'
 
 interface UnsavedChangesConfig {
+  enabled?: boolean
   getSerializedState: () => string
   isEditing: boolean
   isNewMode: boolean
 }
 
-export const useUnsavedChanges = ({ getSerializedState, isEditing, isNewMode }: UnsavedChangesConfig) => {
+export const useUnsavedChanges = ({ getSerializedState, isEditing, isNewMode, enabled = true }: UnsavedChangesConfig) => {
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
   const [isSaveInFlight, setIsSaveInFlight] = useState(false)
   const pendingNavigationRef = useRef<(() => void) | null>(null)
@@ -19,10 +20,10 @@ export const useUnsavedChanges = ({ getSerializedState, isEditing, isNewMode }: 
   const blockerResetRef = useRef<(() => void) | null>(null)
 
   const checkDirty = useCallback(() => {
-    if (!baselineInitializedRef.current) return false
+    if (!enabled || !baselineInitializedRef.current) return false
     if (!isEditing && !isNewMode) return false
     return getSerializedState() !== baselineRef.current
-  }, [getSerializedState, isEditing, isNewMode])
+  }, [getSerializedState, isEditing, isNewMode, enabled])
 
   const hasUnsavedChanges = checkDirty()
 
@@ -86,9 +87,10 @@ export const useUnsavedChanges = ({ getSerializedState, isEditing, isNewMode }: 
   }, [])
 
   useEffect(() => {
+    if (!enabled) return
     registerGuard(handleNavigationAttempt)
     return () => registerGuard(null)
-  }, [handleNavigationAttempt, registerGuard])
+  }, [handleNavigationAttempt, registerGuard, enabled])
 
   useEffect(() => {
     if (!hasUnsavedChanges) return

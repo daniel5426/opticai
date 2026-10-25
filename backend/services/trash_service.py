@@ -24,6 +24,8 @@ from models import (
     OpticalExam,
     Order,
     OrderLineItem,
+    OrderGroup,
+    OrderGroupEntry,
     PrescriptionSearchIndex,
     Referral,
     ReferralEye,
@@ -52,6 +54,7 @@ WORKER_LEVEL = 2
 CEO_LEVEL = 4
 
 ENTITY_MODELS: dict[str, type[SoftDeletableMixin]] = {
+    "order_group": OrderGroup,
     "client": Client,
     "order": Order,
     "contact_lens_order": ContactLensOrder,
@@ -108,11 +111,20 @@ def _display_label(entity_type: str, row: Any, client_label: str | None) -> str:
 
 
 def _members_for_delete(db: Session, entity_type: str, row: Any) -> list[tuple[str, Any]]:
+    if entity_type == "order_group":
+        members = [(entity_type, row)]
+        from services.order_group_service import entry_order, protect_group
+        protect_group(db, row)
+        for entry in db.query(OrderGroupEntry).filter(OrderGroupEntry.group_id == row.id).all():
+            child = entry_order(db, entry)
+            if child:
+                members.append(("order" if entry.order_id else "contact_lens_order", child))
+        return members
     if entity_type != "client":
         return [(entity_type, row)]
     members: list[tuple[str, Any]] = [("client", row)]
     for child_type, model in ENTITY_MODELS.items():
-        if child_type == "client":
+        if child_type in {"client", "order_group"}:
             continue
         children = db.query(model).filter(model.client_id == row.id).with_for_update().all()
         members.extend((child_type, child) for child in children)
@@ -124,6 +136,9 @@ def _included_counts(db: Session, members: list[tuple[str, Any]]) -> dict[str, i
     order_ids = [row.id for kind, row in members if kind == "order"]
     contact_ids = [row.id for kind, row in members if kind == "contact_lens_order"]
     filters = []
+    group_ids = [row.id for kind, row in members if kind == "order_group"]
+    if group_ids:
+        filters.append(Billing.order_group_id.in_(group_ids))
     if order_ids:
         filters.append(Billing.order_id.in_(order_ids))
     if contact_ids:
@@ -187,7 +202,7 @@ def _enqueue(db: Session, item: TrashItem, job_type: str, payload: dict | None =
     return job
 
 
-def move_to_trash(db: Session, current_user: User, entity_type: str, entity_id: int) -> TrashItem:
+def move_to_trash(db: Session, current_user: User, entity_type: str, entity_id: int, *, commit: bool = True) -> TrashItem:
     _require_editor(current_user)
     row = _entity(db, entity_type, entity_id, lock=True)
     if row.deleted_at is not None:
@@ -206,7 +221,7 @@ def move_to_trash(db: Session, current_user: User, entity_type: str, entity_id: 
     for member_clinic_id in foreign_clinics:
         assert_clinic_scope(db, current_user, member_clinic_id)
 
-    client = row if entity_type == "client" else db.query(Client).filter(Client.id == row.client_id).first()
+    client = row if entity_type == "client" else db.query(Client).filter(Client.id == (row.payer_client_id if entity_type == "order_group" else row.client_id)).first()
     client_label = _client_label(client)
     now = _utcnow()
     item = TrashItem(
@@ -232,6 +247,13 @@ def move_to_trash(db: Session, current_user: User, entity_type: str, entity_id: 
         member.trash_item_id = item.id
         db.add(TrashMember(trash_item_id=item.id, entity_type=member_type, entity_id=member.id))
         _remove_search_rows(db, member_type, member)
+        if member_type in {"order", "contact_lens_order"}:
+            source_column = OrderGroupEntry.order_id if member_type == "order" else OrderGroupEntry.contact_lens_id
+            source_ids = db.query(OrderGroupEntry.id).filter(source_column == member.id)
+            for line in db.query(OrderLineItem).filter(OrderLineItem.source_entry_id.in_(source_ids)).all():
+                line.source_entry_id = None
+                line.source_slot = None
+                line.manually_edited = True
         if member_type == "order":
             release_order_allocations_for_delete(db, order=member, current_user=current_user, contact=False)
         elif member_type == "contact_lens_order":
@@ -242,8 +264,11 @@ def move_to_trash(db: Session, current_user: User, entity_type: str, entity_id: 
     if appointment_ids:
         _enqueue(db, item, "calendar_delete", {"appointment_ids": appointment_ids})
     _add_event(db, item, "deleted", current_user.id, {"included_counts": item.included_counts})
-    db.commit()
-    db.refresh(item)
+    if commit:
+        db.commit()
+        db.refresh(item)
+    else:
+        db.flush()
     return item
 
 
@@ -518,8 +543,24 @@ def _purge(db: Session, job: TrashJob, storage: FileStorageService) -> None:
                     if "not found" not in str(exc.detail).lower():
                         raise
     root = _entity(db, item.root_entity_type, item.root_entity_id, lock=True)
-    db.delete(root)
-    db.flush()
+    if item.root_entity_type == "order_group":
+        from services.order_group_service import group_write, entry_order
+        with group_write(db):
+            for entry in db.query(OrderGroupEntry).filter(OrderGroupEntry.group_id == root.id).all():
+                child = entry_order(db, entry, include_deleted=True)
+                if child:
+                    db.delete(child)
+            db.delete(root)
+            db.flush()
+    else:
+        from services.order_group_service import group_write, group_for_order
+        standalone_group = group_for_order(db, root.id, item.root_entity_type == "contact_lens_order", include_deleted=True) if item.root_entity_type in {"order", "contact_lens_order"} else None
+        with group_write(db):
+            db.delete(root)
+            db.flush()
+            if standalone_group and not standalone_group.legacy_write_protected:
+                db.delete(standalone_group)
+                db.flush()
     db.query(TrashMember).filter(TrashMember.trash_item_id == item.id).delete(synchronize_session=False)
     item.status = "purged"
     item.display_label = "[purged]"

@@ -185,7 +185,7 @@ export function FamiliesTable({
         </div>
       )}
 
-      <div className={fillHeight ? "bg-card min-h-0 flex-1 rounded-md" : "bg-card rounded-md"}>
+      <div className={fillHeight ? "min-h-0 flex-1" : undefined}>
         <Table
           dir="rtl"
           containerClassName={fillHeight ? "h-full min-h-0 overflow-y-auto overscroll-contain" : "max-h-[70vh] overflow-y-auto overscroll-contain"}

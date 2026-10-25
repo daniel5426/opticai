@@ -8,6 +8,7 @@ import { BASE_VALUES_SIMPLE, PDCalculationUtils } from "./data/exam-constants"
 import { VASelect } from "./shared/VASelect"
 import { NVJSelect } from "./shared/NVJSelect"
 import { FastInput, FastSelect } from "./shared/OptimizedInputs"
+import { getExamInputGridTemplate } from "@/components/exam/shared/examInputGrid";
 import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
 import { CylTitle } from "./shared/CylTitle"
 import { useAxisWarning } from "./shared/useAxisWarning"
@@ -225,7 +226,7 @@ export function FinalSubjectiveTab({
             <h3 className="font-medium text-muted-foreground">Final Subjective</h3>
           </div>
 
-          <div className={`grid ${hideEyeLabels ? (showVertical ? 'grid-cols-[repeat(11,1fr)]' : 'grid-cols-[repeat(9,1fr)]') : (showVertical ? 'grid-cols-[20px_repeat(11,1fr)]' : 'grid-cols-[20px_repeat(9,1fr)]')} gap-2 items-center`}>
+          <div className="grid gap-2 items-center" style={{ gridTemplateColumns: getExamInputGridTemplate(columns, hideEyeLabels) }}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label, headerAccessory }) => (
               <div key={key} className="h-4 flex items-center justify-center gap-0.5 text-center">

@@ -499,7 +499,7 @@ export function DataTable({
             sensors={sensors}
             id={sortableId}
           >
-            <Table>
+            <Table elevated={false}>
               <TableHeader className="bg-muted sticky top-0 z-10">
                 {table.getHeaderGroups().map((headerGroup) => (
                   <TableRow key={headerGroup.id}>

@@ -38,6 +38,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 .venv/
+.venv-agent-dev/
+.agent-data/
 venv/
 env/
 
@@ -153,3 +155,8 @@ test-x64/
 docs/migration_wizzard_doc/optitech-*-audit.md
 docs/migration_wizzard_doc/optitech-*-schema-audit.json
 docs/migration_wizzard_doc/optitech-*-runtime-audit.json
+
+# Generated local transfer audit
+/docs/generated/opticplus-transfer-audit.json
+
+*.agents24.zip

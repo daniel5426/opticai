@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from database import get_db
 from models import Client, Family, Clinic, User, OpticalExam, Appointment, Order, Referral, File, MedicalLog, ContactLensOrder, ExamLayoutInstance, CampaignClientExecution, RecentClientVisit, PrescriptionSearchIndex
 from schemas import ClientCreate, ClientUpdate, Client as ClientSchema, ClientOrdersContext, ClientMergeRequest, ClientMergeResult
-from sqlalchemy import and_, func
+from sqlalchemy import and_, func, or_
 from auth import get_current_user
 from utils.table_search import build_all_terms_search_condition, search_blob
 from utils.storage import upload_base64_image
@@ -213,6 +213,20 @@ def merge_clients(
             raise HTTPException(status_code=422, detail="Clients must belong to the same company")
         if duplicate.merged_into_client_id:
             raise HTTPException(status_code=422, detail="One or more duplicate clients are already merged")
+
+    # This path uses bulk SQL, so preflight protected groups explicitly rather
+    # than relying on the ORM legacy-write guard.
+    from models import OrderGroup, OrderGroupEntry
+    grouped = db.query(OrderGroup).outerjoin(OrderGroupEntry).outerjoin(Order, OrderGroupEntry.order_id == Order.id).outerjoin(ContactLensOrder, OrderGroupEntry.contact_lens_id == ContactLensOrder.id).filter(
+        or_(Order.client_id.in_(all_ids), ContactLensOrder.client_id.in_(all_ids), OrderGroup.payer_client_id.in_(all_ids))).distinct().with_for_update().all()
+    if any(group.legacy_write_protected for group in grouped):
+        raise HTTPException(409, {"code": "order_group_requires_update", "message": "Shared order groups cannot be reassigned by a legacy client merge."})
+    if any(group.clinic_id != canonical.clinic_id for group in grouped):
+        raise HTTPException(422, "Clients with orders must be merged within the same clinic")
+    for group in grouped:
+        if group.payer_client_id in duplicate_ids:
+            group.payer_client_id = canonical.id
+        group.revision += 1
 
     reassigned_counts = {}
     for model in (OpticalExam, Appointment, Order, ContactLensOrder, Referral, File, MedicalLog, CampaignClientExecution, PrescriptionSearchIndex):

@@ -113,3 +113,43 @@ Before production promotion:
 2. Confirm `Verify Staging and Build Desktop` succeeded for the exact SHA being promoted.
 3. Confirm the current released desktop build works against staging.
 4. Confirm migrations are backward-compatible.
+
+
+## Shared order groups (0041)
+
+Shared order groups and the redesigned workspace are available after migration
+0041 is applied. `/order-groups/capabilities` checks the required tables and
+columns before enabling the frontend; it never changes the schema. Until then,
+the all-orders list retains its legacy paginated read path. This fallback does
+not replace the migration required by the new backend models and write paths.
+There is no environment flag to enable groups. Older Electron binaries keep their
+individual-order UI and use the preserved legacy API contracts.
+
+Before applying Alembic, confirm the database backend, host, database and username
+without exposing credentials, and take a fresh backup. The migration preflights
+duplicate/ambiguous invoice links and aborts before schema changes; resolve its
+reported rows explicitly, without automatically merging invoices. It backfills
+one group per historical order, preserving IDs, clinical JSON, inventory, trash,
+notes, invoice currencies and payments. The migration was verified against an
+isolated PostgreSQL database. Revision 0041 was applied to the staging `opticai`
+project on 2026-10-18 after explicit authorization. Verification covered all
+786,165 historical orders and unchanged original order, invoice, line-item, and
+payment content. Production was not changed.
+
+After migration, the group list also includes unlinked legacy/imported orders
+in its filters, totals, and pagination without writing records during GETs. Opening
+one uses the existing resolve endpoint to link its original order and invoice.
+
+Deploy the additive migration and compatibility API first, including all import
+workers that create orders. Smoke-test the currently released desktop version's
+single-order writes, shared-group read access, and rejected shared-group writes.
+Then ship the new frontend. Existing single-entry orders remain writable through
+legacy APIs. Once an order group requires multi-order handling, older binaries
+can read its selected order and shared billing, but incompatible writes are
+rejected through their existing error handling. This protection remains even
+after returning to one tab. A frontend rollback must retain the compatibility
+backend/schema and these write protections. Do not downgrade/drop the shared
+financial history.
+
+Migration note: Required; additive tables/columns and historical single-order
+backfill. Existing orders and invoices are not merged automatically.

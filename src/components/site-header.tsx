@@ -29,7 +29,8 @@ interface SiteHeaderProps {
   grandparentTitle?: string;
   grandparentLink?: string;
   clientBackLink?: string;
-  examInfo?: string;
+  examInfo?: React.ReactNode;
+  actions?: React.ReactNode;
   hasUnsavedChanges?: boolean;
   tabs?: {
     activeTab: string;
@@ -120,6 +121,7 @@ export function SiteHeader({
   grandparentLink,
   clientBackLink,
   examInfo,
+  actions,
   hasUnsavedChanges,
   tabs,
 }: SiteHeaderProps) {
@@ -134,6 +136,7 @@ export function SiteHeader({
     { value: "appointments", label: t("appointments") },
     { value: "files", label: t("files") },
   ];
+  const hasCustomExamInfo = React.isValidElement(examInfo);
   const { currentClient, toggleSidebar } = useClientSidebar();
   const displayName = currentClient
     ? `${currentClient.first_name} ${currentClient.last_name}`.trim()
@@ -210,13 +213,14 @@ export function SiteHeader({
       style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
     >
       <div
+        data-header-scroll-row={hasCustomExamInfo ? "" : undefined}
         className={`flex w-full items-center justify-between px-4 lg:px-6 ${
           tabs ? "py-1" : "py-2"
-        }`}
+        } ${hasCustomExamInfo ? "no-scrollbar min-w-0 flex-nowrap gap-x-4 overflow-x-auto whitespace-nowrap" : ""}`}
       >
         {/* Right side - Navigation (in RTL, this appears on the right) */}
         <div
-          className="flex items-center gap-1 lg:gap-2"
+          className={`flex items-center gap-1 lg:gap-2 ${hasCustomExamInfo ? "shrink-0" : ""}`}
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
         >
           {isInSidebarContext && <SidebarTrigger className="-mr-1" />}
@@ -227,7 +231,7 @@ export function SiteHeader({
             />
           )}
           {backLink || parentTitle || grandparentTitle ? (
-            <div className="flex items-center gap-2">
+            <div className={`flex items-center gap-2 ${hasCustomExamInfo ? "shrink-0" : ""}`}>
               {grandparentTitle &&
               grandparentLink &&
               parentTitle &&
@@ -353,7 +357,11 @@ export function SiteHeader({
                     orientation="vertical"
                     className="mx-2 data-[orientation=vertical]:h-4"
                   />
-                  <h1 className="text-base font-medium">{examInfo}</h1>
+                  {hasCustomExamInfo ? (
+                    <div className="shrink-0 text-base font-medium">{examInfo}</div>
+                  ) : (
+                    <h1 className="text-base font-medium">{examInfo}</h1>
+                  )}
                 </>
               )}
             </div>
@@ -365,7 +373,7 @@ export function SiteHeader({
 
         {/* Left side - Tabs (in RTL, this appears on the left) */}
         <div
-          className="flex items-center gap-2 text-base"
+          className={`flex items-center gap-2 text-base ${hasCustomExamInfo ? "shrink-0" : ""}`}
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
         >
           {tabs && (
@@ -388,6 +396,7 @@ export function SiteHeader({
               </TabsList>
             </Tabs>
           )}
+          {actions}
         </div>
       </div>
     </header>

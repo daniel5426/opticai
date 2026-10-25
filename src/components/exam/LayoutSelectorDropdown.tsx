@@ -9,13 +9,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  ChevronDownIcon,
-  PlusCircleIcon,
-  Plus,
-  FolderTree,
-  Loader2,
-} from "lucide-react";
+import { ChevronDownIcon, Plus, Loader2 } from "lucide-react";
 import type { ExamLayout } from "@/lib/db/schema-interface";
 import { useAppLocale } from "@/localization/use-app-locale";
 import { useTranslation } from "react-i18next";
@@ -28,6 +22,7 @@ type LayoutSelectorDropdownProps = {
   disabled?: boolean;
   triggerClassName?: string;
   triggerLabel?: string;
+  iconOnly?: boolean;
 };
 
 const flattenLayouts = (nodes: ExamLayout[]): ExamLayout[] => {
@@ -52,10 +47,11 @@ export const LayoutSelectorDropdown = ({
   disabled,
   triggerClassName,
   triggerLabel,
+  iconOnly = false,
 }: LayoutSelectorDropdownProps) => {
   const { direction } = useAppLocale();
   const { t } = useTranslation();
-  const resolvedTriggerLabel = triggerLabel ?? t("layouts");
+  const resolvedTriggerLabel = triggerLabel ?? t(iconOnly ? "addLayout" : "layouts");
   const flattenedLayouts = useMemo(
     () => flattenLayouts(availableLayouts),
     [availableLayouts],
@@ -86,7 +82,7 @@ export const LayoutSelectorDropdown = ({
             >
               <span>{node.name}</span>
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="min-w-[220px] text-right">
+            <DropdownMenuSubContent className="min-w-[220px] text-start">
               <DropdownMenuItem
                 onClick={() => onSelectLayout(node.id!)}
                 className="text-primary text-sm"
@@ -115,18 +111,32 @@ export const LayoutSelectorDropdown = ({
   };
 
   return (
-    <DropdownMenu onOpenChange={handleOpenChange}>
+    <DropdownMenu dir={direction} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>
         <Button
-          variant="outline"
-          className={`flex h-9 items-center gap-1 px-4 ${triggerClassName ?? ""}`}
+          type="button"
+          variant={iconOnly ? "ghost" : "outline"}
+          size={iconOnly ? "icon" : "default"}
+          className={
+            iconOnly
+              ? `mb-1 size-8 shrink-0 ${triggerClassName ?? ""}`
+              : `flex h-9 items-center gap-1 px-4 ${triggerClassName ?? ""}`
+          }
           disabled={disabled}
+          aria-label={resolvedTriggerLabel}
+          title={iconOnly ? resolvedTriggerLabel : undefined}
         >
-          <span>{resolvedTriggerLabel}</span>
-          <ChevronDownIcon className="h-4 w-4" />
+          {iconOnly ? (
+            <Plus className="size-4" />
+          ) : (
+            <>
+              <span>{resolvedTriggerLabel}</span>
+              <ChevronDownIcon className="h-4 w-4" />
+            </>
+          )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align={iconOnly ? "start" : "end"} className="w-56">
         <DropdownMenuItem
           dir={direction}
           className="text-sm font-bold"

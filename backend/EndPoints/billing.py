@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from services.order_group_service import billing_for_order, ensure_standalone_group
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
-from models import Billing, BillingPayment, Clinic, Company, ContactLensOrder, Order, OrderLineItem, User
+from models import Billing, BillingPayment, Clinic, Company, ContactLensOrder, Order, OrderLineItem, OrderGroup, User
 from currency import DEFAULT_CURRENCY, normalize_currency
 from auth import get_current_user
 from security.scope import (
@@ -41,10 +42,12 @@ def _billing_query_for_allowed_clinics(db: Session, allowed_clinic_ids: list[int
     return (
         db.query(Billing)
         .outerjoin(Order, Billing.order_id == Order.id)
+        .outerjoin(OrderGroup, Billing.order_group_id == OrderGroup.id)
         .outerjoin(ContactLensOrder, Billing.contact_lens_id == ContactLensOrder.id)
         .filter(
             or_(
                 Order.clinic_id.in_(allowed_clinic_ids),
+                OrderGroup.clinic_id.in_(allowed_clinic_ids),
                 ContactLensOrder.clinic_id.in_(allowed_clinic_ids),
             )
         )
@@ -132,7 +135,7 @@ def get_billing_by_order(
     current_user: User = Depends(get_current_user),
 ):
     get_scoped_order(db, current_user, order_id)
-    billing = db.query(Billing).filter(Billing.order_id == order_id).first()
+    billing = billing_for_order(db, order_id)
     if not billing:
         raise HTTPException(status_code=404, detail="Billing not found for order")
     return billing
@@ -145,7 +148,7 @@ def get_billing_by_contact_lens(
     current_user: User = Depends(get_current_user),
 ):
     get_scoped_contact_lens_order(db, current_user, contact_lens_id)
-    billing = db.query(Billing).filter(Billing.contact_lens_id == contact_lens_id).first()
+    billing = billing_for_order(db, contact_lens_id, True)
     if not billing:
         raise HTTPException(status_code=404, detail="Billing not found for contact lens order")
     return billing
@@ -161,8 +164,9 @@ def get_billings_by_client(
     return (
         db.query(Billing)
         .outerjoin(Order, Billing.order_id == Order.id)
+        .outerjoin(OrderGroup, Billing.order_group_id == OrderGroup.id)
         .outerjoin(ContactLensOrder, Billing.contact_lens_id == ContactLensOrder.id)
-        .filter(or_(Order.client_id == client_id, ContactLensOrder.client_id == client_id))
+        .filter(or_(OrderGroup.payer_client_id == client_id, (Billing.order_group_id.is_(None) & or_(Order.client_id == client_id, ContactLensOrder.client_id == client_id))))
         .all()
     )
 

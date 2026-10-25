@@ -114,6 +114,7 @@ export function ContactLensDetailsTab({
     const side = eye === "R" ? "right" : "left";
     return (
       <ContactLensCatalogCombobox
+        placeholder=""
         field={field}
         value={getFieldValue(eye, field)}
         values={

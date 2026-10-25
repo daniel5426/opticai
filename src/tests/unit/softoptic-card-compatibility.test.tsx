@@ -26,7 +26,7 @@ describe("SoftOptic card compatibility", () => {
         isEditing={false}
       />,
     )
-    expect(screen.getByDisplayValue("2")).toBeInTheDocument()
+    expect(screen.getByDisplayValue("2.00")).toBeInTheDocument()
     expect(screen.getByText("EXO")).toBeInTheDocument()
     expect(screen.getByText("עם תיקון")).toBeInTheDocument()
 
@@ -37,7 +37,7 @@ describe("SoftOptic card compatibility", () => {
         isEditing={false}
       />,
     )
-    expect(screen.getByDisplayValue("3")).toBeInTheDocument()
+    expect(screen.getByDisplayValue("3.00")).toBeInTheDocument()
     expect(screen.getByText("R/L")).toBeInTheDocument()
   })
 
@@ -76,8 +76,8 @@ describe("SoftOptic card compatibility", () => {
     expect(screen.getByDisplayValue("232.32")).toBeInTheDocument()
     expect(screen.getByDisplayValue("767.67")).toBeInTheDocument()
     expect(screen.getByText("Maddox wing")).toBeInTheDocument()
-    expect(screen.getByDisplayValue("2")).toBeInTheDocument()
-    expect(screen.getByDisplayValue("4")).toBeInTheDocument()
+    expect(screen.getByDisplayValue("2.00")).toBeInTheDocument()
+    expect(screen.getByDisplayValue("4.00")).toBeInTheDocument()
     expect(screen.getAllByText("R").length).toBeGreaterThan(0)
     expect(screen.getByText("NV")).toBeInTheDocument()
   })

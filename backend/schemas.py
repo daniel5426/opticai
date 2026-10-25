@@ -541,6 +541,7 @@ class Order(OrderBase):
         from_attributes = True
 
 class ContactLensOrderBase(BaseModel):
+    dominant_eye: Optional[str] = None
     client_id: int
     clinic_id: Optional[int] = None
     user_id: Optional[int] = None
@@ -615,6 +616,7 @@ class ReferralCreate(ReferralBase):
 class ReferralUpdate(ReferralBase):
     client_id: Optional[int] = None
     referral_notes: Optional[str] = None
+    date: Optional[date] = None
 
 class Referral(ReferralBase):
     id: int
@@ -860,7 +862,7 @@ class Billing(BillingBase):
 
 
 class BillingPaymentCreate(BaseModel):
-    amount: float
+    amount: float = Field(..., allow_inf_nan=False)
     paid_at: date
     kind: Literal["payment", "adjustment"] = "payment"
 
@@ -1015,3 +1017,49 @@ class ExamData(ExamDataBase):
     
     class Config:
         from_attributes = True 
+
+
+# Group contracts retain clinical JSON and legacy extension fields while validating
+# the envelope and every financial amount before entering the transaction.
+class GroupOrderData(OrderBase):
+    id: Optional[int] = None
+    model_config = {"extra": "allow"}
+
+
+class GroupEntrySave(BaseModel):
+    id: Optional[int] = Field(None, gt=0)
+    client_key: Optional[str] = Field(None, max_length=128)
+    position: int = Field(0, ge=0)
+    kind: Literal["regular", "contact"]
+    order: GroupOrderData
+    inventory_selections: Optional[List[Dict[str, Any]]] = None
+
+
+class GroupBillingSave(BillingBase):
+    id: Optional[int] = Field(None, gt=0)
+    discount_amount: Optional[float] = Field(None, ge=0, allow_inf_nan=False)
+    discount_percent: Optional[float] = Field(None, ge=0, le=100, allow_inf_nan=False)
+    prepayment_amount: Optional[float] = Field(None, ge=0, allow_inf_nan=False)
+    installment_count: Optional[int] = Field(None, ge=0)
+
+
+class GroupLineSave(OrderLineItemBase):
+    id: Optional[int] = None
+    billings_id: int = 0
+    price: Optional[float] = Field(None, ge=0, allow_inf_nan=False)
+    quantity: Optional[float] = Field(None, ge=0, allow_inf_nan=False)
+    discount: Optional[float] = Field(None, ge=0, allow_inf_nan=False)
+    source_entry_id: Optional[int] = Field(None, gt=0)
+    source_client_key: Optional[str] = Field(None, max_length=128)
+    source_slot: Optional[str] = Field(None, max_length=64)
+    manually_edited: Optional[bool] = None
+
+
+class OrderGroupSave(BaseModel):
+    clinic_id: Optional[int] = Field(None, gt=0)
+    payer_client_id: Optional[int] = Field(None, gt=0)
+    revision: Optional[int] = Field(None, ge=1)
+    entries: List[GroupEntrySave] = Field(default_factory=list, max_length=100)
+    removed_entry_ids: List[int] = Field(default_factory=list, max_length=100)
+    billing: Optional[GroupBillingSave] = None
+    line_items: List[GroupLineSave] = Field(default_factory=list, max_length=1000)

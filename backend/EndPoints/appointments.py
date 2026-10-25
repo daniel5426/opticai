@@ -45,6 +45,11 @@ def create_appointment(
         
         print(f"Creating appointment with final data: {payload}")
         db_appointment = Appointment(**payload)
+        from agent.config import enabled
+        if enabled() and db_appointment.date and db_appointment.time:
+            from services.appointment_schedule import conflict_free
+            if not conflict_free(db, db_appointment.clinic_id, db_appointment.user_id, db_appointment.date, db_appointment.time, db_appointment.duration or 30, lock=True):
+                raise HTTPException(409, 'agent.slotUnavailable')
         db.add(db_appointment)
         db.flush()
 
@@ -269,6 +274,12 @@ def update_appointment(
         for key in ("client_id", "clinic_id", "user_id"):
             if key in update_fields:
                 update_fields[key] = scoped[key]
+    from agent.config import enabled
+    if enabled() and set(update_fields) & {'date', 'time', 'duration', 'user_id', 'clinic_id'}:
+        from services.appointment_schedule import conflict_free
+        candidate = {field: update_fields.get(field, getattr(db_appointment, field)) for field in ('date', 'time', 'duration', 'user_id', 'clinic_id')}
+        if candidate['date'] and candidate['time'] and not conflict_free(db, candidate['clinic_id'], candidate['user_id'], candidate['date'], candidate['time'], candidate['duration'] or 30, exclude=db_appointment.id, lock=True):
+            raise HTTPException(409, 'agent.slotUnavailable')
     for field, value in update_fields.items():
         setattr(db_appointment, field, value)
     

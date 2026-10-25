@@ -13,7 +13,7 @@ import { getOrdersByClientId } from "@/lib/db/orders-db";
 import { OpticalExam, Client, ExamLayout } from "@/lib/db/schema-interface";
 import { getAllExamLayouts, getExamLayoutById } from "@/lib/db/exam-layouts-db";
 import { Button } from "@/components/ui/button";
-import { Edit, Save, Loader2 } from "lucide-react";
+import { Edit, Save, Loader2, ShoppingCart } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,7 +40,9 @@ import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog";
 import { useUnsavedChanges } from "@/hooks/shared/useUnsavedChanges";
 import { useKeyboardSave } from "@/hooks/shared/useKeyboardSave";
 import { useRowWidthTracking } from "@/hooks/shared/useRowWidthTracking";
-import { ExamDetailsCard } from "@/components/exam/ExamDetailsCard";
+import { ExamBreadcrumbFields } from "@/components/exam/ExamBreadcrumbFields";
+import { useAppLocale } from "@/localization/use-app-locale";
+import { useTranslation } from "react-i18next";
 import { LayoutSelectorDropdown } from "@/components/exam/LayoutSelectorDropdown";
 import { ImportedSourceDataDialog } from "@/components/migration/ImportedSourceDataDialog";
 import { ExamDetailPageProps, CardRow, LayoutTab } from "./exam-detail/types";
@@ -59,6 +61,7 @@ import {
   legacyRowsToGridItems,
   VIRTUAL_FULL_DATA_TAB_ID,
   isVirtualFullDataTabId,
+  isPersistableLayoutTab,
   resolveFullDataSourceInstanceId,
 } from "./exam-detail/utils";
 import {
@@ -172,6 +175,8 @@ export default function ExamDetailPage({
   onSave,
   onCancel,
 }: ExamDetailPageProps = {}) {
+  const { direction } = useAppLocale();
+  const { t } = useTranslation();
   const pageType = propPageType || "exam";
   const config = pageConfig[pageType];
 
@@ -1681,27 +1686,27 @@ export default function ExamDetailPage({
     <>
       {!isNewMode && (
         <>
-          <LayoutSelectorDropdown
-            availableLayouts={availableLayouts}
-            onSelectLayout={handleSelectLayoutOption}
-            onRequestLayouts={handleRequestLayouts}
-            isLoading={isAddingLayouts}
-          />
           <ImportedSourceDataDialog recordType="exam" recordId={exam?.id} />
           {exam?.id && (
-            <DropdownMenu dir="ltr">
+            <DropdownMenu dir={direction}>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-9 px-4">
-                  הזמנה
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9"
+                  aria-label={t("examOrder")}
+                  title={t("examOrder")}
+                >
+                  <ShoppingCart size={18} />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" dir="rtl">
+              <DropdownMenuContent align="end">
                 {currentExamAddTypeOptions.length > 0 ? (
                   <DropdownMenuSub>
                     <DropdownMenuSubTrigger hideIcon>
-                      רגילה
+                      {t("examRegularOrder")}
                     </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent side="right">
+                    <DropdownMenuSubContent>
                       {currentExamAddTypeOptions.map((type) => (
                         <DropdownMenuItem
                           key={type}
@@ -1716,11 +1721,11 @@ export default function ExamDetailPage({
                   <DropdownMenuItem
                     onClick={() => openRegularOrderFromCurrentExam()}
                   >
-                    רגילה
+                    {t("examRegularOrder")}
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem onClick={openContactLensOrderFromCurrentExam}>
-                  עדשות מגע
+                  {t("examContactLenses")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1739,7 +1744,7 @@ export default function ExamDetailPage({
             });
           }}
         >
-          ביטול
+          {t("cancel")}
         </Button>
       )}
       <Button
@@ -1747,6 +1752,8 @@ export default function ExamDetailPage({
         className="h-9 px-4"
         onClick={handleEditButtonClick}
         disabled={isSaveInFlight}
+        aria-label={t(isNewMode || isEditing ? "saveExam" : "editExam")}
+        title={t(isNewMode || isEditing ? "saveExam" : "editExam")}
       >
         {isSaveInFlight ? (
           <Loader2 className="h-[18px] w-[18px] animate-spin" />
@@ -1762,7 +1769,7 @@ export default function ExamDetailPage({
   // Render loading state
   if (loading || !currentClient) {
     return (
-      <ExamLoadingState activeTab={activeTab} onTabChange={handleTabChange} />
+      <ExamLoadingState activeTab={activeTab} onTabChange={handleTabChange} actions={headerActions} />
     );
   }
 
@@ -1773,34 +1780,30 @@ export default function ExamDetailPage({
     );
   }
 
+  const edgeLayoutTab = direction === "rtl"
+    ? layoutTabs.filter(isPersistableLayoutTab).at(-1)
+    : layoutTabs.find(isPersistableLayoutTab);
+
   // Main render
   return (
     <>
       <SiteHeader
-        title="לקוחות"
+        title={t("clients")}
         backLink="/clients"
-        examInfo={isNewMode ? config.newTitle : config.headerInfo(examId || "")}
+        examInfo={<ExamBreadcrumbFields detailProps={detailPropsWithOverrides} />}
         hasUnsavedChanges={hasUnsavedChanges}
         tabs={{ activeTab, onTabChange: handleTabChange }}
       />
       <ClientSpaceLayout>
         <div
           className="no-scrollbar flex h-full min-h-0 flex-1 flex-col overflow-hidden p-4 lg:p-5"
-          dir="rtl"
+          dir={direction}
           style={{
             scrollbarWidth: "none",
             msOverflowStyle: "none",
             margin: "0",
           }}
         >
-          <div className="mb-4 shrink-0">
-            <ExamDetailsCard
-              mode="detail"
-              detailProps={detailPropsWithOverrides}
-              actions={headerActions}
-            />
-          </div>
-
           {/* Layout Tabs */}
           <div className="shrink-0">
             <ExamLayoutTabs
@@ -1817,16 +1820,26 @@ export default function ExamDetailPage({
                 ).some(([key, value]) => isNonEmptyComponent(key, value))
               }
               onRemoveTab={handleRemoveLayoutTab}
+              actions={headerActions}
+              addLayoutAction={!isNewMode ? (
+                <LayoutSelectorDropdown
+                  availableLayouts={availableLayouts}
+                  onSelectLayout={handleSelectLayoutOption}
+                  onRequestLayouts={handleRequestLayouts}
+                  isLoading={isAddingLayouts}
+                  iconOnly
+                />
+              ) : undefined}
             />
           </div>
 
-          <div className="min-h-0 flex-1">
+          <div data-exam-surface className={`bg-card min-h-0 flex-1 rounded-xl border-0 shadow-sm ${edgeLayoutTab ? "rounded-ss-none" : ""}`}>
             <div
               ref={layoutContentRef}
-              className="no-scrollbar h-full overflow-y-auto overscroll-contain"
+              className="no-scrollbar h-full overflow-y-auto overscroll-contain rounded-[inherit]"
               style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
             >
-              <form ref={formRef} className="min-h-full pt-4 pb-14">
+              <form ref={formRef} className="flex min-h-full flex-col">
                 <ExamLayoutRenderer
                   cardRows={cardRows}
                   customWidths={customWidths}

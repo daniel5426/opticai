@@ -1,18 +1,11 @@
 import React, { useEffect, useState } from "react";
+import { useAppLocale } from "@/localization/use-app-locale";
 import { useTranslation } from "react-i18next";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { LookupSelect } from "@/components/ui/lookup-select";
-import { UserSelect } from "@/components/ui/user-select";
-import { DateInput } from "@/components/ui/date";
-import { NotesCard } from "@/components/ui/notes-card";
+import { useClientSidebar } from "@/contexts/ClientSidebarContext";
+import { cn } from "@/utils/tailwind";
+import { OrderSheet } from "@/components/orders/layout/OrderSheet";
+import { OrderNotesRow } from "@/components/orders/layout/OrderNotesRow";
+import { OrderMetaStrip } from "@/components/orders/OrderMetaStrip";
 import { ContactLensDetailsTab } from "@/components/exam/ContactLensDetailsTab";
 import { ContactLensExamTab } from "@/components/exam/ContactLensExamTab";
 import { ContactLensOrderTab } from "@/components/exam/ContactLensOrderTab";
@@ -39,6 +32,7 @@ import {
 } from "@/lib/inventory";
 
 interface ContactOrderTabProps {
+  hideMetadata?: boolean;
   formRef: React.RefObject<HTMLFormElement | null>;
   isEditing: boolean;
   users: User[];
@@ -64,7 +58,10 @@ interface ContactOrderTabProps {
   clientOrderIndex?: number | null;
 }
 
+const noop = () => {};
+
 export default function ContactOrderTab({
+  hideMetadata = false,
   formRef,
   isEditing,
   users,
@@ -82,6 +79,8 @@ export default function ContactOrderTab({
   clientOrderIndex,
 }: ContactOrderTabProps) {
   const { t } = useTranslation();
+  const { direction } = useAppLocale();
+  const { currentClient } = useClientSidebar();
   const [clipboardSourceType, setClipboardSourceType] =
     useState<ExamComponentType | null>(null);
   const [catalogVariants, setCatalogVariants] = useState<CatalogVariant[]>([]);
@@ -306,238 +305,87 @@ export default function ContactOrderTab({
     toast.success("נתונים הודבקו בהצלחה");
   };
 
+  const examCardProps = (card: { id: string; type: ExamComponentType }) => ({
+    isEditing,
+    mode: "detail" as const,
+    currentCard: card as any,
+    allRows: [[card as any]],
+    currentRowIndex: 0,
+    currentCardIndex: 0,
+    clipboardSourceType,
+    onClearData: () => handleToolboxClear(card.type),
+    onCopy: () => handleToolboxCopy(card.type),
+    onPaste: () => handleToolboxPaste(card.type),
+    onCopyLeft: noop,
+    onCopyRight: noop,
+    onCopyBelow: noop,
+  });
+
+  const guardedChange =
+    (setter: React.Dispatch<React.SetStateAction<any>>) =>
+    (field: string | number | symbol, value: unknown) => {
+      if (onInventoryRelevantFieldChange(String(field), value) === false) return;
+      setter((prev: any) => ({ ...prev, [field]: value }));
+    };
+
   return (
     <form
       ref={formRef}
       data-clinical-nav-scope="true"
-      className="no-scrollbar pt-4 pb-10"
+      className={cn("no-scrollbar", hideMetadata ? "order-group-content" : "pt-4 pb-10")}
       style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
     >
-      <div className="grid grid-cols-1 gap-4">
-        {/* Two-column layout for the top section */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-4" dir="rtl">
-          <div className="lg:col-span-1">
-            <Card
-              className="examcard h-full w-full gap-0 pt-[8px] pb-1"
-              dir="ltr"
-            >
-              <CardHeader className="px-4 pb-2">
-                <CardTitle className="text-muted-foreground text-center font-medium">
-                  פרטי הזמנה {clientOrderIndex ? `(#${clientOrderIndex})` : ""}
-                </CardTitle>
-              </CardHeader>
-              <div className="flex flex-col gap-3 px-4 pt-0" dir="rtl">
-                <div>
-                  <label className="text-muted-foreground text-xs font-medium">
-                    תאריך הזמנה
-                  </label>
-                  <div className="h-1"></div>
-                  <DateInput
-                    name="order_date"
-                    className={`h-8 w-full text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
-                    value={contactFormData.order_date}
-                    onChange={(e) =>
-                      setContactFormData((prev: any) => ({
-                        ...prev,
-                        order_date: e.target.value,
-                      }))
-                    }
-                    disabled={!isEditing}
-                  />
-                </div>
-                <div>
-                  <label className="text-muted-foreground text-xs font-medium">
-                    סוג הזמנה
-                  </label>
-                  <div className="h-1"></div>
-                  {isEditing ? (
-                    <LookupSelect
-                      value={contactFormData.type || ""}
-                      onChange={(value) =>
-                        setContactFormData((prev: any) => ({
-                          ...prev,
-                          type: value,
-                        }))
-                      }
-                      lookupType="orderType"
-                      placeholder="סוג הזמנה..."
-                      className="h-8 bg-white text-xs"
-                    />
-                  ) : (
-                    <div className="bg-accent/50 flex h-8 items-center rounded-md border px-3 text-xs">
-                      {contactFormData.type || "לא נבחר"}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <label className="text-muted-foreground text-xs font-medium">
-                    בודק
-                  </label>
-                  <div className="h-1"></div>
-                  {isEditing ? (
-                    <UserSelect
-                      value={contactFormData.user_id}
-                      onValueChange={(userId) =>
-                        setContactFormData((prev: any) => ({
-                          ...prev,
-                          user_id: userId,
-                        }))
-                      }
-                    />
-                  ) : (
-                    <div className="bg-accent/50 flex h-8 items-center rounded-md border px-3 text-xs">
-                      {contactFormData.user_id
-                        ? users.find((u) => u.id === contactFormData.user_id)
-                            ?.full_name ||
-                          users.find((u) => u.id === contactFormData.user_id)
-                            ?.username ||
-                          "משתמש לא נמצא"
-                        : "לא נבחר בודק"}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <label className="text-muted-foreground text-xs font-medium">
-                    עין דומיננטית
-                  </label>
-                  <div className="h-1"></div>
-                  <Select
-                    dir="rtl"
-                    disabled={!isEditing}
-                    value={contactFormData.dominant_eye || ""}
-                    onValueChange={(value) =>
-                      setContactFormData((prev: any) => ({
-                        ...prev,
-                        dominant_eye: value,
-                      }))
-                    }
-                  >
-                    <SelectTrigger
-                      className={`h-8 w-full text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
-                    >
-                      <SelectValue placeholder="בחר עין" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="R" className="text-xs">
-                        ימין
-                      </SelectItem>
-                      <SelectItem value="L" className="text-xs">
-                        שמאל
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </Card>
-          </div>
+      <OrderSheet
+        className={cn(!hideMetadata && "border-border/50 rounded-xl border shadow-sm")}
+      >
+        {!hideMetadata && (
+          <OrderMetaStrip
+            client={currentClient}
+            caption={
+              clientOrderIndex
+                ? t("orderWorkspace.clientOrderIndex", { index: clientOrderIndex })
+                : undefined
+            }
+            values={contactFormData}
+            editing={isEditing}
+            onChange={(patch) => setContactFormData((prev: any) => ({ ...prev, ...patch }))}
+          />
+        )}
 
-          <div className="flex flex-col gap-4 lg:col-span-3">
-            <div className="relative" data-clinical-nav-card="true">
-              <ExamToolbox
-                isEditing={isEditing}
-                mode="detail"
-                currentCard={contactLensExamCard as any}
-                allRows={[[contactLensExamCard as any]]}
-                currentRowIndex={0}
-                currentCardIndex={0}
-                clipboardSourceType={clipboardSourceType}
-                onClearData={() => handleToolboxClear("contact-lens-exam")}
-                onCopy={() => handleToolboxCopy("contact-lens-exam")}
-                onPaste={() => handleToolboxPaste("contact-lens-exam")}
-                onCopyLeft={() => {}}
-                onCopyRight={() => {}}
-                onCopyBelow={() => {}}
-              />
-              <ContactLensExamTab
-                contactLensExamData={contactLensExamData}
-                onContactLensExamChange={(field, value) => {
-                  if (
-                    onInventoryRelevantFieldChange(String(field), value) ===
-                    false
-                  ) {
-                    return;
-                  }
-                  setContactLensExamData((prev: any) => ({
-                    ...prev,
-                    [field]: value,
-                  }));
-                }}
-                isEditing={isEditing}
-              />
-            </div>
-
-            <div className="relative" data-clinical-nav-card="true">
-              <ExamToolbox
-                isEditing={isEditing}
-                mode="detail"
-                currentCard={contactLensDetailsCard as any}
-                allRows={[[contactLensDetailsCard as any]]}
-                currentRowIndex={0}
-                currentCardIndex={0}
-                clipboardSourceType={clipboardSourceType}
-                onClearData={() => handleToolboxClear("contact-lens-details")}
-                onCopy={() => handleToolboxCopy("contact-lens-details")}
-                onPaste={() => handleToolboxPaste("contact-lens-details")}
-                onCopyLeft={() => {}}
-                onCopyRight={() => {}}
-                onCopyBelow={() => {}}
-              />
-              <ContactLensDetailsTab
-                contactLensDetailsData={contactLensDetailsData}
-                onContactLensDetailsChange={(field, value) => {
-                  if (
-                    onInventoryRelevantFieldChange(String(field), value) ===
-                    false
-                  ) {
-                    return;
-                  }
-                  setContactLensDetailsData((prev: any) => ({
-                    ...prev,
-                    [field]: value,
-                  }));
-                }}
-                isEditing={isEditing}
-                inventoryCatalog={
-                  clinicId
-                    ? {
-                        variants: catalogVariants,
-                        loading: isLoadingCatalog,
-                        rightValues: {
-                          type:
-                            contactLensDetailsData.r_type ??
-                            contactLensDetailsData.r_lens_type,
-                          model: contactLensDetailsData.r_model,
-                          supplier: contactLensDetailsData.r_supplier,
-                          material: contactLensDetailsData.r_material,
-                          color: contactLensDetailsData.r_color,
-                        },
-                        leftValues: {
-                          type:
-                            contactLensDetailsData.l_type ??
-                            contactLensDetailsData.l_lens_type,
-                          model: contactLensDetailsData.l_model,
-                          supplier: contactLensDetailsData.l_supplier,
-                          material: contactLensDetailsData.l_material,
-                          color: contactLensDetailsData.l_color,
-                        },
-                        rightCreateProduct: catalogProductActionFor("right"),
-                        leftCreateProduct: catalogProductActionFor("left"),
-                        rightDisabled:
-                          rightInventorySelection?.lifecycle_state ===
-                          "consumed",
-                        leftDisabled:
-                          leftInventorySelection?.lifecycle_state ===
-                          "consumed",
-                        onSelect: onInventorySelect,
-                      }
-                    : undefined
-                }
-              />
-            </div>
-          </div>
+        <div className="bg-card relative" data-clinical-nav-card="true">
+          <ExamToolbox {...examCardProps(contactLensExamCard)} />
+          <ContactLensExamTab
+            contactLensExamData={contactLensExamData}
+            onContactLensExamChange={guardedChange(setContactLensExamData)}
+            isEditing={isEditing}
+          />
         </div>
 
-        <div className="w-full" dir="rtl" data-clinical-nav-card="true">
+        <div className="bg-card relative" data-clinical-nav-card="true">
+          <ExamToolbox {...examCardProps(contactLensDetailsCard)} />
+          <ContactLensDetailsTab
+            contactLensDetailsData={contactLensDetailsData}
+            onContactLensDetailsChange={guardedChange(setContactLensDetailsData)}
+            isEditing={isEditing}
+            inventoryCatalog={
+              clinicId
+                ? {
+                    variants: catalogVariants,
+                    loading: isLoadingCatalog,
+                    rightValues: catalogValuesFor("right"),
+                    leftValues: catalogValuesFor("left"),
+                    rightCreateProduct: catalogProductActionFor("right"),
+                    leftCreateProduct: catalogProductActionFor("left"),
+                    rightDisabled: rightInventorySelection?.lifecycle_state === "consumed",
+                    leftDisabled: leftInventorySelection?.lifecycle_state === "consumed",
+                    onSelect: onInventorySelect,
+                  }
+                : undefined
+            }
+          />
+        </div>
+
+        <div className="bg-card" dir={direction} data-clinical-nav-card="true">
           <ContactLensOrderTab
             contactLensOrder={contactFormData}
             onContactLensOrderChange={(field: any, value: any) =>
@@ -548,30 +396,25 @@ export default function ContactOrderTab({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-6">
-          <NotesCard
-            title="הערות"
-            value={contactFormData.notes || ""}
-            onChange={(value) =>
-              setContactFormData((prev: any) => ({ ...prev, notes: value }))
-            }
-            disabled={!isEditing}
-            placeholder="הערות..."
-          />
-          <NotesCard
-            title="הערות לספק"
-            value={contactFormData.supplier_notes || ""}
-            onChange={(value) =>
-              setContactFormData((prev: any) => ({
-                ...prev,
-                supplier_notes: value,
-              }))
-            }
-            disabled={!isEditing}
-            placeholder="הערות לספק..."
-          />
-        </div>
-      </div>
+        <OrderNotesRow
+          disabled={!isEditing}
+          notes={[
+            {
+              key: "notes",
+              title: t("orderWorkspace.notes"),
+              value: contactFormData.notes || "",
+              onChange: (notes) => setContactFormData((prev: any) => ({ ...prev, notes })),
+            },
+            {
+              key: "supplier_notes",
+              title: t("orderWorkspace.supplierNotes"),
+              value: contactFormData.supplier_notes || "",
+              onChange: (supplier_notes) =>
+                setContactFormData((prev: any) => ({ ...prev, supplier_notes })),
+            },
+          ]}
+        />
+      </OrderSheet>
     </form>
   );
 }

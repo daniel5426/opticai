@@ -1,0 +1,40 @@
+schema: agents24.package/v2
+package_id: pkg_35edee12f47451878584baa77023342a
+name: prysm-clinic-agent
+description: Prysm Clinic Agent agent package
+resources:
+- key: brief
+  path: workflows/brief.yaml
+- key: clinic-tools
+  path: artifacts/clinic/artifact.yaml
+- key: document-evidence
+  path: stores/documents.yaml
+- key: documents
+  path: rag/documents.yaml
+- key: documents-native
+  path: rag/documents-native.yaml
+- key: insights
+  path: workflows/insights.yaml
+- key: main
+  path: workflows/main.yaml
+requires:
+  models:
+    primary:
+      required: true
+      capability: chat
+      match:
+        name: GPT-6 Astra
+    ocr:
+      required: true
+      capability: ocr
+      match:
+        name: Mistral PDF Parser
+    embedding:
+      required: true
+      capability: embedding
+      match:
+        canonical_key: openai/text-embedding-3-large
+  secrets:
+    artifact-signing:
+      required: true
+      env: AGENTS24_ARTIFACT_SIGNING_SECRET

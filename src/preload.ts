@@ -23,6 +23,23 @@ contextBridge.exposeInMainWorld('electronWindow', {
 // Expose APIs to renderer process
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
+  agentFetch: async (request: { id: string }, onChunk: (chunk: number[]) => void, onEnd: (error: string | null) => void) => {
+    const chunkEvent = `prysm-agent-chunk:${request.id}`;
+    const endEvent = `prysm-agent-end:${request.id}`;
+    const chunk = (_event: unknown, value: number[]) => {
+      Promise.resolve(onChunk(value)).finally(() => ipcRenderer.send('prysm-agent-ack', request.id)).catch(() => {});
+    };
+    const end = (_event: unknown, error: string | null) => {
+      ipcRenderer.removeListener(chunkEvent, chunk);
+      ipcRenderer.removeListener(endEvent, end);
+      onEnd(error);
+    };
+    ipcRenderer.on(chunkEvent, chunk);
+    ipcRenderer.once(endEvent, end);
+    try { return await ipcRenderer.invoke('prysm-agent-fetch', request); }
+    catch (error) { ipcRenderer.removeListener(chunkEvent, chunk); ipcRenderer.removeListener(endEvent, end); throw error; }
+  },
+  agentFetchAbort: (id: string) => ipcRenderer.invoke('prysm-agent-abort', id),
 
   // Generic DB Operation
   db: (method: string, ...args: any[]) => ipcRenderer.invoke('db-operation', method, ...args),

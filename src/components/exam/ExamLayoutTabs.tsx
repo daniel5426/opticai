@@ -20,6 +20,8 @@ interface ExamLayoutTabsProps {
   isRegeneratingFullData?: boolean;
   hasTabData?: (tab: LayoutTab) => boolean;
   onRemoveTab: (tabId: number) => void;
+  actions?: React.ReactNode;
+  addLayoutAction?: React.ReactNode;
 }
 
 export function ExamLayoutTabs({
@@ -32,6 +34,8 @@ export function ExamLayoutTabs({
   isRegeneratingFullData = false,
   hasTabData = () => true,
   onRemoveTab,
+  actions,
+  addLayoutAction,
 }: ExamLayoutTabsProps) {
   const { direction } = useAppLocale();
   const { t } = useTranslation();
@@ -41,6 +45,8 @@ export function ExamLayoutTabs({
     React.useState<LayoutTab | null>(null);
   const handleFullDataClick = onFullDataClick ?? onRegenerateFullData;
   const canRemoveLayoutTabs = visibleTabs.length > 0;
+  const activeTabShadow =
+    "shadow-sm after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-2 after:bg-card after:content-['']";
 
   const requestDelete = (tab: LayoutTab) => {
     if (hasTabData(tab)) {
@@ -70,12 +76,10 @@ export function ExamLayoutTabs({
     cursor: "pointer",
     transition: "background 0.15s ease, color 0.15s ease",
     borderRadius: "8px 8px 0 0",
-    border: isActive ? "1px solid hsl(var(--border))" : "1px solid transparent",
-    borderBottomColor: isActive ? "hsl(var(--muted))" : "transparent",
+    border: "none",
     marginBottom: isActive ? "-1px" : 0,
-    background: isActive
-      ? "linear-gradient(to bottom, hsl(var(--card)), hsl(var(--muted)))"
-      : "transparent",
+    zIndex: isActive ? 1 : undefined,
+    background: isActive ? "hsl(var(--card))" : "transparent",
     color: isActive
       ? "hsl(var(--foreground))"
       : "hsl(var(--muted-foreground) / 0.72)",
@@ -83,84 +87,88 @@ export function ExamLayoutTabs({
 
   return (
     <>
-      <div className="border-b">
+      <div data-exam-surface>
         <div
           dir={direction}
-          className="flex items-end gap-2"
+          className="flex items-end gap-2 pe-2"
           style={{
             alignItems: "flex-end",
           }}
         >
-          <div
-            dir="ltr"
-            className="shrink-0"
-            style={{
-              position: "relative",
-              display: "flex",
-            }}
-          >
-            {visibleTabs.length > 0 ? (
-              <Tabs
-                activeKey={
-                  !isFullDataActive ? activeInstanceId?.toString() || "" : ""
-                }
-                style={{
-                  gap: 2,
-                  position: "relative",
-                  backgroundColor: "transparent",
-                  padding: 0,
-                  borderRadius: 0,
-                  border: "none",
-                }}
-                onTabClick={(id) => onTabClick(Number(id))}
-                onTabDrop={onTabDrop}
-              >
-                {visibleTabs.map((tab) => (
-                  <Tab
-                    key={tab.id}
-                    id={tab.id.toString()}
-                    className="group"
-                    style={folderTab(tab.isActive)}
-                  >
-                    <Combine
-                      style={{
-                        width: 16,
-                        height: 16,
-                        flexShrink: 0,
-                        opacity: tab.isActive ? 1 : 0.5,
-                        color: "hsl(var(--primary))",
-                      }}
-                    />
-                    {tab.name}
-                    {canRemoveLayoutTabs ? (
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          requestDelete(tab);
-                        }}
-                        onMouseDown={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                        }}
-                        className="ms-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
-                        aria-label={t("deleteLayoutTab")}
-                        title={t("deleteLayoutTab")}
-                      >
-                        <X className="h-3 w-3" strokeWidth={2.5} />
-                      </button>
-                    ) : null}
-                  </Tab>
-                ))}
-              </Tabs>
-            ) : null}
+          <div className="flex min-w-0 flex-1 items-end gap-1">
+            <div className="relative top-px -ms-3 -mt-3 -mb-2 min-w-0">
+            <div
+              dir="ltr"
+              className="no-scrollbar overflow-x-auto"
+              style={{ scrollbarWidth: "none" }}
+            >
+            <div dir={direction} className="me-auto flex shrink-0 items-end gap-2 ps-3 pe-3 pt-3 pb-2">
+              {visibleTabs.length > 0 ? (
+                <Tabs
+                  dir="ltr"
+                  activeKey={
+                    !isFullDataActive ? activeInstanceId?.toString() || "" : ""
+                  }
+                  style={{
+                    gap: 2,
+                    flexShrink: 0,
+                    alignItems: "flex-end",
+                    position: "relative",
+                    backgroundColor: "transparent",
+                    padding: 0,
+                    borderRadius: 0,
+                    border: "none",
+                  }}
+                  onTabClick={(id) => onTabClick(Number(id))}
+                  onTabDrop={onTabDrop}
+                >
+                  {visibleTabs.map((tab) => (
+                    <Tab
+                      key={tab.id}
+                      id={tab.id.toString()}
+                      className={`group ${tab.isActive ? activeTabShadow : ""}`}
+                      style={{ ...folderTab(tab.isActive), marginBottom: 0 }}
+                    >
+                      {tab.name}
+                      {canRemoveLayoutTabs ? (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            requestDelete(tab);
+                          }}
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                          }}
+                          className="ms-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
+                          aria-label={t("deleteLayoutTab")}
+                          title={t("deleteLayoutTab")}
+                        >
+                          <X className="h-3 w-3" strokeWidth={2.5} />
+                        </button>
+                      ) : null}
+                    </Tab>
+                  ))}
+                </Tabs>
+              ) : null}
+            </div>
+            </div>
+            </div>
+            {addLayoutAction ? <div className="shrink-0">{addLayoutAction}</div> : null}
           </div>
-          <div className="ms-auto flex items-end gap-2" dir={direction}>
+          <div className="ms-auto flex max-w-full shrink-0 flex-wrap items-end gap-x-2 gap-y-2" dir={direction}>
             <button
               type="button"
               onClick={handleFullDataClick}
-              style={folderTab(isFullDataActive)}
+              className={isFullDataActive ? activeTabShadow : undefined}
+              style={{
+                ...folderTab(isFullDataActive),
+                height: isFullDataActive ? 43 : 42,
+                padding: "0 18px",
+                paddingBottom: isFullDataActive ? 7 : 6,
+              }}
               aria-label={t("allData")}
               title={t("allData")}
               disabled={!handleFullDataClick || isRegeneratingFullData}
@@ -174,8 +182,12 @@ export function ExamLayoutTabs({
                   color: "hsl(var(--primary))",
                 }}
               />
-              <span>{t("allData")}</span>
             </button>
+            {actions ? (
+              <div className="flex flex-wrap items-center gap-2 pb-1.5">
+                {actions}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

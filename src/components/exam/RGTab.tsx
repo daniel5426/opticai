@@ -30,7 +30,7 @@ export function RGTab({ rgData, onRGChange, isEditing, needsMiddleSpacer = false
           <div className="text-center text-xs h-[12px] font-medium text-muted-foreground"></div>
 
           <div className="grid grid-cols-2 gap-2 items-center">
-            <div className={`h-8 flex items-center justify-between space-x-2 px-3 rounded-md border ${isEditing ? 'bg-white' : 'bg-accent/50'}`}>
+            <div className={`field-view h-8 flex items-center justify-between space-x-2 px-3 rounded-md border bg-field ${isEditing ? 'border-input' : 'border-transparent'}`}>
               <Checkbox
                 id="suppression"
                 checked={rgData.rg_status === "suppression"}
@@ -55,7 +55,7 @@ export function RGTab({ rgData, onRGChange, isEditing, needsMiddleSpacer = false
               disabled={!isEditing || rgData.rg_status !== "suppression"}
               options={["R", "G"]}
               size="xs"
-              triggerClassName={`h-8 pr-4 text-center ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+              triggerClassName={`h-8 pr-4 text-center bg-field ${isEditing ? 'border-input' : 'border-transparent'} disabled:opacity-100 disabled:cursor-default`}
             />
 
             {needsMiddleSpacer && (
@@ -65,7 +65,7 @@ export function RGTab({ rgData, onRGChange, isEditing, needsMiddleSpacer = false
               </>
             )}
 
-            <div className={`h-8 flex items-center justify-between space-x-2 px-3 rounded-md border ${isEditing ? 'bg-white' : 'bg-accent/50'}`}>
+            <div className={`field-view h-8 flex items-center justify-between space-x-2 px-3 rounded-md border bg-field ${isEditing ? 'border-input' : 'border-transparent'}`}>
               <Checkbox
                 id="fusion"
                 checked={rgData.rg_status === "fusion"}
@@ -84,7 +84,7 @@ export function RGTab({ rgData, onRGChange, isEditing, needsMiddleSpacer = false
               </label>
             </div>
 
-            <div className={`h-8 flex items-center justify-between space-x-2 px-3 rounded-md border ${isEditing ? 'bg-white' : 'bg-accent/50'}`}>
+            <div className={`field-view h-8 flex items-center justify-between space-x-2 px-3 rounded-md border bg-field ${isEditing ? 'border-input' : 'border-transparent'}`}>
               <Checkbox
                 id="diplopia"
                 checked={rgData.rg_status === "diplopia"}

@@ -1,6 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "@/App";
+import { getAppearanceStore } from "@/lib/appearance";
 import { googleWebAPI } from "@/lib/google/google-web-api";
 import { applyDocumentLocale, getActiveLocale } from "@/localization/locale";
 
@@ -18,6 +19,7 @@ if (!container) {
 // Establish the document language before the first paint. The router has
 // already normalized any locale-prefixed browser URL by this point.
 applyDocumentLocale(getActiveLocale());
+getAppearanceStore().initialize();
 
 // Check if we're in a regular browser environment (no Electron)
 if (typeof window !== 'undefined' && !window.electronAPI) {

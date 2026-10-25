@@ -47,9 +47,11 @@ export const StretchSelect = memo(function StretchSelect({
 
     return (
         <div
+            data-slot="optimized-select"
+            data-disabled={disabled ? "" : undefined}
             className={cn(
                 "flex items-center group h-8 border border-input rounded-md transition-shadow relative bg-background min-w-0",
-                !disabled ? "bg-white" : "bg-accent/50",
+                !disabled ? "bg-field" : "bg-accent/50",
                 disabled && UI_CONFIG.noBorderOnDisabled ? "border-none" : "",
                 "focus-within:border-ring ring-0 outline-none",
                 className
@@ -123,7 +125,8 @@ export function useOptimizedInput<T extends HTMLInputElement | HTMLTextAreaEleme
     onChange?: (val: string) => void,
     debounceMs: number = 1500,
     onBlurOverride?: () => void,
-    onInput?: (val: string) => void
+    onInput?: (val: string) => void,
+    syncDOM: boolean = true
 ) {
     const { currentUser } = useUser();
     const inputRef = useRef<T>(null);
@@ -154,6 +157,13 @@ export function useOptimizedInput<T extends HTMLInputElement | HTMLTextAreaEleme
             localValueRef.current = value;
         }
 
+        // Shared Input owns its display formatting and prop synchronization.
+        // Direct DOM writes here would replace signs and trailing decimals.
+        if (!syncDOM) {
+            lastSentValueRef.current = value;
+            return;
+        }
+
         if (inputRef.current) {
             const normalizedDOM = inputRef.current.value?.toString().trim() || "";
             
@@ -181,7 +191,7 @@ export function useOptimizedInput<T extends HTMLInputElement | HTMLTextAreaEleme
                 }
             }
         }
-    }, [value]);
+    }, [value, syncDOM]);
 
     useEffect(() => {
         let timer: NodeJS.Timeout;
@@ -332,6 +342,7 @@ const TextareaMirror = memo(React.forwardRef<HTMLDivElement, { className?: strin
     ({ className, value }, ref) => {
         return (
             <div
+                data-slot="textarea-mirror"
                 ref={ref}
                 className={className}
                 aria-hidden="true"
@@ -363,7 +374,7 @@ export const FastInput = memo(function FastInput({
     center,
     ...props
 }: FastInputProps) {
-    const { inputRef } = useOptimizedInput<HTMLInputElement>(value, onChange, debounceMs, undefined, onInput);
+    const { inputRef } = useOptimizedInput<HTMLInputElement>(value, onChange, debounceMs, undefined, onInput, false);
     const navKind = props.type === "number" ? "number" : "input";
     return (
         <Input
@@ -440,7 +451,7 @@ export const FastTextarea = memo(function FastTextarea({
                 <TextareaMirror
                     ref={mirrorRef}
                     className={cn(
-                        "col-start-1 row-start-1 bg-transparent invisible whitespace-pre-wrap break-words min-h-[40px] px-2 py-2 text-sm pointer-events-none border border-transparent",
+                        "col-start-1 row-start-1 bg-transparent invisible whitespace-pre-wrap break-words min-h-10 px-2 py-2 text-sm pointer-events-none border border-transparent",
                         showMaximize && "pl-10",
                         className
                     )}
@@ -453,7 +464,7 @@ export const FastTextarea = memo(function FastTextarea({
                 ref={textareaRef}
                 defaultValue={value}
                 className={cn(
-                    "col-start-1 row-start-1 w-full max-w-full h-full min-h-[40px] px-2 py-2 text-sm resize-none break-words bg-white",
+                    "col-start-1 row-start-1 w-full max-w-full h-full min-h-10 px-2 py-2 text-sm resize-none break-words bg-field",
                     autoResize ? "overflow-hidden" : "overflow-y-auto",
                     !isSecret && "disabled:bg-accent/50",
                     "disabled:opacity-100 disabled:cursor-default",

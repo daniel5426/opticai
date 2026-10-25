@@ -1,4 +1,11 @@
+import examListTranslations from "./exam-list.json";
+import authLoginTranslations from "./auth-login.json";
+import globalSearchTranslations from "./global-search.json";
+import appearanceTranslations from "./appearance.json";
+import orderGroupTranslations from "./order-groups.json";
+import orderWorkspaceTranslations from "./order-workspace.json";
 import aiTranslations from "./ai.json";
+import agentTranslations from "./agent.json";
 import optitechTranslations from "./optitech.json";
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
@@ -283,6 +290,17 @@ i18n.use(initReactI18next).init({
         examNotFound: "Exam not found",
         sample: "Sample",
         examName: "Exam name",
+        examDetails: "Exam details",
+        examRetinoscopy: "Retinoscopy",
+        examAutoRefractor: "Auto Refractor",
+        examRetinoscopyDilation: "Retinoscopy + Dil",
+        chooseDate: "Choose date",
+        examOrder: "Order",
+        examRegularOrder: "Glasses",
+        examContactLenses: "Contact lenses",
+        saveExam: "Save exam",
+        editExam: "Edit exam",
+        sourceData: "Source data",
         date: "Date",
         practitioner: "Practitioner",
         dominantEye: "Dominant eye",
@@ -647,6 +665,17 @@ i18n.use(initReactI18next).init({
         examNotFound: "בדיקה לא נמצאה",
         sample: "דוגמה",
         examName: "שם הבדיקה",
+        examDetails: "פרטי הבדיקה",
+        examRetinoscopy: "רטינוסקופיה",
+        examAutoRefractor: "אוטורפרקטור",
+        examRetinoscopyDilation: "רטינוסקופיה + הרחבה",
+        chooseDate: "בחירת תאריך",
+        examOrder: "הזמנה",
+        examRegularOrder: "רגילה",
+        examContactLenses: "עדשות מגע",
+        saveExam: "שמירת בדיקה",
+        editExam: "עריכת בדיקה",
+        sourceData: "נתוני מקור",
         date: "תאריך",
         practitioner: "מטפל",
         dominantEye: "עין דומיננטית",
@@ -1017,6 +1046,17 @@ i18n.use(initReactI18next).init({
         examNotFound: "Examen introuvable",
         sample: "Exemple",
         examName: "Nom de l’examen",
+        examDetails: "Détails de l’examen",
+        examRetinoscopy: "Rétinoscopie",
+        examAutoRefractor: "Autoréfractomètre",
+        examRetinoscopyDilation: "Rétinoscopie + dilatation",
+        chooseDate: "Choisir une date",
+        examOrder: "Commande",
+        examRegularOrder: "Lunettes",
+        examContactLenses: "Lentilles de contact",
+        saveExam: "Enregistrer l’examen",
+        editExam: "Modifier l’examen",
+        sourceData: "Données source",
         date: "Date",
         practitioner: "Praticien",
         dominantEye: "Œil dominant",
@@ -1122,4 +1162,32 @@ export default i18n;
 
 for (const [language, translations] of Object.entries(aiTranslations)) {
   i18n.addResourceBundle(language, "translation", { ai: translations }, true, true);
+}
+
+for (const [language, translations] of Object.entries(orderGroupTranslations)) {
+  i18n.addResourceBundle(language, "translation", translations, true, true);
+}
+
+for (const [language, translations] of Object.entries(orderWorkspaceTranslations)) {
+  i18n.addResourceBundle(language, "translation", { orderWorkspace: translations }, true, true);
+}
+
+for (const [language, translations] of Object.entries(globalSearchTranslations)) {
+  i18n.addResourceBundle(language, "translation", { globalSearch: translations }, true, true);
+}
+
+for (const [language, translations] of Object.entries(appearanceTranslations)) {
+  i18n.addResourceBundle(language, "translation", translations, true, true);
+}
+
+for (const [language, translations] of Object.entries(agentTranslations)) {
+  i18n.addResourceBundle(language, 'translation', translations, true, true);
+}
+
+for (const [language, translations] of Object.entries(authLoginTranslations)) {
+  i18n.addResourceBundle(language, "translation", { authLogin: translations }, true, true);
+}
+
+for (const [language, translations] of Object.entries(examListTranslations)) {
+  i18n.addResourceBundle(language, "translation", { examList: translations }, true, true);
 }

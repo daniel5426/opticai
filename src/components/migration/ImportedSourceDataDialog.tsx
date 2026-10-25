@@ -5,6 +5,7 @@ import { apiClient } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { CustomModal } from "@/components/ui/custom-modal";
 import { Input } from "@/components/ui/input";
+import { useTranslation } from "react-i18next";
 
 export type ImportedSourceRecordType =
   | "client"
@@ -51,6 +52,7 @@ export function ImportedSourceDataDialog({
   recordType,
   recordId,
 }: ImportedSourceDataDialogProps) {
+  const { t } = useTranslation();
   const [isAvailable, setIsAvailable] = useState(false);
   const [isChecking, setIsChecking] = useState(Boolean(recordId));
   const [isOpen, setIsOpen] = useState(false);
@@ -125,7 +127,7 @@ export function ImportedSourceDataDialog({
         onClick={() => void handleOpen()}
       >
         <Database className="h-4 w-4" />
-        נתוני מקור
+        {t("sourceData")}
       </Button>
 
       <CustomModal

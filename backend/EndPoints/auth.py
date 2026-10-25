@@ -534,6 +534,10 @@ async def refresh(payload: RefreshRequest, request: Request, db: Session = Depen
         device_id=auth_session.device_id,
         request=request,
     )
+    from agent.config import enabled
+    if enabled():
+        from agent.authority import rotate_session_contexts
+        rotate_session_contexts(db, auth_session, session_payload['session_id'])
     db.commit()
     return _session_response(db, user, session_payload)
 

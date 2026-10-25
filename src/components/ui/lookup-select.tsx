@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
 import { Input } from './input'
 import { Button } from './button'
@@ -17,24 +18,30 @@ interface LookupItem {
 interface LookupSelectProps {
   value?: string
   onChange: (value: string) => void
+  ariaLabel?: string
   placeholder?: string
   lookupType: string
   className?: string
   center?: boolean
   disabled?: boolean
   dir?: 'rtl' | 'ltr'
+  variant?: 'default' | 'text'
 }
 
 export const LookupSelect = React.memo(function LookupSelect({
   value = '',
   onChange,
-  placeholder = 'בחר או הקלד...',
+  ariaLabel,
+  placeholder,
   lookupType,
   center = false,
   className = '',
   disabled = false,
-  dir = 'rtl'
+  dir = 'rtl',
+  variant = 'default'
 }: LookupSelectProps) {
+  const { t } = useTranslation()
+  const resolvedPlaceholder = placeholder ?? t('lookupSelectPlaceholder')
   const [isOpen, setIsOpen] = useState(false)
   const [inputValue, setInputValue] = useState(value)
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 })
@@ -133,10 +140,11 @@ export const LookupSelect = React.memo(function LookupSelect({
       const rect = containerRef.current?.getBoundingClientRect()
       if (!rect) return
 
+      const width = variant === 'text' ? Math.max(160, rect.width) : rect.width
       setDropdownPosition({
         top: rect.bottom + 4,
-        left: rect.left,
-        width: rect.width,
+        left: dir === 'rtl' ? rect.right - width : rect.left,
+        width,
       })
     }
 
@@ -148,7 +156,7 @@ export const LookupSelect = React.memo(function LookupSelect({
       window.removeEventListener('resize', updateDropdownPosition)
       window.removeEventListener('scroll', updateDropdownPosition, true)
     }
-  }, [isOpen])
+  }, [isOpen, dir, variant])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value
@@ -194,13 +202,13 @@ export const LookupSelect = React.memo(function LookupSelect({
           onChange(newItem.name)
         })
         setIsOpen(false)
-        toast.success('פריט חדש נוצר בהצלחה')
+        toast.success(t('lookupSelectCreated'))
       } else {
-        toast.error('שגיאה ביצירת פריט חדש')
+        toast.error(t('lookupSelectCreateError'))
       }
     } catch (error) {
       console.error('Error creating new item:', error)
-      toast.error('שגיאה ביצירת פריט חדש')
+      toast.error(t('lookupSelectCreateError'))
     }
   }
 
@@ -213,21 +221,25 @@ export const LookupSelect = React.memo(function LookupSelect({
   return (
     <div
       ref={containerRef}
-      className={`relative ${className} dark:bg-card`}
+      className={`relative ${variant === 'text' ? 'inline-block align-middle' : 'dark:bg-card'} ${className}`}
       dir={dir}
     >
-      <div className="relative">
+      {variant === 'text' && <span aria-hidden="true" className="invisible whitespace-pre">{inputValue || resolvedPlaceholder || "\u00a0"}</span>}
+      <div className={variant === 'text' ? "absolute inset-0 min-w-0" : "relative"}>
         <Input
           ref={inputRef}
           value={inputValue}
           onChange={handleInputChange}
           onFocus={() => setIsOpen(true)}
-          placeholder={placeholder}
+          onClick={() => setIsOpen(true)}
+          aria-label={ariaLabel}
+          placeholder={resolvedPlaceholder}
           disabled={disabled}
-          className={`text-start pe-5 ${!disabled ? 'bg-card' : 'bg-accent/50 dark:bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${center ? 'text-center' : ''}`}
+          className={variant === 'text' ? 'h-auto rounded-none border-0 bg-transparent dark:bg-transparent p-0 text-sm leading-[inherit] font-[inherit] shadow-none focus-visible:border-0 focus-visible:ring-0 md:text-sm' : `text-start pe-5 ${!disabled ? 'bg-card' : 'bg-accent/50 dark:bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${center ? 'text-center' : ''}`}
+          style={variant === 'text' ? {font: 'inherit'} : undefined}
           dir={dir}
         />
-        <Button
+        {variant !== 'text' && <Button
           type="button"
           variant="ghost"
           size="icon"
@@ -236,12 +248,13 @@ export const LookupSelect = React.memo(function LookupSelect({
           disabled={disabled}
         >
           <IconChevronDown size={6} className={`transition-transform size-[14px] text-muted-foreground ${isOpen ? 'rotate-180' : ''}`} />
-        </Button>
+        </Button>}
       </div>
 
       {isOpen && createPortal(
         <Card
           ref={dropdownRef}
+          dir={dir}
           className="fixed gap-1 z-[9999] p-1 shadow-lg border max-h-60 overflow-auto"
           style={{
             scrollbarWidth: 'none',
@@ -251,11 +264,11 @@ export const LookupSelect = React.memo(function LookupSelect({
           }}
         >
           {loading ? (
-            <div className="px-2 py-1 text-center text-muted-foreground">טוען...</div>
+            <div className="px-2 py-1 text-center text-muted-foreground">{t('loading')}</div>
           ) : (
             <>
               {filteredOptions.length === 0 && !showCreateOption ? (
-                <div className="px-2 py-1 text-center text-muted-foreground">אין תוצאות</div>
+                <div className="px-2 py-1 text-center text-muted-foreground">{t('lookupSelectNoResults')}</div>
               ) : (
                 <>
                   {filteredOptions.map((option) => (
@@ -270,10 +283,10 @@ export const LookupSelect = React.memo(function LookupSelect({
                     >
                       <div className="flex items-center">
                         {option.name === inputValue && (
-                          <IconCheck className="h-4 w-4 text-primary ml-1" />
+                          <IconCheck className="h-4 w-4 text-primary me-1" />
                         )}
                       </div>
-                      <span className="text-right flex-1">{option.name}</span>
+                      <span className="text-start flex-1">{option.name}</span>
                     </div>
                   ))}
 
@@ -287,13 +300,13 @@ export const LookupSelect = React.memo(function LookupSelect({
                       }}
                     >
                       <div className="flex items-center">
-                        <IconPlus className="h-4 w-4 text-green-600 ml-1" />
+                        <IconPlus className="h-4 w-4 text-green-600 me-1" />
                         {creating && (
-                          <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin ml-1" />
+                          <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin me-1" />
                         )}
                       </div>
-                      <span dir="rtl" className="text-right flex-1 text-green-600">
-                        צור "{inputValue}"
+                      <span dir={dir} className="text-start flex-1 text-green-600">
+                        {t('lookupSelectCreate', { value: inputValue })}
                       </span>
                     </div>
                   )}

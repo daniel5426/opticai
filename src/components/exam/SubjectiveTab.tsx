@@ -6,6 +6,7 @@ import { VASelect } from "./shared/VASelect"
 import { ChevronUp, ChevronDown } from "lucide-react"
 
 import { FastInput, FastSelect } from "./shared/OptimizedInputs"
+import { getExamInputGridTemplate } from "@/components/exam/shared/examInputGrid";
 import { EXAM_FIELDS, PDFieldConfigProvider } from "./data/exam-field-definitions"
 import { BASE_VALUES, PDCalculationUtils } from "./data/exam-constants"
 import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
@@ -137,7 +138,7 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
             <h3 className="font-medium text-muted-foreground">Subjective</h3>
           </div>
 
-          <div className={`grid ${hideEyeLabels ? (showVertical ? 'grid-cols-[repeat(10,1fr)]' : 'grid-cols-[repeat(8,1fr)]') : (showVertical ? 'grid-cols-[20px_repeat(10,1fr)]' : 'grid-cols-[20px_repeat(8,1fr)]')} gap-2 items-center`}>
+          <div className="grid gap-2 items-center" style={{ gridTemplateColumns: getExamInputGridTemplate(columns, hideEyeLabels) }}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label, headerAccessory }) => (
               <div key={key} className="h-4 flex items-center justify-center gap-0.5">

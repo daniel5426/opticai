@@ -1,5 +1,5 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Float, ForeignKey, Date, JSON, Index, UniqueConstraint, CheckConstraint
-from sqlalchemy.orm import declared_attr, relationship, backref
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Float, ForeignKey, Date, JSON, Index, UniqueConstraint, CheckConstraint, literal
+from sqlalchemy.orm import declared_attr, relationship, backref, synonym, column_property
 from sqlalchemy.sql import func, false
 from database import Base
 
@@ -562,6 +562,7 @@ class PrescriptionSearchIndex(Base):
     exam_id = Column(Integer, ForeignKey("optical_exams.id", ondelete="CASCADE"), nullable=True)
     layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id", ondelete="CASCADE"), nullable=True)
     card_type = Column(String)
+    component_key = Column(String(255), nullable=True)
     source_date = Column(Date)
     eye = Column(String, nullable=False)
     sph = Column(Float)
@@ -682,10 +683,42 @@ class ExamLayoutInstance(Base):
  
 
 
+class OrderGroup(SoftDeletableMixin, Base):
+    __tablename__ = "order_groups"
+
+    id = Column(Integer, primary_key=True)
+    clinic_id = Column(Integer, ForeignKey("clinics.id"), index=True)
+    payer_client_id = Column(Integer, ForeignKey("clients.id", ondelete="SET NULL"), index=True)
+    opened_date = Column(Date)
+    order_date = synonym("opened_date")
+    type = column_property(literal("order_group"))
+    revision = Column(Integer, nullable=False, default=1, server_default="1")
+    legacy_write_protected = Column(Boolean, nullable=False, default=False, server_default=false())
+    creation_key = Column(String(64), unique=True, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class OrderGroupEntry(Base):
+    __tablename__ = "order_group_entries"
+    __table_args__ = (
+        CheckConstraint("(order_id IS NOT NULL AND contact_lens_id IS NULL) OR (order_id IS NULL AND contact_lens_id IS NOT NULL)", name="ck_group_entry_one_order"),
+        Index("ix_group_entry_position", "group_id", "position"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    group_id = Column(Integer, ForeignKey("order_groups.id", ondelete="CASCADE"), nullable=False)
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"), unique=True)
+    contact_lens_id = Column(Integer, ForeignKey("contact_lens_orders.id", ondelete="CASCADE"), unique=True)
+    position = Column(Integer, nullable=False, default=0)
+    group = relationship("OrderGroup")
+
+
 class Billing(Base):
     __tablename__ = "billings"
     
     id = Column(Integer, primary_key=True, index=True)
+    order_group_id = Column(Integer, ForeignKey("order_groups.id", ondelete="CASCADE"), unique=True, nullable=True)
+    order_group = relationship("OrderGroup")
     order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"))
     contact_lens_id = Column(Integer, ForeignKey("contact_lens_orders.id", ondelete="CASCADE"))
     total_before_discount = Column(Float)
@@ -724,6 +757,9 @@ class OrderLineItem(Base):
     discount = Column(Float)
     line_total = Column(Float)
     currency = Column(String(3), nullable=False, default="ILS", server_default="ILS")
+    source_entry_id = Column(Integer, ForeignKey("order_group_entries.id", ondelete="SET NULL"), nullable=True, index=True)
+    source_slot = Column(String, nullable=True)
+    manually_edited = Column(Boolean, nullable=False, default=True, server_default="true")
 
 class Order(SoftDeletableMixin, Base):
     __tablename__ = "orders"
@@ -752,6 +788,7 @@ class ContactLensOrder(SoftDeletableMixin, Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
     order_date = Column(Date)
     type = Column(String)
+    dominant_eye = Column(String)
 
     l_lens_type = Column(String)
     l_model = Column(String)
@@ -1298,6 +1335,7 @@ Index('uq_recent_client_visits_user_clinic_client', RecentClientVisit.user_id, R
 Index('ix_prescription_search_client', PrescriptionSearchIndex.client_id)
 Index('ix_prescription_search_clinic_eye_values', PrescriptionSearchIndex.clinic_id, PrescriptionSearchIndex.eye, PrescriptionSearchIndex.sph, PrescriptionSearchIndex.cyl, PrescriptionSearchIndex.ax)
 Index('ix_prescription_search_source', PrescriptionSearchIndex.source_type, PrescriptionSearchIndex.source_id)
+Index('ix_prescription_component', PrescriptionSearchIndex.source_type, PrescriptionSearchIndex.source_id, PrescriptionSearchIndex.component_key, PrescriptionSearchIndex.eye)
 Index('ix_prescription_search_exam_id', PrescriptionSearchIndex.exam_id)
 Index('ix_prescription_search_layout_instance_id', PrescriptionSearchIndex.layout_instance_id)
 

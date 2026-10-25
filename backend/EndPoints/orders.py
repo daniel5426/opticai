@@ -5,7 +5,7 @@ from datetime import date
 from database import get_db
 from models import Order, Client, User, Billing, OrderLineItem, ContactLensOrder, Company
 from currency import DEFAULT_CURRENCY, normalize_currency
-from sqlalchemy import Date, func
+from sqlalchemy import Date, func, or_
 from schemas import OrderCreate, OrderUpdate, Order as OrderSchema, BillingCreate, BillingUpdate, Billing as BillingSchema, OrderLineItemCreate, OrderLineItemUpdate, OrderLineItem as OrderLineItemSchema, ContactLensOrderCreate, ContactLensOrderUpdate, ContactLensOrder as ContactLensOrderSchema
 from utils.table_search import build_all_terms_search_condition, search_blob, spaced_concat
 from auth import get_current_user
@@ -32,6 +32,7 @@ from services.inventory_service import (
     release_order_allocations_for_delete,
 )
 from services.trash_service import move_to_trash
+from services.order_group_service import ensure_standalone_group, billing_for_order, order_groups_available
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -41,20 +42,46 @@ def _attach_billing_summaries(db: Session, orders: list, *, contact: bool = Fals
     if not order_ids:
         return
 
-    billing_query = db.query(Billing)
-    if contact:
-        billings = billing_query.filter(Billing.contact_lens_id.in_(order_ids)).all()
-        billing_by_order_id = {billing.contact_lens_id: billing for billing in billings}
-    else:
-        billings = billing_query.filter(Billing.order_id.in_(order_ids)).all()
-        billing_by_order_id = {billing.order_id: billing for billing in billings}
+    from models import OrderGroup, OrderGroupEntry
+    column = OrderGroupEntry.contact_lens_id if contact else OrderGroupEntry.order_id
+    rows = db.query(column, Billing, OrderGroup.payer_client_id, OrderGroup.id).join(OrderGroup, OrderGroup.id == OrderGroupEntry.group_id).join(Billing, Billing.order_group_id == OrderGroup.id).filter(column.in_(order_ids)).all()
+    billing_by_order_id = {row[0]: row[1] for row in rows}
+    owners = {row[0]: (row[2], row[3]) for row in rows}
+    legacy_column = Billing.contact_lens_id if contact else Billing.order_id
+    for billing in db.query(Billing).filter(legacy_column.in_(order_ids)).all():
+        billing_by_order_id.setdefault(billing.contact_lens_id if contact else billing.order_id, billing)
+    representatives = {}
+    if owners:
+        representative_rows = db.query(OrderGroupEntry.group_id, OrderGroupEntry.order_id, OrderGroupEntry.contact_lens_id).join(OrderGroup, OrderGroup.id == OrderGroupEntry.group_id).outerjoin(Order, OrderGroupEntry.order_id == Order.id).outerjoin(ContactLensOrder, OrderGroupEntry.contact_lens_id == ContactLensOrder.id).filter(OrderGroup.id.in_([value[1] for value in owners.values()]), or_(Order.client_id == OrderGroup.payer_client_id, ContactLensOrder.client_id == OrderGroup.payer_client_id)).order_by(OrderGroupEntry.position, OrderGroupEntry.id).all()
+        for group_id, regular_id, contact_id in representative_rows:
+            representatives.setdefault(group_id, (regular_id, contact_id))
+    seen_groups = set()
 
     for order in orders:
         billing = billing_by_order_id.get(order.id)
         setattr(order, "billing_id", billing.id if billing else None)
-        setattr(order, "billing_total_after_discount", billing.total_after_discount if billing else None)
-        setattr(order, "billing_prepayment_amount", billing.prepayment_amount if billing else None)
+        owner = owners.get(order.id)
+        counts_balance = not owner or (owner[0] == order.client_id and representatives.get(owner[1], (None, None))[1 if contact else 0] == order.id and owner[1] not in seen_groups)
+        if owner and counts_balance:
+            seen_groups.add(owner[1])
+        setattr(order, "billing_total_after_discount", billing.total_after_discount if billing and counts_balance else 0 if billing else None)
+        setattr(order, "billing_prepayment_amount", billing.prepayment_amount if billing and counts_balance else 0 if billing else None)
         setattr(order, "billing_currency", billing.currency if billing else None)
+
+
+def _shared_page_billing(db, items):
+    if not order_groups_available(db):
+        return items
+    for contact, model in ((False, Order), (True, ContactLensOrder)):
+        ids = [item["id"] for item in items if bool(item.get("__contact")) == contact]
+        orders = db.query(model).filter(model.id.in_(ids)).all() if ids else []
+        _attach_billing_summaries(db, orders, contact=contact)
+        by_id = {order.id: order for order in orders}
+        for item in items:
+            if bool(item.get("__contact")) == contact and item["id"] in by_id:
+                for field in ("billing_id", "billing_total_after_discount", "billing_prepayment_amount", "billing_currency"):
+                    item[field] = getattr(by_id[item["id"]], field)
+    return items
 
 
 def _default_currency_for_clinic(db: Session, clinic_id: int | None) -> str:
@@ -325,7 +352,7 @@ def get_orders_paginated(
         ).mappings().all()
         has_more = len(rows) > limit
         return {
-            "items": [dict(row) for row in rows[:limit]],
+            "items": _shared_page_billing(db, [dict(row) for row in rows[:limit]]),
             "total": get_total() if include_total else None,
             "has_more": has_more,
         }
@@ -415,7 +442,7 @@ def get_orders_paginated(
     items = [dict(r) for r in rows[:limit]]
 
     return {
-        "items": items,
+        "items": _shared_page_billing(db, items),
         "total": get_total() if include_total else None,
         "has_more": len(rows) > limit,
     }
@@ -429,6 +456,7 @@ def create_order(
     payload = _prepare_model_payload(db, current_user, Order, order.dict())
     db_order = Order(**payload)
     db.add(db_order)
+    ensure_standalone_group(db, db_order, isinstance(db_order, ContactLensOrder))
     db.commit()
     db.refresh(db_order)
     rebuild_order_index(db, db_order)
@@ -675,12 +703,13 @@ def _upsert_billing_and_items(
     if not isinstance(billing_data, dict):
         return None
     filtered_billing_data = filter_model_data(Billing, billing_data)
+    filtered_billing_data.pop("order_group_id", None)
     if billing_data.get("id"):
         db_billing = get_scoped_billing(db, current_user, billing_data["id"])
     elif order_id is not None:
-        db_billing = db.query(Billing).filter(Billing.order_id == order_id).first()
+        db_billing = billing_for_order(db, order_id)
     else:
-        db_billing = db.query(Billing).filter(Billing.contact_lens_id == contact_lens_order_id).first()
+        db_billing = billing_for_order(db, contact_lens_order_id, True)
 
     if db_billing:
         requested_currency = normalize_currency(filtered_billing_data.get("currency"), default=None)
@@ -690,7 +719,7 @@ def _upsert_billing_and_items(
                 detail="Billing currency is immutable. Create a new billing record for another currency.",
             )
         for key, value in filtered_billing_data.items():
-            if key not in {"id", "order_id", "contact_lens_id", "line_items", "currency"}:
+            if key not in {"id", "order_id", "contact_lens_id", "line_items", "currency", "order_group_id"}:
                 setattr(db_billing, key, value)
     else:
         create_data = {
@@ -724,6 +753,8 @@ def _upsert_billing_and_items(
             if not isinstance(item, dict):
                 continue
             filtered = filter_model_data(OrderLineItem, item)
+            for group_field in ("source_entry_id", "source_slot", "manually_edited"):
+                filtered.pop(group_field, None)
             item_id = item.get("id")
             if item_id and item_id in existing:
                 db_item = existing[item_id]
@@ -785,6 +816,7 @@ def upsert_order_full(
         client = db.query(Client).filter(Client.id == db_order.client_id).first()
         if client:
             client.client_updated_date = func.now()
+    ensure_standalone_group(db, db_order, isinstance(db_order, ContactLensOrder))
     db.commit()
     db.refresh(db_order)
 
@@ -812,6 +844,7 @@ def create_contact_lens_order(
     payload = _prepare_model_payload(db, current_user, ContactLensOrder, order.dict())
     db_order = ContactLensOrder(**payload)
     db.add(db_order)
+    ensure_standalone_group(db, db_order, isinstance(db_order, ContactLensOrder))
     db.commit()
     db.refresh(db_order)
     rebuild_contact_lens_order_index(db, db_order)
@@ -947,6 +980,7 @@ def upsert_contact_lens_order_full(
         client = db.query(Client).filter(Client.id == db_order.client_id).first()
         if client:
             client.client_updated_date = func.now()
+    ensure_standalone_group(db, db_order, isinstance(db_order, ContactLensOrder))
     db.commit()
     db.refresh(db_order)
 

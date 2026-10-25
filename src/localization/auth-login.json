@@ -1,0 +1,35 @@
+{
+  "en": {
+    "invalidPassword": "Could not sign in. Check your password.",
+    "failed": "Could not sign in. Please try again.",
+    "clinicVerificationTitle": "Verify clinic access",
+    "clinicVerificationDescription": "Enter the clinic PIN to continue signing in.",
+    "clinicPin": "Clinic PIN",
+    "invalidClinicPin": "Incorrect clinic PIN. Please try again.",
+    "clinicVerificationFailed": "Could not verify clinic access. Please try again.",
+    "cancel": "Cancel",
+    "continue": "Continue"
+  },
+  "he": {
+    "invalidPassword": "שגיאה בהתחברות - בדוק את הסיסמה",
+    "failed": "לא ניתן להתחבר. נסה שוב.",
+    "clinicVerificationTitle": "אימות גישה למרפאה",
+    "clinicVerificationDescription": "הזן את קוד המרפאה כדי להמשיך בהתחברות.",
+    "clinicPin": "קוד המרפאה",
+    "invalidClinicPin": "קוד המרפאה שגוי. נסה שוב.",
+    "clinicVerificationFailed": "לא ניתן לאמת את הגישה למרפאה. נסה שוב.",
+    "cancel": "ביטול",
+    "continue": "המשך"
+  },
+  "fr": {
+    "invalidPassword": "Connexion impossible. Vérifiez votre mot de passe.",
+    "failed": "Connexion impossible. Veuillez réessayer.",
+    "clinicVerificationTitle": "Vérifier l’accès à la clinique",
+    "clinicVerificationDescription": "Saisissez le code PIN de la clinique pour poursuivre la connexion.",
+    "clinicPin": "Code PIN de la clinique",
+    "invalidClinicPin": "Code PIN de la clinique incorrect. Veuillez réessayer.",
+    "clinicVerificationFailed": "Impossible de vérifier l’accès à la clinique. Veuillez réessayer.",
+    "cancel": "Annuler",
+    "continue": "Continuer"
+  }
+}

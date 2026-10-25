@@ -35,6 +35,7 @@ from models import (
     OpticalExam,
     Order,
     OrderLineItem,
+    OrderGroup,
     PrescriptionSearchIndex,
     RecentClientVisit,
     Referral,
@@ -112,7 +113,7 @@ def preview_counts(db: Session, clinic_id: int, section: str | None = None) -> d
     order_ids = db.query(Order.id).filter(Order.clinic_id == clinic_id)
     contact_order_ids = db.query(ContactLensOrder.id).filter(ContactLensOrder.clinic_id == clinic_id)
     billing_ids = db.query(Billing.id).filter(
-        or_(Billing.order_id.in_(order_ids), Billing.contact_lens_id.in_(contact_order_ids))
+        or_(Billing.order_id.in_(order_ids), Billing.contact_lens_id.in_(contact_order_ids), Billing.order_group_id.in_(db.query(OrderGroup.id).filter(OrderGroup.clinic_id == clinic_id)))
     )
     referral_ids = db.query(Referral.id).filter(Referral.clinic_id == clinic_id)
     appointment_ids = db.query(Appointment.id).filter(Appointment.clinic_id == clinic_id)
@@ -294,7 +295,7 @@ def _delete_operational_rows(db: Session, job: ClinicDataPruneJob) -> dict[str, 
     order_ids = db.query(Order.id).filter(Order.clinic_id == clinic_id)
     contact_order_ids = db.query(ContactLensOrder.id).filter(ContactLensOrder.clinic_id == clinic_id)
     billing_ids = db.query(Billing.id).filter(
-        or_(Billing.order_id.in_(order_ids), Billing.contact_lens_id.in_(contact_order_ids))
+        or_(Billing.order_id.in_(order_ids), Billing.contact_lens_id.in_(contact_order_ids), Billing.order_group_id.in_(db.query(OrderGroup.id).filter(OrderGroup.clinic_id == clinic_id)))
     )
     referral_ids = db.query(Referral.id).filter(Referral.clinic_id == clinic_id)
     appointment_ids = db.query(Appointment.id).filter(Appointment.clinic_id == clinic_id)
@@ -331,6 +332,7 @@ def _delete_operational_rows(db: Session, job: ClinicDataPruneJob) -> dict[str, 
         File,
         ContactLensOrder,
         Order,
+        OrderGroup,
         OpticalExam,
         Client,
         Family,

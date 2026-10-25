@@ -341,6 +341,11 @@ const localUiTestRoutes = import.meta.env.DEV
         path: "/dev/ui-tests",
         component: lazy(() => import("@/pages/LocalUiTestsPage")),
       }),
+      createRoute({
+        getParentRoute: () => RootRoute,
+        path: "/dev/appearance",
+        component: lazy(() => import("@/pages/AppearanceGalleryPage")),
+      }),
     ]
   : [];
 

@@ -1,3 +1,4 @@
+import { getAppearanceStore } from "@/lib/appearance";
 import React, { useState, useEffect } from "react"
 import { SiteHeader } from "@/components/site-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -208,7 +209,7 @@ export default function ControlCenterSettingsPage() {
           profile_picture: personalProfile.profile_picture,
           primary_theme_color: personalProfile.primary_theme_color,
           secondary_theme_color: personalProfile.secondary_theme_color,
-          theme_preference: personalProfile.theme_preference,
+          theme_preference: getAppearanceStore().getSnapshot().mode,
         }
       }
       const unifiedResp = await apiClient.saveAll(payload)

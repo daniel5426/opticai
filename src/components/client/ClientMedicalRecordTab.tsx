@@ -358,7 +358,7 @@ export const ClientMedicalRecordTab = ({
                   </div>
                 </div>
 
-                <Card className="ms-14 border-none bg-transparent shadow-none">
+                <Card className="ms-14 border-none bg-white text-slate-900 shadow-none">
                   <CardContent className="border-none">
                     {record.isEditing ? (
                       <Textarea
@@ -368,7 +368,7 @@ export const ClientMedicalRecordTab = ({
                           handleContentChange(record.id, e.target.value)
                         }
                         placeholder="הזן את תוכן הרשומה הרפואית..."
-                        className="min-h-[100px] resize-none"
+                        className="min-h-[100px] resize-none bg-white text-slate-900 placeholder:text-slate-500 dark:bg-white"
                         dir={direction}
                       />
                     ) : (

@@ -856,8 +856,7 @@ export function ExamLayoutsTable({
         }
       />
 
-      <div className="bg-card rounded-md">
-        <DndContext
+      <DndContext
           sensors={sensors}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
@@ -952,8 +951,7 @@ export function ExamLayoutsTable({
               )}
             </TableBody>
           </Table>
-        </DndContext>
-      </div>
+      </DndContext>
 
       <CustomModal
         isOpen={isDeleteModalOpen}

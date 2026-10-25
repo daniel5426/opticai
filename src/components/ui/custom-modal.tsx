@@ -1,4 +1,6 @@
-import React, { useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+import { useAppLocale } from '@/localization/use-app-locale'
+import React, { useEffect, useRef, useId } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Loader2 } from 'lucide-react'
 import { Button } from './button'
@@ -22,12 +24,18 @@ interface CustomModalProps {
   direction?: 'rtl' | 'ltr'
 }
 
-export function CustomModal({ isOpen, onClose, title, subtitle, description, children, className = '', width = 'max-w-lg', onConfirm, confirmText = 'אישור', cancelText = 'ביטול', showCloseButton = true, dismissible = true, isLoading = false, headerContent, direction = 'rtl' }: CustomModalProps) {
+export function CustomModal({ isOpen, onClose, title, subtitle, description, children, className = '', width = 'max-w-lg', onConfirm, confirmText, cancelText, showCloseButton = true, dismissible = true, isLoading = false, headerContent, direction: providedDirection }: CustomModalProps) {
+  const { t } = useTranslation()
+  const { direction: localeDirection } = useAppLocale()
+  const direction = providedDirection ?? localeDirection
+  const titleId = useId()
+  const previousFocus = useRef<HTMLElement | null>(null)
   const modalRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (isOpen) {
+      previousFocus.current = document.activeElement as HTMLElement
       // Prevent body scroll
       document.body.style.overflow = 'hidden'
 
@@ -40,7 +48,7 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
       document.body.style.overflow = ''
 
       // Force focus back to body and ensure interactivity
-      document.body.focus()
+      previousFocus.current?.focus()
       document.body.style.pointerEvents = ''
 
       // Dispatch a click to ensure the page is responsive
@@ -58,7 +66,14 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen && dismissible) {
+      if (e.key === 'Tab' && isOpen) {
+        const focusable = Array.from(modalRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]') || []).filter(element => element.getClientRects().length)
+        const first = focusable[0], last = focusable[focusable.length - 1]
+        if (!first) { e.preventDefault(); return }
+        if (e.shiftKey && (document.activeElement === first || document.activeElement === modalRef.current)) { e.preventDefault(); last.focus() }
+        else if (!e.shiftKey && (document.activeElement === last || document.activeElement === modalRef.current)) { e.preventDefault(); first.focus() }
+      }
+      if (e.key === 'Escape'  && isOpen && dismissible) {
         e.preventDefault()
         onClose()
       }
@@ -91,7 +106,10 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
     >
       <div
         ref={modalRef}
-        className={`bg-card rounded-lg shadow-lg w-full ${width} max-h-[90vh] overflow-hidden flex flex-col ${className}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className={`bg-card rounded-lg shadow-dialog w-full ${width} max-h-[90vh] overflow-hidden flex flex-col ${className}`}
         onClick={(e) => e.stopPropagation()}
         tabIndex={-1}
       >
@@ -108,7 +126,7 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
 
           {/* Center: Title */}
           <div className="flex-1 text-center">
-            <h2 className="text-base font-medium">
+            <h2 id={titleId} className="text-base font-medium">
               {title}
             </h2>
           </div>
@@ -121,6 +139,7 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
                 variant="ghost"
                 size="sm"
                 onClick={onClose}
+                aria-label={t("appearanceClose")}
                 className="h-8 w-8 p-0"
               >
                 <X className="h-4 w-4" />
@@ -141,13 +160,13 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
         {onConfirm && (
           <div className="flex justify-center p-4 " dir={direction}>
             <Button variant="outline" onClick={onClose} className="me-2" disabled={isLoading}>
-              {cancelText}
+              {cancelText ?? t("appearanceCancel")}
             </Button>
             <Button onClick={onConfirm} disabled={isLoading}>
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                confirmText
+                confirmText ?? t("appearanceConfirm")
               )}
             </Button>
           </div>
