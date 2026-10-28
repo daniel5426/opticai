@@ -1,5 +1,7 @@
 import React from "react"
+import { useTranslation } from "react-i18next"
 import { Client, Family } from "@/lib/db/schema-interface"
+import { useClientExamDatesQuery } from "@/hooks/client/useClientTabQueries"
 
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -64,10 +66,12 @@ export function ClientDetailsTab({
   onSave,
 }: ClientDetailsTabProps) {
   const { direction } = useAppLocale()
+  const { t } = useTranslation()
   const isNewMode = mode === 'new'
   const showEditableFields = isEditing || isNewMode
   const { currentClinic } = useUser()
   const formData = draft
+  const examDates = useClientExamDatesQuery(draft.id, !isNewMode)
   const healthFundValue = formData.health_fund || ''
   const statusValue = formData.status || ''
   const statusOptions = getClientStatusOptions(healthFundValue)
@@ -938,8 +942,21 @@ export function ClientDetailsTab({
                 </div>
               )}
 
-              {!isCreatingFamily && (
+              {isNewMode && !isCreatingFamily && (
                 <div className="text-sm h-[0.786rem] text-muted-foreground">
+                </div>
+              )}
+
+              {!isNewMode && (
+                <div className="grid grid-cols-1 @[500px]:grid-cols-2 gap-3 border-t border-border pt-4">
+                  <div className="space-y-2">
+                    <ModernLabel>{t("clientFirstExam")}</ModernLabel>
+                    <DateInput name="first_exam_date" value={examDates.data?.first_exam_date ?? undefined} onChange={() => {}} disabled />
+                  </div>
+                  <div className="space-y-2">
+                    <ModernLabel>{t("clientLastExam")}</ModernLabel>
+                    <DateInput name="last_exam_date" value={examDates.data?.last_exam_date ?? undefined} onChange={() => {}} disabled />
+                  </div>
                 </div>
               )}
 

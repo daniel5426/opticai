@@ -78,7 +78,7 @@ export async function getAllEnrichedExams(type?: string, clinicId?: number, opti
 export async function getPaginatedEnrichedExams(
   type?: string,
   clinicId?: number,
-  options?: { limit?: number; offset?: number; order?: string; q?: string; testName?: string; includeTotal?: boolean; countOnly?: boolean }
+  options?: { limit?: number; offset?: number; order?: string; q?: string; testName?: string; columnFilters?: string; includeTotal?: boolean; countOnly?: boolean }
 ): Promise<{ items: any[]; total: number | null; hasMore: boolean }> {
   try {
     const effectiveOptions = options ?? { limit: 25, offset: 0, order: 'exam_date_desc' as const };
@@ -122,6 +122,9 @@ export async function getExamWithLayouts(examId: number): Promise<any> {
     return undefined;
   }
 }
+
+/** Page data prefetched for an exam the user is likely to open next (e.g. a sibling OptiTech tab). */
+export const examPageDataQueryKey = (examId: number) => ["exam-page-data", examId] as const
 
 export async function getExamPageData(examId: number): Promise<any> {
   try {

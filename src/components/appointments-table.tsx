@@ -55,6 +55,8 @@ import {
   ALL_FILTER_VALUE,
 } from "@/lib/table-filters";
 import { SortableTableHead } from "@/components/sortable-table-head";
+import { ActiveColumnFilters, ColumnFiltersProvider, useColumnFilterState } from "@/components/column-filter";
+import { matchesColumnFilters, type ColumnFilterDefinition, type ColumnFilters } from "@/lib/column-filters";
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting";
 import { useSettings } from "@/hooks/useSettings";
 import { DateSearchHelper } from "@/lib/date-search-helper";
@@ -87,6 +89,8 @@ interface AppointmentsTableProps {
   onDateScopeFilterChange?: (value: string) => void;
   sort?: SortState;
   onSortChange?: (sort: SortState) => void;
+  columnFilters?: ColumnFilters;
+  onColumnFiltersChange?: (filters: ColumnFilters) => void;
   fillHeight?: boolean;
 }
 
@@ -192,9 +196,12 @@ export function AppointmentsTable({
   onDateScopeFilterChange,
   sort,
   onSortChange,
+  columnFilters: externalColumnFilters,
+  onColumnFiltersChange,
   fillHeight = false,
 }: AppointmentsTableProps) {
   const { t } = useTranslation();
+  const columnFilters = useColumnFilterState(externalColumnFilters, onColumnFiltersChange);
   const [searchQuery, setSearchQuery] = useState("");
   const [localSort, setLocalSort] = useState<SortState | undefined>();
   const searchValue =
@@ -323,6 +330,35 @@ export function AppointmentsTable({
     }
     return deduped;
   }, [optimisticAppointments, data]);
+  const columnFilterDefinitions = React.useMemo<ColumnFilterDefinition<Appointment>[]>(() => {
+    const names = (values: (string | null | undefined)[]) =>
+      Array.from(new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value))))
+        .sort((a, b) => a.localeCompare(b, "he"))
+        .map((value) => ({ value, label: value }));
+    return [
+      { key: "date", label: "תאריך", kind: "date", getValue: (appointment) => appointment.date },
+      { key: "time", label: "שעה", kind: "text", getValue: (appointment) => appointment.time },
+      ...(clientId === 0
+        ? [{ key: "client", label: "לקוח", kind: "text" as const, getValue: (appointment: Appointment) => appointment.client_full_name }]
+        : []),
+      {
+        key: "exam_name",
+        label: "סוג בדיקה",
+        kind: "options",
+        options: names([...activeExamLayouts.map((layout) => layout.name), ...allAppointments.map((appointment) => appointment.exam_name)]),
+        getValue: (appointment) => appointment.exam_name,
+      },
+      {
+        key: "examiner",
+        label: "בודק",
+        kind: "options",
+        options: names(users.map((user) => user.full_name || user.username)),
+        getValue: (appointment) => appointment.examiner_name,
+      },
+      { key: "note", label: "הערות", kind: "text", getValue: (appointment) => appointment.note },
+    ];
+  }, [activeExamLayouts, allAppointments, clientId, users]);
+
   const finalFilteredData = React.useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -358,6 +394,13 @@ export function AppointmentsTable({
         }
       }
 
+      if (
+        !serverFiltered &&
+        !matchesColumnFilters(appointment, columnFilters.filters, columnFilterDefinitions)
+      ) {
+        return false;
+      }
+
       const searchLower = serverFiltered
         ? ""
         : searchValue.toLowerCase().trim();
@@ -385,6 +428,8 @@ export function AppointmentsTable({
     examTypeFilter,
     searchValue,
     serverFiltered,
+    columnFilters.filters,
+    columnFilterDefinitions,
   ]);
 
   const uniqueExamTypes = React.useMemo(() => {
@@ -906,6 +951,7 @@ export function AppointmentsTable({
   };
 
   return (
+    <ColumnFiltersProvider filters={columnFilters.filters} definitions={columnFilterDefinitions} onChange={columnFilters.setFilters}>
     <div
       className={
         fillHeight ? "flex min-h-0 flex-1 flex-col gap-2.5" : "space-y-2.5"
@@ -945,13 +991,15 @@ export function AppointmentsTable({
         hasActiveFilters={
           Boolean(searchValue.trim()) ||
           examTypeFilter !== ALL_FILTER_VALUE ||
-          dateScopeFilter !== ALL_FILTER_VALUE
+          dateScopeFilter !== ALL_FILTER_VALUE ||
+          columnFilters.active
         }
         onReset={() => {
           if (onSearchChange) onSearchChange("");
           else setSearchQuery("");
           handleExamTypeFilterChange(ALL_FILTER_VALUE);
           handleDateScopeFilterChange(ALL_FILTER_VALUE);
+          columnFilters.setFilters({});
         }}
         actions={
           clientId > 0 ? (
@@ -980,6 +1028,7 @@ export function AppointmentsTable({
           )
         }
       />
+      <ActiveColumnFilters />
 
       {/* Client Select Modal */}
       <ClientSelectModal
@@ -1244,5 +1293,6 @@ export function AppointmentsTable({
         />
       )}
     </div>
+    </ColumnFiltersProvider>
   );
 }

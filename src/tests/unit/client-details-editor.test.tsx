@@ -1,5 +1,6 @@
 import React from "react"
-import { render, screen, waitFor } from "@testing-library/react"
+import { render as renderUi, screen, waitFor } from "@testing-library/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, test, vi } from "vitest"
 import { ClientDetailsTab } from "@/components/client/ClientDetailsTab"
@@ -35,6 +36,20 @@ vi.mock("@/lib/db/family-db", () => ({
 vi.mock("@/components/migration/ImportedSourceDataDialog", () => ({
   ImportedSourceDataDialog: () => null,
 }))
+
+vi.mock("@/lib/api-client", () => ({
+  apiClient: { getClientExamDates: vi.fn(() => Promise.resolve({ data: { first_exam_date: null, last_exam_date: null } })) },
+}))
+
+// The tab reads exam dates through React Query, which the app provides at its root.
+const render = (ui: React.ReactElement) =>
+  renderUi(ui, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        {children}
+      </QueryClientProvider>
+    ),
+  })
 
 describe("client details editor helpers", () => {
   test("normalizes legacy loaded client values at the boundary", () => {

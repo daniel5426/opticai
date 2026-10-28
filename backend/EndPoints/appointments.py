@@ -6,6 +6,7 @@ from database import get_db
 from models import Appointment, Client, User, Clinic
 from schemas import AppointmentCreate, AppointmentUpdate, Appointment as AppointmentSchema
 from auth import get_current_user
+from utils.column_filters import ColumnFilter, build_column_filter_conditions
 from utils.table_search import build_all_terms_search_condition, search_blob, spaced_concat
 from sqlalchemy import func
 from security.scope import (
@@ -83,6 +84,7 @@ def get_appointments_paginated(
     search: Optional[str] = Query(None, description="Search by date/time/exam_name/note or client name"),
     date_scope: Optional[str] = Query(None, description="Filter by date scope: all|today|upcoming|past"),
     exam_name: Optional[str] = Query(None, description="Filter by exact exam name"),
+    filters: Optional[str] = Query(None, description="JSON column filters: date|time|client|exam_name|examiner|note"),
     include_total: bool = Query(True, description="Include the exact total count"),
     count_only: bool = Query(False, description="Return only the exact total count"),
     db: Session = Depends(get_db),
@@ -120,6 +122,14 @@ def get_appointments_paginated(
     )
     if search_condition is not None:
         base = base.filter(search_condition)
+    base = base.filter(*build_column_filter_conditions(filters, {
+        "date": ColumnFilter(Appointment.date, "date"),
+        "time": ColumnFilter(Appointment.time),
+        "client": ColumnFilter(spaced_concat(Client.first_name, Client.last_name)),
+        "exam_name": ColumnFilter(Appointment.exam_name, "options"),
+        "examiner": ColumnFilter(func.coalesce(User.full_name, User.username), "options"),
+        "note": ColumnFilter(Appointment.note),
+    }))
     
     order_columns = {
         "date": Appointment.date,

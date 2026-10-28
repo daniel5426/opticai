@@ -16,6 +16,7 @@ import {
   sortToOrder,
   sortToSearch,
 } from "@/lib/table-sorting";
+import { parseColumnFilters, serializeColumnFilters } from "@/lib/column-filters";
 import { deferPaginationTotal } from "@/lib/deferred-pagination";
 
 export default function AllFilesPage() {
@@ -35,6 +36,7 @@ export default function AllFilesPage() {
       parseSortSearch(search.sort, { key: "upload_date", direction: "desc" }),
     [search.sort],
   );
+  const columnFilters = React.useMemo(() => parseColumnFilters(search.filters), [search.filters]);
 
   useEffect(() => {
     updateLatestSearch(search.q);
@@ -52,6 +54,7 @@ export default function AllFilesPage() {
       page: number;
       fileCategory: string;
       sort: string;
+      filters: string;
     }>,
   ) =>
     buildTableSearch(
@@ -60,6 +63,7 @@ export default function AllFilesPage() {
         page: search.page,
         fileCategory: search.fileCategory,
         sort: search.sort,
+        filters: search.filters,
         ...overrides,
       },
       {
@@ -67,6 +71,7 @@ export default function AllFilesPage() {
         page: 1,
         fileCategory: ALL_FILTER_VALUE,
         sort: "",
+        filters: "",
       },
     );
 
@@ -96,6 +101,7 @@ export default function AllFilesPage() {
           search.fileCategory !== ALL_FILTER_VALUE
             ? search.fileCategory
             : undefined,
+        columnFilters: search.filters || undefined,
         includeTotal: false,
       };
       const { items, hasMore: nextHasMore } = await getPaginatedFiles(currentClinic?.id, paginationOptions);
@@ -127,6 +133,7 @@ export default function AllFilesPage() {
     search.fileCategory,
     search.page,
     search.q,
+    search.filters,
     startSearchRequest,
   ]);
 
@@ -189,6 +196,13 @@ export default function AllFilesPage() {
             navigate({
               to: "/files",
               search: buildSearchState({ fileCategory: value, page: 1 }),
+            })
+          }
+          columnFilters={columnFilters}
+          onColumnFiltersChange={(filters) =>
+            navigate({
+              to: "/files",
+              search: buildSearchState({ filters: serializeColumnFilters(filters), page: 1 }),
             })
           }
           sort={activeSort}

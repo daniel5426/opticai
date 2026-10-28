@@ -32,6 +32,7 @@ import InventoryPage from "@/pages/InventoryPage";
 import AllUsersPage from "@/pages/AllUsersPage";
 import AuthCallbackPage from "@/pages/AuthCallbackPage";
 import GoogleAuthCallbackPage from "@/pages/GoogleAuthCallbackPage";
+import { normalizeColumnFiltersParam } from "@/lib/column-filters";
 
 const getSearchString = (search: Record<string, unknown>, key: string) =>
   typeof search[key] === "string" ? (search[key] as string) : ""
@@ -139,8 +140,10 @@ export const ClientsRoute = createRoute({
   validateSearch: (search: Record<string, unknown>) => ({
     mode: getClientsMode(search),
     q: getSearchString(search, "q"),
+    filters: normalizeColumnFiltersParam(search.filters),
     page: getPositiveSearchNumber(search, "page"),
     gender: getOptionalFilter(search, "gender"),
+    clinic: getSearchString(search, "clinic"),
     sort: getSearchString(search, "sort"),
   }),
   component: ClientsPage,
@@ -206,6 +209,7 @@ export const AllExamsRoute = createRoute({
   path: "/exams",
   validateSearch: (search: Record<string, unknown>) => ({
     q: getSearchString(search, "q"),
+    filters: normalizeColumnFiltersParam(search.filters),
     page: getPositiveSearchNumber(search, "page"),
     testName: getOptionalFilter(search, "testName"),
     sort: getSearchString(search, "sort"),
@@ -240,6 +244,7 @@ export const AllReferralsRoute = createRoute({
     q: getSearchString(search, "q"),
     page: getPositiveSearchNumber(search, "page"),
     urgency: getOptionalFilter(search, "urgency"),
+    filters: normalizeColumnFiltersParam(search.filters),
     referralType: getOptionalFilter(search, "referralType"),
     sort: getSearchString(search, "sort"),
   }),
@@ -251,6 +256,7 @@ export const AllAppointmentsRoute = createRoute({
   path: "/appointments",
   validateSearch: (search: Record<string, unknown>) => ({
     q: getSearchString(search, "q"),
+    filters: normalizeColumnFiltersParam(search.filters),
     page: getPositiveSearchNumber(search, "page"),
     dateScope: getOptionalFilter(search, "dateScope"),
     examName: getOptionalFilter(search, "examName"),
@@ -264,6 +270,7 @@ export const AllFilesRoute = createRoute({
   path: "/files",
   validateSearch: (search: Record<string, unknown>) => ({
     q: getSearchString(search, "q"),
+    filters: normalizeColumnFiltersParam(search.filters),
     page: getPositiveSearchNumber(search, "page"),
     fileCategory: getOptionalFilter(search, "fileCategory"),
     sort: getSearchString(search, "sort"),
@@ -276,6 +283,7 @@ export const AllUsersRoute = createRoute({
   path: "/users",
   validateSearch: (search: Record<string, unknown>) => ({
     q: getSearchString(search, "q"),
+    filters: normalizeColumnFiltersParam(search.filters),
     page: getPositiveSearchNumber(search, "page"),
     role: getOptionalFilter(search, "role"),
     clinicScope: getOptionalFilter(search, "clinicScope"),

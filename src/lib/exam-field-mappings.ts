@@ -44,6 +44,9 @@ export type ExamComponentType =
   | 'optitech-contact-measurements'
   | 'optitech-accommodation'
   | 'optitech-binocular'
+  | 'optitech-glasses-check'
+  | 'optitech-contact-check'
+  | 'optitech-vision-check'
   | 'old-ref'
   | 'old-refraction'
   | 'old-refraction-extension'
@@ -155,6 +158,9 @@ export const examComponentTypeToExamFields: Record<ExamComponentType, ExamCompon
   'optitech-contact-measurements': [],
   'optitech-accommodation': [],
   'optitech-binocular': [],
+  'optitech-glasses-check': [],
+  'optitech-contact-check': [],
+  'optitech-vision-check': [],
   'softoptic-cover-test': [],
   'softoptic-maddox-grid': [],
   'schirmer-test': [],
@@ -213,6 +219,9 @@ export class ExamFieldMapper {
     'optitech-contact-measurements': [],
     'optitech-accommodation': [],
     'optitech-binocular': [],
+    'optitech-glasses-check': [],
+    'optitech-contact-check': [],
+    'optitech-vision-check': [],
     'softoptic-cover-test': ['softoptic-cover-test'],
     'softoptic-maddox-grid': ['softoptic-maddox-grid'],
     'schirmer-test': [],

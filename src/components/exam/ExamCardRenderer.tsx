@@ -1,4 +1,7 @@
 import { OptitechMigrationCard } from "./OptitechMigrationCard";
+import { OptitechGlassesCheckCard } from "./OptitechGlassesCheckCard";
+import { OptitechContactCheckCard } from "./OptitechContactCheckCard";
+import { OptitechVisionCheckCard } from "./OptitechVisionCheckCard";
 import { isOptitechCard, OptitechCardType, OptitechCardData } from "@/lib/optitech-cards";
 import React, { useState } from "react";
 import { Card } from "@/components/ui/card";
@@ -169,6 +172,8 @@ const componentsWithEyeRowCopy: CardItem["type"][] = [
   "over-refraction",
 ];
 
+const OPTITECH_SCREEN_CARDS = new Set<string>(["optitech-glasses-check", "optitech-contact-check", "optitech-vision-check"]);
+
 const getRowCompositionKey = (cards: CardItem[]) =>
   cards
     .map((card) => `${card.id}:${card.type}:${card.showEyeLabels ? "1" : "0"}`)
@@ -178,6 +183,9 @@ export interface CardItem {
   id: string;
   type:
     | OptitechCardType
+    | "optitech-glasses-check"
+    | "optitech-contact-check"
+    | "optitech-vision-check"
     | "old-ref"
     | "old-refraction"
     | "old-refraction-extension"
@@ -509,6 +517,10 @@ export const getColumnCount = (
 ): number | { fixedPx: number } => {
   if (isOptitechCard(type)) return 8;
   switch (type) {
+    case "optitech-glasses-check":
+    case "optitech-contact-check":
+    case "optitech-vision-check":
+      return 16;
     case "diopter-adjustment-panel":
       return { fixedPx: mode === "editor" ? 389 : 369 };
     case "old-ref":
@@ -1229,6 +1241,39 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
 
     // Move hooks to top level
     const coverTestActiveTabsRef = React.useRef<Record<string, number>>({});
+
+    if (item.type === "optitech-glasses-check" || item.type === "optitech-contact-check" || item.type === "optitech-vision-check") {
+      const OptitechCard = item.type === "optitech-glasses-check" ? OptitechGlassesCheckCard : OptitechContactCheckCard;
+      const blockOf = (component: string) => {
+        const canonical = getExamData(component as ExamComponentType) as Record<string, unknown> | undefined;
+        // Notes cards are keyed "notes-<card id>" with card ids like "notes-1".
+        const id = component === "notes" ? "notes-1" : String(canonical?.card_instance_id || `${component}-1`);
+        return { id, block: (getExamData(component as ExamComponentType, id) as Record<string, unknown> | undefined) ?? canonical };
+      };
+      const cardProps = {
+        isEditing: mode === "detail" ? detailProps!.isEditing : false,
+        readBlock: (component: string) => blockOf(component).block,
+        writeField: (component: string, field: string, value: string) =>
+          getChangeHandler(component as ExamComponentType, blockOf(component).id)(field, value),
+        exam: mode === "detail" && detailProps ? {
+          examId: detailProps.exam?.id,
+          clientId: detailProps.exam?.client_id,
+          examDate: detailProps.formData.exam_date,
+          onExamDateChange: detailProps.handleInputChange,
+          userId: detailProps.formData.user_id,
+          onUserChange: (userId: number) => detailProps.setFormData((prev) => ({ ...prev, user_id: userId })),
+          dominantEye: detailProps.formData.dominant_eye,
+          onDominantEyeChange: (value: string) => detailProps.handleSelectChange(value, "dominant_eye"),
+        } : undefined,
+      };
+      return <div className="relative h-full">
+        {item.type === "optitech-vision-check" ? (
+          <OptitechVisionCheckCard {...cardProps} />
+        ) : (
+          <OptitechCard {...cardProps} readField={(component, field) => blockOf(component).block?.[field]} />
+        )}
+      </div>;
+    }
 
     if (isOptitechCard(item.type)) {
       return <div className="relative h-full">
@@ -2464,6 +2509,13 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
       const nextData = next.detailProps.examFormData;
       const type = next.item.type;
       const id = next.item.id;
+
+      // OptiTech screen cards read many components and the exam's own fields (date, examiner).
+      if (OPTITECH_SCREEN_CARDS.has(type)) {
+        return prevData === nextData &&
+          prev.detailProps.formData === next.detailProps.formData &&
+          prev.detailProps.exam === next.detailProps.exam;
+      }
 
       // Check specific tab data for multi-tab components
       if (type === "old-refraction") {

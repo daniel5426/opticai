@@ -1,3 +1,5 @@
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
@@ -446,6 +448,35 @@ def get_orders_paginated(
         "total": get_total() if include_total else None,
         "has_more": len(rows) > limit,
     }
+
+_LEADING_INTEGER = re.compile(r"\s*([+-]?\d+)")
+
+
+def _parse_bag_number(raw) -> Optional[int]:
+    """Same result as the client's parseInt(String(raw), 10): the leading integer, or None."""
+    if raw is None:
+        return None
+    match = _LEADING_INTEGER.match(str(raw))
+    return int(match.group(1)) if match else None
+
+
+@router.get("/next-bag-number")
+def get_next_bag_number(
+    clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Next bag number across regular and contact lens orders, without loading the orders."""
+    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
+    max_bag_number = 0
+    for model in (Order, ContactLensOrder):
+        bag_number = model.order_data["details"]["bag_number"].as_string()
+        rows = db.query(bag_number).filter(model.clinic_id.in_(allowed_clinic_ids), bag_number.isnot(None))
+        for (raw,) in rows:
+            parsed = _parse_bag_number(raw)
+            if parsed is not None and parsed > max_bag_number:
+                max_bag_number = parsed
+    return {"next_bag_number": str(max_bag_number + 1)}
 
 @router.post("/", response_model=OrderSchema)
 def create_order(

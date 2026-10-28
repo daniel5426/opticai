@@ -131,8 +131,8 @@ const ControlCenterUsersPage: React.FC = () => {
   return (
     <>
       <SiteHeader title="ניהול משתמשים" />
-      <div className="flex flex-col bg-muted/50 flex-1 gap-6 pb-40 h-full" dir="rtl" style={{scrollbarWidth: 'none'}}>
-        <div className="container mx-auto p-6">
+      <div className="flex flex-col bg-muted/50 flex-1 gap-6 h-full min-h-0" dir="rtl" style={{scrollbarWidth: 'none'}}>
+        <div className="flex min-h-0 flex-1 flex-col p-4 lg:p-6">
 
 
         <UsersTable
@@ -144,6 +144,7 @@ const ControlCenterUsersPage: React.FC = () => {
           onNewUser={handleNewUser}
           onEditUser={handleEditUserClick as any}
           loading={loading}
+          fillHeight
         />
         </div>
       </div>

@@ -9,6 +9,8 @@ import { deleteFamily } from "@/lib/db/family-db"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SortableTableHead } from "@/components/sortable-table-head"
+import { ActiveColumnFilters, ColumnFiltersProvider, useColumnFilterState } from "@/components/column-filter"
+import { matchesColumnFilters, type ColumnFilterDefinition, type ColumnFilters } from "@/lib/column-filters"
 import { TablePagination } from "@/components/table-pagination"
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
 import { DateSearchHelper } from "@/lib/date-search-helper"
@@ -36,8 +38,15 @@ interface FamiliesTableProps {
   currentClinicId?: number
   sort?: SortState
   onSortChange?: (sort: SortState) => void
+  columnFilters?: ColumnFilters
+  onColumnFiltersChange?: (filters: ColumnFilters) => void
   fillHeight?: boolean
 }
+
+const FAMILY_COLUMN_FILTERS: ColumnFilterDefinition<Family>[] = [
+  { key: "name", label: "שם המשפחה", kind: "text", getValue: (family) => family.name },
+  { key: "created_date", label: "נוצר בתאריך", kind: "date", getValue: (family) => family.created_date },
+]
 
 export function FamiliesTable({
   data,
@@ -56,8 +65,11 @@ export function FamiliesTable({
   currentClinicId,
   sort,
   onSortChange,
-  fillHeight = false
+  fillHeight = false,
+  columnFilters: externalColumnFilters,
+  onColumnFiltersChange
 }: FamiliesTableProps) {
+  const columnFilters = useColumnFilterState(externalColumnFilters, onColumnFiltersChange)
   const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
   const [localSort, setLocalSort] = React.useState<SortState | undefined>()
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
@@ -101,6 +113,10 @@ export function FamiliesTable({
       result = result.filter((f) => f.clinic_id === currentClinicId)
     }
 
+    if (!serverFiltered) {
+      result = result.filter((family) => matchesColumnFilters(family, columnFilters.filters, FAMILY_COLUMN_FILTERS))
+    }
+
     if (!serverFiltered && !isExternalSearch && searchQuery) {
       result = result.filter(
         (family) =>
@@ -109,7 +125,7 @@ export function FamiliesTable({
       )
     }
     return result
-  }, [data, searchQuery, isExternalSearch, showCurrentClinicOnly, currentClinicId, serverFiltered])
+  }, [data, searchQuery, isExternalSearch, showCurrentClinicOnly, currentClinicId, serverFiltered, columnFilters.filters])
 
   const displayData = React.useMemo(() => {
     return onSortChange ? filteredData : sortRows(filteredData, activeSort, sortColumns)
@@ -160,6 +176,7 @@ export function FamiliesTable({
   }
 
   return (
+    <ColumnFiltersProvider filters={columnFilters.filters} definitions={FAMILY_COLUMN_FILTERS} onChange={columnFilters.setFilters}>
     <div className={fillHeight ? "flex min-h-0 flex-1 flex-col gap-2.5" : "space-y-2.5"} dir="rtl">
       {!hideSearch && (
         <div className="flex items-center justify-between">
@@ -184,6 +201,7 @@ export function FamiliesTable({
           </div>
         </div>
       )}
+      <ActiveColumnFilters />
 
       <div className={fillHeight ? "min-h-0 flex-1" : undefined}>
         <Table
@@ -324,5 +342,6 @@ export function FamiliesTable({
         showCloseButton={false}
       />
     </div>
+    </ColumnFiltersProvider>
   )
 }

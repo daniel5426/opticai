@@ -26,6 +26,8 @@ import { ClientTabName, prefetchClientTab } from "@/hooks/client/useClientTabQue
 import { apiClient } from "@/lib/api-client"
 import { useAppLocale } from "@/localization/use-app-locale"
 
+const CLIENT_TABS: ClientTabName[] = ["details", "exams", "medical", "orders", "referrals", "appointments", "files"]
+
 export default function ClientDetailPage() {
   const { direction } = useAppLocale()
   const { clientId } = useParams({ from: "/clients/$clientId" })
@@ -103,6 +105,14 @@ export default function ClientDetailPage() {
       currentClinic?.id,
     )
   }, [activeTab, clientIdNum, currentClinic?.id, queryClient])
+
+  // Warm all tabs in parallel once the client opens (in-flight and fresh queries are deduped),
+  // so switching tabs reads from cache instead of waiting on the network.
+  useEffect(() => {
+    CLIENT_TABS.forEach((tab) => {
+      prefetchClientTab(queryClient, clientIdNum, tab, currentClinic?.id)
+    })
+  }, [clientIdNum, currentClinic?.id, queryClient])
 
   useEffect(() => {
     if (editor.serverClient) updateCurrentClient(editor.serverClient)

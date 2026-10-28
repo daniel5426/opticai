@@ -131,13 +131,19 @@ describe("Classic palette previews and Pro isolation", () => {
     store.setStyle("classic");
     expect(root.style.getPropertyValue("--primary")).toBe(primary);
   });
-  it("preserves existing Classic dark mode without accent overrides", () => {
+  it("applies a dark variant of the Classic palette in dark mode", () => {
     const { store, root } = fixture({ color_theme: "forest", theme: "light" });
     store.initialize();
+    const lightPrimary = root.style.getPropertyValue("--primary");
     store.setMode("dark");
-    expect(root.style.getPropertyValue("--primary")).toBe("");
+    const darkPrimary = root.style.getPropertyValue("--primary");
+    expect(darkPrimary).not.toBe("");
+    expect(darkPrimary).not.toBe(lightPrimary);
+    store.setPalette("plum");
+    expect(root.style.getPropertyValue("--primary")).not.toBe(darkPrimary);
     store.setMode("light");
-    expect(root.style.getPropertyValue("--primary")).not.toBe("");
+    store.setPalette("forest");
+    expect(root.style.getPropertyValue("--primary")).toBe(lightPrimary);
   });
 });
 

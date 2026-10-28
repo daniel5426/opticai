@@ -474,6 +474,25 @@ examComponentRegistry.register('npc', {
   showInLayoutEditor: true
 })
 
+// Faithful OptiTech glasses-check view; it owns no data and binds to the imported cards.
+examComponentRegistry.register('optitech-glasses-check', {
+  name: 'OptiTech glasses check',
+  component: () => import('../components/exam/OptitechGlassesCheckCard'),
+  showInLayoutEditor: false,
+})
+
+examComponentRegistry.register('optitech-contact-check', {
+  name: 'OptiTech contact lens check',
+  component: () => import('../components/exam/OptitechContactCheckCard'),
+  showInLayoutEditor: false,
+})
+
+examComponentRegistry.register('optitech-vision-check', {
+  name: 'OptiTech visual functions',
+  component: () => import('../components/exam/OptitechVisionCheckCard'),
+  showInLayoutEditor: false,
+})
+
 // Migration-only cards use the same JSON persistence as standard exam cards.
 for (const type of OPTITECH_CARD_TYPES) {
   examComponentRegistry.register(type, {

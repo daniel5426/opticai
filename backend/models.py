@@ -621,8 +621,8 @@ class MedicalLog(SoftDeletableMixin, Base):
     __tablename__ = "medical_logs"
     
     id = Column(Integer, primary_key=True, index=True)
-    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
-    clinic_id = Column(Integer, ForeignKey("clinics.id"))
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True)
+    clinic_id = Column(Integer, ForeignKey("clinics.id"), index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
     log_date = Column(Date)
     log = Column(Text)
@@ -631,7 +631,7 @@ class OpticalExam(SoftDeletableMixin, Base):
     __tablename__ = "optical_exams"
     
     id = Column(Integer, primary_key=True, index=True)
-    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True)
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
     clinic = Column(String)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
@@ -1182,7 +1182,7 @@ class Campaign(Base):
     __tablename__ = "campaigns"
     
     id = Column(Integer, primary_key=True, index=True)
-    clinic_id = Column(Integer, ForeignKey("clinics.id"))
+    clinic_id = Column(Integer, ForeignKey("clinics.id"), index=True)
     name = Column(String, nullable=False)
     filters = Column(Text)
     email_enabled = Column(Boolean, default=False)

@@ -4,22 +4,37 @@ import { Client } from "@/lib/db/schema-interface"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { PlusIcon, Trash2 } from "lucide-react"
+import { LayoutGrid, PlusIcon, Rows3, Trash2 } from "lucide-react"
 import { CustomModal } from "@/components/ui/custom-modal"
 import { deleteClient } from "@/lib/db/clients-db"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
-import { TableFiltersBar } from "@/components/table-filters-bar"
+import { TableFiltersBar, type TableFiltersBarSelect } from "@/components/table-filters-bar"
 import { TablePagination } from "@/components/table-pagination"
 import { GENDER_FILTER_OPTIONS } from "@/lib/table-filters"
 import { SortableTableHead } from "@/components/sortable-table-head"
+import { ActiveColumnFilters, ColumnFiltersProvider, useColumnFilterState } from "@/components/column-filter"
+import { matchesColumnFilters, type ColumnFilterDefinition, type ColumnFilters } from "@/lib/column-filters"
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
 import { DateSearchHelper } from "@/lib/date-search-helper"
 import { useAppLocale } from "@/localization/use-app-locale"
-import { getClientGenderLabel } from "@/lib/client-details-editor"
+import { CLIENT_GENDER_OPTIONS, getClientGenderLabel, normalizeGender } from "@/lib/client-details-editor"
 import { useTranslation } from "react-i18next"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { ClientCardsGrid } from "@/components/client-cards-grid"
 
 const LIST_CELL_TEXT_LIMIT = 160
+const VIEW_MODE_STORAGE_KEY = "clients.view"
+
+type ClientsViewMode = "table" | "cards"
+
+function readStoredViewMode(): ClientsViewMode {
+  try {
+    return localStorage.getItem(VIEW_MODE_STORAGE_KEY) === "cards" ? "cards" : "table"
+  } catch {
+    return "table"
+  }
+}
 
 function getListCellText(value: string | undefined) {
   return typeof value === "string" ? value.slice(0, LIST_CELL_TEXT_LIMIT) : ""
@@ -47,15 +62,40 @@ interface ClientsTableProps {
   }
   genderFilter?: string
   onGenderFilterChange?: (value: string) => void
+  /** Extra select filters (e.g. clinic branch) shown next to the gender filter. */
+  extraFilters?: TableFiltersBarSelect[]
+  extraFiltersActive?: boolean
+  onResetExtraFilters?: () => void
+  /** Clinic names by id; when given, a branch column is shown. */
+  clinicNames?: Record<number, string>
   toolbarActions?: React.ReactNode
   sort?: SortState
   onSortChange?: (sort: SortState) => void
+  columnFilters?: ColumnFilters
+  onColumnFiltersChange?: (filters: ColumnFilters) => void
   mergeMode?: boolean
   selectedMergeClientIds?: number[]
   selectedMergeClients?: Client[]
   onToggleMergeClient?: (client: Client) => void
   fillHeight?: boolean
 }
+
+const CLIENT_COLUMN_FILTERS: ColumnFilterDefinition<Client>[] = [
+  { key: "id", label: "מס' לקוח", kind: "text", getValue: (client) => client.id },
+  { key: "first_name", label: "שם פרטי", kind: "text", getValue: (client) => client.first_name },
+  { key: "last_name", label: "שם משפחה", kind: "text", getValue: (client) => client.last_name },
+  {
+    key: "gender",
+    label: "מגדר",
+    kind: "options",
+    options: CLIENT_GENDER_OPTIONS.map((value) => ({ value, label: value })),
+    getValue: (client) => normalizeGender(client.gender),
+  },
+  { key: "national_id", label: "ת.ז.", kind: "text", getValue: (client) => client.national_id },
+  { key: "phone_mobile", label: "נייד", kind: "text", getValue: (client) => client.phone_mobile },
+  { key: "email", label: "אימייל", kind: "text", getValue: (client) => client.email },
+  { key: "family_role", label: "תפקיד במשפחה", kind: "text", getValue: (client) => client.family_role },
+]
 
 export function ClientsTable({
   data,
@@ -73,6 +113,10 @@ export function ClientsTable({
   pagination,
   genderFilter: externalGenderFilter,
   onGenderFilterChange,
+  extraFilters = [],
+  extraFiltersActive = false,
+  onResetExtraFilters,
+  clinicNames,
   toolbarActions,
   sort,
   onSortChange,
@@ -80,9 +124,12 @@ export function ClientsTable({
   selectedMergeClientIds = [],
   selectedMergeClients = [],
   onToggleMergeClient,
-  fillHeight = false
+  fillHeight = false,
+  columnFilters: externalColumnFilters,
+  onColumnFiltersChange
 }: ClientsTableProps) {
   const { t } = useTranslation()
+  const columnFilters = useColumnFilterState(externalColumnFilters, onColumnFiltersChange)
   const { direction, locale } = useAppLocale()
   const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
   const [selectedGender, setSelectedGender] = React.useState<string>("all")
@@ -90,6 +137,20 @@ export function ClientsTable({
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
   const [clientToDelete, setClientToDelete] = React.useState<Client | null>(null)
   const navigate = useNavigate()
+  // The card view is offered only on the full list, not in the compact family side panel.
+  const canUseCards = !compactMode && !showFamilyColumn
+  const [storedViewMode, setStoredViewMode] = React.useState<ClientsViewMode>(readStoredViewMode)
+  const viewMode: ClientsViewMode = canUseCards ? storedViewMode : "table"
+
+  const handleViewModeChange = (value: string) => {
+    if (value !== "table" && value !== "cards") return
+    setStoredViewMode(value)
+    try {
+      localStorage.setItem(VIEW_MODE_STORAGE_KEY, value)
+    } catch {
+      // Storage unavailable; the choice still applies for this session.
+    }
+  }
 
   const searchQuery = externalSearchQuery !== undefined ? externalSearchQuery : internalSearchQuery
   const genderFilter = externalGenderFilter ?? selectedGender
@@ -138,7 +199,11 @@ export function ClientsTable({
     }
 
     if (!serverFiltered && genderFilter !== "all") {
-      filtered = filtered.filter((client) => client.gender === genderFilter)
+      filtered = filtered.filter((client) => normalizeGender(client.gender) === genderFilter)
+    }
+
+    if (!serverFiltered) {
+      filtered = filtered.filter((client) => matchesColumnFilters(client, columnFilters.filters, CLIENT_COLUMN_FILTERS))
     }
 
     if (!serverFiltered && searchQuery && filtered.length > 0) {
@@ -161,7 +226,7 @@ export function ClientsTable({
     }
 
     return filtered
-  }, [data, searchQuery, selectedFamilyId, showFamilyColumn, genderFilter, serverFiltered])
+  }, [data, searchQuery, selectedFamilyId, showFamilyColumn, genderFilter, serverFiltered, columnFilters.filters])
 
   const displayData = React.useMemo(() => {
     return onSortChange ? filteredData : sortRows(filteredData, activeSort, sortColumns)
@@ -202,7 +267,8 @@ export function ClientsTable({
     })
   }
 
-  const columnsCount = (compactMode ? (showFamilyColumn ? 6 : 5) : showFamilyColumn ? 9 : 8) + (mergeMode ? 1 : 0)
+  const showClinicColumn = Boolean(clinicNames)
+  const columnsCount = (compactMode ? (showFamilyColumn ? 6 : 5) : showFamilyColumn ? 9 : 8) + (mergeMode ? 1 : 0) + (showClinicColumn ? 1 : 0)
   const emptyMessage = showFamilyColumn && !selectedFamilyId
     ? "בחר משפחה כדי לראות את חבריה"
     : selectedFamilyId
@@ -210,6 +276,7 @@ export function ClientsTable({
       : "לא נמצאו לקוחות לתצוגה"
 
   return (
+    <ColumnFiltersProvider filters={columnFilters.filters} definitions={CLIENT_COLUMN_FILTERS} onChange={columnFilters.setFilters}>
     <div className={fillHeight ? "flex min-h-0 flex-1 flex-col gap-2.5" : "space-y-2.5"} dir={direction} style={{ scrollbarWidth: "none" }}>
       {!hideSearch && (
         <TableFiltersBar
@@ -224,15 +291,34 @@ export function ClientsTable({
               placeholder: "מגדר",
               options: GENDER_FILTER_OPTIONS,
               widthClassName: "w-[130px]"
-            }
+            },
+            ...extraFilters
           ]}
-          hasActiveFilters={Boolean(searchQuery.trim()) || genderFilter !== "all"}
+          hasActiveFilters={Boolean(searchQuery.trim()) || genderFilter !== "all" || columnFilters.active || extraFiltersActive}
           onReset={() => {
             handleSearchChange("")
             handleGenderFilterChange("all")
+            columnFilters.setFilters({})
+            onResetExtraFilters?.()
           }}
           actions={
             <>
+              {canUseCards ? (
+                <ToggleGroup
+                  type="single"
+                  variant="outline"
+                  value={viewMode}
+                  onValueChange={handleViewModeChange}
+                  aria-label={t("clientCardsViewLabel")}
+                >
+                  <ToggleGroupItem value="table" title={t("clientCardsTableView")} aria-label={t("clientCardsTableView")}>
+                    <Rows3 className="h-4 w-4" />
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="cards" title={t("clientCardsCardView")} aria-label={t("clientCardsCardView")}>
+                    <LayoutGrid className="h-4 w-4" />
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              ) : null}
               {toolbarActions}
               {!hideNewButton ? (
                 <Button onClick={() => navigate({ to: "/clients/new" })} dir={direction}>
@@ -244,8 +330,25 @@ export function ClientsTable({
           }
         />
       )}
+      <ActiveColumnFilters />
 
       <div className={fillHeight ? "min-h-0 flex-1" : undefined}>
+        {viewMode === "cards" ? (
+          <ClientCardsGrid
+            clients={displayData}
+            loading={loading}
+            emptyMessage={emptyMessage}
+            showCreateCard
+            mergeMode={mergeMode}
+            selectedMergeClientIds={selectedMergeClientIds}
+            onOpen={(client) => handleRowClick(client.id)}
+            onDelete={(client) => {
+              setClientToDelete(client)
+              setIsDeleteModalOpen(true)
+            }}
+            fillHeight={fillHeight}
+          />
+        ) : (
         <Table
           dir={direction}
           containerClassName={fillHeight ? "h-full min-h-0 overflow-y-auto overscroll-contain" : "max-h-[70vh] overflow-y-auto overscroll-contain"}
@@ -328,6 +431,7 @@ export function ClientsTable({
                   תפקיד במשפחה
                 </SortableTableHead>
               )}
+              {showClinicColumn && <TableHead className="bg-card sticky top-0 z-20 text-start">סניף</TableHead>}
               <TableHead className="bg-card sticky top-0 z-20 w-[50px] text-start"></TableHead>
             </TableRow>
           </TableHeader>
@@ -396,6 +500,11 @@ export function ClientsTable({
                       <Skeleton className="my-2 h-4 w-[70%]" />
                     </TableCell>
                   )}
+                  {showClinicColumn && (
+                    <TableCell>
+                      <Skeleton className="my-2 h-4 w-[70%]" />
+                    </TableCell>
+                  )}
                   <TableCell>
                     <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
@@ -439,6 +548,11 @@ export function ClientsTable({
                   {!compactMode && <TableCell data-no-localize>{client.phone_mobile || ""}</TableCell>}
                   {!compactMode && <TableCell data-no-localize>{client.email || ""}</TableCell>}
                   {showFamilyColumn && <TableCell data-no-localize>{client.family_role || ""}</TableCell>}
+                  {showClinicColumn && (
+                    <TableCell data-no-localize>
+                      {client.clinic_id ? clinicNames?.[client.clinic_id] || "" : ""}
+                    </TableCell>
+                  )}
                   <TableCell>
                     <Button
                       variant="ghost"
@@ -458,6 +572,7 @@ export function ClientsTable({
             ) : null}
           </TableBody>
         </Table>
+        )}
       </div>
 
       {pagination ? (
@@ -483,5 +598,6 @@ export function ClientsTable({
         showCloseButton={false}
       />
     </div>
+    </ColumnFiltersProvider>
   )
 }

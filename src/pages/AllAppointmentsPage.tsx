@@ -16,6 +16,7 @@ import {
   sortToOrder,
   sortToSearch,
 } from "@/lib/table-sorting";
+import { parseColumnFilters, serializeColumnFilters } from "@/lib/column-filters";
 import { deferPaginationTotal } from "@/lib/deferred-pagination";
 
 export default function AllAppointmentsPage() {
@@ -34,6 +35,7 @@ export default function AllAppointmentsPage() {
     () => parseSortSearch(search.sort, { key: "date", direction: "desc" }),
     [search.sort],
   );
+  const columnFilters = React.useMemo(() => parseColumnFilters(search.filters), [search.filters]);
 
   useEffect(() => {
     updateLatestSearch(search.q);
@@ -52,6 +54,7 @@ export default function AllAppointmentsPage() {
       dateScope: string;
       examName: string;
       sort: string;
+      filters: string;
     }>,
   ) =>
     buildTableSearch(
@@ -61,6 +64,7 @@ export default function AllAppointmentsPage() {
         dateScope: search.dateScope,
         examName: search.examName,
         sort: search.sort,
+        filters: search.filters,
         ...overrides,
       },
       {
@@ -69,6 +73,7 @@ export default function AllAppointmentsPage() {
         dateScope: ALL_FILTER_VALUE,
         examName: ALL_FILTER_VALUE,
         sort: "",
+        filters: "",
       },
     );
 
@@ -100,6 +105,7 @@ export default function AllAppointmentsPage() {
             : undefined,
         examName:
           search.examName !== ALL_FILTER_VALUE ? search.examName : undefined,
+        columnFilters: search.filters || undefined,
         includeTotal: false,
       };
       const { items, hasMore: nextHasMore } = await getPaginatedAppointments(
@@ -135,6 +141,7 @@ export default function AllAppointmentsPage() {
     search.examName,
     search.page,
     search.q,
+    search.filters,
     startSearchRequest,
   ]);
 
@@ -204,6 +211,13 @@ export default function AllAppointmentsPage() {
             navigate({
               to: "/appointments",
               search: buildSearchState({ examName: value, page: 1 }),
+            })
+          }
+          columnFilters={columnFilters}
+          onColumnFiltersChange={(filters) =>
+            navigate({
+              to: "/appointments",
+              search: buildSearchState({ filters: serializeColumnFilters(filters), page: 1 }),
             })
           }
           sort={activeSort}

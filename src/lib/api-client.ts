@@ -72,6 +72,7 @@ interface ApiResponse<T> {
   error?: string;
   errorDetail?: unknown;
   status?: number;
+  aborted?: boolean;
 }
 
 export interface SubscriptionSummary {
@@ -309,6 +310,10 @@ class ApiClient {
       this.emitTrashCreated(endpoint, options, data);
       return { data };
     } catch (error) {
+      // A caller cancelled the request; this is not a network failure.
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return { error: 'aborted', aborted: true };
+      }
       const fallbackBaseUrl = getFallbackApiBaseUrl(this.baseUrl);
       if (fallbackBaseUrl) {
         try {
@@ -671,16 +676,18 @@ class ApiClient {
 
   async getClientsPaginated(
     clinicId?: number,
-    options?: { limit?: number; offset?: number; order?: string; q?: string; gender?: string; includeTotal?: boolean; countOnly?: boolean }
+    options?: { limit?: number; offset?: number; order?: string; q?: string; gender?: string; columnFilters?: string; allClinics?: boolean; includeTotal?: boolean; countOnly?: boolean }
   ) {
     const params = new URLSearchParams();
-    if (clinicId) params.append('clinic_id', clinicId.toString());
+    if (options?.allClinics) params.append('all_clinics', 'true');
+    else if (clinicId) params.append('clinic_id', clinicId.toString());
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
     if (options?.offset !== undefined) params.append('offset', String(options.offset));
     if (options?.order) params.append('order', options.order);
     if (options?.q) params.append('search', options.q);
     if (options?.gender && options.gender !== 'all') params.append('gender', options.gender);
     if (options?.includeTotal === false) params.append('include_total', 'false');
+    if (options?.columnFilters) params.append('filters', options.columnFilters);
     if (options?.countOnly) params.append('count_only', 'true');
     const qs = params.toString();
     return this.request<{ items: Client[]; total: number | null; has_more: boolean }>(`/clients/paginated${qs ? `?${qs}` : ''}`);
@@ -711,7 +718,7 @@ class ApiClient {
   }
 
   // Referrals pagination
-  async getReferralsPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: string; q?: string; urgencyLevel?: string; referralType?: string; includeTotal?: boolean; countOnly?: boolean }) {
+  async getReferralsPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: string; q?: string; urgencyLevel?: string; referralType?: string; columnFilters?: string; includeTotal?: boolean; countOnly?: boolean }) {
     const params = new URLSearchParams();
     if (clinicId) params.append('clinic_id', clinicId.toString());
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
@@ -720,6 +727,7 @@ class ApiClient {
     if (options?.q) params.append('search', options.q);
     if (options?.urgencyLevel && options.urgencyLevel !== 'all') params.append('urgency_level', options.urgencyLevel);
     if (options?.referralType && options.referralType !== 'all') params.append('type', options.referralType);
+    if (options?.columnFilters) params.append('filters', options.columnFilters);
     if (options?.includeTotal === false) params.append('include_total', 'false');
     if (options?.countOnly) params.append('count_only', 'true');
     const qs = params.toString();
@@ -743,7 +751,7 @@ class ApiClient {
   }
 
   // Files pagination
-  async getFilesPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: string; q?: string; fileCategory?: string; includeTotal?: boolean; countOnly?: boolean }) {
+  async getFilesPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: string; q?: string; fileCategory?: string; columnFilters?: string; includeTotal?: boolean; countOnly?: boolean }) {
     const params = new URLSearchParams();
     if (clinicId) params.append('clinic_id', clinicId.toString());
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
@@ -752,13 +760,14 @@ class ApiClient {
     if (options?.q) params.append('search', options.q);
     if (options?.fileCategory && options.fileCategory !== 'all') params.append('file_category', options.fileCategory);
     if (options?.includeTotal === false) params.append('include_total', 'false');
+    if (options?.columnFilters) params.append('filters', options.columnFilters);
     if (options?.countOnly) params.append('count_only', 'true');
     const qs = params.toString();
     return this.request<{ items: any[]; total: number | null; has_more: boolean }>(`/files/paginated${qs ? `?${qs}` : ''}`);
   }
 
   // Appointments pagination
-  async getAppointmentsPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: string; q?: string; dateScope?: string; examName?: string; includeTotal?: boolean; countOnly?: boolean }) {
+  async getAppointmentsPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: string; q?: string; dateScope?: string; examName?: string; columnFilters?: string; includeTotal?: boolean; countOnly?: boolean }) {
     const params = new URLSearchParams();
     if (clinicId) params.append('clinic_id', clinicId.toString());
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
@@ -768,13 +777,14 @@ class ApiClient {
     if (options?.dateScope && options.dateScope !== 'all') params.append('date_scope', options.dateScope);
     if (options?.examName && options.examName !== 'all') params.append('exam_name', options.examName);
     if (options?.includeTotal === false) params.append('include_total', 'false');
+    if (options?.columnFilters) params.append('filters', options.columnFilters);
     if (options?.countOnly) params.append('count_only', 'true');
     const qs = params.toString();
     return this.request<{ items: any[]; total: number | null; has_more: boolean }>(`/appointments/paginated${qs ? `?${qs}` : ''}`);
   }
 
   // Families pagination
-  async getFamiliesPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: string; search?: string; includeTotal?: boolean; countOnly?: boolean }, companyId?: number) {
+  async getFamiliesPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: string; search?: string; columnFilters?: string; includeTotal?: boolean; countOnly?: boolean }, companyId?: number) {
     const params = new URLSearchParams();
     if (clinicId) params.append('clinic_id', clinicId.toString());
     if (companyId) params.append('company_id', companyId.toString());
@@ -783,6 +793,7 @@ class ApiClient {
     if (options?.order) params.append('order', options.order);
     if (options?.search) params.append('search', options.search);
     if (options?.includeTotal === false) params.append('include_total', 'false');
+    if (options?.columnFilters) params.append('filters', options.columnFilters);
     if (options?.countOnly) params.append('count_only', 'true');
     
     return this.request<{ items: (Family & { clients?: Client[] })[]; total: number | null; has_more: boolean }>(
@@ -798,6 +809,7 @@ class ApiClient {
     q?: string
     roleLevel?: number
     clinic_id?: number
+    columnFilters?: string
     includeTotal?: boolean
     countOnly?: boolean
   }) {
@@ -809,6 +821,7 @@ class ApiClient {
     if (options?.roleLevel !== undefined) params.append('role_level', String(options.roleLevel));
     if (options?.clinic_id) params.append('clinic_id', options.clinic_id.toString());
     if (options?.includeTotal === false) params.append('include_total', 'false');
+    if (options?.columnFilters) params.append('filters', options.columnFilters);
     if (options?.countOnly) params.append('count_only', 'true');
     
     const qs = params.toString();
@@ -817,6 +830,16 @@ class ApiClient {
 
   async getClient(id: number, options?: RequestInit) {
     return this.request<Client>(`/clients/${id}`, options);
+  }
+
+  async getClientExamDates(id: number) {
+    return this.request<{ first_exam_date: string | null; last_exam_date: string | null }>(`/clients/${id}/exam-dates`);
+  }
+
+  async getClientsLastExamDates(ids: number[]) {
+    const params = new URLSearchParams();
+    ids.forEach((id) => params.append("ids", String(id)));
+    return this.request<Record<string, string>>(`/clients/last-exam-dates?${params}`);
   }
 
   async getClientOrdersContext(id: number) {
@@ -855,7 +878,7 @@ class ApiClient {
     limit?: number
     offset?: number
   }) {
-    const params = new URLSearchParams()
+    const params = new URLSearchParams();
     if (options?.clinicId) params.set("clinic_id", String(options.clinicId))
     if (options?.entityType) params.set("entity_type", options.entityType)
     if (options?.deletedByUserId) params.set("deleted_by_user_id", String(options.deletedByUserId))
@@ -998,7 +1021,7 @@ class ApiClient {
     });
   }
 
-  async getEnrichedExams(type?: string, clinicId?: number, options?: { limit?: number; offset?: number; order?: string; q?: string; testName?: string; includeTotal?: boolean; countOnly?: boolean }) {
+  async getEnrichedExams(type?: string, clinicId?: number, options?: { limit?: number; offset?: number; order?: string; q?: string; testName?: string; columnFilters?: string; includeTotal?: boolean; countOnly?: boolean }) {
     const params = new URLSearchParams();
     if (type) params.append('type', type);
     if (clinicId) params.append('clinic_id', clinicId.toString());
@@ -1008,6 +1031,7 @@ class ApiClient {
     if (options?.q) params.append('search', options.q);
     if (options?.testName && options.testName !== 'all') params.append('test_name', options.testName);
     if (options?.includeTotal === false) params.append('include_total', 'false');
+    if (options?.columnFilters) params.append('filters', options.columnFilters);
     if (options?.countOnly) params.append('count_only', 'true');
     const queryString = params.toString();
     const url = `/exams/enriched${queryString ? `?${queryString}` : ''}`;
@@ -1255,6 +1279,11 @@ class ApiClient {
   async getOrders(clinicId?: number) {
     const url = clinicId ? `/orders/?clinic_id=${clinicId}` : '/orders/';
     return this.request<Order[]>(url);
+  }
+
+  async getNextBagNumber(clinicId?: number) {
+    const url = clinicId ? `/orders/next-bag-number?clinic_id=${clinicId}` : '/orders/next-bag-number';
+    return this.request<{ next_bag_number: string }>(url);
   }
 
   async getOrder(id: number) {
@@ -2168,14 +2197,14 @@ class ApiClient {
   }
 
   // Unified search
-  async unifiedSearch(query: string, clinicId?: number, options?: { limit?: number; offset?: number }) {
+  async unifiedSearch(query: string, clinicId?: number, options?: { limit?: number; offset?: number; signal?: AbortSignal }) {
     const params = new URLSearchParams();
     params.append('q', query);
     if (clinicId) params.append('clinic_id', String(clinicId));
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
     if (options?.offset !== undefined) params.append('offset', String(options.offset));
     const qs = params.toString();
-    return this.request<{ items: Array<{ type: string; id: number; title: string; subtitle?: string; description?: string; client_id?: number; client_details?: SearchClientDetails }>; total: number }>(`/search?${qs}`);
+    return this.request<{ items: Array<{ type: string; id: number; title: string; subtitle?: string; description?: string; client_id?: number; client_details?: SearchClientDetails }>; total: number }>(`/search?${qs}`, { signal: options?.signal });
   }
 
   async searchPrescription(criteria: PrescriptionSearchCriteria) {

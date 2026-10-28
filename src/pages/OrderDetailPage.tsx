@@ -15,7 +15,7 @@ import {
   upsertOrderFull,
   upsertContactLensOrderFull,
   getContactLensOrderById,
-  getAllOrders,
+  getNextBagNumber,
   getOrdersByClientId,
 } from "@/lib/db/orders-db";
 import {
@@ -211,19 +211,6 @@ const isIncompleteSignedNumber = (value: string) =>
   value === "." ||
   value === "-." ||
   value === "+.";
-
-const getNextBagNumber = (orders: Order[]): string => {
-  const maxBagNumber = orders.reduce((max, order) => {
-    const details = (order as any)?.order_data?.details;
-    const raw = details?.bag_number;
-    if (raw === undefined || raw === null || raw === "") return max;
-    const parsed = parseInt(String(raw), 10);
-    if (Number.isNaN(parsed)) return max;
-    return Math.max(max, parsed);
-  }, 0);
-
-  return String(maxBagNumber + 1);
-};
 
 export function LegacyOrderDetailPage({
   workspace,
@@ -645,17 +632,28 @@ export function LegacyOrderDetailPage({
         setLoading(true);
         setWorkspaceLoadFailed(false);
 
+        // Independent requests start together and are awaited where they are used, so the
+        // page waits for the slowest one instead of their sum. These helpers do not reject.
+        const usersRequest = getAllUsers();
+        const allocationsRequest = orderId
+          ? apiClient.getOrderInventoryAllocations(isContactMode ? "contact" : "regular", Number(orderId))
+          : null;
+        const orderRequest = orderId && !workspace?.record
+          ? (isContactMode ? getContactLensOrderById(Number(orderId)) : getOrderById(Number(orderId)))
+          : null;
+        const billingRequest = orderId && !workspace
+          ? (isContactMode ? getBillingByContactLensId(Number(orderId)) : getBillingByOrderId(Number(orderId)))
+          : null;
+        const clientOrdersRequest = clientId ? getOrdersByClientId(Number(clientId)) : null;
+
         // Load users for display purposes
-        const usersData = await getAllUsers();
+        const usersData = await usersRequest;
         setUsers(usersData);
 
         if (orderId) {
           setInventorySelectionsLoaded(false);
           try {
-            const allocationResponse = await apiClient.getOrderInventoryAllocations(
-              isContactMode ? "contact" : "regular",
-              Number(orderId),
-            );
+            const allocationResponse = await allocationsRequest!;
             if (!allocationResponse.error) {
               const activeAllocations = (allocationResponse.data?.items || []).filter(
                 (selection) =>
@@ -679,7 +677,7 @@ export function LegacyOrderDetailPage({
         }
 
         if (orderId && !isContactMode) {
-          const orderData = workspace?.record || await getOrderById(Number(orderId));
+          const orderData = workspace?.record || await orderRequest;
           setOrder((orderData as Order) || null);
 
           if (orderData) {
@@ -721,7 +719,7 @@ export function LegacyOrderDetailPage({
                 ),
               );
             }
-            const billingData = workspace ? null : await getBillingByOrderId(Number(orderId));
+            const billingData = workspace ? null : await billingRequest;
             setBilling(billingData || null);
             if (billingData) {
               setBillingFormData((prev) => ({
@@ -743,7 +741,7 @@ export function LegacyOrderDetailPage({
             }
           }
         } else if (orderId && isContactMode) {
-          const clOrder = workspace?.record || await getContactLensOrderById(Number(orderId));
+          const clOrder = workspace?.record || await orderRequest;
           if (clOrder) {
             setContactFormData({ ...clOrder });
             const od = (clOrder as any).order_data || {};
@@ -760,9 +758,7 @@ export function LegacyOrderDetailPage({
               setSchirmerData({ ...(od["schirmer-test"] as any) });
             if (od["contact-lens-diameters"])
               setDiametersData({ ...(od["contact-lens-diameters"] as any) });
-            const billingData = workspace ? null : await getBillingByContactLensId(
-              Number(orderId),
-            );
+            const billingData = workspace ? null : await billingRequest;
             setBilling(billingData || null);
             if (billingData) {
               setBillingFormData((prev) => ({
@@ -794,7 +790,7 @@ export function LegacyOrderDetailPage({
 
         // Load client's order index
         if (clientId) {
-          const allClientOrders = await getOrdersByClientId(Number(clientId));
+          const allClientOrders = (await clientOrdersRequest) || [];
           const sortedOrders = [...allClientOrders].sort(
             (a, b) =>
               new Date(a.order_date).getTime() -
@@ -990,8 +986,7 @@ export function LegacyOrderDetailPage({
         }
 
         if (isNewMode && !isContactMode) {
-          const allOrders = await getAllOrders(currentClinic?.id);
-          const nextBagNumber = getNextBagNumber(allOrders);
+          const nextBagNumber = await getNextBagNumber(currentClinic?.id);
           setOrderDetailsFormData((prev) => ({
             ...prev,
             bag_number: nextBagNumber,

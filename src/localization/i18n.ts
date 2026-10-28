@@ -7,6 +7,7 @@ import orderWorkspaceTranslations from "./order-workspace.json";
 import aiTranslations from "./ai.json";
 import agentTranslations from "./agent.json";
 import optitechTranslations from "./optitech.json";
+import columnFilterTranslations from "./column-filters.json";
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import { defaultLocale, supportedLocales } from "./locale";
@@ -137,6 +138,24 @@ i18n.use(initReactI18next).init({
         languageDescription: "Choose the language used throughout Prysm.",
         clientSidebarResize: "Resize client sidebar",
         colorAppearance: "Color appearance",
+        notesExpand: "Expand notes",
+        clientFirstExam: "First exam",
+        clientLastExam: "Last exam",
+        appointmentClientId: "ID",
+        appointmentClientPhone: "Mobile",
+        clientCardsNew: "New client",
+        clientCardsDelete: "Delete",
+        clientCardsNoName: "No name",
+        clientCardsNoPhone: "No mobile",
+        clientCardsLastExamOn: "Last exam on ",
+        clientCardsNoExams: "No exams yet",
+        clientCardsViewLabel: "View",
+        clientCardsTableView: "Table view",
+        clientCardsCardView: "Card view",
+        notesHiddenToggle: "Hidden",
+        notesBackToNotes: "Notes",
+        notesShowHidden: "Show hidden note",
+        notesShowRegular: "Back to notes",
         colorThemeClassicBlue: "Classic blue",
         colorThemeIceBlue: "Ice blue",
         colorThemeGraphite: "Graphite",
@@ -513,6 +532,24 @@ i18n.use(initReactI18next).init({
         languageDescription: "בחרו את שפת הממשק של Prysm.",
         clientSidebarResize: "שינוי רוחב סרגל הלקוח",
         colorAppearance: "מראה צבע",
+        notesExpand: "הרחב הערות",
+        clientFirstExam: "בדיקה ראשונה",
+        clientLastExam: "בדיקה אחרונה",
+        appointmentClientId: "ת.ז.",
+        appointmentClientPhone: "נייד",
+        clientCardsNew: "לקוח חדש",
+        clientCardsDelete: "מחיקה",
+        clientCardsNoName: "ללא שם",
+        clientCardsNoPhone: "אין נייד",
+        clientCardsLastExamOn: "בדיקה אחרונה ב-",
+        clientCardsNoExams: "אין בדיקות",
+        clientCardsViewLabel: "תצוגה",
+        clientCardsTableView: "תצוגת טבלה",
+        clientCardsCardView: "תצוגת כרטיסים",
+        notesHiddenToggle: "נסתרת",
+        notesBackToNotes: "הערות",
+        notesShowHidden: "הצג הערה נסתרת",
+        notesShowRegular: "חזרה להערות",
         colorThemeClassicBlue: "כחול קלאסי",
         colorThemeIceBlue: "כחול קרח",
         colorThemeGraphite: "גרפיט",
@@ -892,6 +929,24 @@ i18n.use(initReactI18next).init({
         languageDescription: "Choisissez la langue utilisée dans Prysm.",
         clientSidebarResize: "Redimensionner le panneau client",
         colorAppearance: "Apparence des couleurs",
+        notesExpand: "Agrandir les notes",
+        clientFirstExam: "Premier examen",
+        clientLastExam: "Dernier examen",
+        appointmentClientId: "N° ID",
+        appointmentClientPhone: "Portable",
+        clientCardsNew: "Nouveau client",
+        clientCardsDelete: "Supprimer",
+        clientCardsNoName: "Sans nom",
+        clientCardsNoPhone: "Pas de portable",
+        clientCardsLastExamOn: "Dernier examen le ",
+        clientCardsNoExams: "Aucun examen",
+        clientCardsViewLabel: "Affichage",
+        clientCardsTableView: "Vue tableau",
+        clientCardsCardView: "Vue cartes",
+        notesHiddenToggle: "Masquée",
+        notesBackToNotes: "Notes",
+        notesShowHidden: "Afficher la note masquée",
+        notesShowRegular: "Revenir aux notes",
         colorThemeClassicBlue: "Bleu classique",
         colorThemeIceBlue: "Bleu glacier",
         colorThemeGraphite: "Graphite",
@@ -1190,4 +1245,8 @@ for (const [language, translations] of Object.entries(authLoginTranslations)) {
 
 for (const [language, translations] of Object.entries(examListTranslations)) {
   i18n.addResourceBundle(language, "translation", { examList: translations }, true, true);
+}
+
+for (const [language, translations] of Object.entries(columnFilterTranslations)) {
+  i18n.addResourceBundle(language, "translation", { columnFilters: translations }, true, true);
 }

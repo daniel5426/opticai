@@ -18,7 +18,7 @@ export async function getAllFamilies(clinicId?: number): Promise<Family[]> {
 
 export async function getPaginatedFamilies(
   clinicId?: number,
-  options?: { limit?: number; offset?: number; order?: string; search?: string; includeTotal?: boolean; countOnly?: boolean },
+  options?: { limit?: number; offset?: number; order?: string; search?: string; columnFilters?: string; includeTotal?: boolean; countOnly?: boolean },
   companyId?: number
 ): Promise<{ items: (Family & { clients?: Client[] })[]; total: number | null; hasMore: boolean }> {
   try {
