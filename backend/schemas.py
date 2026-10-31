@@ -308,6 +308,7 @@ class ClientBase(BaseModel):
     discount_percent: Optional[int] = None
     blocked_checks: Optional[bool] = None
     blocked_credit: Optional[bool] = None
+    send_notifications: Optional[bool] = None
     sorting_group: Optional[str] = None
     referring_party: Optional[str] = None
     file_location: Optional[str] = None

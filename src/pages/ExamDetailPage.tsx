@@ -88,6 +88,9 @@ import {
 } from "@/components/exam/ExamLoadingState";
 import { ExamLayoutTabs } from "@/components/exam/ExamLayoutTabs";
 import { OptitechExamTabs } from "@/components/exam/OptitechExamTabs";
+import { SoftopticExamTabs } from "@/components/exam/SoftopticExamTabs";
+import { buildSoftopticTabs, defaultSoftopticTab, oldRefTabId, type SoftopticTabKey } from "@/lib/softoptic-exam-tabs";
+import { packSoftopticCards } from "@/lib/softoptic-exam-layout";
 import { optitechExamKind } from "@/lib/optitech-exam-tabs";
 import { ExamLayoutRenderer } from "@/components/exam/ExamLayoutRenderer";
 
@@ -229,6 +232,9 @@ export default function ExamDetailPage({
   const [loading, setLoading] = useState(true);
   // Set by the loader when only imported (layout-less) data exists, so the page opens on it.
   const openImportedDataOnLoadRef = useRef(false);
+  // Imported (layout-less) exam data is shown in its source system's tabs.
+  const [hasImportedExamData, setHasImportedExamData] = useState(false);
+  const [softopticTab, setSoftopticTab] = useState<SoftopticTabKey | null>(null);
   // Bumped after every load, so post-load effects also run when a prefetched exam swaps in without a loading state.
   const [loadVersion, setLoadVersion] = useState(0);
   const [client, setClient] = useState<Client | null>(null);
@@ -358,10 +364,6 @@ export default function ExamDetailPage({
     isEditing,
     isNewMode,
   });
-
-  const { rowWidths, rowRefs } = useRowWidthTracking(cardRows, [
-    activeInstanceId,
-  ]);
 
   const formRef = useRef<HTMLFormElement>(null);
   const navigate = useNavigate();
@@ -565,6 +567,58 @@ export default function ExamDetailPage({
     activeInstanceId,
     loading,
   });
+
+  // An imported SoftOptic exam's data view is split into OpticSoft's tabs. It only filters which of the
+  // loaded cards are on screen; handlers, tab state and saving still work on all of them.
+  const softopticTabs = useMemo(() => {
+    if (!hasImportedExamData || activeInstanceId !== VIRTUAL_FULL_DATA_TAB_ID || optitechExamKind(exam)) return null;
+    const tabs = buildSoftopticTabs(cardRows.flatMap((row) => row.cards), (card) =>
+      card.type === "old-refraction-extension"
+        ? computedOldRefractionExtensionTabs[card.id]
+        : card.type === "old-refraction"
+          ? computedOldRefractionTabs[card.id]
+          : undefined,
+    );
+    return tabs.length ? tabs : null;
+  }, [hasImportedExamData, activeInstanceId, exam, cardRows, computedOldRefractionTabs, computedOldRefractionExtensionTabs]);
+  const activeSoftopticTab = softopticTabs?.find((tab) => tab.key === softopticTab) ?? softopticTabs?.find((tab) => tab.key === defaultSoftopticTab(softopticTabs));
+  const displayedLayout = useMemo(() => {
+    if (!activeSoftopticTab) return { rows: cardRows, customWidths, items: gridItems };
+    return parseLayoutData(serializeGridLayoutData(packSoftopticCards(activeSoftopticTab.cards)));
+  }, [activeSoftopticTab, cardRows, customWidths, gridItems]);
+
+  // Empty OpticSoft sections save into the imported instance, like the imported cards around them.
+  useEffect(() => {
+    const placeholderTypes = softopticTabs?.flatMap((tab) => tab.placeholders ?? []) ?? [];
+    if (!placeholderTypes.length) return;
+    const sources = (fullDataSourcesRef.current[VIRTUAL_FULL_DATA_TAB_ID] ||= {});
+    const counts = new Map<number | string, number>();
+    Object.values(sources).forEach((id) => id != null && counts.set(id, (counts.get(id) ?? 0) + 1));
+    const importedInstanceId = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+    if (importedInstanceId == null) return;
+    placeholderTypes.forEach((type) => {
+      if (sources[type] == null) sources[type] = importedInstanceId;
+    });
+  }, [softopticTabs]);
+
+  // OpticSoft's Old Ref tabs (and its summary, which shows Old Ref 1) open that old refraction.
+  const softopticOldRef = activeSoftopticTab?.oldRef ?? (activeSoftopticTab?.key === "summary" ? 1 : undefined);
+  useEffect(() => {
+    if (!activeSoftopticTab || !softopticOldRef) return;
+    activeSoftopticTab.cards.forEach((card) => {
+      const isExtension = card.type === "old-refraction-extension";
+      if (!isExtension && card.type !== "old-refraction") return;
+      const tabId = oldRefTabId((isExtension ? computedOldRefractionExtensionTabs : computedOldRefractionTabs)[card.id], softopticOldRef);
+      if (!tabId) return;
+      const setActive = isExtension ? setActiveOldRefractionExtensionTabs : setActiveOldRefractionTabs;
+      setActive((current) => (current[card.id] === tabId ? current : { ...current, [card.id]: tabId }));
+    });
+  }, [activeSoftopticTab, softopticOldRef, computedOldRefractionTabs, computedOldRefractionExtensionTabs, setActiveOldRefractionTabs, setActiveOldRefractionExtensionTabs]);
+
+  const { rowWidths, rowRefs } = useRowWidthTracking(displayedLayout.rows, [
+    activeInstanceId,
+    activeSoftopticTab?.key,
+  ]);
 
   const examFormDataByInstanceRef = useRef(examFormDataByInstance);
   const activeInstanceIdRef = useRef(activeInstanceId);
@@ -1048,6 +1102,8 @@ export default function ExamDetailPage({
 
   useEffect(() => {
     baselineInitializedRef.current = false;
+    setHasImportedExamData(false);
+    setSoftopticTab(null);
     const loadData = async () => {
       if (!clientId) return;
       try {
@@ -1196,6 +1252,7 @@ export default function ExamDetailPage({
                 openImportedDataOnLoadRef.current =
                   (Boolean(optitechExamKind(examData)) || !regularInstances.some(hasData)) &&
                   noLayoutInstances.some(hasData);
+                setHasImportedExamData(noLayoutInstances.some(hasData));
                 if (openImportedDataOnLoadRef.current) {
                   // Don't paint the default layout for a frame before the imported view replaces it.
                   setCardRows([]);
@@ -1257,6 +1314,7 @@ export default function ExamDetailPage({
                   }),
                 );
                 fullDataSourcesRef.current[VIRTUAL_FULL_DATA_TAB_ID] = sources;
+                setHasImportedExamData(true);
                 setLayoutTabs([]);
                 setActiveInstanceId(VIRTUAL_FULL_DATA_TAB_ID);
                 setCardRows(parsedFullDataLayout.rows);
@@ -1665,6 +1723,7 @@ export default function ExamDetailPage({
 
   const detailPropsWithOverrides: DetailProps = {
     ...detailProps,
+    softopticView: Boolean(softopticTabs),
     isEditing: detailProps.isEditing,
     coverTestTabs: computedCoverTestTabs,
     availableExamLayouts: availableLayouts,
@@ -1892,7 +1951,13 @@ export default function ExamDetailPage({
               }
               onRemoveTab={handleRemoveLayoutTab}
               actions={headerActions}
-              tabsSlot={isOptitechExam ? <OptitechExamTabs clientId={Number(clientId)} exam={exam!} /> : undefined}
+              tabsSlot={
+                isOptitechExam ? (
+                  <OptitechExamTabs clientId={Number(clientId)} exam={exam!} />
+                ) : softopticTabs ? (
+                  <SoftopticExamTabs tabs={softopticTabs} activeTab={activeSoftopticTab?.key ?? null} onTabChange={setSoftopticTab} />
+                ) : undefined
+              }
               addLayoutAction={!isNewMode && !isOptitechExam ? (
                 <LayoutSelectorDropdown
                   availableLayouts={availableLayouts}
@@ -1913,9 +1978,9 @@ export default function ExamDetailPage({
             >
               <form ref={formRef} className="flex min-h-full flex-col">
                 <ExamLayoutRenderer
-                  cardRows={cardRows}
-                  customWidths={customWidths}
-                  gridItems={gridItems}
+                  cardRows={displayedLayout.rows}
+                  customWidths={displayedLayout.customWidths}
+                  gridItems={displayedLayout.items}
                   rowWidths={rowWidths}
                   rowRefs={rowRefs}
                   isEditing={isEditing}

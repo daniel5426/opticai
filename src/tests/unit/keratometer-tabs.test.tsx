@@ -56,6 +56,29 @@ describe("keratometer unit toggles", () => {
     });
   });
 
+  test("shows stored diopters in D and never rewrites values when toggling units", async () => {
+    const user = userEvent.setup();
+    const changes: Array<[string, string]> = [];
+    const { container } = render(
+      <KeratometerTab
+        keratometerData={{ layout_instance_id: 1, r_k1: 7.39, r_k1_d: 45.61, l_k1: 7.8 }}
+        isEditing={false}
+        onKeratometerChange={(field, value) => changes.push([field, value])}
+      />
+    );
+    const inputs = container.querySelectorAll("input");
+    expect(inputs[0]).toHaveValue("7.39");
+
+    await user.click(screen.getByRole("tab", { name: "D" }));
+    expect(inputs[0]).toHaveValue("45.61");
+    // No stored diopters for L K1: shown converted from mm.
+    expect(inputs[3]).toHaveValue("43.25");
+
+    await user.click(screen.getByRole("tab", { name: "mm" }));
+    expect(inputs[0]).toHaveValue("7.39");
+    expect(changes).toEqual([]);
+  });
+
   test("flushes pending contact lens radius edits before converting to D", async () => {
     const user = userEvent.setup();
     const { container } = render(<KeratometerContactLensHarness />);

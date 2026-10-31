@@ -453,6 +453,21 @@ examComponentRegistry.register('softoptic-maddox-grid', {
   showInLayoutEditor: false
 })
 
+// Imported SoftOptic exams only; not offered in the layout editor.
+examComponentRegistry.register('softoptic-ocular-mot', {
+  name: 'Ocular Mot. / ACC / CNP SoftOptic',
+  component: () => import('../components/exam/SoftOpticOcularMotTab'),
+  order: 32,
+  showInLayoutEditor: false
+})
+
+examComponentRegistry.register('softoptic-rg', {
+  name: 'R/G SoftOptic',
+  component: () => import('../components/exam/SoftOpticRgTab'),
+  order: 32,
+  showInLayoutEditor: false
+})
+
 examComponentRegistry.register('cover-test-v2', {
   name: 'בדיקת כיסוי',
   component: () => import('../components/exam/CoverTestV2Tab'),

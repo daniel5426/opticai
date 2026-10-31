@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
+import { Switch } from "@/components/ui/switch"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -487,7 +488,22 @@ export function ClientDetailsTab({
                   <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
                 </svg>
               </div>
-              <h3 className="text-lg font-semibold">פרטי התקשרות</h3>
+              <h3 className="text-lg font-semibold whitespace-nowrap">פרטי התקשרות</h3>
+              {/* Per-client opt-in for notifications; off unless set (or imported as on). */}
+              {/* Stays on the title row; the label wraps to two lines when the card is narrow. */}
+              <label className="text-muted-foreground ms-auto flex min-w-0 items-center gap-2 text-xs">
+                <span className="min-w-0 leading-tight">{t("clientSendNotifications")}</span>
+                <span className="text-foreground min-w-5 shrink-0 font-medium">
+                  {t(formData.send_notifications ? "clientSendNotificationsOn" : "clientSendNotificationsOff")}
+                </span>
+                <Switch
+                  checked={Boolean(formData.send_notifications)}
+                  onCheckedChange={(checked) => handleSelectChange(checked, 'send_notifications')}
+                  disabled={!showEditableFields}
+                  aria-label={t("clientSendNotifications")}
+                  className="shrink-0"
+                />
+              </label>
             </div>
             <div className="grid grid-cols-1 @[900px]:grid-cols-2 gap-4" dir={direction}>
               <div className="space-y-2">
@@ -526,7 +542,7 @@ export function ClientDetailsTab({
                 />
               </div>
               <div className="space-y-2">
-                <ModernLabel>מספר בית/דירה</ModernLabel>
+                <ModernLabel>דירה/מספר בית</ModernLabel>
                 <Input
                   type="text"
                   name="address_number"
@@ -534,7 +550,7 @@ export function ClientDetailsTab({
                   onChange={handleInputChange}
                   disabled={!showEditableFields}
                   className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
-                  placeholder={showEditableFields ? "הכנס מספר בית/דירה" : ""}
+                  placeholder={showEditableFields ? "הכנס דירה/מספר בית" : ""}
                 />
               </div>
               <div className="space-y-2">

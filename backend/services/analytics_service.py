@@ -173,15 +173,14 @@ def _company_outstanding_by_clinic(
     clinic_id: int | None = None,
     currency: str = DEFAULT_CURRENCY,
 ) -> dict[int, dict[str, float]]:
-    from services.clinic_finance import outstanding_at
+    from services.clinic_finance import outstanding_by_clinic
     from models import Clinic
     clinics = db.query(Clinic.id).filter(Clinic.company_id == company_id)
     if clinic_id:
         clinics = clinics.filter(Clinic.id == clinic_id)
-    return {row.id: {
-        'current': outstanding_at(db, row.id, window.end_date, currency, company_id),
-        'previous': outstanding_at(db, row.id, window.previous_end, currency, company_id),
-    } for row in clinics}
+    current = outstanding_by_clinic(db, company_id, window.end_date, currency, clinic_id)
+    previous = outstanding_by_clinic(db, company_id, window.previous_end, currency, clinic_id)
+    return {row.id: {'current': current.get(row.id, 0.0), 'previous': previous.get(row.id, 0.0)} for row in clinics}
 
 
 def build_company_analytics(

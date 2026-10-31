@@ -401,6 +401,12 @@ def migrate_clients_and_families(
     db.flush()
 
     incoming_referrers = _load_incoming_source_referrers(csv_dir)
+    # account.discount_type points at the client's price list ("PriceList 1", "מחיר שנתי", ...).
+    price_lists = {
+        clean_legacy_text(row.get("discount_code")): clean_legacy_text(row.get("discount_name"))
+        for row in read_csv_streaming(csv_dir, "t_discount_types.csv")
+        if clean_legacy_text(row.get("discount_code")) and clean_legacy_text(row.get("discount_name"))
+    }
 
     # Second pass: create clients
     client_count = 0
@@ -459,12 +465,13 @@ def migrate_clients_and_families(
                 "phone_mobile": r.get("mobile_phone") or None,
                 "additional_phone": r.get("phone3") or None,
                 "email": r.get("e_mail") or None,
-                "price_list": None,
+                "price_list": price_lists.get(clean_legacy_text(r.get("discount_type"))),
                 "discount_percent": parse_int(r.get("discount_precent")) or 0,
                 "blocked_checks": parse_bool_flag(r.get("check_blocked")),
                 "blocked_credit": parse_bool_flag(r.get("credit_blocked")),
+                "send_notifications": parse_bool_flag(r.get("send_sms_email")) is True,
                 "sorting_group": r.get("acc_sort_group") or None,
-                "referring_party": incoming_referrers.get(account_code),
+                "referring_party": clean_legacy_text(r.get("turn_name")) or incoming_referrers.get(account_code),
                 "file_creation_date": parse_date(r.get("open_date")),
                 "occupation": r.get("occupation") or None,
                 "status": None,

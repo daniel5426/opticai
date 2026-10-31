@@ -114,6 +114,10 @@ describe("pruneSoftOpticExport", () => {
       ["1", "Supplier A"],
       ["2", "Supplier B"],
     ]);
+    writeCsv(outputDir, "t_discount_types.csv", [
+      ["discount_code", "discount_name"],
+      ["1", "PriceList 1"],
+    ]);
     writeCsv(outputDir, "random_unused.csv", [
       ["id", "value"],
       ["1", "drop"],
@@ -147,6 +151,7 @@ describe("pruneSoftOpticExport", () => {
     expect(readRows(prunedDir, "optic_presc_prices.csv").map(row => row.presc_code)).toEqual(["cp1", "gp2", "rp2"]);
     expect(readRows(prunedDir, "account_files_blob.csv").map(row => row.code)).toEqual(["f1", "f2"]);
     expect(readRows(prunedDir, "optic_tv_lens_supplier.csv")).toHaveLength(2);
+    expect(readRows(prunedDir, "t_discount_types.csv")).toHaveLength(1);
     expect(readRows(prunedDir, "random_unused.csv")).toEqual([]);
     expect(fs.existsSync(path.join(prunedDir, "_raw_cp1255"))).toBe(false);
     expect(fs.existsSync(path.join(prunedDir, "documents", "101", "f1.pdf"))).toBe(true);

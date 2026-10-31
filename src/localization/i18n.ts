@@ -8,6 +8,7 @@ import aiTranslations from "./ai.json";
 import agentTranslations from "./agent.json";
 import optitechTranslations from "./optitech.json";
 import columnFilterTranslations from "./column-filters.json";
+import softopticTranslations from "./softoptic.json";
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import { defaultLocale, supportedLocales } from "./locale";
@@ -140,6 +141,9 @@ i18n.use(initReactI18next).init({
         colorAppearance: "Color appearance",
         notesExpand: "Expand notes",
         clientFirstExam: "First exam",
+        clientSendNotifications: "Receive notifications",
+        clientSendNotificationsOn: "Yes",
+        clientSendNotificationsOff: "No",
         clientLastExam: "Last exam",
         appointmentClientId: "ID",
         appointmentClientPhone: "Mobile",
@@ -397,6 +401,14 @@ i18n.use(initReactI18next).init({
         maddoxWingNearVision: "NV",
         softopticCoverTest: "Cover Test",
         softopticMaddoxGrid: "Maddox rod",
+        softopticOcularMot: "Ocular Mot.",
+        softopticAcc: "ACC",
+        softopticCnp: "CNP",
+        softopticRg: "R / G",
+        softopticRgFusionWith: "Fusion with",
+        rgSuppression: "Suppression",
+        rgFusion: "Fusion",
+        rgDiplopia: "Diplopia",
         softopticFarVision: "FV",
         softopticNearVision: "NV",
         softopticExoTropia: "EXO Tropia",
@@ -534,6 +546,9 @@ i18n.use(initReactI18next).init({
         colorAppearance: "מראה צבע",
         notesExpand: "הרחב הערות",
         clientFirstExam: "בדיקה ראשונה",
+        clientSendNotifications: "קבלת התראות",
+        clientSendNotificationsOn: "כן",
+        clientSendNotificationsOff: "לא",
         clientLastExam: "בדיקה אחרונה",
         appointmentClientId: "ת.ז.",
         appointmentClientPhone: "נייד",
@@ -790,6 +805,14 @@ i18n.use(initReactI18next).init({
         maddoxWingNearVision: "NV",
         softopticCoverTest: "בדיקת כיסוי",
         softopticMaddoxGrid: "מוט מדוקס",
+        softopticOcularMot: "תנועות עיניים",
+        softopticAcc: "ACC",
+        softopticCnp: "CNP",
+        softopticRg: "R / G",
+        softopticRgFusionWith: "איחוד עם",
+        rgSuppression: "דיכוי",
+        rgFusion: "איחוד",
+        rgDiplopia: "כפל ראייה",
         softopticFarVision: "FV",
         softopticNearVision: "NV",
         softopticExoTropia: "EXO Tropia",
@@ -931,6 +954,9 @@ i18n.use(initReactI18next).init({
         colorAppearance: "Apparence des couleurs",
         notesExpand: "Agrandir les notes",
         clientFirstExam: "Premier examen",
+        clientSendNotifications: "Recevoir des notifications",
+        clientSendNotificationsOn: "Oui",
+        clientSendNotificationsOff: "Non",
         clientLastExam: "Dernier examen",
         appointmentClientId: "N° ID",
         appointmentClientPhone: "Portable",
@@ -1189,6 +1215,14 @@ i18n.use(initReactI18next).init({
         maddoxWingNearVision: "NV",
         softopticCoverTest: "Cover Test",
         softopticMaddoxGrid: "Bâtonnet de Maddox",
+        softopticOcularMot: "Motilité oculaire",
+        softopticAcc: "ACC",
+        softopticCnp: "PPC",
+        softopticRg: "R / V",
+        softopticRgFusionWith: "Fusion avec",
+        rgSuppression: "Suppression",
+        rgFusion: "Fusion",
+        rgDiplopia: "Diplopie",
         softopticFarVision: "FV",
         softopticNearVision: "NV",
         softopticExoTropia: "Tropie EXO",
@@ -1249,4 +1283,8 @@ for (const [language, translations] of Object.entries(examListTranslations)) {
 
 for (const [language, translations] of Object.entries(columnFilterTranslations)) {
   i18n.addResourceBundle(language, "translation", { columnFilters: translations }, true, true);
+}
+
+for (const [language, translations] of Object.entries(softopticTranslations)) {
+  i18n.addResourceBundle(language, "translation", { softoptic: translations }, true, true);
 }

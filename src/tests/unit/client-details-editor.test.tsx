@@ -13,6 +13,9 @@ import {
   shouldClearStatusForHealthFund,
 } from "@/lib/client-details-editor"
 
+// The notifications Switch measures itself; jsdom has no ResizeObserver.
+vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} })
+
 const { getPaginatedFamiliesMock } = vi.hoisted(() => ({
   getPaginatedFamiliesMock: vi.fn(() => Promise.resolve({
     items: [{
@@ -165,6 +168,17 @@ describe("ClientDetailsTab select display", () => {
       expect(screen.getAllByText("כללית").length).toBeGreaterThan(0)
       expect(screen.getAllByText("מושלם זהב").length).toBeGreaterThan(0)
     })
+  })
+
+  test("notifications switch is off by default and edits send_notifications", async () => {
+    const onFieldChange = vi.fn()
+    render(
+      <ClientDetailsTab draft={{ id: 1 } as Client} isEditing formRef={{ current: null }} onFieldChange={onFieldChange} />
+    )
+    const toggle = screen.getByRole("switch", { name: /קבלת התראות|clientSendNotifications/ })
+    expect(toggle).toHaveAttribute("aria-checked", "false")
+    await userEvent.click(toggle)
+    expect(onFieldChange).toHaveBeenCalledWith("send_notifications", true)
   })
 
   test("keeps the address number input while hiding the additional phone input", () => {
