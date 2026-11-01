@@ -2,6 +2,8 @@ import React from "react"
 import { useTranslation } from "react-i18next"
 import { Client, Family } from "@/lib/db/schema-interface"
 import { useClientExamDatesQuery } from "@/hooks/client/useClientTabQueries"
+import { useDuplicateNationalId } from "@/hooks/client/useDuplicateNationalId"
+import { GuardedRouterLink } from "@/components/GuardedRouterLink"
 
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -73,6 +75,11 @@ export function ClientDetailsTab({
   const { currentClinic } = useUser()
   const formData = draft
   const examDates = useClientExamDatesQuery(draft.id, !isNewMode)
+  // Checked live while the ID is typed, when opening a client or editing one.
+  const duplicateClient = useDuplicateNationalId(formData.national_id, currentClinic?.id, {
+    enabled: showEditableFields,
+    excludeClientId: draft.id,
+  })
   const healthFundValue = formData.health_fund || ''
   const statusValue = formData.status || ''
   const statusOptions = getClientStatusOptions(healthFundValue)
@@ -673,9 +680,22 @@ export function ClientDetailsTab({
                   value={formData.national_id || ''}
                   onChange={handleInputChange}
                   disabled={!showEditableFields}
-                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
+                  aria-describedby={duplicateClient ? "national-id-duplicate" : undefined}
+                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${duplicateClient ? "border-amber-500 focus-visible:ring-amber-500/30" : ""}`}
                   placeholder={showEditableFields ? "הכנס תעודת זהות" : ""}
                 />
+                {duplicateClient && (
+                  <p id="national-id-duplicate" role="status" className="flex flex-wrap items-center gap-x-1 text-xs text-amber-700 dark:text-amber-400">
+                    <span>{t("clientNationalIdExists")}</span>
+                    <GuardedRouterLink
+                      to="/clients/$clientId"
+                      params={{ clientId: String(duplicateClient.id) }}
+                      className="font-medium underline underline-offset-2"
+                    >
+                      <bdi dir="auto">{[duplicateClient.first_name, duplicateClient.last_name].filter(Boolean).join(" ") || t("clientCardsNoName")}</bdi>
+                    </GuardedRouterLink>
+                  </p>
+                )}
               </div>
               <div className="text-start space-y-2" dir={direction}>
                 <ModernLabel>תאריך לידה</ModernLabel>
