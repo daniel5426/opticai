@@ -453,6 +453,21 @@ examComponentRegistry.register('softoptic-maddox-grid', {
   showInLayoutEditor: false
 })
 
+// Imported SoftOptic exams only; not offered in the layout editor.
+examComponentRegistry.register('softoptic-ocular-mot', {
+  name: 'Ocular Mot. / ACC / CNP SoftOptic',
+  component: () => import('../components/exam/SoftOpticOcularMotTab'),
+  order: 32,
+  showInLayoutEditor: false
+})
+
+examComponentRegistry.register('softoptic-rg', {
+  name: 'R/G SoftOptic',
+  component: () => import('../components/exam/SoftOpticRgTab'),
+  order: 32,
+  showInLayoutEditor: false
+})
+
 examComponentRegistry.register('cover-test-v2', {
   name: 'בדיקת כיסוי',
   component: () => import('../components/exam/CoverTestV2Tab'),
@@ -472,6 +487,25 @@ examComponentRegistry.register('npc', {
   component: () => import('../components/exam/NPCTab'),
   order: 34,
   showInLayoutEditor: true
+})
+
+// Faithful OptiTech glasses-check view; it owns no data and binds to the imported cards.
+examComponentRegistry.register('optitech-glasses-check', {
+  name: 'OptiTech glasses check',
+  component: () => import('../components/exam/OptitechGlassesCheckCard'),
+  showInLayoutEditor: false,
+})
+
+examComponentRegistry.register('optitech-contact-check', {
+  name: 'OptiTech contact lens check',
+  component: () => import('../components/exam/OptitechContactCheckCard'),
+  showInLayoutEditor: false,
+})
+
+examComponentRegistry.register('optitech-vision-check', {
+  name: 'OptiTech visual functions',
+  component: () => import('../components/exam/OptitechVisionCheckCard'),
+  showInLayoutEditor: false,
 })
 
 // Migration-only cards use the same JSON persistence as standard exam cards.

@@ -8,6 +8,7 @@ import { getClientOrdersContext, getOrdersByClientId } from "@/lib/db/orders-db"
 import { getReferralsByClientId } from "@/lib/db/referral-db"
 import { getAllUsers } from "@/lib/db/users-db"
 import { normalizeClientForDraft } from "@/lib/client-details-editor"
+import { apiClient } from "@/lib/api-client"
 
 export type ClientTabName =
   | "details"
@@ -23,6 +24,7 @@ export const clientQueryKeys = {
   exams: (clientId: number, type?: string) => ["client", clientId, "exams", type ?? "all"] as const,
   orders: (clientId: number) => ["client", clientId, "orders"] as const,
   ordersContext: (clientId: number) => ["client", clientId, "orders-context"] as const,
+  examDates: (clientId: number) => ["client", clientId, "exam-dates"] as const,
   medicalLogs: (clientId: number) => ["client", clientId, "medical-logs"] as const,
   referrals: (clientId: number) => ["client", clientId, "referrals"] as const,
   appointments: (clientId: number) => ["client", clientId, "appointments"] as const,
@@ -37,6 +39,20 @@ export function useUsersQuery(clinicId?: number, enabled = true) {
     queryKey: clientQueryKeys.users(clinicId),
     queryFn: () => getAllUsers(clinicId),
     enabled,
+  })
+}
+
+/** First/last exam date, derived live from the client's exams; refetched on every mount. */
+export function useClientExamDatesQuery(clientId: number | undefined, enabled = true) {
+  return useQuery({
+    queryKey: clientQueryKeys.examDates(clientId ?? 0),
+    enabled: enabled && isValidClientId(clientId ?? 0),
+    staleTime: 0,
+    queryFn: async () => {
+      const response = await apiClient.getClientExamDates(clientId!)
+      if (response.error) throw new Error(response.error)
+      return response.data ?? { first_exam_date: null, last_exam_date: null }
+    },
   })
 }
 

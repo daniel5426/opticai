@@ -45,11 +45,13 @@ export function ClientExamsTab({ enabled = true }: ClientExamsTabProps) {
       removeQueryItemById(current, deletedExamId),
     )
     queryClient.invalidateQueries({ queryKey: clientQueryKeys.ordersContext(clientIdNum) })
+    queryClient.invalidateQueries({ queryKey: clientQueryKeys.examDates(clientIdNum) })
   }
 
   const handleExamDeleteFailed = () => {
     queryClient.invalidateQueries({ queryKey })
     queryClient.invalidateQueries({ queryKey: clientQueryKeys.ordersContext(clientIdNum) })
+    queryClient.invalidateQueries({ queryKey: clientQueryKeys.examDates(clientIdNum) })
   }
 
   return (

@@ -7,6 +7,7 @@ from sqlalchemy import func
 from schemas import ReferralCreate, ReferralUpdate, Referral as ReferralSchema
 from auth import get_current_user
 from utils.table_search import build_all_terms_search_condition, search_blob, spaced_concat
+from utils.column_filters import ColumnFilter, build_column_filter_conditions
 from security.scope import (
     apply_clinic_user_scope,
     get_allowed_clinic_ids,
@@ -27,6 +28,7 @@ def get_referrals_paginated(
     search: Optional[str] = Query(None, description="Search by type/recipient/urgency_level/client name"),
     urgency_level: Optional[str] = Query(None, description="Filter by urgency level"),
     referral_type: Optional[str] = Query(None, alias="type", description="Filter by referral type"),
+    filters: Optional[str] = Query(None, description="JSON column filters: date|type|client|urgency|recipient"),
     include_total: bool = Query(True, description="Include the exact total count"),
     count_only: bool = Query(False, description="Return only the exact total count"),
     db: Session = Depends(get_db),
@@ -44,7 +46,7 @@ def get_referrals_paginated(
     allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
     base = base.filter(Referral.clinic_id.in_(allowed_clinic_ids))
     if urgency_level and urgency_level != "all":
-        base = base.filter(Referral.urgency_level == urgency_level)
+        base = base.filter(func.lower(Referral.urgency_level) == urgency_level.lower())
     if referral_type and referral_type != "all":
         base = base.filter(Referral.type == referral_type)
     search_condition = build_all_terms_search_condition(
@@ -58,6 +60,13 @@ def get_referrals_paginated(
     )
     if search_condition is not None:
         base = base.filter(search_condition)
+    base = base.filter(*build_column_filter_conditions(filters, {
+        "date": ColumnFilter(Referral.date, "date"),
+        "type": ColumnFilter(Referral.type),
+        "client": ColumnFilter(spaced_concat(Client.first_name, Client.last_name)),
+        "urgency": ColumnFilter(func.lower(Referral.urgency_level), "options"),
+        "recipient": ColumnFilter(Referral.recipient),
+    }))
     order_columns = {
         "date": Referral.date,
         "id": Referral.id,

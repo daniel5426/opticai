@@ -131,6 +131,57 @@ def group_dict(db, group):
             "line_items": [row_dict(row) for row in db.query(OrderLineItem).filter(OrderLineItem.billings_id == billing.id).order_by(OrderLineItem.id).all()] if billing else []}
 
 
+def group_dicts(db, groups):
+    """`group_dict` for a whole page of groups with a fixed number of queries instead of
+    several per group. Output is identical, in the same order as `groups`."""
+    if not groups:
+        return []
+    group_ids = [group.id for group in groups]
+    entries_by_group = {group_id: [] for group_id in group_ids}
+    for entry in (db.query(OrderGroupEntry).filter(OrderGroupEntry.group_id.in_(group_ids))
+                  .order_by(OrderGroupEntry.position, OrderGroupEntry.id).all()):
+        entries_by_group[entry.group_id].append(entry)
+    entries = [entry for group_entries in entries_by_group.values() for entry in group_entries]
+
+    def by_id(model, ids):
+        ids = {value for value in ids if value is not None}
+        return {row.id: row for row in db.query(model).filter(model.id.in_(ids)).all()} if ids else {}
+
+    regular = by_id(Order, (entry.order_id for entry in entries))
+    contact = by_id(ContactLensOrder, (entry.contact_lens_id for entry in entries if not entry.order_id))
+    order_of = lambda entry: regular.get(entry.order_id) if entry.order_id else contact.get(entry.contact_lens_id)
+    clients = by_id(Client, [*(order.client_id for order in map(order_of, entries) if order),
+                             *(group.payer_client_id for group in groups)])
+    billings = {}
+    for billing in (db.query(Billing).filter(Billing.order_group_id.in_(group_ids))
+                    .order_by(Billing.id).all()):
+        billings.setdefault(billing.order_group_id, billing)
+    line_items = {}
+    if billings:
+        for item in (db.query(OrderLineItem).filter(OrderLineItem.billings_id.in_([b.id for b in billings.values()]))
+                     .order_by(OrderLineItem.id).all()):
+            line_items.setdefault(item.billings_id, []).append(item)
+
+    summary = lambda client: {key: getattr(client, key) for key in ("id", "first_name", "last_name", "clinic_id")}
+    results = []
+    for group in groups:
+        items, group_clients = [], {}
+        for entry in entries_by_group[group.id]:
+            order = order_of(entry)
+            if not order:
+                continue
+            if order.client_id in clients:
+                group_clients[order.client_id] = summary(clients[order.client_id])
+            items.append({"id": entry.id, "position": entry.position, "kind": "regular" if entry.order_id else "contact", "order": row_dict(order)})
+        if group.payer_client_id in clients:
+            group_clients[group.payer_client_id] = summary(clients[group.payer_client_id])
+        billing = billings.get(group.id)
+        results.append({**row_dict(group), "entries": items, "clients": list(group_clients.values()),
+                        "billing": row_dict(billing) if billing else None,
+                        "line_items": [row_dict(row) for row in line_items.get(billing.id, [])] if billing else []})
+    return results
+
+
 def validate_client(db, user, client_id, clinic_id):
     client = get_scoped_client(db, user, client_id)
     if client.clinic_id != clinic_id:

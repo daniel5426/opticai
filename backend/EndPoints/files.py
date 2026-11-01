@@ -19,6 +19,7 @@ from security.scope import (
 )
 from services.file_storage_service import FileStorageService, get_file_storage_service
 from services.trash_service import move_to_trash
+from utils.column_filters import ColumnFilter, build_column_filter_conditions
 from utils.table_search import build_all_terms_search_condition, search_blob, spaced_concat
 
 router = APIRouter(prefix="/files", tags=["files"])
@@ -303,6 +304,7 @@ def get_files_paginated(
     order: Optional[str] = Query("upload_date_desc", description="Sort order: upload_date_desc|upload_date_asc|id_desc|id_asc"),
     search: Optional[str] = Query(None, description="Search by file name/type/uploader/client name/notes"),
     file_category: Optional[str] = Query(None, description="Filter by file category"),
+    filters: Optional[str] = Query(None, description="JSON column filters: file_name|type|upload_date|client"),
     include_total: bool = Query(True, description="Include the exact total count"),
     count_only: bool = Query(False, description="Return only the exact total count"),
     db: Session = Depends(get_db),
@@ -334,6 +336,12 @@ def get_files_paginated(
             base.outerjoin(User, User.id == FileModel.uploaded_by)
             .filter(search_condition)
         )
+    base = base.filter(*build_column_filter_conditions(filters, {
+        "file_name": ColumnFilter(FileModel.file_name),
+        "type": ColumnFilter(None, "options", option_condition=build_file_category_filter),
+        "upload_date": ColumnFilter(FileModel.upload_date, "date"),
+        "client": ColumnFilter(spaced_concat(Client.first_name, Client.last_name)),
+    }))
     order_columns = {
         "upload_date": FileModel.upload_date,
         "id": FileModel.id,

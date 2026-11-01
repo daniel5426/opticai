@@ -1,0 +1,53 @@
+{
+  "en": {
+    "examTabs": {
+      "objective": "Objective",
+      "anamnesa": "Anamnesa",
+      "oldRef3": "Old Ref 3",
+      "oldRef2": "Old Ref 2",
+      "oldRef1": "Old Ref 1",
+      "summary": "Summary",
+      "amslerGrid": "Amsler Grid",
+      "fundus": "Fundus",
+      "bioMicroscopy": "Bio Microscopy",
+      "bino": "Bino",
+      "subjective": "Subjective",
+      "more": "More data",
+      "label": "SoftOptic exam sections"
+    }
+  },
+  "he": {
+    "examTabs": {
+      "objective": "Objective",
+      "anamnesa": "Anamnesa",
+      "oldRef3": "Old Ref 3",
+      "oldRef2": "Old Ref 2",
+      "oldRef1": "Old Ref 1",
+      "summary": "Summary",
+      "amslerGrid": "Amsler Grid",
+      "fundus": "Fundus",
+      "bioMicroscopy": "Bio Microscopy",
+      "bino": "Bino",
+      "subjective": "Subjective",
+      "more": "נתונים נוספים",
+      "label": "מקטעי בדיקת SoftOptic"
+    }
+  },
+  "fr": {
+    "examTabs": {
+      "objective": "Objective",
+      "anamnesa": "Anamnesa",
+      "oldRef3": "Old Ref 3",
+      "oldRef2": "Old Ref 2",
+      "oldRef1": "Old Ref 1",
+      "summary": "Summary",
+      "amslerGrid": "Amsler Grid",
+      "fundus": "Fundus",
+      "bioMicroscopy": "Bio Microscopy",
+      "bino": "Bino",
+      "subjective": "Subjective",
+      "more": "Autres données",
+      "label": "Sections de l'examen SoftOptic"
+    }
+  }
+}

@@ -515,6 +515,7 @@ class Client(SoftDeletableMixin, Base):
     discount_percent = Column(Integer)
     blocked_checks = Column(Boolean)
     blocked_credit = Column(Boolean)
+    send_notifications = Column(Boolean, nullable=False, default=False, server_default=false())
     sorting_group = Column(String)
     referring_party = Column(String)
     file_location = Column(String)
@@ -621,8 +622,8 @@ class MedicalLog(SoftDeletableMixin, Base):
     __tablename__ = "medical_logs"
     
     id = Column(Integer, primary_key=True, index=True)
-    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
-    clinic_id = Column(Integer, ForeignKey("clinics.id"))
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True)
+    clinic_id = Column(Integer, ForeignKey("clinics.id"), index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
     log_date = Column(Date)
     log = Column(Text)
@@ -631,7 +632,7 @@ class OpticalExam(SoftDeletableMixin, Base):
     __tablename__ = "optical_exams"
     
     id = Column(Integer, primary_key=True, index=True)
-    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True)
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
     clinic = Column(String)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
@@ -1182,7 +1183,7 @@ class Campaign(Base):
     __tablename__ = "campaigns"
     
     id = Column(Integer, primary_key=True, index=True)
-    clinic_id = Column(Integer, ForeignKey("clinics.id"))
+    clinic_id = Column(Integer, ForeignKey("clinics.id"), index=True)
     name = Column(String, nullable=False)
     filters = Column(Text)
     email_enabled = Column(Boolean, default=False)
@@ -1351,6 +1352,7 @@ Index('ix_orders_client_id', Order.client_id)
 Index('ix_orders_clinic_date', Order.clinic_id, Order.order_date.desc())
 Index('ix_orders_clinic_date_id_paging', Order.clinic_id, Order.order_date.desc(), Order.id.desc())
 Index('ix_orders_clinic_date_analytics', Order.clinic_id, Order.order_date, postgresql_include=['id', 'type'])
+Index('ix_order_groups_clinic_opened', OrderGroup.clinic_id, OrderGroup.opened_date, postgresql_where=OrderGroup.deleted_at.is_(None))
 Index('ix_orders_user_id', Order.user_id)
 Index('ix_contact_lens_orders_clinic_id', ContactLensOrder.clinic_id)
 Index('ix_contact_lens_orders_client_id', ContactLensOrder.client_id)

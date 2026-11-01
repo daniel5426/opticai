@@ -1796,9 +1796,9 @@ export const legacyStaticCopy = {
     "en": "Enter zip code",
     "fr": "Entrez le code postal"
   },
-  "הכנס מספר בית/דירה": {
-    "en": "Enter house/apartment number",
-    "fr": "Entrez le numéro de la maison/de l'appartement"
+  "הכנס דירה/מספר בית": {
+    "en": "Enter apartment/house number",
+    "fr": "Entrez l'appartement/le numéro de la maison"
   },
   "הכנס קבוצת מיון": {
     "en": "Enter a sort group",
@@ -4420,9 +4420,9 @@ export const legacyStaticCopy = {
     "en": "filters",
     "fr": "filtres"
   },
-  "מספר בית/דירה": {
-    "en": "House/apartment number",
-    "fr": "Numéro de maison/appartement"
+  "דירה/מספר בית": {
+    "en": "Apartment/house number",
+    "fr": "Appartement/numéro de maison"
   },
   "מספר חברים": {
     "en": "number of members",

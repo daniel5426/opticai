@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session, aliased
-from sqlalchemy import or_, func, literal, cast, String, case
+from sqlalchemy import or_, func, literal, literal_column, cast, String, case
 from typing import Optional
 from database import get_db
 from models import Client, OpticalExam, MedicalLog, Family, Referral, Appointment, Campaign, User, PrescriptionSearchIndex
@@ -71,7 +71,6 @@ def unified_search(
         return sum(score_conditions) if score_conditions else literal(0)
 
     items_selects = []
-    counts = []
 
     # Clients
     client_fields = [
@@ -100,7 +99,6 @@ def unified_search(
         Client.id.label("client_id"),
     ).filter(*clients_filter)
     items_selects.append(clients_q)
-    counts.append(db.query(func.count(Client.id)).filter(*clients_filter))
 
     # Exams
     exam_fields = [OpticalExam.test_name, cast(OpticalExam.exam_date, String)]
@@ -123,7 +121,6 @@ def unified_search(
         OpticalExam.client_id.label("client_id"),
     ).filter(*exams_filter)
     items_selects.append(exams_q)
-    counts.append(db.query(func.count(OpticalExam.id)).filter(*exams_filter))
 
     # Medical Logs
     medical_fields = [MedicalLog.log]
@@ -146,7 +143,6 @@ def unified_search(
         MedicalLog.client_id.label("client_id"),
     ).filter(*medical_filter)
     items_selects.append(medical_q)
-    counts.append(db.query(func.count(MedicalLog.id)).filter(*medical_filter))
 
     # Families
     family_fields = [Family.name]
@@ -169,7 +165,6 @@ def unified_search(
         literal(None).label("client_id"),
     ).filter(*families_filter)
     items_selects.append(families_q)
-    counts.append(db.query(func.count(Family.id)).filter(*families_filter))
 
     # Referrals
     referral_fields = [
@@ -195,7 +190,6 @@ def unified_search(
         Referral.client_id.label("client_id"),
     ).filter(*referrals_filter)
     items_selects.append(referrals_q)
-    counts.append(db.query(func.count(Referral.id)).filter(*referrals_filter))
 
     # Appointments
     appointment_fields = [
@@ -221,7 +215,6 @@ def unified_search(
         Appointment.client_id.label("client_id"),
     ).filter(*appointments_filter)
     items_selects.append(appointments_q)
-    counts.append(db.query(func.count(Appointment.id)).filter(*appointments_filter))
 
     # Campaigns
     campaign_fields = [Campaign.name]
@@ -244,35 +237,33 @@ def unified_search(
         literal(None).label("client_id"),
     ).filter(*campaigns_filter)
     items_selects.append(campaigns_q)
-    counts.append(db.query(func.count(Campaign.id)).filter(*campaigns_filter))
 
-    # Union all
-    union_query = items_selects[0]
-    for qy in items_selects[1:]:
-        union_query = union_query.union_all(qy)
-
-    # Execute union query with pagination and scoring-based ordering
-    # Use positional indexing to avoid column name issues
-    subq = union_query.subquery()
-    ordered = db.query(
-        subq.c[0].label('type'),      # type
-        subq.c[1].label('id'),        # id
-        subq.c[2].label('title'),     # title
-        subq.c[3].label('subtitle'),  # subtitle
-        subq.c[4].label('description'), # description
-        subq.c[5].label('score'),     # score
-        subq.c[6].label('sort_date'), # sort_date
-        subq.c[7].label('client_id')   # client_id
-    ).order_by(
-        func.coalesce(subq.c[5], 0).desc(),      # score column DESC
-        subq.c[6].desc().nulls_last(),           # sort_date column DESC NULLS LAST
-        subq.c[1].desc()                         # id column DESC
-    ).offset(offset).limit(limit)
-
-    rows = ordered.all()
+    # Each entity is queried on its own: one UNION across all of them gave the planner
+    # row estimates so wrong that searches hit the statement timeout. Every branch returns
+    # its best `offset + limit` rows plus its exact match count (a window count, so no
+    # second scan); merging them reproduces the global score/date/id ordering.
+    rows = []
     total = 0
-    for cnt in counts:
-        total += cnt.scalar() or 0
+    for branch in items_selects:
+        branch_rows = (
+            branch.add_columns(func.count().over().label("branch_total"))
+            .order_by(
+                # Bare output names only: Postgres rejects aliases inside expressions. Scores
+                # are `0 + CASE ...` sums, so they are never NULL.
+                literal_column("score").desc(),
+                literal_column("sort_date").desc().nulls_last(),
+                literal_column("id").desc(),
+            )
+            .limit(offset + limit)
+            .all()
+        )
+        if branch_rows:
+            total += branch_rows[0][8]
+        rows.extend(branch_rows)
+    rows.sort(key=lambda row: row[1] or 0, reverse=True)
+    rows.sort(key=lambda row: (row[6] is not None, row[6] or ""), reverse=True)
+    rows.sort(key=lambda row: row[5] or 0, reverse=True)
+    rows = rows[offset:offset + limit]
 
     items = [
         {

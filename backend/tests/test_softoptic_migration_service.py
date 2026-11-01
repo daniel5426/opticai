@@ -61,6 +61,9 @@ def _write_bundle(tmp_path, first_name="שם", client_count=1):
                 "head_of_family",
                 "first_name",
                 "last_name",
+                "turn_name",
+                "send_sms_email",
+                "discount_type",
             ],
         )
         writer.writeheader()
@@ -74,11 +77,17 @@ def _write_bundle(tmp_path, first_name="שם", client_count=1):
                     "head_of_family": account_code,
                     "first_name": first_name,
                     "last_name": "כהן",
+                    "turn_name": "ד\"ר הלפרט",
+                    "send_sms_email": "1",
+                    "discount_type": "1",
                 }
             )
+    with (export_dir / "t_discount_types.csv").open("w", newline="", encoding="utf-8") as handle:
+        csv.writer(handle).writerows([["discount_code", "discount_name"], ["1", "PriceList 1"]])
     bundle_path = tmp_path / "bundle.zip"
     with zipfile.ZipFile(bundle_path, "w") as archive:
         archive.write(export_dir / "account.csv", "account.csv")
+        archive.write(export_dir / "t_discount_types.csv", "t_discount_types.csv")
     return bundle_path, export_dir
 
 
@@ -171,6 +180,13 @@ def test_softoptic_import_tracks_and_replaces_previous_run(tmp_path):
         run_softoptic_import(db, job=job, storage=None, on_progress=lambda **kwargs: updates.append(kwargs))
 
         assert db.query(Client).filter_by(clinic_id=clinic.id).count() == 1
+        # SoftOptic keeps the referring party in account.turn_name.
+        imported = db.query(Client).filter_by(clinic_id=clinic.id).one()
+        assert imported.referring_party == 'ד"ר הלפרט'
+        # account.send_sms_email is the client's notifications opt-in.
+        assert imported.send_notifications is True
+        # account.discount_type is a t_discount_types code; the client gets its name as the price list.
+        assert imported.price_list == "PriceList 1"
         assert (
             db.query(MigrationSourceLink)
             .filter_by(source_system=SOFTOPTIC_SOURCE_SYSTEM, clinic_id=clinic.id, target_model="Client")

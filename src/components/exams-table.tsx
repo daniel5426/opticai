@@ -18,6 +18,8 @@ import { TableListLayout } from "@/components/table-list-layout"
 import { useAppLocale } from "@/localization/use-app-locale"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
 import { SortableTableHead } from "@/components/sortable-table-head"
+import { ColumnFiltersProvider, useColumnFilterState } from "@/components/column-filter"
+import { matchesColumnFilters, type ColumnFilterDefinition, type ColumnFilters } from "@/lib/column-filters"
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
 import { useTranslation } from "react-i18next"
 
@@ -48,7 +50,13 @@ interface ExamsTableProps {
   onTestNameFilterChange?: (value: string) => void
   sort?: SortState
   onSortChange?: (sort: SortState) => void
+  columnFilters?: ColumnFilters
+  onColumnFiltersChange?: (filters: ColumnFilters) => void
   fillHeight?: boolean
+}
+
+function layoutNames(layouts: ExamLayout[]): string[] {
+  return layouts.flatMap((layout) => (layout.is_group ? layoutNames(layout.children ?? []) : [layout.name]))
 }
 
 function filterActiveLayouts(layouts: ExamLayout[]): ExamLayout[] {
@@ -77,9 +85,12 @@ export function ExamsTable({
   onTestNameFilterChange,
   sort,
   onSortChange,
+  columnFilters: externalColumnFilters,
+  onColumnFiltersChange,
   fillHeight = false
 }: ExamsTableProps) {
   const { t } = useTranslation()
+  const columnFilters = useColumnFilterState(externalColumnFilters, onColumnFiltersChange)
   const { locale, direction } = useAppLocale()
   const [searchQuery, setSearchQuery] = useState("")
   const [localSort, setLocalSort] = useState<SortState | undefined>()
@@ -132,11 +143,35 @@ export function ExamsTable({
     setSelectedTestName(value)
   }
 
+  const columnFilterDefinitions = React.useMemo<ColumnFilterDefinition<ExamWithNames>[]>(() => {
+    const testNames = Array.from(
+      new Set([...layoutNames(activeLayouts), ...data.map((exam) => exam.test_name)].filter((name): name is string => Boolean(name)))
+    ).sort((a, b) => a.localeCompare(b, locale))
+    return [
+      { key: "exam_date", label: t("examList.date"), kind: "date", getValue: (exam) => exam.exam_date },
+      {
+        key: "test_name",
+        label: t("examList.kind"),
+        kind: "options",
+        options: testNames.map((name) => ({ value: name, label: name })),
+        getValue: (exam) => exam.test_name,
+      },
+      ...(clientId === 0
+        ? [{ key: "client", label: t("examList.client"), kind: "text" as const, getValue: (exam: ExamWithNames) => exam.clientName }]
+        : []),
+      { key: "clinic", label: t("examList.clinic"), kind: "text", getValue: (exam) => exam.clinic },
+      { key: "examiner", label: t("examList.examiner"), kind: "text", getValue: (exam) => exam.full_name || exam.username },
+    ]
+  }, [activeLayouts, clientId, data, locale, t])
+
   const filteredData = React.useMemo(() => {
     let result = data
 
     if (!serverFiltered && testNameFilter !== ALL_FILTER_VALUE) {
       result = result.filter((exam) => exam.test_name === testNameFilter)
+    }
+    if (!serverFiltered) {
+      result = result.filter((exam) => matchesColumnFilters(exam, columnFilters.filters, columnFilterDefinitions))
     }
 
     const searchLower = serverFiltered ? "" : searchValue.toLowerCase().trim()
@@ -155,7 +190,7 @@ export function ExamsTable({
 
       return DateSearchHelper.matchesDate(searchLower, exam.exam_date)
     })
-  }, [data, searchValue, testNameFilter, serverFiltered])
+  }, [data, searchValue, testNameFilter, serverFiltered, columnFilters.filters, columnFilterDefinitions])
 
   const displayData = React.useMemo(() => {
     return onSortChange ? filteredData : sortRows(filteredData, activeSort, sortColumns)
@@ -188,7 +223,7 @@ export function ExamsTable({
   }
 
   return (
-    <>
+    <ColumnFiltersProvider filters={columnFilters.filters} definitions={columnFilterDefinitions} onChange={columnFilters.setFilters}>
       <TableListLayout fillHeight={fillHeight} columnCount={clientId === 0 ? 6 : 5} loading={loading}
         toolbar={{searchValue:searchValue,
 onSearchChange:(value) => (onSearchChange ? onSearchChange(value) : setSearchQuery(value)),
@@ -209,11 +244,12 @@ filters:[
             widthClassName: "w-[190px]"
           }
         ],
-hasActiveFilters:Boolean(searchValue.trim()) || testNameFilter !== ALL_FILTER_VALUE,
+hasActiveFilters:Boolean(searchValue.trim()) || testNameFilter !== ALL_FILTER_VALUE || columnFilters.active,
 onReset:() => {
           if (onSearchChange) onSearchChange("")
           else setSearchQuery("")
           handleTestNameFilterChange(ALL_FILTER_VALUE)
+          columnFilters.setFilters({})
         },
 actions:clientId > 0 ? (
             activeLayouts.length > 0 ? (
@@ -412,7 +448,7 @@ actions:clientId > 0 ? (
           return index > 0
         })()}
       />
-    </>
+    </ColumnFiltersProvider>
   )
 }
 

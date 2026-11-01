@@ -1,5 +1,9 @@
 import React from "react"
+import { useTranslation } from "react-i18next"
 import { Client, Family } from "@/lib/db/schema-interface"
+import { useClientExamDatesQuery } from "@/hooks/client/useClientTabQueries"
+import { useDuplicateNationalId } from "@/hooks/client/useDuplicateNationalId"
+import { GuardedRouterLink } from "@/components/GuardedRouterLink"
 
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -7,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
+import { Switch } from "@/components/ui/switch"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -64,10 +69,17 @@ export function ClientDetailsTab({
   onSave,
 }: ClientDetailsTabProps) {
   const { direction } = useAppLocale()
+  const { t } = useTranslation()
   const isNewMode = mode === 'new'
   const showEditableFields = isEditing || isNewMode
   const { currentClinic } = useUser()
   const formData = draft
+  const examDates = useClientExamDatesQuery(draft.id, !isNewMode)
+  // Checked live while the ID is typed, when opening a client or editing one.
+  const duplicateClient = useDuplicateNationalId(formData.national_id, currentClinic?.id, {
+    enabled: showEditableFields,
+    excludeClientId: draft.id,
+  })
   const healthFundValue = formData.health_fund || ''
   const statusValue = formData.status || ''
   const statusOptions = getClientStatusOptions(healthFundValue)
@@ -483,7 +495,22 @@ export function ClientDetailsTab({
                   <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
                 </svg>
               </div>
-              <h3 className="text-lg font-semibold">פרטי התקשרות</h3>
+              <h3 className="text-lg font-semibold whitespace-nowrap">פרטי התקשרות</h3>
+              {/* Per-client opt-in for notifications; off unless set (or imported as on). */}
+              {/* Stays on the title row; the label wraps to two lines when the card is narrow. */}
+              <label className="text-muted-foreground ms-auto flex min-w-0 items-center gap-2 text-xs">
+                <span className="min-w-0 leading-tight">{t("clientSendNotifications")}</span>
+                <span className="text-foreground min-w-5 shrink-0 font-medium">
+                  {t(formData.send_notifications ? "clientSendNotificationsOn" : "clientSendNotificationsOff")}
+                </span>
+                <Switch
+                  checked={Boolean(formData.send_notifications)}
+                  onCheckedChange={(checked) => handleSelectChange(checked, 'send_notifications')}
+                  disabled={!showEditableFields}
+                  aria-label={t("clientSendNotifications")}
+                  className="shrink-0"
+                />
+              </label>
             </div>
             <div className="grid grid-cols-1 @[900px]:grid-cols-2 gap-4" dir={direction}>
               <div className="space-y-2">
@@ -522,7 +549,7 @@ export function ClientDetailsTab({
                 />
               </div>
               <div className="space-y-2">
-                <ModernLabel>מספר בית/דירה</ModernLabel>
+                <ModernLabel>דירה/מספר בית</ModernLabel>
                 <Input
                   type="text"
                   name="address_number"
@@ -530,7 +557,7 @@ export function ClientDetailsTab({
                   onChange={handleInputChange}
                   disabled={!showEditableFields}
                   className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
-                  placeholder={showEditableFields ? "הכנס מספר בית/דירה" : ""}
+                  placeholder={showEditableFields ? "הכנס דירה/מספר בית" : ""}
                 />
               </div>
               <div className="space-y-2">
@@ -653,9 +680,22 @@ export function ClientDetailsTab({
                   value={formData.national_id || ''}
                   onChange={handleInputChange}
                   disabled={!showEditableFields}
-                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
+                  aria-describedby={duplicateClient ? "national-id-duplicate" : undefined}
+                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${duplicateClient ? "border-amber-500 focus-visible:ring-amber-500/30" : ""}`}
                   placeholder={showEditableFields ? "הכנס תעודת זהות" : ""}
                 />
+                {duplicateClient && (
+                  <p id="national-id-duplicate" role="status" className="flex flex-wrap items-center gap-x-1 text-xs text-amber-700 dark:text-amber-400">
+                    <span>{t("clientNationalIdExists")}</span>
+                    <GuardedRouterLink
+                      to="/clients/$clientId"
+                      params={{ clientId: String(duplicateClient.id) }}
+                      className="font-medium underline underline-offset-2"
+                    >
+                      <bdi dir="auto">{[duplicateClient.first_name, duplicateClient.last_name].filter(Boolean).join(" ") || t("clientCardsNoName")}</bdi>
+                    </GuardedRouterLink>
+                  </p>
+                )}
               </div>
               <div className="text-start space-y-2" dir={direction}>
                 <ModernLabel>תאריך לידה</ModernLabel>
@@ -938,8 +978,21 @@ export function ClientDetailsTab({
                 </div>
               )}
 
-              {!isCreatingFamily && (
+              {isNewMode && !isCreatingFamily && (
                 <div className="text-sm h-[0.786rem] text-muted-foreground">
+                </div>
+              )}
+
+              {!isNewMode && (
+                <div className="grid grid-cols-1 @[500px]:grid-cols-2 gap-3 border-t border-border pt-4">
+                  <div className="space-y-2">
+                    <ModernLabel>{t("clientFirstExam")}</ModernLabel>
+                    <DateInput name="first_exam_date" value={examDates.data?.first_exam_date ?? undefined} onChange={() => {}} disabled />
+                  </div>
+                  <div className="space-y-2">
+                    <ModernLabel>{t("clientLastExam")}</ModernLabel>
+                    <DateInput name="last_exam_date" value={examDates.data?.last_exam_date ?? undefined} onChange={() => {}} disabled />
+                  </div>
                 </div>
               )}
 

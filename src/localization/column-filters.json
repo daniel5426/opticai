@@ -1,0 +1,47 @@
+{
+  "en": {
+    "filterColumn": "Filter {{column}}",
+    "clear": "Clear",
+    "clearAll": "Clear all",
+    "containsPlaceholder": "Contains…",
+    "searchOptions": "Search…",
+    "noOptions": "No matching options",
+    "from": "From",
+    "to": "To",
+    "today": "Today",
+    "last7Days": "Last 7 days",
+    "last30Days": "Last 30 days",
+    "activeFilters": "Filtered by",
+    "removeFilter": "Remove {{column}} filter"
+  },
+  "he": {
+    "filterColumn": "סינון לפי {{column}}",
+    "clear": "נקה",
+    "clearAll": "נקה הכל",
+    "containsPlaceholder": "מכיל…",
+    "searchOptions": "חיפוש…",
+    "noOptions": "אין אפשרויות תואמות",
+    "from": "מתאריך",
+    "to": "עד תאריך",
+    "today": "היום",
+    "last7Days": "7 ימים אחרונים",
+    "last30Days": "30 ימים אחרונים",
+    "activeFilters": "מסונן לפי",
+    "removeFilter": "הסר סינון {{column}}"
+  },
+  "fr": {
+    "filterColumn": "Filtrer par {{column}}",
+    "clear": "Effacer",
+    "clearAll": "Tout effacer",
+    "containsPlaceholder": "Contient…",
+    "searchOptions": "Rechercher…",
+    "noOptions": "Aucune option correspondante",
+    "from": "Du",
+    "to": "Au",
+    "today": "Aujourd'hui",
+    "last7Days": "7 derniers jours",
+    "last30Days": "30 derniers jours",
+    "activeFilters": "Filtré par",
+    "removeFilter": "Retirer le filtre {{column}}"
+  }
+}

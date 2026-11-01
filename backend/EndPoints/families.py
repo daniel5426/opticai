@@ -7,6 +7,7 @@ from models import Family, Client
 from schemas import FamilyCreate, FamilyUpdate, Family as FamilySchema, FamilyWithMembers
 from auth import get_current_user
 from models import User
+from utils.column_filters import ColumnFilter, build_column_filter_conditions
 from utils.table_search import build_all_terms_search_condition, search_blob
 from security.scope import (
     get_allowed_clinic_ids,
@@ -26,6 +27,7 @@ def get_families_paginated(
     offset: int = Query(0, ge=0, description="Items to skip"),
     order: Optional[str] = Query("created_desc", description="Sort order: created_desc|created_asc|name_asc|name_desc|id_desc|id_asc"),
     search: Optional[str] = Query(None, description="Search by family name"),
+    filters: Optional[str] = Query(None, description="JSON column filters: name|created_date"),
     include_total: bool = Query(True, description="Include the exact total count"),
     count_only: bool = Query(False, description="Return only the exact total count"),
     db: Session = Depends(get_db),
@@ -48,6 +50,11 @@ def get_families_paginated(
     )
     if search_condition is not None:
         count_q = count_q.filter(search_condition)
+    column_conditions = build_column_filter_conditions(filters, {
+        "name": ColumnFilter(Family.name),
+        "created_date": ColumnFilter(Family.created_date, "date"),
+    })
+    count_q = count_q.filter(*column_conditions)
 
     total = (count_q.scalar() or 0) if include_total or count_only else None
     if count_only:
@@ -70,6 +77,7 @@ def get_families_paginated(
         
     if search_condition is not None:
         base = base.filter(search_condition)
+    base = base.filter(*column_conditions)
 
     base = base.group_by(Family.id, Family.clinic_id, Family.name, Family.created_date, Family.notes, Family.company_id)
 

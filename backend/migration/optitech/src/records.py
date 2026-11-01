@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, time
 from pathlib import Path
 import re
@@ -104,6 +104,34 @@ def clean_text(value: Any) -> Optional[str]:
     if text.lower() in NULL_LIKE:
         return None
     return text
+
+
+# "<street> <house>[entrance letter][/<apartment>]" at the very end, e.g. "נתיבות המשפט 52/1",
+# "החרמון 12 א", "טורי זהב 3 ב'", "רשבי42/26", "רשבי 22\10", "שדי חמד 9/ד".
+_TRAILING_HOUSE_NUMBER = re.compile(
+    r"^(?P<street>.*?[^\d\s/\\-])\s*"
+    r"(?P<number>\d+(?:\s*[א-ת]['׳]?)?(?:\s*[/\\]\s*(?:\d+(?:\s*[א-ת])?|[א-ת]))?)$"
+)
+# "ת.ד" / "ת. ד." / ת"ד (P.O. box) and "ד.נ" (rural postal route) as standalone words; the
+# punctuation is required so street names such as "יערות דבש" are not mistaken for them.
+_PO_BOX = re.compile(r"(?<![א-ת])(?:ת\s*[.\"״]\s*ד|ד\s*\.\s*נ)\.?(?![א-ת])")
+
+
+def split_street_address(address: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
+    """Split OptiTech's single address field into street and house number.
+
+    Only the unambiguous "street, then number at the end" shape is split. Anything else
+    (no number, number only, text after the number such as a neighbourhood, P.O. boxes)
+    stays whole in the street so nothing is guessed.
+    """
+    if not address:
+        return address, None
+    match = _TRAILING_HOUSE_NUMBER.match(" ".join(address.split()))
+    if not match or not re.search(r"[A-Za-zא-ת]", match["street"]) or _PO_BOX.search(match["street"]):
+        return address, None
+    number = re.sub(r"\s*[/\\]\s*", "/", match["number"])
+    number = re.sub(r"(\d)\s+([א-ת])", r"\1\2", number).replace("'", "").replace("׳", "")
+    return match["street"].strip(), number
 
 
 def parse_boolish(value: Any) -> Optional[bool]:
@@ -445,6 +473,7 @@ class NormalizedOrderSeed(NormalizedSeedBase):
     supplier_id: Optional[int] = None
     bag_number: Optional[str] = None
     comment: Optional[str] = None
+    glass_id: Optional[int] = None
     frame: Dict[str, Any] = field(default_factory=dict)
     lens: Dict[str, Any] = field(default_factory=dict)
 
@@ -857,6 +886,8 @@ def normalize_order_row(
         "lens_color_id": parse_intish(row.get("ColorId")),
         "diameter": clean_text(row.get("Diam")),
         "segment": parse_floatish(row.get("Segment")),
+        # Current OptiTech versions keep the lens lab on the work as GlassSapakId (older: LnsSapakId).
+        "lens_supplier_id": parse_intish(row.get("GlassSapakId")) or parse_intish(row.get("LnsSapakId")) or None,
     }
     return NormalizedOrderSeed(
         source_ref=build_source_ref("tblCrdBuysWorks", row, raw_row_ref),
@@ -875,9 +906,55 @@ def normalize_order_row(
         supplier_id=parse_intish(row.get("SapakId")),
         bag_number=clean_text(row.get("BagNum")),
         comment=clean_text(row.get("Comment")),
+        glass_id=parse_intish(row.get("GlassId")) or None,
         frame={k: v for k, v in frame.items() if v is not None},
         lens={k: v for k, v in lens.items() if v is not None},
     )
+
+
+LENS_SPEC_FIELDS = {
+    "RoleId": "lens_role_id",
+    "MaterId": "lens_material_id",
+    "BrandId": "lens_brand_id",
+    "CoatId": "lens_coat_id",
+    "ModelId": "lens_model_id",
+    "ColorId": "lens_color_id",
+}
+
+
+def attach_lens_specification(
+    seed: NormalizedOrderSeed,
+    lenses_by_id: Mapping[int, Mapping[str, Any]],
+    lenses_by_exam: Mapping[Tuple[Optional[int], Optional[date]], Sequence[Mapping[str, Any]]],
+) -> NormalizedOrderSeed:
+    """Fill a work's lenses from tblCrdGlassChecksGlasses.
+
+    Current OptiTech versions keep the lens spec on the exam's glasses row and link the
+    work to it by GlassId; older versions kept it on the work itself, which wins when
+    present. Without GlassId (older export bundles) the exam's single lens row is used,
+    and the match is recorded so it stays traceable.
+    """
+    if any(key in seed.lens for key in LENS_SPEC_FIELDS.values()):
+        return seed
+    row = lenses_by_id.get(seed.glass_id) if seed.glass_id else None
+    matched_by = "GlassId" if row else None
+    if row is None and seed.glass_id is None:
+        candidates = lenses_by_exam.get((seed.source_per_id, seed.related_exam_date), ())
+        if len(candidates) == 1:
+            row, matched_by = candidates[0], "exam_date"
+    if row is None:
+        return seed
+    lens = dict(seed.lens)
+    for source, target in LENS_SPEC_FIELDS.items():
+        value = parse_intish(row.get(source))
+        if value not in (None, 0):
+            lens[target] = value
+    for source, target, parse in (("Diam", "diameter", clean_text), ("Segment", "segment", parse_floatish), ("Com", "lens_comment", clean_text)):
+        value = parse(row.get(source))
+        if value not in (None, "", 0):
+            lens.setdefault(target, value)
+    lens["lens_source"] = {"table": "tblCrdGlassChecksGlasses", "glass_id": parse_intish(row.get("GlassId")), "matched_by": matched_by}
+    return replace(seed, lens=lens)
 
 
 def normalize_file_row(

@@ -18,6 +18,7 @@ export default function NewClientPage() {
     gender: "זכר",
     blocked_checks: false,
     blocked_credit: false,
+    send_notifications: false,
     discount_percent: 0,
     file_creation_date: new Date().toISOString().split('T')[0]
   } as Client)

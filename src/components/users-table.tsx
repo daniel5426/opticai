@@ -13,6 +13,8 @@ import { TableFiltersBar } from "@/components/table-filters-bar"
 import { TablePagination } from "@/components/table-pagination"
 import { ALL_FILTER_VALUE, USER_CLINIC_SCOPE_OPTIONS, USER_ROLE_FILTER_OPTIONS } from "@/lib/table-filters"
 import { SortableTableHead } from "@/components/sortable-table-head"
+import { ActiveColumnFilters, ColumnFiltersProvider, useColumnFilterState } from "@/components/column-filter"
+import { matchesColumnFilters, type ColumnFilterDefinition, type ColumnFilters } from "@/lib/column-filters"
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
 import { DateSearchHelper } from "@/lib/date-search-helper"
 
@@ -31,6 +33,7 @@ interface UsersTableProps {
   serverFiltered?: boolean
   hideSearch?: boolean
   hideNewButton?: boolean
+  fillHeight?: boolean
   onNewUser?: () => void
   onEditUser?: (user: UserWithClinic) => void
   loading?: boolean
@@ -49,7 +52,34 @@ interface UsersTableProps {
   onClinicScopeFilterChange?: (value: string) => void
   sort?: SortState
   onSortChange?: (sort: SortState) => void
+  columnFilters?: ColumnFilters
+  onColumnFiltersChange?: (filters: ColumnFilters) => void
 }
+
+const USER_COLUMN_FILTERS: ColumnFilterDefinition<UserWithClinic>[] = [
+  { key: "id", label: "מס' משתמש", kind: "text", getValue: (user) => user.id },
+  { key: "name", label: "שם מלא", kind: "text", getValue: (user) => user.full_name || user.username },
+  {
+    key: "role",
+    label: "תפקיד",
+    kind: "options",
+    options: Object.values(ROLE_LEVELS).map((level) => ({ value: String(level), label: getRoleLabel(level) })),
+    getValue: (user) => user.role_level,
+  },
+  { key: "email", label: "אימייל", kind: "text", getValue: (user) => user.email },
+  { key: "phone", label: "טלפון", kind: "text", getValue: (user) => user.phone },
+  { key: "clinic", label: "מרפאה", kind: "text", getValue: (user) => user.clinic_name || "גלובלי" },
+  {
+    key: "status",
+    label: "סטטוס",
+    kind: "options",
+    options: [
+      { value: "active", label: "פעיל" },
+      { value: "inactive", label: "לא פעיל" },
+    ],
+    getValue: (user) => (user.is_active === false ? "inactive" : "active"),
+  },
+]
 
 export function UsersTable({
   data,
@@ -62,6 +92,9 @@ export function UsersTable({
   serverFiltered = false,
   hideSearch = false,
   hideNewButton = false,
+  fillHeight = false,
+  columnFilters: externalColumnFilters,
+  onColumnFiltersChange,
   onNewUser,
   onEditUser,
   loading = false,
@@ -75,6 +108,7 @@ export function UsersTable({
   sort,
   onSortChange
 }: UsersTableProps) {
+  const columnFilters = useColumnFilterState(externalColumnFilters, onColumnFiltersChange)
   const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
   const [selectedRole, setSelectedRole] = React.useState<string>(ALL_FILTER_VALUE)
   const [localSort, setLocalSort] = React.useState<SortState | undefined>()
@@ -136,6 +170,10 @@ export function UsersTable({
       result = result.filter((u) => u.role_level === Number(roleFilter))
     }
 
+    if (!serverFiltered) {
+      result = result.filter((user) => matchesColumnFilters(user, columnFilters.filters, USER_COLUMN_FILTERS))
+    }
+
     if (!serverFiltered && searchQuery) {
       result = result.filter(
         (user) =>
@@ -148,7 +186,7 @@ export function UsersTable({
       )
     }
     return result
-  }, [clinicScopeFilter, currentClinicId, data, roleFilter, searchQuery, serverFiltered])
+  }, [clinicScopeFilter, currentClinicId, data, roleFilter, searchQuery, serverFiltered, columnFilters.filters])
 
   const displayData = React.useMemo(() => {
     return onSortChange ? filteredData : sortRows(filteredData, activeSort, sortColumns)
@@ -211,7 +249,8 @@ export function UsersTable({
   }
 
   return (
-    <div className="space-y-2.5" dir="rtl">
+    <ColumnFiltersProvider filters={columnFilters.filters} definitions={USER_COLUMN_FILTERS} onChange={columnFilters.setFilters}>
+    <div className={fillHeight ? "flex min-h-0 flex-1 flex-col gap-2.5" : "space-y-2.5"} dir="rtl">
       {!hideSearch && (
         <TableFiltersBar
           searchValue={searchQuery}
@@ -240,12 +279,13 @@ export function UsersTable({
               : [])
           ]}
           hasActiveFilters={
-            Boolean(searchQuery.trim()) || roleFilter !== ALL_FILTER_VALUE || clinicScopeFilter !== ALL_FILTER_VALUE
+            Boolean(searchQuery.trim()) || roleFilter !== ALL_FILTER_VALUE || clinicScopeFilter !== ALL_FILTER_VALUE || columnFilters.active
           }
           onReset={() => {
             handleSearchChange("")
             handleRoleFilterChange(ALL_FILTER_VALUE)
             handleClinicScopeFilterChange(ALL_FILTER_VALUE)
+            columnFilters.setFilters({})
           }}
           actions={
             !hideNewButton && onNewUser ? (
@@ -257,10 +297,11 @@ export function UsersTable({
           }
         />
       )}
+      <ActiveColumnFilters />
 
       <Table
           dir="rtl"
-          containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain"
+          containerClassName={fillHeight ? "min-h-0 overflow-y-auto overscroll-contain" : "max-h-[70vh] overflow-y-auto overscroll-contain"}
           containerStyle={{ scrollbarWidth: "none" }}
         >
           <TableHeader className="bg-card sticky top-0">
@@ -431,5 +472,6 @@ export function UsersTable({
         showCloseButton={false}
       />
     </div>
+    </ColumnFiltersProvider>
   )
 }

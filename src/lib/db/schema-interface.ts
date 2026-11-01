@@ -72,6 +72,7 @@ export interface Client {
   discount_percent?: number;
   blocked_checks?: boolean;
   blocked_credit?: boolean;
+  send_notifications?: boolean;
   sorting_group?: string;
   referring_party?: string;
   file_location?: string;
@@ -291,6 +292,9 @@ export interface SubjectiveExam {
   l_va?: number;
   r_ph?: number;
   l_ph?: number;
+  /** Near-vision J, kept for SoftOptic imports. */
+  r_j?: string;
+  l_j?: string;
   r_pd_close?: number;
   l_pd_close?: number;
   r_pd_far?: number;
@@ -1081,6 +1085,11 @@ export interface KeratometerExam {
   l_k1?: number;
   l_k2?: number;
   l_axis?: number;
+  /** Diopter readings kept beside the mm values (r_k1 etc.), so neither is recomputed from the other. */
+  r_k1_d?: number;
+  r_k2_d?: number;
+  l_k1_d?: number;
+  l_k2_d?: number;
 }
 
 export interface KeratometerFullExam {
@@ -1185,6 +1194,31 @@ export interface SoftOpticMaddoxGridExam {
   fv_hyper_phoria?: number | string;
   nv_hyper_phoria_eye?: string;
   nv_hyper_phoria?: number | string;
+}
+
+/** OpticSoft's Bino row (imported SoftOptic exams only): Ocular Mot., ACC R / L and CNP. */
+export interface SoftOpticOcularMotExam {
+  id?: number;
+  layout_instance_id: number;
+  card_instance_id?: string;
+  ocular_motility?: string;
+  acc_r?: number | string;
+  acc_l?: number | string;
+  cnp_cm?: number | string;
+  cnp_eye?: string;
+}
+
+/** OpticSoft's R/G section (imported SoftOptic exams only): status and the prism for fusion. */
+export interface SoftOpticRgExam {
+  id?: number;
+  layout_instance_id: number;
+  card_instance_id?: string;
+  rg_status?: "suppression" | "fusion" | "diplopia" | "";
+  suppressed_eye?: string;
+  pr_h?: number | string;
+  base_h?: string;
+  pr_v?: number | string;
+  base_v?: string;
 }
 
 export interface CoverTestV2Exam {

@@ -1,13 +1,15 @@
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
-from sqlalchemy import or_, exists, select, literal, union_all, func
+from sqlalchemy import or_, exists, false, select, literal, union_all, func
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from database import get_db
 from auth import get_current_user
 from models import User, OrderGroup, OrderGroupEntry, Order, ContactLensOrder, Billing, Client
 from security.scope import get_allowed_clinic_ids, get_scoped_order, get_scoped_contact_lens_order, get_scoped_client
-from services.order_group_service import get_group, group_dict, save_group, group_for_order, ensure_standalone_group, check_revision, group_write, row_dict, order_groups_available
+from services.order_group_service import get_group, group_dict, group_dicts, save_group, group_for_order, ensure_standalone_group, check_revision, group_write, row_dict, order_groups_available
 from schemas import BillingPaymentCreate, OrderGroupSave
+from utils.column_filters import ColumnFilter, build_column_filter_conditions, parse_column_filters
+from utils.table_search import spaced_concat
 
 router = APIRouter(prefix="/order-groups", tags=["order-groups"])
 
@@ -30,10 +32,36 @@ def resolve_group(kind: str, order_id: int, db: Session = Depends(get_db), user:
     return group_dict(db, group)
 
 
+
+def _option_values(column_filters: dict, key: str) -> list[str]:
+    value = column_filters.get(key)
+    values = [value] if isinstance(value, str) else value or []
+    if not isinstance(values, list) or not all(isinstance(item, str) for item in values):
+        raise HTTPException(400, f"Invalid column filters: '{key}' expects a list of options")
+    return [item for item in values if item]
+
 @router.get("")
 def list_groups(client_id: int | None = None, clinic_id: int | None = None, limit: int = Query(25, ge=1, le=100), offset: int = Query(0, ge=0), q: str | None = None, kind: str | None = None, status: str | None = None, order: str = "date_desc",
-                db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+                db: Session = Depends(get_db), user: User = Depends(get_current_user),
+                filters: str | None = None):  # JSON column filters: date|clients|kinds|status|payer
     allowed = get_allowed_clinic_ids(db, user, clinic_id)
+    if kind not in (None, "all", "regular", "contact"):
+        raise HTTPException(422, "Unknown order kind")
+    # Toolbar selects and column filters narrow the same sets; both must match.
+    kinds = {kind} if kind in ("regular", "contact") else {"regular", "contact"}
+    statuses = {status} if status and status != "all" else None
+    column_filters = parse_column_filters(filters)
+    filter_kinds = set(_option_values(column_filters, "kinds"))
+    if filter_kinds:
+        kinds &= filter_kinds
+    filter_statuses = set(_option_values(column_filters, "status"))
+    if filter_statuses:
+        statuses = filter_statuses if statuses is None else statuses & filter_statuses
+    name_filter = lambda key: build_column_filter_conditions(
+        filters, {key: ColumnFilter(spaced_concat(Client.first_name, Client.last_name))})
+    client_names, payer_names = name_filter("clients"), name_filter("payer")
+    named_clients = db.query(Client.id).filter(*client_names) if client_names else None
+    named_payers = db.query(Client.id).filter(*payer_names) if payer_names else None
     query = db.query(OrderGroup).filter(OrderGroup.clinic_id.in_(allowed))
     if client_id:
         get_scoped_client(db, user, client_id)
@@ -45,23 +73,27 @@ def list_groups(client_id: int | None = None, clinic_id: int | None = None, limi
         matched_clients = db.query(Client.id).filter(or_(Client.first_name.ilike(f"%{q}%"), Client.last_name.ilike(f"%{q}%")))
         matched_entries = db.query(OrderGroupEntry.group_id).outerjoin(Order, OrderGroupEntry.order_id == Order.id).outerjoin(ContactLensOrder, OrderGroupEntry.contact_lens_id == ContactLensOrder.id).filter(or_(Order.client_id.in_(matched_clients), ContactLensOrder.client_id.in_(matched_clients), Order.type.ilike(f"%{q}%"), ContactLensOrder.type.ilike(f"%{q}%")))
         query = query.filter(or_(OrderGroup.payer_client_id.in_(matched_clients), OrderGroup.id.in_(matched_entries)))
-    if kind not in (None, "all", "regular", "contact"):
-        raise HTTPException(422, "Unknown order kind")
-    if kind in ("regular", "contact") or (status and status != "all"):
+    if named_clients is not None:
+        named_entries = db.query(OrderGroupEntry.group_id).outerjoin(Order, OrderGroupEntry.order_id == Order.id).outerjoin(ContactLensOrder, OrderGroupEntry.contact_lens_id == ContactLensOrder.id).filter(or_(Order.client_id.in_(named_clients), ContactLensOrder.client_id.in_(named_clients)))
+        query = query.filter(OrderGroup.id.in_(named_entries))
+    if named_payers is not None:
+        query = query.filter(OrderGroup.payer_client_id.in_(named_payers))
+    query = query.filter(*build_column_filter_conditions(filters, {"date": ColumnFilter(OrderGroup.opened_date, "date")}))
+    if kinds != {"regular", "contact"} or statuses is not None:
         regular = db.query(OrderGroupEntry.group_id).join(Order, OrderGroupEntry.order_id == Order.id)
         contact = db.query(OrderGroupEntry.group_id).join(ContactLensOrder, OrderGroupEntry.contact_lens_id == ContactLensOrder.id)
-        if status and status != "all":
-            regular = regular.filter(Order.order_data["details"]["order_status"].as_string() == status)
-            contact = contact.filter(ContactLensOrder.order_status == status)
+        if statuses is not None:
+            regular = regular.filter(Order.order_data["details"]["order_status"].as_string().in_(statuses))
+            contact = contact.filter(ContactLensOrder.order_status.in_(statuses))
         choices = []
-        if kind != "contact": choices.append(OrderGroup.id.in_(regular))
-        if kind != "regular": choices.append(OrderGroup.id.in_(contact))
-        query = query.filter(or_(*choices))
+        if "regular" in kinds: choices.append(OrderGroup.id.in_(regular))
+        if "contact" in kinds: choices.append(OrderGroup.id.in_(contact))
+        query = query.filter(or_(*choices) if choices else false())
     # Imports and older installations may contain orders without group entries.
     # Include them in the same SQL page; reading history must not write records.
     candidates = [query.with_entities(OrderGroup.id.label("id"), OrderGroup.opened_date.label("opened_date"), literal("group").label("kind")).statement]
     for model, entry_column, order_kind in ((Order, OrderGroupEntry.order_id, "regular"), (ContactLensOrder, OrderGroupEntry.contact_lens_id, "contact")):
-        if kind in ("regular", "contact") and kind != order_kind:
+        if order_kind not in kinds:
             continue
         legacy = select(model.id.label("id"), model.order_date.label("opened_date"), literal(order_kind).label("kind")).where(
             model.clinic_id.in_(allowed), model.deleted_at.is_(None),
@@ -70,23 +102,39 @@ def list_groups(client_id: int | None = None, clinic_id: int | None = None, limi
             legacy = legacy.where(model.client_id == client_id)
         if q:
             legacy = legacy.where(or_(model.client_id.in_(matched_clients), model.type.ilike(f"%{q}%")))
-        if status and status != "all":
-            legacy = legacy.where((model.order_data["details"]["order_status"].as_string() if order_kind == "regular" else model.order_status) == status)
+        if statuses is not None:
+            legacy = legacy.where((model.order_data["details"]["order_status"].as_string() if order_kind == "regular" else model.order_status).in_(statuses))
+        # A standalone order's client is both its participant and its payer.
+        for named in (named_clients, named_payers):
+            if named is not None:
+                legacy = legacy.where(model.client_id.in_(named))
+        legacy = legacy.where(*build_column_filter_conditions(filters, {"date": ColumnFilter(model.order_date, "date")}))
         candidates.append(legacy)
     combined = union_all(*candidates).subquery()
     total = db.execute(select(func.count()).select_from(combined)).scalar_one()
     dates = combined.c.opened_date.asc() if order == "date_asc" else combined.c.opened_date.desc()
     page = db.execute(select(combined).order_by(dates.nulls_last(), combined.c.kind, combined.c.id.desc()).offset(offset).limit(limit)).all()
+    # Load everything the page needs in a few batched queries rather than several per row.
+    ids_of = lambda kind: [row.id for row in page if row.kind == kind]
+    groups = {group.id: group for group in db.query(OrderGroup).filter(OrderGroup.id.in_(ids_of("group"))).all()} if ids_of("group") else {}
+    group_items = dict(zip(groups, group_dicts(db, list(groups.values()))))
+    records = {kind: {record.id: record for record in db.query(model).filter(model.id.in_(ids_of(kind))).all()} if ids_of(kind) else {}
+               for kind, model in (("regular", Order), ("contact", ContactLensOrder))}
+    client_ids = {record.client_id for kind_records in records.values() for record in kind_records.values()}
+    clients = {client.id: client for client in db.query(Client).filter(Client.id.in_(client_ids)).all()} if client_ids else {}
+    billings = {}
+    for kind, anchor in (("regular", Billing.order_id), ("contact", Billing.contact_lens_id)):
+        if ids_of(kind):
+            for billing in db.query(Billing).filter(anchor.in_(ids_of(kind))).order_by(Billing.id).all():
+                billings.setdefault((kind, getattr(billing, anchor.key)), billing)
     items = []
     for row in page:
         if row.kind == "group":
-            items.append(group_dict(db, db.get(OrderGroup, row.id)))
+            items.append(group_items[row.id])
             continue
-        model = Order if row.kind == "regular" else ContactLensOrder
-        record = db.get(model, row.id)
-        client = db.query(Client).filter(Client.id == record.client_id).first()
-        anchor = Billing.order_id if row.kind == "regular" else Billing.contact_lens_id
-        billing = db.query(Billing).filter(anchor == row.id).first()
+        record = records[row.kind][row.id]
+        client = clients.get(record.client_id)
+        billing = billings.get((row.kind, row.id))
         items.append({"id": row.id, "clinic_id": record.clinic_id, "payer_client_id": record.client_id,
                       "opened_date": record.order_date, "revision": 1,
                       "legacy_order": {"kind": row.kind, "id": row.id},

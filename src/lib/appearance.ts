@@ -6,16 +6,17 @@ export const APPEARANCE_STYLES = {
   pro: { labelKey: "appearancePro", supportsPalettes: false },
 } as const;
 export type AppearanceStyle = keyof typeof APPEARANCE_STYLES;
+// Dark primaries are light tints so the dark --primary-foreground stays readable.
 export const COLOR_THEMES = {
-  blue: { primary: "#2256aa", sidebar: "#cce9ff", labelKey: "colorThemeClassicBlue" },
-  bloom: { primary: "#2256aa", sidebar: "#e2e2e2", labelKey: "colorThemeBloomBlue" },
-  ice: { primary: "#3f3f46", sidebar: "#e6f1f6", labelKey: "colorThemeIceBlue" },
-  neutral: { primary: "#3f3f46", sidebar: "#f4f4f5", labelKey: "colorThemeGraphite" },
-  forest: { primary: "#386451", sidebar: "#e7f2eb", labelKey: "colorThemeForest" },
-  bronze: { primary: "#87613f", sidebar: "#f7eee4", labelKey: "colorThemeBronze" },
-  plum: { primary: "#65516f", sidebar: "#f1e9f4", labelKey: "colorThemePlum" },
-  monochrome: { primary: "#0a0a0a", sidebar: "#f5f5f5", labelKey: "colorThemeMonochrome" },
-  openai: { primary: "#0f766e", sidebar: "#e7f5f2", labelKey: "colorThemeOpenAI" },
+  blue: { primary: "#2256aa", sidebar: "#cce9ff", darkPrimary: "#8ab4f8", darkSidebar: "#0f1a2b", labelKey: "colorThemeClassicBlue" },
+  bloom: { primary: "#2256aa", sidebar: "#e2e2e2", darkPrimary: "#8ab4f8", darkSidebar: "#1c1c1e", labelKey: "colorThemeBloomBlue" },
+  ice: { primary: "#3f3f46", sidebar: "#e6f1f6", darkPrimary: "#a5c8d8", darkSidebar: "#0f181c", labelKey: "colorThemeIceBlue" },
+  neutral: { primary: "#3f3f46", sidebar: "#f4f4f5", darkPrimary: "#e4e4e7", darkSidebar: "#18181b", labelKey: "colorThemeGraphite" },
+  forest: { primary: "#386451", sidebar: "#e7f2eb", darkPrimary: "#8fc5a8", darkSidebar: "#0f1a15", labelKey: "colorThemeForest" },
+  bronze: { primary: "#87613f", sidebar: "#f7eee4", darkPrimary: "#d6ad85", darkSidebar: "#1c150f", labelKey: "colorThemeBronze" },
+  plum: { primary: "#65516f", sidebar: "#f1e9f4", darkPrimary: "#c4a8d4", darkSidebar: "#19131c", labelKey: "colorThemePlum" },
+  monochrome: { primary: "#0a0a0a", sidebar: "#f5f5f5", darkPrimary: "#fafafa", darkSidebar: "#0a0a0a", labelKey: "colorThemeMonochrome" },
+  openai: { primary: "#0f766e", sidebar: "#e7f5f2", darkPrimary: "#5eead4", darkSidebar: "#0c1a18", labelKey: "colorThemeOpenAI" },
 } as const;
 export type ColorTheme = keyof typeof COLOR_THEMES;
 export type CanvasElevation = "flat" | "lift";
@@ -126,12 +127,13 @@ export function createAppearanceStore(environment: AppearanceEnvironment) {
     if (gradient) {
       for (const [token, value] of Object.entries(canvasGradientVariables(gradient))) root.style.setProperty(token, value);
     }
-    // Inline Classic accents must never override a complete Pro skin or dark tokens.
+    // Inline Classic accents must never override a complete Pro skin.
     for (const token of ["--primary", "--sidebar", "--muted", "--accent"]) root.style.removeProperty(token);
-    if (APPEARANCE_STYLES[state.style].supportsPalettes && state.resolvedMode === "light") {
+    if (APPEARANCE_STYLES[state.style].supportsPalettes) {
       const colors = COLOR_THEMES[state.previewPalette ?? state.palette];
-      root.style.setProperty("--primary", hexToHsl(colors.primary));
-      root.style.setProperty("--sidebar", `hsl(${hexToHsl(colors.sidebar)})`);
+      const dark = state.resolvedMode === "dark";
+      root.style.setProperty("--primary", hexToHsl(dark ? colors.darkPrimary : colors.primary));
+      root.style.setProperty("--sidebar", `hsl(${hexToHsl(dark ? colors.darkSidebar : colors.sidebar)})`);
     }
   };
 

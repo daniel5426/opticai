@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
 import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch, useLatestTableSearchRequest } from "@/lib/list-page-search"
 import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
+import { parseColumnFilters, serializeColumnFilters } from "@/lib/column-filters"
 import { deferPaginationTotal } from "@/lib/deferred-pagination"
 
 export default function AllExamsPage() {
@@ -30,6 +31,7 @@ export default function AllExamsPage() {
     () => parseSortSearch(search.sort, { key: "exam_date", direction: "desc" }),
     [search.sort]
   )
+  const columnFilters = React.useMemo(() => parseColumnFilters(search.filters), [search.filters])
 
   useEffect(() => {
     updateLatestSearch(search.q)
@@ -48,6 +50,7 @@ export default function AllExamsPage() {
         page: number
         testName: string
         sort: string
+        filters: string
       }>
     ) => {
       return buildTableSearch(
@@ -56,17 +59,19 @@ export default function AllExamsPage() {
           page: search.page,
           testName: search.testName,
           sort: search.sort,
+          filters: search.filters,
           ...overrides
         },
         {
           q: "",
           page: 1,
           testName: ALL_FILTER_VALUE,
-          sort: ""
+          sort: "",
+          filters: ""
         }
       )
     },
-    [search.page, search.sort, search.testName, searchInput]
+    [search.filters, search.page, search.sort, search.testName, searchInput]
   )
 
   useEffect(() => {
@@ -92,6 +97,7 @@ export default function AllExamsPage() {
         order: sortToOrder(activeSort, "exam_date_desc"),
         q: search.q || undefined,
         testName: search.testName !== ALL_FILTER_VALUE ? search.testName : undefined,
+        columnFilters: search.filters || undefined,
         includeTotal: false
       }
       const { items, hasMore: nextHasMore } = await getPaginatedEnrichedExams("exam", currentClinic?.id, paginationOptions)
@@ -110,7 +116,7 @@ export default function AllExamsPage() {
         setLoading(false)
       }
     }
-  }, [activeSort, currentClinic, pageSize, search.page, search.q, search.testName, startSearchRequest])
+  }, [activeSort, currentClinic, pageSize, search.page, search.q, search.testName, search.filters, startSearchRequest])
 
   useEffect(() => {
     if (currentClinic) {
@@ -154,6 +160,13 @@ export default function AllExamsPage() {
             navigate({
               to: "/exams",
               search: buildSearchState({ testName: value, page: 1 })
+            })
+          }
+          columnFilters={columnFilters}
+          onColumnFiltersChange={(filters) =>
+            navigate({
+              to: "/exams",
+              search: buildSearchState({ filters: serializeColumnFilters(filters), page: 1 }),
             })
           }
           sort={activeSort}

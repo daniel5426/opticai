@@ -460,3 +460,29 @@ def test_table_quick_payment_uses_one_shared_invoice_and_rejects_stale_retry(con
     assert stale.value.status_code == 409
     assert db.query(BillingPayment).count() == 1
     assert db.get(Billing, saved['billing']['id']).prepayment_amount == 25
+
+
+def test_history_column_filters_cover_groups_and_unlinked_orders(context):
+    import json
+    from sqlalchemy import insert
+    db, user, clinic, clients = context
+    group = save_group(db, user, payload(clinic, clients), creation_key='column-filters')
+    db.execute(insert(Order).values(id=90, client_id=clients[1].id, clinic_id=clinic.id, type='Reading',
+                                   order_date=date(2024, 3, 1), order_data={'details': {'order_status': 'ready'}}))
+    db.commit()
+    total = lambda filters, **extra: list_history(db, user, clinic, filters=json.dumps(filters), **extra)['total']
+
+    assert total({}) == 2
+    assert total({'clients': 'two'}) == 2          # Two is in the group and owns the unlinked order
+    assert total({'clients': 'one'}) == 1
+    assert total({'payer': 'one'}) == 1            # group payer
+    assert total({'payer': 'two'}) == 1            # unlinked order's own client
+    assert total({'kinds': ['contact']}) == 1
+    assert total({'kinds': ['regular', 'contact']}) == 2
+    assert total({'status': ['ready']}) == 1
+    assert total({'status': ['ready', 'missing']}) == 1
+    assert total({'date': {'from': '2024-03-01', 'to': '2024-03-01'}}) == 1
+    assert total({'date': {'to': '2024-02-28'}}) == 0
+    assert total({'kinds': ['contact']}, kind='regular') == 0  # toolbar and column filter must both match
+    assert total({'clients': 'two', 'kinds': ['regular'], 'date': {'to': '2024-12-31'}}) == 1
+    assert group['id'] in [row['id'] for row in list_history(db, user, clinic, filters=json.dumps({'payer': 'one'}))['items']]

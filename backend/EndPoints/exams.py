@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from sqlalchemy import func
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 from typing import List, Optional
 from database import get_db
 from models import OpticalExam, User, Client
@@ -10,7 +10,8 @@ from schemas import OpticalExam as OpticalExamSchema, OpticalExamCreate
 from auth import get_current_user
 from .exam_layouts import build_layout_tree
 from services.prism_axis_compatibility import normalize_prism_axis_exam_data
-from utils.table_search import build_all_terms_search_condition, search_blob, spaced_concat
+from utils.column_filters import ColumnFilter, build_column_filter_conditions
+from utils.table_search import build_all_terms_search_condition, search_blob, spaced_concat, split_search_terms
 from security.scope import (
     apply_clinic_user_scope,
     assert_clinic_scope,
@@ -30,6 +31,7 @@ def get_enriched_exams(
     order: Optional[str] = Query("exam_date_desc", description="Sort order: exam_date_desc|exam_date_asc"),
     search: Optional[str] = Query(None, description="Search by client name, username, test name, or clinic"),
     test_name: Optional[str] = Query(None, description="Filter by exact test name"),
+    filters: Optional[str] = Query(None, description="JSON column filters: exam_date|test_name|client|clinic|examiner"),
     include_total: bool = Query(True, description="Include the exact total count"),
     count_only: bool = Query(False, description="Return only the exact total count"),
     db: Session = Depends(get_db),
@@ -53,17 +55,35 @@ def get_enriched_exams(
     if test_name and test_name != "all":
         base_query = base_query.filter(OpticalExam.test_name == test_name)
 
-    search_condition = build_all_terms_search_condition(
-        search,
-        text_expressions=[
-            search_blob(Client.first_name, Client.last_name, Client.national_id, Client.phone_mobile, Client.email),
-            search_blob(User.full_name, User.username, User.email, User.phone),
-            search_blob(OpticalExam.test_name, OpticalExam.clinic),
-        ],
-        date_columns=[OpticalExam.exam_date],
-    )
-    if search_condition is not None:
-        base_query = base_query.filter(search_condition)
+    # Client and examiner matches are looked up once per term by id instead of building the
+    # joined text for every exam row; the client lookup uses the clients trigram index.
+    term_conditions = []
+    for term in split_search_terms(search):
+        like = f"%{term.lower()}%"
+        matching_clients = select(Client.id).where(
+            func.lower(search_blob(Client.first_name, Client.last_name, Client.national_id, Client.phone_mobile, Client.email)).like(like)
+        )
+        matching_users = select(User.id).where(
+            func.lower(search_blob(User.full_name, User.username, User.email, User.phone)).like(like)
+        )
+        term_conditions.append(or_(
+            build_all_terms_search_condition(
+                term,
+                text_expressions=[search_blob(OpticalExam.test_name, OpticalExam.clinic)],
+                date_columns=[OpticalExam.exam_date],
+            ),
+            OpticalExam.client_id.in_(matching_clients),
+            OpticalExam.user_id.in_(matching_users),
+        ))
+    if term_conditions:
+        base_query = base_query.filter(and_(*term_conditions))
+    base_query = base_query.filter(*build_column_filter_conditions(filters, {
+        "exam_date": ColumnFilter(OpticalExam.exam_date, "date"),
+        "test_name": ColumnFilter(OpticalExam.test_name, "options"),
+        "client": ColumnFilter(spaced_concat(Client.first_name, Client.last_name)),
+        "clinic": ColumnFilter(OpticalExam.clinic),
+        "examiner": ColumnFilter(func.coalesce(User.full_name, User.username)),
+    }))
 
     # Count total before pagination
     total = base_query.count() if include_total or count_only else None

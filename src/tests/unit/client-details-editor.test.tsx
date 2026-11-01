@@ -1,5 +1,6 @@
 import React from "react"
-import { render, screen, waitFor } from "@testing-library/react"
+import { render as renderUi, screen, waitFor } from "@testing-library/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, test, vi } from "vitest"
 import { ClientDetailsTab } from "@/components/client/ClientDetailsTab"
@@ -11,6 +12,9 @@ import {
   serializeClientDraftForUnsavedChanges,
   shouldClearStatusForHealthFund,
 } from "@/lib/client-details-editor"
+
+// The notifications Switch measures itself; jsdom has no ResizeObserver.
+vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} })
 
 const { getPaginatedFamiliesMock } = vi.hoisted(() => ({
   getPaginatedFamiliesMock: vi.fn(() => Promise.resolve({
@@ -35,6 +39,20 @@ vi.mock("@/lib/db/family-db", () => ({
 vi.mock("@/components/migration/ImportedSourceDataDialog", () => ({
   ImportedSourceDataDialog: () => null,
 }))
+
+vi.mock("@/lib/api-client", () => ({
+  apiClient: { getClientExamDates: vi.fn(() => Promise.resolve({ data: { first_exam_date: null, last_exam_date: null } })) },
+}))
+
+// The tab reads exam dates through React Query, which the app provides at its root.
+const render = (ui: React.ReactElement) =>
+  renderUi(ui, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        {children}
+      </QueryClientProvider>
+    ),
+  })
 
 describe("client details editor helpers", () => {
   test("normalizes legacy loaded client values at the boundary", () => {
@@ -150,6 +168,17 @@ describe("ClientDetailsTab select display", () => {
       expect(screen.getAllByText("כללית").length).toBeGreaterThan(0)
       expect(screen.getAllByText("מושלם זהב").length).toBeGreaterThan(0)
     })
+  })
+
+  test("notifications switch is off by default and edits send_notifications", async () => {
+    const onFieldChange = vi.fn()
+    render(
+      <ClientDetailsTab draft={{ id: 1 } as Client} isEditing formRef={{ current: null }} onFieldChange={onFieldChange} />
+    )
+    const toggle = screen.getByRole("switch", { name: /קבלת התראות|clientSendNotifications/ })
+    expect(toggle).toHaveAttribute("aria-checked", "false")
+    await userEvent.click(toggle)
+    expect(onFieldChange).toHaveBeenCalledWith("send_notifications", true)
   })
 
   test("keeps the address number input while hiding the additional phone input", () => {

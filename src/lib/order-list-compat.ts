@@ -11,6 +11,8 @@ export interface OrderListOptions {
   kind: string;
   status: string;
   direction: 'asc' | 'desc';
+  /** Serialized column filters; applied by the order-groups backend only. */
+  filters?: string;
 }
 export interface OrderListPage { items: OrderGroup[]; total: number | null; hasMore?: boolean }
 
@@ -45,9 +47,9 @@ export function legacyOrderRow(order: Partial<Order> & { __contact?: boolean; cl
 }
 
 export async function loadOrderList(backend: OrderListBackend, options: OrderListOptions): Promise<OrderListPage> {
-  const { clinicId, clientId, page, q, kind, status, direction } = options;
+  const { clinicId, clientId, page, q, kind, status, direction, filters } = options;
   if (backend === 'groups') {
-    return groupRequest<OrderListPage>(`?clinic_id=${clinicId}${clientId ? `&client_id=${clientId}` : ''}&limit=25&offset=${(page - 1) * 25}&q=${encodeURIComponent(q)}&kind=${kind}&status=${encodeURIComponent(status)}&order=date_${direction}`);
+    return groupRequest<OrderListPage>(`?clinic_id=${clinicId}${clientId ? `&client_id=${clientId}` : ''}&limit=25&offset=${(page - 1) * 25}&q=${encodeURIComponent(q)}&kind=${kind}&status=${encodeURIComponent(status)}&order=date_${direction}${filters ? `&filters=${encodeURIComponent(filters)}` : ''}`);
   }
   if (!clientId) {
     const result = dataOrThrow(await apiClient.getOrdersPaginated(clinicId, {
