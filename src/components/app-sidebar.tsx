@@ -73,7 +73,7 @@ const getNavData = (
       icon: IconUsers,
       quickAction: "client" as const,
     },
-    ...(showBetaSidebarItems && agentAvailable
+    ...(agentAvailable
       ? [
           {
             title: t("smartAssistant"),
