@@ -29,9 +29,7 @@ if (args.includes('--selection-test')) {
  console.log('Selection fallbacks passed'); process.exit();
 }
 if (args.includes('--release')) {
- const lock = JSON.parse(fs.readFileSync('package-lock.json','utf8'));
- const local = Object.values(lock.packages || {}).some(p => /(?:localhost|127\.0\.0\.1|file:|link:)/.test(p.resolved || ''));
- if (local) execute('node', ['scripts/devdesk-release-inputs.mjs', 'check']);
+ execute('node', ['scripts/devdesk-release-inputs.mjs', 'check']);
 }
 if (args.includes('--lock-only')) process.exit();
 let base;
