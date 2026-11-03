@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useUser } from '@/contexts/UserContext';
 import BaseLayout from '@/layouts/BaseLayout';
+vi.mock('@/lib/auth/sign-in-navigation', () => ({ replaceBrowserSignInRoute: () => false }));
 
 const route = vi.hoisted(() => ({ pathname: '/inventory', latestPathname: '/inventory', navigate: vi.fn() }));
 vi.mock('@tanstack/react-router', () => ({

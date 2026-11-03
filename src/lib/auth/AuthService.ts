@@ -1,6 +1,7 @@
 import { apiClient, AuthPayload, AuthResult, SetupRequiredPayload } from '@/lib/api-client'
 import { User, Company, Clinic } from '@/lib/db/schema-interface'
 import { ROLE_LEVELS, isRoleAtLeast } from '@/lib/role-levels'
+import { replaceBrowserSignInRoute } from './sign-in-navigation'
 
 export enum AuthState {
   LOADING = 'loading',
@@ -447,7 +448,7 @@ class AuthService {
       currentPath = this.router.state?.location?.pathname || currentPath
     } catch {}
 
-    if (!forceNavigation) {
+    if (!forceNavigation && this.state === AuthState.AUTHENTICATED) {
       const storedPath = this.getStoredPath()
       if (storedPath && this.shouldRestorePath(storedPath, currentPath) && this.restoreStoredPath(storedPath)) {
         return
@@ -455,10 +456,12 @@ class AuthService {
     }
 
     if (this.state === AuthState.UNAUTHENTICATED && currentPath !== '/control-center') {
+      if (replaceBrowserSignInRoute('/control-center')) return
       void this.router.navigate({ to: '/control-center', replace: true })
       return
     }
     if (this.state === AuthState.CLINIC_SELECTED && currentPath !== '/user-selection') {
+      if (replaceBrowserSignInRoute('/user-selection')) return
       void this.router.navigate({ to: '/user-selection', replace: true })
       return
     }

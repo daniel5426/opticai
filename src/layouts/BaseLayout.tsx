@@ -15,6 +15,7 @@ import { ClientSidebarProvider } from "@/contexts/ClientSidebarContext";
 import { PrysmAgentProvider } from "@/contexts/PrysmAgentContext";
 import { NavigationGuardProvider } from "@/contexts/NavigationGuardContext";
 import { useUser } from "@/contexts/UserContext";
+import { replaceBrowserSignInRoute } from "@/lib/auth/sign-in-navigation";
 import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels";
 import { ClientSidebar } from "@/components/ClientSidebar";
 import {
@@ -284,6 +285,7 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (isUserLoading || !needsStaffSignIn || isCallbackRoute) return;
     const target = currentClinic?.id ? "/user-selection" : "/control-center";
+    if (replaceBrowserSignInRoute(target)) return;
     // AuthService can already be loading sign-in while the old protected
     // location is still rendered. Do not start the same transition again.
     if (router.latestLocation.pathname === target) return;

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useUser } from '@/contexts/UserContext';
 import BaseLayout from '@/layouts/BaseLayout';
+vi.mock('@/lib/auth/sign-in-navigation', () => ({ replaceBrowserSignInRoute: () => false }));
 
 vi.mock('@/components/agent/GlobalAgentPanel', () => ({ GlobalAgentPanel: () => null }));
 vi.mock('@/components/ClientSidebar', () => ({ ClientSidebar: () => null }));
