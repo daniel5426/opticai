@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createAppearanceStore, resolveAppearance } from "@/lib/appearance";
+import { APPEARANCE_DEFAULTS_VERSION, DEFAULT_APP_CANVAS, createAppearanceStore, getAppearanceDefaultsKey, resolveAppearance } from "@/lib/appearance";
 
-function fixture(initial: Record<string, string> = {}, dark = false) {
+function fixture(initial: Record<string, string> = {}, dark = false, migrated = true) {
   const values = new Map(Object.entries(initial));
+  if (migrated) for (const id of [undefined, 1, 2, 4, 7, 8]) values.set(getAppearanceDefaultsKey(id), APPEARANCE_DEFAULTS_VERSION);
   const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); } };
   const listeners = new Set<() => void>();
   const media = { matches: dark, addEventListener: (_event: string, listener: () => void) => listeners.add(listener), removeEventListener: (_event: string, listener: () => void) => listeners.delete(listener) };
@@ -17,13 +18,13 @@ beforeEach(() => vi.restoreAllMocks());
 
 describe("appearance compatibility and user lifecycle", () => {
   it("defaults existing users to Classic and keeps both legacy mode keys valid", () => {
-    expect(resolveAppearance(fixture().storage)).toEqual({ mode: "system", style: "classic", palette: "neutral" });
+    expect(resolveAppearance(fixture().storage)).toEqual({ mode: "light", style: "classic", palette: "bloom" });
     expect(resolveAppearance(fixture({ theme: "dark" }).storage).mode).toBe("dark");
     expect(resolveAppearance(fixture({ "vite-ui-theme": "light", theme: "dark" }).storage).mode).toBe("light");
   });
-  it("uses the saved user mode before cache and device values; ignores invalid values", () => {
+  it("uses the device user mode before stale server values; ignores invalid values", () => {
     const { storage } = fixture({ user_theme_4: "dark", theme: "light", user_appearance_style_4: "unknown", user_color_theme_4: "unknown" });
-    expect(resolveAppearance(storage, 4, "system")).toEqual({ mode: "system", style: "classic", palette: "neutral" });
+    expect(resolveAppearance(storage, 4, "system")).toEqual({ mode: "dark", style: "classic", palette: "bloom" });
     expect(resolveAppearance(storage, 4, "unknown").mode).toBe("dark");
   });
   it("initializes root appearance before React, without Electron", () => {
@@ -42,7 +43,7 @@ describe("appearance compatibility and user lifecycle", () => {
     store.setStyle("pro");
     expect(values.get("user_appearance_style_2")).toBe("pro");
     store.activateUser(1, "dark");
-    expect(store.getSnapshot()).toMatchObject({ style: "pro", palette: "forest", mode: "dark" });
+    expect(store.getSnapshot()).toMatchObject({ style: "pro", palette: "forest", mode: "light" });
     store.activateUser(undefined);
     expect(store.getSnapshot().userId).toBeUndefined();
     store.setStyle("classic");
@@ -143,7 +144,7 @@ describe("Classic palette previews and Pro isolation", () => {
 
 describe("system mode and optional Electron synchronization", () => {
   it("tracks OS changes only in system mode and removes the listener on disconnect", () => {
-    const { store, root, listeners, changeSystem } = fixture();
+    const { store, root, listeners, changeSystem } = fixture({ theme: "system" });
     const unsubscribe = store.connect();
     changeSystem(true);
     expect(store.getSnapshot().resolvedMode).toBe("dark");
@@ -190,10 +191,10 @@ describe("system mode and optional Electron synchronization", () => {
 });
 
 describe("raised surface preference", () => {
-  it("starts raised, persists per user, and restores the flat shadow", () => {
+  it("defaults to flat, persists per user, and restores the flat shadow", () => {
     const { store, root, storage, media, values } = fixture();
     store.initialize();
-    expect(root.dataset.canvasElevation).toBe("lift");
+    expect(root.dataset.canvasElevation).toBe("flat");
     store.activateUser(7, "light");
     store.setCanvasElevation("flat");
     expect(root.dataset.canvasElevation).toBe("flat");
@@ -202,7 +203,7 @@ describe("raised surface preference", () => {
     restarted.activateUser(7, "light");
     expect(restarted.getSnapshot().canvasElevation).toBe("flat");
     restarted.activateUser(8, "light");
-    expect(root.dataset.canvasElevation).toBe("lift");
+    expect(root.dataset.canvasElevation).toBe("flat");
     restarted.setCanvasElevation("lift");
     expect(values.get("user_canvas_elevation_7")).toBe("flat");
   });
@@ -252,5 +253,30 @@ describe("page gradient preferences", () => {
     store.setCanvasGradient({ ...custom, grain: 101 });
     store.previewCanvasGradient({ ...custom, colorTwo: "red; background: black" });
     expect(root.dataset.canvasGradient).toBe("default");
+  });
+});
+
+
+describe("Bloom default rollout", () => {
+  it("applies the requested appearance to a fresh device even when the OS is dark", () => {
+    const { store, root } = fixture({}, true, false);
+    store.initialize();
+    expect(store.getSnapshot()).toMatchObject({ mode: "light", resolvedMode: "light", style: "classic", palette: "bloom", canvasElevation: "flat", canvasGradient: DEFAULT_APP_CANVAS });
+    expect(root.style.getPropertyValue("--canvas-gradient-base")).toBe("#F2F7FD");
+    expect(root.style.getPropertyValue("--canvas-gradient-image")).toBe("none");
+  });
+  it("migrates existing accounts once, then preserves later choices across account switches and restarts", () => {
+    const { store, storage, root, media, values } = fixture({ user_theme_7: "dark", user_appearance_style_7: "pro", user_color_theme_7: "forest", user_canvas_gradient_7: "null", user_canvas_elevation_7: "lift" }, true, false);
+    store.activateUser(7, "dark");
+    expect(store.getSnapshot()).toMatchObject({ mode: "light", style: "classic", palette: "bloom", canvasGradient: DEFAULT_APP_CANVAS, canvasElevation: "flat" });
+    expect(values.get(getAppearanceDefaultsKey(7))).toBe(APPEARANCE_DEFAULTS_VERSION);
+    store.setMode("dark"); store.setStyle("pro"); store.setPalette("plum"); store.setCanvasGradient(null); store.setCanvasElevation("lift");
+    store.activateUser(8, "dark");
+    expect(store.getSnapshot()).toMatchObject({ mode: "light", style: "classic", palette: "bloom", canvasGradient: DEFAULT_APP_CANVAS, canvasElevation: "flat" });
+    store.activateUser(7, "light");
+    expect(store.getSnapshot()).toMatchObject({ mode: "dark", style: "pro", palette: "plum", canvasGradient: null, canvasElevation: "lift" });
+    const restarted = createAppearanceStore({ storage, root, media: media as unknown as MediaQueryList });
+    restarted.activateUser(7, "light");
+    expect(restarted.getSnapshot()).toMatchObject({ mode: "dark", style: "pro", palette: "plum", canvasGradient: null, canvasElevation: "lift" });
   });
 });

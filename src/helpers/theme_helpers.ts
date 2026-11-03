@@ -21,7 +21,7 @@ export interface ThemePreferences {
 
 export function getColorTheme(userId?: number): ColorTheme {
   const value = readAppearanceValue(localStorage, userId === undefined ? "color_theme" : getColorThemeKey(userId));
-  return isColorTheme(value) ? value : "neutral";
+  return isColorTheme(value) ? value : "bloom";
 }
 
 export function applyColorTheme(_userId?: number): void {
@@ -136,7 +136,7 @@ export async function applyUserThemePreference(userId: number): Promise<void> {
     const user = await getUserById(userId);
     // A late request from a previous session must not restyle the new user.
     if (store.getSnapshot().userId !== userId) return;
-    store.setMode(isThemeMode(user?.theme_preference) ? user.theme_preference : getUserThemePreference(userId) ?? "system", userId);
+    store.setMode(getUserThemePreference(userId) ?? (isThemeMode(user?.theme_preference) ? user.theme_preference : "light"), userId);
   } catch (error) {
     console.error("Error applying user theme preference:", error);
   }

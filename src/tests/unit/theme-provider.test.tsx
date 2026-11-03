@@ -26,7 +26,8 @@ it("legacy helpers and user restoration update the mounted provider together", a
     return <output>{[style, theme, resolvedMode, palette].join("/")}</output>;
   }
   render(<ThemeProvider><Status /></ThemeProvider>);
-  expect(screen.getByRole("status")).toHaveTextContent("classic/system/light/neutral");
+  expect(screen.getByRole("status")).toHaveTextContent("classic/light/light/bloom");
+  localStorage.setItem("user_appearance_defaults_version_7", "bloom-2026-11");
   localStorage.setItem("user_appearance_style_7", "pro");
   localStorage.setItem("user_color_theme_7", "forest");
   act(() => getAppearanceStore().activateUser(7, "light"));

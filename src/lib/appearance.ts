@@ -20,6 +20,13 @@ export const COLOR_THEMES = {
 export type ColorTheme = keyof typeof COLOR_THEMES;
 export type CanvasElevation = "flat" | "lift";
 
+export const APPEARANCE_DEFAULTS_VERSION = "bloom-2026-11";
+export const getAppearanceDefaultsKey = (id?: number) => id === undefined
+  ? "appearance_defaults_version" : `user_appearance_defaults_version_${id}`;
+export const DEFAULT_APP_CANVAS: CanvasGradient = {
+  type: "solid", colorOne: "#F2F7FD", colorTwo: "#F2F7FD", angle: 0, strength: 100, grain: 0,
+};
+
 export interface AppearanceState {
   mode: ThemeMode;
   style: AppearanceStyle;
@@ -60,7 +67,7 @@ export const isCanvasElevation = (value: unknown): value is CanvasElevation =>
 
 export function readCanvasElevation(storage: AppearanceStorage, userId?: number): CanvasElevation {
   const value = readAppearanceValue(storage, getCanvasElevationKey(userId));
-  return isCanvasElevation(value) ? value : "lift";
+  return isCanvasElevation(value) ? value : "flat";
 }
 
 export function readAppearanceValue(storage: AppearanceStorage, key: string): string | null {
@@ -74,18 +81,18 @@ function writeValue(storage: AppearanceStorage, key: string, value: string) {
 
 export function resolveAppearance(storage: AppearanceStorage, userId?: number, savedMode?: unknown) {
   const candidates = [
-    savedMode,
     userId === undefined ? null : readAppearanceValue(storage, getUserThemeKey(userId)),
+    savedMode,
     readAppearanceValue(storage, "vite-ui-theme"),
     readAppearanceValue(storage, "theme"),
   ];
-  const mode = candidates.find(isThemeMode) ?? "system";
+  const mode = candidates.find(isThemeMode) ?? "light";
   const style = readAppearanceValue(storage, getStyleKey(userId));
   const palette = readAppearanceValue(storage, userId === undefined ? "color_theme" : getColorThemeKey(userId));
   return {
     mode,
     style: isAppearanceStyle(style) ? style : "classic",
-    palette: isColorTheme(palette) ? palette : "neutral",
+    palette: isColorTheme(palette) ? palette : "bloom",
   };
 }
 
@@ -106,8 +113,23 @@ function hexToHsl(hex: string): string {
 /** The only owner of document appearance. React and legacy helpers share this store. */
 export function createAppearanceStore(environment: AppearanceEnvironment) {
   const { storage, root, media } = environment;
+  const loadPreferences = (userId?: number, savedMode?: unknown) => {
+    if (readAppearanceValue(storage, getAppearanceDefaultsKey(userId)) !== APPEARANCE_DEFAULTS_VERSION) {
+      // Apply this rollout once per account/device, then retain subsequent choices.
+      const defaults = { mode: "light" as const, style: "classic" as const, palette: "bloom" as const, canvasGradient: { ...DEFAULT_APP_CANVAS }, canvasElevation: "flat" as const };
+      writeValue(storage, userId === undefined ? "theme" : getUserThemeKey(userId), defaults.mode);
+      if (userId === undefined) writeValue(storage, "vite-ui-theme", defaults.mode);
+      writeValue(storage, getStyleKey(userId), defaults.style);
+      writeValue(storage, userId === undefined ? "color_theme" : getColorThemeKey(userId), defaults.palette);
+      writeValue(storage, getCanvasGradientKey(userId), JSON.stringify(defaults.canvasGradient));
+      writeValue(storage, getCanvasElevationKey(userId), defaults.canvasElevation);
+      writeValue(storage, getAppearanceDefaultsKey(userId), APPEARANCE_DEFAULTS_VERSION);
+      return defaults;
+    }
+    return { ...resolveAppearance(storage, userId, savedMode), canvasGradient: readCanvasGradient(storage, userId), canvasElevation: readCanvasElevation(storage, userId) };
+  };
   const resolveMode = (mode: ThemeMode) => mode === "system" ? (media.matches ? "dark" : "light") : mode;
-  let state: AppearanceState = { ...resolveAppearance(storage), resolvedMode: "light", previewPalette: null, canvasGradient: readCanvasGradient(storage), previewCanvasGradient: undefined, canvasElevation: readCanvasElevation(storage) };
+  let state: AppearanceState = { ...loadPreferences(), resolvedMode: "light", previewPalette: null, previewCanvasGradient: undefined };
   state.resolvedMode = resolveMode(state.mode);
   const listeners = new Set<() => void>();
   let nativeQueue = Promise.resolve();
@@ -175,11 +197,13 @@ export function createAppearanceStore(environment: AppearanceEnvironment) {
     },
     activateUser: (userId?: number, savedMode?: unknown) => {
       if (state.userId === userId) return;
-      const preferences = resolveAppearance(storage, userId, savedMode);
+      const preferences = loadPreferences(userId, savedMode);
       persistMode(preferences.mode, userId);
       writeValue(storage, "appearance_style", preferences.style);
       writeValue(storage, "color_theme", preferences.palette);
-      update({ ...preferences, userId, previewPalette: null, canvasGradient: readCanvasGradient(storage, userId), previewCanvasGradient: undefined, canvasElevation: readCanvasElevation(storage, userId) });
+      writeValue(storage, getCanvasGradientKey(), JSON.stringify(preferences.canvasGradient));
+      writeValue(storage, getCanvasElevationKey(), preferences.canvasElevation);
+      update({ ...preferences, userId, previewPalette: null, previewCanvasGradient: undefined });
     },
     setMode: (mode: ThemeMode, userId = state.userId) => {
       if (!isThemeMode(mode)) return;
