@@ -20,6 +20,7 @@ import { ClientSidebar } from "@/components/ClientSidebar";
 import {
   useLocation,
   useNavigate,
+  useRouter,
   useRouterState,
 } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
@@ -84,6 +85,7 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
     null,
   );
   const navigate = useNavigate();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const location = useLocation();
   const isAppearanceGallery = import.meta.env.DEV && location.pathname === "/dev/appearance";
@@ -281,11 +283,15 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
   const needsStaffSignIn = requiresStaffSession && !currentUser && !isAppearanceGallery;
   useEffect(() => {
     if (isUserLoading || !needsStaffSignIn || isCallbackRoute) return;
+    const target = currentClinic?.id ? "/user-selection" : "/control-center";
+    // AuthService can already be loading sign-in while the old protected
+    // location is still rendered. Do not start the same transition again.
+    if (router.latestLocation.pathname === target) return;
     void navigate({
-      to: currentClinic?.id ? "/user-selection" : "/control-center",
+      to: target,
       replace: true,
     });
-  }, [isUserLoading, needsStaffSignIn, isCallbackRoute, currentClinic?.id, navigate]);
+  }, [isUserLoading, needsStaffSignIn, isCallbackRoute, currentClinic?.id, navigate, router]);
 
   useEffect(() => {
     if (
