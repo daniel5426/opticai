@@ -44,5 +44,8 @@ jobs:
       - name: Test web
         run: npm test -- --run
 
+      - name: Test hosted agent streaming proxy
+        run: node --test --test-timeout=15000 scripts/agent-web-proxy.test.mjs
+
       - name: Build web
         run: npm run build:web
