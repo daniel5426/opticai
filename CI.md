@@ -36,6 +36,13 @@ and verify the exact published relay before enabling the API. See
 [hosted agent operations](deploy/agents/README.md). No new schema migration is
 required; preserve the environment's existing migration ordering.
 
+Relay readiness must include a database connection from the running relay and
+an actual read-only clinic tool invocation. A connected Artifact contract and a
+plain-text agent reply do not verify database access. Direct Supabase hosts need
+IPv6 egress. After changing network settings, upload a fresh deployment and
+inspect its effective manifest: redeploying an old build can retain its old
+network configuration. Preserve the relay identity during this rollout.
+
 The production web server proxies `/api/agents24` and `/api/v1/agent` to
 `AGENTS24_API_ORIGIN` (or the origin of `VITE_API_URL`) before locale routing.
 Keep the proxy streaming for chat events and uploads. Verify with
