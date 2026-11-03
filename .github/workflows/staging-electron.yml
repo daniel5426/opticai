@@ -73,10 +73,13 @@ jobs:
             local status
             local commit
             local deployments
+            local watched_changed=true
+            local successful_commit
+            local checked_commit=""
 
             if git diff --quiet "$EXPECTED_SHA^" "$EXPECTED_SHA" -- "$@"; then
-              echo "$service: no watched files changed; no Railway deployment is expected"
-              return 0
+              watched_changed=false
+              echo "$service: no watched files changed; checking the running successful revision"
             fi
 
             # Cold public-dependency installs plus image export can exceed five minutes.
@@ -84,15 +87,15 @@ jobs:
               deployments="$(railway deployment list \
                 --service "$service" \
                 --environment staging \
-                --limit 1 \
+                --limit 20 \
                 --json)"
-              status="$(jq -r '.[0].status // "UNKNOWN"' <<<"$deployments")"
-              commit="$(jq -r '.[0].meta.commitHash // ""' <<<"$deployments")"
+              status="$(jq -r --arg sha "$EXPECTED_SHA" '[.[] | select(.meta.commitHash == $sha)][0].status // "UNKNOWN"' <<<"$deployments")"
+              commit="$EXPECTED_SHA"
               echo "$service: status=$status commit=${commit:-unknown}"
 
               if [[ "$commit" == "$EXPECTED_SHA" ]]; then
                 case "$status" in
-                  SUCCESS|SKIPPED)
+                  SUCCESS)
                     return 0
                     ;;
                   FAILED|CRASHED|REMOVED)
@@ -100,6 +103,19 @@ jobs:
                     return 1
                     ;;
                 esac
+              fi
+
+              if [[ "$watched_changed" == false ]]; then
+                successful_commit="$(jq -r '[.[] | select(.status == "SUCCESS")][0].meta.commitHash // ""' <<<"$deployments")"
+                if [[ "$successful_commit" =~ ^[0-9a-f]{40}$ && "$successful_commit" != "$checked_commit" ]]; then
+                  checked_commit="$successful_commit"
+                  git cat-file -e "$successful_commit^{commit}" 2>/dev/null || git fetch --no-tags --depth=1 origin "$successful_commit"
+                  if git diff --quiet "$successful_commit" "$EXPECTED_SHA" -- "$@"; then
+                    echo "$service: successful revision $successful_commit has identical watched files"
+                    return 0
+                  fi
+                  echo "$service: successful revision $successful_commit is stale; waiting for the pending application deployment"
+                fi
               fi
 
               sleep 10
