@@ -4,12 +4,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useUser } from '@/contexts/UserContext';
 import BaseLayout from '@/layouts/BaseLayout';
+vi.mock('@/lib/auth/sign-in-navigation', () => ({ replaceBrowserSignInRoute: () => false }));
 
-const route = vi.hoisted(() => ({ pathname: '/inventory', navigate: vi.fn() }));
+const route = vi.hoisted(() => ({ pathname: '/inventory', latestPathname: '/inventory', navigate: vi.fn() }));
 vi.mock('@tanstack/react-router', () => ({
   useLocation: () => ({ pathname: route.pathname }),
   useRouterState: () => ({ pathname: route.pathname }),
   useNavigate: () => route.navigate,
+  useRouter: () => ({ latestLocation: { pathname: route.latestPathname } }),
 }));
 vi.mock('@/components/agent/GlobalAgentPanel', () => ({ GlobalAgentPanel: () => null }));
 vi.mock('@/components/ClientSidebar', () => ({ ClientSidebar: () => null }));
@@ -31,7 +33,7 @@ vi.mock('@/lib/api-client', () => ({ apiClient: { getCompany: vi.fn(async () => 
 const staff = { currentUser: { id: 7, role_level: 4 }, currentClinic: { id: 33 }, isLoading: false };
 const session = (value: object) => vi.mocked(useUser).mockReturnValue(value as any);
 const app = () => <QueryClientProvider client={new QueryClient()}><BaseLayout><div>Protected page</div></BaseLayout></QueryClientProvider>;
-beforeEach(() => { route.pathname = '/inventory'; route.navigate.mockReset(); session(staff); });
+beforeEach(() => { route.pathname = '/inventory'; route.latestPathname = '/inventory'; route.navigate.mockReset(); session(staff); });
 
 it('keeps navigation and the header host around an authenticated clinic page', () => {
   render(app());
@@ -55,6 +57,15 @@ it('redirects a direct protected link without a clinic to sign-in', async () => 
 it('waits for session hydration without redirecting or mounting protected content', () => {
   session({ currentUser: null, currentClinic: null, isLoading: true });
   render(app());
+  expect(screen.queryByText('Protected page')).not.toBeInTheDocument();
+  expect(route.navigate).not.toHaveBeenCalled();
+});
+it.each(['/user-selection', '/control-center'])('does not restart a pending %s sign-in transition', target => {
+  route.pathname = '/ai-assistant';
+  route.latestPathname = target;
+  session({ currentUser: null, currentClinic: target === '/user-selection' ? {id:33} : null, isLoading: false });
+  const view = render(app());
+  view.rerender(app());
   expect(screen.queryByText('Protected page')).not.toBeInTheDocument();
   expect(route.navigate).not.toHaveBeenCalled();
 });

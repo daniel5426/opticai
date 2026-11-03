@@ -22,6 +22,13 @@ def unavailable():
     return OperationalError('private SQL', {}, RuntimeError('private connection credentials'))
 
 
+@pytest.fixture(autouse=True)
+def isolate_report_completion_poll(monkeypatch):
+    # These cases exercise queue polling/backoff, not report notifications.
+    from agent import report_completion
+    monkeypatch.setattr(report_completion, 'deliver_one', lambda *args, **kwargs: None)
+
+
 def test_worker_retries_database_poll_with_capped_backoff_and_reset(monkeypatch, caplog):
     attempts, waits = [], []
     outcomes = iter([*[unavailable() for _ in range(6)], False, KeyboardInterrupt()])

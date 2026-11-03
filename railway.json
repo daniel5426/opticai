@@ -12,6 +12,7 @@
       "vite.renderer.config.mts",
       "railway.json",
       "scripts/serve-web.mjs",
+      "scripts/agent-web-proxy.mjs",
       "railpack.json",
       "config/devdesk-release/**",
       "scripts/devdesk-release-inputs.mjs"

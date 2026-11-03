@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { agentWebProxy } from './agent-web-proxy.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.resolve(__dirname, '..', 'dist');
@@ -39,6 +40,10 @@ function resolveLocale(req) {
 app.get('/health', (_req, res) => {
   res.status(200).send('ok');
 });
+
+// Match the development proxy before locale redirects and SPA fallback.
+// Pipe requests/responses unchanged so SDK streams and uploads stay incremental.
+app.use(agentWebProxy(process.env.AGENTS24_API_ORIGIN || process.env.VITE_API_URL));
 
 app.use(
   express.static(distDir, {

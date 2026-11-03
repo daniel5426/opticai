@@ -70,7 +70,7 @@ async def test_bff_chooses_backend_profile_not_browser_inputs(monkeypatch):
     selected = str(uuid4())
     monkeypatch.setattr(runtime, 'load_principal_scope', lambda _: runtime.PrincipalScope('1:2', 'context', 'clinic:1:patient:0', 'bound'))
     monkeypatch.setattr(runtime, 'relay_client_id', lambda: selected)
-    request = SimpleNamespace(headers={'relay_client_id': str(uuid4())})
+    request = SimpleNamespace(headers={'relay_client_id': str(uuid4())}, state=SimpleNamespace())
     result = await runtime.resolve_bff_principal(request)
     assert result.relay_client_id == selected
     assert result.chat_scope == 'clinic:1:patient:0'
