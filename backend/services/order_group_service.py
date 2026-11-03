@@ -268,10 +268,10 @@ def save_group(db, user, payload, group_id=None, creation_key=None, *, commit=Tr
                     amounts_changed = any(item.get(field, getattr(line, field)) != getattr(line, field) for field in ("price", "quantity", "discount"))
                     if amounts_changed:
                         financial_changed = True
-                    elif line.line_total is not None and (line.price is None or line.quantity is None):
-                        # Legacy imports can establish a component total without
-                        # establishing unit price/quantity. Metadata edits must
-                        # retain the stored amount, never a caller-supplied total.
+                    elif line.line_total is not None:
+                        # Existing invoices can contain imported totals or
+                        # negative discount lines. Unchanged financial inputs
+                        # retain their stored amount, never a caller's total.
                         retained_amount = Decimal(str(line.line_total))
                 else:
                     financial_changed = True

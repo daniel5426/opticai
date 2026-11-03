@@ -150,6 +150,68 @@ def test_upload_derives_scope_and_uses_ascii_storage_key():
     assert content_type == DOCX_MIME
 
 
+def test_legacy_admin_upload_without_clinic_uses_patient_registration_clinic():
+    SessionLocal = _session_factory()
+    storage = FakeStorage()
+    with SessionLocal() as db:
+        ids = _seed(db)
+        admin = db.get(User, ids["user_a"])
+        admin.clinic_id = None
+        admin.role_level = 4
+        db.commit()
+
+    with _client(SessionLocal, ids["user_a"], storage) as client:
+        response = client.post(
+            "/api/v1/files/",
+            data={"client_id": str(ids["client_a"])},
+            files={"upload": ("legacy.docx", b"legacy-document", DOCX_MIME)},
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["clinic_id"] == ids["clinic_a"]
+        assert payload["uploaded_by"] == ids["user_a"]
+        assert client.get(f"/api/v1/files/{payload['id']}/download-url").status_code == 200
+        for data in (
+            {"client_id": str(ids["client_b"])},
+            {"client_id": str(ids["client_a"]), "clinic_id": str(ids["clinic_b"])},
+        ):
+            denied = client.post(
+                "/api/v1/files/", data=data,
+                files={"upload": ("forbidden.docx", b"document", DOCX_MIME)},
+            )
+            assert denied.status_code == 403
+    assert len(storage.uploads) == 1
+    with SessionLocal() as db:
+        saved = db.get(File, payload["id"])
+        assert saved.company_id == db.get(Client, ids["client_a"]).company_id
+        assert saved.clinic_id == ids["clinic_a"]
+
+
+def test_upload_keeps_assigned_and_explicit_clinic_context():
+    SessionLocal = _session_factory()
+    storage = FakeStorage()
+    with SessionLocal() as db:
+        ids = _seed(db)
+        admin = db.get(User, ids["user_a"])
+        admin.role_level = 4
+        second = Clinic(company_id=admin.company_id, name="Second clinic", unique_id="second")
+        db.add(second)
+        db.flush()
+        second_id = second.id
+        admin.clinic_id = second_id
+        db.commit()
+
+    with _client(SessionLocal, ids["user_a"], storage) as client:
+        for context, expected in (({}, second_id), ({"clinic_id": str(ids["clinic_a"])}, ids["clinic_a"])):
+            response = client.post(
+                "/api/v1/files/",
+                data={"client_id": str(ids["client_a"]), **context},
+                files={"upload": ("context.docx", b"document", DOCX_MIME)},
+            )
+            assert response.status_code == 200
+            assert response.json()["clinic_id"] == expected
+
+
 def test_cross_company_file_routes_are_forbidden():
     SessionLocal = _session_factory()
     storage = FakeStorage()

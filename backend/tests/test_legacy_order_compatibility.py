@@ -80,6 +80,31 @@ def test_old_full_editor_preserves_siblings_invoice_and_provenance(setup, contac
     assert response.json()['billing']['compatibility_token']
 
 
+def test_repeated_regular_editor_saves_keep_fresh_billing_receipt(setup):
+    s = setup
+    path, payload = old_form(s)
+    old_order = deepcopy(payload['order'])
+    payload['order']['type'] = 'First old-app save'
+    response = s.http.post('/api/v1' + path + '/upsert-full', json=payload)
+    assert response.status_code == 200, response.text
+    saved = response.json()
+    # Published editor: updatedOrder followed by currentFormData; billing uses
+    # the opposite merge order, so only its receipt advances after a save.
+    payload['order'] = {**saved['order'], **old_order, 'type': 'Second old-app save'}
+    payload['billing'] = {**payload['billing'], **saved['billing'], 'notes': 'Second invoice save'}
+    payload['line_items'] = saved['line_items']
+    response = s.http.post('/api/v1' + path + '/upsert-full', json=payload)
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result['order']['type'] == 'Second old-app save'
+    assert result['billing']['notes'] == 'Second invoice save'
+    assert len(group_dict(s.db, s.db.get(OrderGroup, s.group['id']))['entries']) == 2
+
+    # A fresh order receipt cannot authorize a stale full invoice replacement.
+    payload['order'] = result['order']
+    assert s.http.post('/api/v1' + path + '/upsert-full', json=payload).status_code == 409
+
+
 def test_new_workspace_change_rejects_old_stale_full_save_atomically(setup):
     s = setup
     path, payload = old_form(s)

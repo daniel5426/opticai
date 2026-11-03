@@ -130,7 +130,14 @@ def update_order(db, user, order, fields, *, billing_data=None, line_items=None)
     group = _locked(db, user, group_for_order(db, order.id, isinstance(order, ContactLensOrder)))
     if not group:
         return None
-    _check_receipts(group, user, fields, billing_data, required=isinstance(billing_data, dict))
+    # v1.0.79's regular-order editor merges local order fields over the save
+    # response, retaining its previous order receipt. Its billing merge retains
+    # the fresh response receipt. That invoice receipt guards the entire group
+    # revision for full saves; order-only writes still use the order receipt.
+    if isinstance(billing_data, dict):
+        _check_receipts(group, user, billing_data, required=True)
+    else:
+        _check_receipts(group, user, fields)
     db.refresh(order)
     for identity in ("id", "client_id", "clinic_id", "company_id"):
         if identity in fields and fields[identity] != getattr(order, identity):

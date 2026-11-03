@@ -258,6 +258,8 @@ async def create_file(
     storage: FileStorageService = Depends(get_file_storage_service),
 ):
     scoped_client = get_scoped_client(db, current_user, client_id)
+    if clinic_id is None:
+        clinic_id = current_user.clinic_id or scoped_client.clinic_id
     clinic_id = normalize_record_clinic(db, current_user, clinic_id)
     display_name = normalize_file_name(upload.filename)
     content_type = normalize_content_type(upload.content_type)

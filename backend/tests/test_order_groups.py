@@ -47,6 +47,33 @@ def test_mixed_group_single_bill_idempotency_and_discount(context):
     assert first["legacy_write_protected"]
 
 
+def test_existing_discount_line_survives_metadata_and_other_price_edits(context):
+    db, user, clinic, clients = context
+    first = save_group(db, user, payload(clinic, clients), creation_key="legacy-discount")
+    with group_write(db):
+        billing = db.get(Billing, first['billing']['id'])
+        billing.discount_amount = 0
+        billing.discount_percent = 0
+        billing.total_before_discount = 70
+        billing.total_after_discount = 70
+        discount = OrderLineItem(billings_id=billing.id, price=0, quantity=1,
+                                 discount=30, line_total=-30, currency='ILS')
+        db.add(discount)
+        db.commit()
+    current = group_dict(db, db.get(OrderGroup, first['id']))
+    lines = current['line_items']
+    next(line for line in lines if line['id'] == discount.id)['line_total'] = 999
+    result = save_group(db, user, {'revision': current['revision'],
+        'billing': {**current['billing'], 'notes': 'Metadata edit'}, 'line_items': lines}, group_id=first['id'])
+    assert next(line for line in result['line_items'] if line['id'] == discount.id)['line_total'] == -30
+    assert result['billing']['total_after_discount'] == 70
+    next(line for line in lines if line['id'] != discount.id)['price'] = 120
+    result = save_group(db, user, {'revision': result['revision'],
+        'billing': result['billing'], 'line_items': lines}, group_id=first['id'])
+    assert next(line for line in result['line_items'] if line['id'] == discount.id)['line_total'] == -30
+    assert result['billing']['total_after_discount'] == 90
+
+
 def test_remove_tab_keeps_bill_items_and_payments(context):
     db, user, clinic, clients = context
     first = save_group(db, user, payload(clinic, clients), creation_key="remove")

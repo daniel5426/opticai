@@ -13,7 +13,7 @@ from auth import get_current_user
 from database import Base, get_db
 from models import (Company, Clinic, User, Client, Family, OpticalExam, MedicalLog,
                     Order, ContactLensOrder, Appointment, File, Referral, OrderGroup,
-                    ExamLayoutInstance, TrashMember)
+                    ExamLayoutInstance, TrashMember, RecentClientVisit)
 from EndPoints import clients, exams, families, unified_exam_data
 from schemas import ClientMergeRequest
 from security.scope import assert_clinic_scope, client_scope_conditions, get_scoped_client
@@ -82,6 +82,34 @@ def test_family_can_have_clients_registered_elsewhere(scope):
     result=s.http.get('/families/',params={'clinic_id':s.b.id})
     assert result.status_code==200 and result.json()[0]['id']==s.family.id
     assert result.json()[0]['clients'][0]['id']==s.client.id
+
+
+def test_legacy_recent_visit_without_admin_clinic_preserves_registration_fallback(scope):
+    s = scope
+    s.user.clinic_id = None
+    s.user.role_level = 4
+    s.db.commit()
+    for _ in range(2):
+        response = s.http.post(f'/clients/{s.client.id}/recent-visit')
+        assert response.status_code == 200, response.text
+    visit = s.db.query(RecentClientVisit).filter_by(user_id=s.user.id, client_id=s.client.id).one()
+    assert visit.clinic_id == s.a.id
+    assert s.http.post(f'/clients/{s.outsider.id}/recent-visit').status_code == 403
+
+
+def test_recent_visit_keeps_active_and_explicit_clinic_attribution(scope):
+    s = scope
+    response = s.http.post(f'/clients/{s.client.id}/recent-visit')
+    assert response.status_code == 200, response.text
+    visit = s.db.query(RecentClientVisit).filter_by(user_id=s.user.id, client_id=s.client.id).one()
+    assert visit.clinic_id == s.b.id
+    s.user.clinic_id = None
+    s.user.role_level = 4
+    s.db.commit()
+    response = s.http.post(f'/clients/{s.client.id}/recent-visit', params={'clinic_id': s.b.id})
+    assert response.status_code == 200, response.text
+    assert s.db.query(RecentClientVisit).filter_by(user_id=s.user.id, client_id=s.client.id).count() == 1
+    assert s.http.post(f'/clients/{s.client.id}/recent-visit', params={'clinic_id': s.c.id}).status_code == 403
 
 
 def test_inactive_history_readable_new_work_blocked_origin_immutable(scope):

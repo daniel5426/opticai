@@ -395,11 +395,14 @@ def mark_recent_client_visit(
     if client.merged_into_client_id:
         raise HTTPException(status_code=422, detail="Cannot mark merged client as recent")
 
+    # Published desktops omit clinic_id, including company admins with no
+    # assigned clinic. Retain their original registration-clinic fallback.
+    visit_clinic_id = clinic_id if clinic_id is not None else (current_user.clinic_id or client.clinic_id)
     stmt = (
         pg_insert(RecentClientVisit)
         .values(
             user_id=current_user.id,
-            clinic_id=normalize_record_clinic(db, current_user, clinic_id),
+            clinic_id=normalize_record_clinic(db, current_user, visit_clinic_id),
             client_id=client.id,
             visited_at=func.now(),
         )
