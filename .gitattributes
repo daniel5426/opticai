@@ -1,0 +1,4 @@
+# Release receipts hash these exact bytes on Linux, macOS, and Windows.
+/package.json text eol=lf
+/package-lock.json text eol=lf
+/config/devdesk-release/*.json text eol=lf

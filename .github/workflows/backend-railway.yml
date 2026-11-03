@@ -52,3 +52,4 @@ jobs:
           backend/tests/test_legacy_order_compatibility.py
           backend/tests/test_legacy_referral_compatibility.py
           backend/tests/test_company_client_records.py
+          backend/tests/test_company_client_preflight.py
