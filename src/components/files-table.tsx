@@ -1,3 +1,5 @@
+import { useUser } from "@/contexts/UserContext"
+import { RecordClinicLabel } from "@/components/RecordClinicLabel"
 import React from "react"
 import { useState, useRef, useCallback } from "react"
 import { useNavigate } from "@tanstack/react-router"
@@ -66,6 +68,7 @@ export function FilesTable({
   fillHeight = false
 }: FilesTableProps) {
   const { t } = useTranslation()
+  const { currentClinic } = useUser()
   const [searchQuery, setSearchQuery] = useState("")
   const [localSort, setLocalSort] = useState<SortState | undefined>()
   const searchValue = externalSearch !== undefined ? externalSearch : searchQuery
@@ -236,6 +239,7 @@ export function FilesTable({
 
         const form = new FormData()
         form.append("client_id", String(targetClientId))
+        if (currentClinic?.id) form.append("clinic_id", String(currentClinic.id))
         form.append("notes", "")
         form.append("upload", file, file.name)
 
@@ -389,6 +393,7 @@ export function FilesTable({
       )}
 
       <TableFiltersBar
+          exportTable="files"
         searchValue={searchValue}
         onSearchChange={(value) => (onSearchChange ? onSearchChange(value) : setSearchQuery(value))}
         searchPlaceholder="חיפוש מסמכים…"
@@ -507,7 +512,7 @@ export function FilesTable({
               displayData.map((file) => (
                 <TableRow key={file.id}>
                   <TableCell>{getFileIcon(file.file_type)}</TableCell>
-                  <TableCell className="font-medium">{file.file_name}</TableCell>
+                  <TableCell className="font-medium">{file.file_name}<RecordClinicLabel clinicId={file.clinic_id} /></TableCell>
                   <TableCell>{getSimpleFileType(file.file_type)}</TableCell>
                   <TableCell>{formatFileSize(file.file_size)}</TableCell>
                   <TableCell>

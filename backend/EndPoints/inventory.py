@@ -5,7 +5,7 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, File, Form, UploadFile
 from fastapi.responses import PlainTextResponse
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
@@ -134,7 +134,7 @@ def _guard_cost_write(current_user: User, payload: dict[str, Any]) -> None:
         raise HTTPException(status_code=403, detail="Only managers can manage inventory cost")
 
 
-def _variant_rows(
+def _variant_query(
     db: Session,
     *,
     company_id: int,
@@ -143,7 +143,6 @@ def _variant_rows(
     search: str | None = None,
     include_archived: bool = False,
     stockable_only: bool = False,
-    limit: int = 500,
 ):
     query = (
         db.query(CatalogVariant, CatalogProduct, InventoryBalance)
@@ -169,27 +168,43 @@ def _variant_rows(
                 CatalogProduct.model.ilike(pattern),
                 CatalogProduct.product_type.ilike(pattern),
                 CatalogProduct.material.ilike(pattern),
+                CatalogProduct.preferred_supplier.ilike(pattern),
                 CatalogVariant.sku.ilike(pattern),
                 CatalogVariant.barcode.ilike(pattern),
             )
         )
-    return query.order_by(CatalogProduct.brand, CatalogProduct.model, CatalogVariant.id).limit(limit).all()
+    return query.order_by(CatalogProduct.brand, CatalogProduct.model, CatalogVariant.id)
 
+
+def _variant_rows(db, *, limit=500, offset=0, **kwargs):
+    return _variant_query(db, **kwargs).offset(offset).limit(limit).all()
 
 @router.get("/variants")
 def list_variants(
     clinic_id: Optional[int] = Query(None),
+    order_id: Optional[int] = None,
+    order_kind: str = "regular",
     category: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     barcode: Optional[str] = Query(None),
     include_archived: bool = Query(False),
     stockable_only: bool = Query(False),
     limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     company_id = resolve_company_id(db, current_user)
-    scoped_clinic_id = normalize_clinic_id_for_company(db, current_user, clinic_id)
+    if order_id is not None:
+        from security.scope import get_scoped_order, get_scoped_contact_lens_order
+        if order_kind not in {"regular", "contact"}:
+            raise HTTPException(422, "Invalid order kind")
+        order = (get_scoped_order if order_kind == "regular" else get_scoped_contact_lens_order)(db, current_user, order_id)
+        if order.clinic_id != clinic_id:
+            raise HTTPException(403, "Access denied")
+        scoped_clinic_id = order.clinic_id
+    else:
+        scoped_clinic_id = normalize_clinic_id_for_company(db, current_user, clinic_id)
     effective_search = barcode.strip() if barcode else search
     rows = _variant_rows(
         db,
@@ -199,8 +214,11 @@ def list_variants(
         search=effective_search,
         include_archived=include_archived,
         stockable_only=stockable_only,
-        limit=limit,
+        limit=limit + 1,
+        offset=offset,
     )
+    has_more = len(rows) > limit
+    rows = rows[:limit]
     if barcode:
         rows = [row for row in rows if row[0].barcode == barcode.strip()]
     items = [
@@ -220,7 +238,7 @@ def list_variants(
         )
         for variant, product, balance in rows
     ]
-    return {"items": items, "total": len(items), "clinic_id": scoped_clinic_id}
+    return {"items": items, "total": len(items), "clinic_id": scoped_clinic_id, "has_more": has_more}
 
 
 @router.get("/summary")
@@ -236,7 +254,7 @@ def inventory_summary(
         company_id=company_id,
         clinic_id=scoped_clinic_id,
         stockable_only=True,
-        limit=1000,
+        limit=None,
     )
     summary = {
         "variant_count": len(rows),
@@ -424,7 +442,11 @@ def update_catalog_entry(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Update a product and its selected variant in one transaction."""
+    return _update_catalog_entry(db, current_user, variant_id, payload)
+
+
+def _update_catalog_entry(db, current_user, variant_id, payload, *, commit=True):
+    """Shared catalog validation, optionally inside a larger approved transaction."""
     require_inventory_write(current_user)
     company_id = resolve_company_id(db, current_user)
     variant = get_company_variant(db, company_id, variant_id)
@@ -516,9 +538,12 @@ def update_catalog_entry(
         )
     if "currency" in variant_payload:
         variant.currency = normalize_currency(variant_payload.get("currency"))
-    _commit_or_conflict(db)
-    db.refresh(product)
-    db.refresh(variant)
+    if commit:
+        _commit_or_conflict(db)
+        db.refresh(product)
+        db.refresh(variant)
+    else:
+        db.flush()
     return variant_dict(
         variant,
         product,
@@ -1020,10 +1045,10 @@ def _csv_row_to_payload(row: dict[str, Any]) -> dict[str, Any]:
         "attributes": attributes,
         "sku": row.get("sku"),
         "barcode": row.get("barcode"),
-        "default_cost": row.get("default_cost") or row.get("cost"),
-        "default_retail": row.get("default_retail") or row.get("retail"),
+        "default_cost": row.get("default_cost") if row.get("default_cost") not in (None, "") else row.get("cost"),
+        "default_retail": row.get("default_retail") if row.get("default_retail") not in (None, "") else row.get("retail"),
         "currency": row.get("currency"),
-        "is_stockable": str(row.get("is_stockable") or "true").strip().casefold() not in {"false", "0", "no"},
+        "is_stockable": str(row.get("is_stockable") if row.get("is_stockable") not in (None, "") else "true").strip().casefold() not in {"false", "0", "no"},
     }
     return {
         "category": category,
@@ -1121,6 +1146,9 @@ def _validated_import_rows(
                         ),
                         "is_stockable": requested_stockable and complete,
                     }
+                    for field in ("default_cost", "default_retail"):
+                        if cleaned_variant[field] is not None and not math.isfinite(cleaned_variant[field]):
+                            raise ValueError(f"{field} must be finite")
                     fingerprint = normalized_variant_fingerprint(
                         str(category or ""), cleaned_product, attributes
                     )
@@ -1172,6 +1200,78 @@ def _validated_import_rows(
             "data": cleaned,
         })
     return results
+
+
+def _import_error_detail(error: str) -> dict[str, str]:
+    """Stable localized diagnostics for file previews; legacy errors remain intact."""
+    exact = {
+        "category must be frame or contact_lens": "category",
+        "Product model is required": "model",
+        "Brand or manufacturer is required": "brand",
+        "Variant is missing required stock fields": "stockFields",
+        "Variant already exists": "exists",
+        "Duplicate row in file": "duplicate",
+        "target_quantity cannot be below reorder_point": "target",
+    }
+    if error in exact:
+        return {"key": "supply.manual.error." + exact[error]}
+    for field in ("sku", "barcode", "default_cost", "default_retail", "on_hand", "reorder_point", "target_quantity"):
+        if error.startswith(field + " ") or error.startswith("Duplicate " + field + " "):
+            kind = "duplicateField" if error.startswith("Duplicate") else "existsField" if error.endswith("already exists") else "number"
+            return {"key": "supply.manual.error." + kind, "field": field}
+    return {"key": "supply.manual.error.row"}
+
+
+@router.post("/import/preview-file")
+async def preview_import_file(
+    file: UploadFile = File(...),
+    worksheet: str | None = Form(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_inventory_write(current_user)
+    company_id = resolve_company_id(db, current_user)
+    from services.inventory_spreadsheet import spreadsheet, MAX_BYTES
+    from starlette.concurrency import run_in_threadpool
+    data = await file.read(MAX_BYTES + 1)
+    try:
+        sources = await run_in_threadpool(spreadsheet, file.filename or "", data)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(422, "supply.invalidFile") from None
+    return await run_in_threadpool(_preview_import_source_rows, db, company_id, sources, worksheet)
+
+
+def _preview_import_source_rows(db, company_id, sources, worksheet):
+    worksheets = list(dict.fromkeys(row["sheet"] for row in sources))
+    if not worksheets or worksheet is not None and worksheet not in worksheets:
+        raise HTTPException(422, "supply.manual.emptySheet")
+    selected = worksheet if worksheet is not None else worksheets[0]
+    source_rows = [row for row in sources if row["sheet"] == selected]
+    header, *source_rows = source_rows
+    headers = [str(cell or "").strip().lower() for cell in header["cells"]]
+    populated = [name for name in headers if name]
+    if (header.get("formula_columns") or len(populated) != len(set(populated))
+            or "model" not in headers or not {"category", "type"}.intersection(headers)):
+        return {"worksheets": worksheets, "selected_worksheet": selected, "rows": [],
+                "total": 0, "valid": 0, "invalid": 0, "file_error": "supply.manual.headers"}
+    rows = []
+    for row in source_rows:
+        values = {name: row["cells"][column] for column, name in enumerate(headers) if name and column < len(row["cells"])}
+        rows.append({"row_number": row["row"], "data": _csv_row_to_payload(values)})
+    results = _validated_import_rows(db, company_id=company_id, rows=rows)
+    for result, source in zip(results, source_rows):
+        result["worksheet"] = selected
+        result["source_values"] = dict(zip(headers, source["cells"]))
+        result["error_details"] = [_import_error_detail(error) for error in result["errors"]]
+        if source.get("formula_columns"):
+            result["status"] = "invalid"
+            result["errors"].append("Formula cells require static values")
+            result["error_details"].append({"key": "supply.manual.error.formula"})
+    return {"worksheets": worksheets, "selected_worksheet": selected, "rows": results,
+            "total": len(results), "valid": sum(row["status"] == "valid" for row in results),
+            "invalid": sum(row["status"] != "valid" for row in results)}
 
 
 @router.post("/import/preview")
@@ -1273,7 +1373,8 @@ def commit_import(
         "created": created,
         "skipped": skipped,
         "validation_errors": [
-            {"row_number": row["row_number"], "errors": row["errors"]}
+            {"row_number": row["row_number"], "errors": row["errors"],
+             "error_details": [_import_error_detail(error) for error in row["errors"]]}
             for row in invalid_rows
         ],
     }
@@ -1296,7 +1397,7 @@ def export_inventory(
         category=category,
         search=search,
         include_archived=True,
-        limit=1000,
+        limit=None,
     )
     output = io.StringIO()
     attribute_fields = [
@@ -1379,7 +1480,7 @@ def inventory_insights(
         company_id=company_id,
         clinic_id=scoped_clinic_id,
         stockable_only=True,
-        limit=1000,
+        limit=None,
     )
     range_start = datetime.combine(window.previous_start, datetime.min.time()).replace(tzinfo=timezone.utc)
     range_end = datetime.combine(window.end_date + timedelta(days=1), datetime.min.time()).replace(tzinfo=timezone.utc)

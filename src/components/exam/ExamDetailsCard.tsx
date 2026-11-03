@@ -1,3 +1,4 @@
+import { importedExamName } from "@/lib/opticplus-cards";
 import React from "react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -63,7 +64,7 @@ export const ExamDetailsCard = ({
               type="text"
               name="test_name"
               placeholder={t("examName")}
-              value={detailProps?.formData.test_name || ""}
+              value={importedExamName(t, detailProps?.formData.test_name)}
               onChange={
                 isEditing
                   ? (val) =>

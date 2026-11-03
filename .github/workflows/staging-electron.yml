@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       sha:
-        description: "Full Git SHA already auto-deployed to Railway staging"
+        description: "Full Git SHA to deploy and verify on Railway staging"
         required: true
         type: string
 
@@ -32,9 +32,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.sha }}
-          # The deployment watch check compares this commit with its parent.
-          # actions/checkout otherwise fetches only the requested commit.
-          fetch-depth: 2
 
       - name: Validate requested commit
         id: release
@@ -61,57 +58,54 @@ jobs:
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
-      - name: Wait for Railway staging auto-deploys
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Apply public release dependency lock
+        env:
+          DEVDESK_RELEASE_BUILD: "1"
+        run: node scripts/devdesk-release-inputs.mjs apply
+
+      - name: Deploy exact candidate to staging in order
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
           EXPECTED_SHA: ${{ steps.release.outputs.sha }}
         shell: bash
         run: |
-          wait_for_service() {
+          deploy_and_wait() {
             local service="$1"
-            shift
-            local status
-            local commit
-            local deployments
+            local message="Staging $service deploy $EXPECTED_SHA"
+            local deployments deployment_id status
 
-            if git diff --quiet "$EXPECTED_SHA^" "$EXPECTED_SHA" -- "$@"; then
-              echo "$service: no watched files changed; no Railway deployment is expected"
-              return 0
-            fi
+            railway up --detach --project "$RAILWAY_PROJECT_ID" \
+              --environment staging --service "$service" --message "$message"
 
-            for attempt in {1..30}; do
+            for attempt in {1..90}; do
               deployments="$(railway deployment list \
-                --service "$service" \
-                --environment staging \
-                --limit 1 \
-                --json)"
-              status="$(jq -r '.[0].status // "UNKNOWN"' <<<"$deployments")"
-              commit="$(jq -r '.[0].meta.commitHash // ""' <<<"$deployments")"
-              echo "$service: status=$status commit=${commit:-unknown}"
-
-              if [[ "$commit" == "$EXPECTED_SHA" ]]; then
-                case "$status" in
-                  SUCCESS|SKIPPED)
-                    return 0
-                    ;;
-                  FAILED|CRASHED|REMOVED)
-                    echo "$service staging deployment failed with status $status" >&2
-                    return 1
-                    ;;
-                esac
-              fi
-
+                --service "$service" --environment staging --limit 20 --json)"
+              deployment_id="$(jq -r --arg message "$message" \
+                '[.[] | select(.meta.cliMessage == $message)][0].id // ""' <<<"$deployments")"
+              status="$(jq -r --arg id "$deployment_id" \
+                '[.[] | select(.id == $id)][0].status // "UNKNOWN"' <<<"$deployments")"
+              echo "$service: deployment=${deployment_id:-pending} status=$status sha=$EXPECTED_SHA"
+              case "$status" in
+                SUCCESS) return 0 ;;
+                FAILED|CRASHED|REMOVED|SKIPPED)
+                  echo "$service failed to deploy the candidate: $status" >&2
+                  return 1 ;;
+              esac
               sleep 10
             done
-
-            echo "$service did not finish auto-deploying $EXPECTED_SHA within five minutes" >&2
+            echo "$service did not finish deploying within fifteen minutes" >&2
             return 1
           }
 
-          wait_for_service opticai backend
-          wait_for_service softoptic-migration-worker backend
-          wait_for_service prysm-web-staging \
-            src public index.html package.json package-lock.json vite.renderer.config.mts railway.json scripts/serve-web.mjs
+          deploy_and_wait opticai
+          curl --fail --silent --show-error --max-time 20 https://staging-api.prysm.co.il/health/database
+          deploy_and_wait softoptic-migration-worker
+          deploy_and_wait prysm-web-staging
 
       - name: Verify staging health
         shell: bash
@@ -146,6 +140,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+
+      - name: Apply public release dependency lock
+        env:
+          DEVDESK_RELEASE_BUILD: "1"
+        run: node scripts/devdesk-release-inputs.mjs apply
 
       - name: Install dependencies
         run: npm ci
@@ -199,6 +198,8 @@ jobs:
           $unpacked = Get-ChildItem release -Filter "win-unpacked" -Directory -Recurse | Select-Object -First 1
           if (-not $unpacked) { throw "Windows unpacked application was not created" }
           $reader = Join-Path $unpacked.FullName "resources\optitech_reader\optitech-mdb-exporter.exe"
+          $profiles = & $reader --profiles | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $profiles.opticplus_format_version -ne 2 -or $profiles.profiles -notcontains "opticplus") { throw "Packaged OpticPlus reader capability check failed" }
           $notice = Join-Path $unpacked.FullName "resources\optitech_reader\THIRD_PARTY_NOTICES.md"
           $license = Join-Path $unpacked.FullName "resources\optitech_reader\COPYING.LIB"
           $source = Join-Path $unpacked.FullName "resources\optitech_reader\SOURCE_AND_BUILD.md"

@@ -1,3 +1,7 @@
+import tableExportTranslations from "../../backend/services/table_export_copy.json";
+import companyClientTranslations from "./company-clients.json";
+import supplyTranslations from "./supply.json";
+import billingTranslations from "./billing.json";
 import examListTranslations from "./exam-list.json";
 import authLoginTranslations from "./auth-login.json";
 import globalSearchTranslations from "./global-search.json";
@@ -7,6 +11,8 @@ import orderWorkspaceTranslations from "./order-workspace.json";
 import aiTranslations from "./ai.json";
 import agentTranslations from "./agent.json";
 import optitechTranslations from "./optitech.json";
+import opticplusTranslations from "./opticplus.json";
+import opticplusCardTranslations from "./opticplus-cards.json";
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import { defaultLocale, supportedLocales } from "./locale";
@@ -1158,6 +1164,10 @@ for (const [language, translations] of Object.entries(optitechTranslations)) {
   i18n.addResourceBundle(language, "translation", { optitech: translations }, true, true);
 }
 
+for (const [language, translations] of Object.entries(opticplusTranslations)) {
+  i18n.addResourceBundle(language, "translation", { opticplus: translations }, true, true);
+}
+
 export default i18n;
 
 for (const [language, translations] of Object.entries(aiTranslations)) {
@@ -1190,4 +1200,24 @@ for (const [language, translations] of Object.entries(authLoginTranslations)) {
 
 for (const [language, translations] of Object.entries(examListTranslations)) {
   i18n.addResourceBundle(language, "translation", { examList: translations }, true, true);
+}
+
+for (const [language, translations] of Object.entries(billingTranslations)) {
+  i18n.addResourceBundle(language, "translation", { billing: translations }, true, true);
+}
+
+for (const [language, translations] of Object.entries(supplyTranslations)) {
+  i18n.addResourceBundle(language, "translation", translations, true, true);
+}
+
+for (const [language, translations] of Object.entries(opticplusCardTranslations)) {
+  i18n.addResourceBundle(language, "translation", { opticplusCards: translations }, true, true);
+}
+
+for (const [language, translations] of Object.entries(companyClientTranslations)) {
+  i18n.addResourceBundle(language, "translation", translations, true, true);
+}
+
+for (const [language, translations] of Object.entries(tableExportTranslations)) {
+  i18n.addResourceBundle(language, "translation", translations, true, true);
 }

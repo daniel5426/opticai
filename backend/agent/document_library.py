@@ -32,7 +32,7 @@ def namespace(clinic_id):
 
 
 def authorized_file(db, auth, file_id):
-    file = scoped_query(db, auth, 'files').filter(File.id == file_id).first()
+    file = scoped_query(db, auth, 'files', company_history=True).filter(File.id == file_id).first()
     if not file:
         raise HTTPException(404, 'agent.recordNotFound')
     return file
@@ -138,7 +138,7 @@ def retrieve_native(auth, query):
 
 
 def search(db, auth, text, limit=10):
-    files = scoped_query(db, auth, 'files').all()
+    files = scoped_query(db, auth, 'files', company_history=bool(auth.patient_id)).all()
     file_map = {file.id: file for file in files}
     entries = db.query(DocumentIndex).filter(DocumentIndex.clinic_id == auth.clinic_id,
         DocumentIndex.file_id.in_(file_map)).all()
@@ -153,7 +153,7 @@ def search(db, auth, text, limit=10):
     db.expire_all()
     from .authority import resolve_artifact
     auth = resolve_artifact(db, {'external_session_id': auth.context_id})
-    current_files = {file.id: file for file in scoped_query(db, auth, 'files').filter(File.id.in_(ready)).all()}
+    current_files = {file.id: file for file in scoped_query(db, auth, 'files', company_history=bool(auth.patient_id)).filter(File.id.in_(ready)).all()}
     items = []
     for candidate in candidates:
         evidence = candidate.get('evidence')

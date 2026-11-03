@@ -1,3 +1,4 @@
+import { submissionPageContext } from '@/lib/agent-page-context';
 import { createBffAgentClient } from '@agents24/client/bff';
 import type { FetchLike } from '@agents24/client';
 import { getActiveLocale } from '@/localization/locale';
@@ -43,11 +44,12 @@ export function scopedFetch(scope: AgentScope): typeof fetch {
   return async (input: RequestInfo | URL, options: RequestInit = {}) => {
     const headers = new Headers(options.headers);
     headers.set('X-Prysm-Clinic-Id', String(scope.clinicId));
+    headers.set('Accept-Language', getActiveLocale());
     if (scope.patientId) headers.set('X-Prysm-Client-Id', String(scope.patientId));
     let body = options.body;
     if (options.method?.toUpperCase() === 'POST' && typeof body === 'string' && String(input).startsWith('/api/agents24/')) {
       const payload = JSON.parse(body) as Record<string, unknown>;
-      payload.metadata = { ...(payload.metadata as Record<string, unknown> || {}), 'app.locale': getActiveLocale() };
+      payload.metadata = { ...(payload.metadata as Record<string, unknown> || {}), 'app.locale': getActiveLocale(), ...(String(input).includes('/chat/stream') ? { 'app.page': submissionPageContext() } : {}) };
       body = JSON.stringify(payload);
     }
     return apiClient.agentFetch(String(input), { ...options, body, headers }, window.electronAPI?.agentFetch ? nativeFetch : undefined);
@@ -55,11 +57,13 @@ export function scopedFetch(scope: AgentScope): typeof fetch {
 }
 
 export function createAgentClient(scope: AgentScope) {
-  return createBffAgentClient({ basePath: '/api/agents24', fetch: scopedFetch(scope) as FetchLike });
+  return createBffAgentClient({ basePath: '/api/agents24', assistantPreview: true, fetch: scopedFetch(scope) as FetchLike });
 }
 
 export async function agentJson<T>(scope: AgentScope, path: string, options?: RequestInit): Promise<T> {
-  const response = await scopedFetch(scope)(`/api/v1/agent${path}`, options);
+  const headers = new Headers(options?.headers);
+  if (typeof options?.body === 'string' && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+  const response = await scopedFetch(scope)(`/api/v1/agent${path}`, { ...options, headers });
   if (!response.ok) throw Object.assign(new Error('agent.operationFailed'), { status: response.status });
   return response.json() as Promise<T>;
 }

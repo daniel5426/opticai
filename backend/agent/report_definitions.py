@@ -4,9 +4,9 @@ from typing import Literal
 from zoneinfo import ZoneInfo
 from pydantic import BaseModel, ConfigDict, Field
 from fastapi import HTTPException
-from services.clinic_catalog import catalog as data_catalog, expressions
+from services.clinic_catalog import catalog as data_catalog
 from services.clinic_query import FilterGroup, compile_where
-from .reports import ReportDefinition, compile_report
+from .reports import ReportDefinition, compile_report_components
 from .models import SavedReport, AgentJob
 from .config import now
 from .report_presentation import ReportPresentation, validate_presentation
@@ -64,13 +64,11 @@ def resolve(raw):
 
 def compile_definition(db, authority, definition):
     # Reuse aggregation, currency and stable ordering rules for both versions.
-    query, columns = compile_report(db, authority, definition)
+    query, columns, fields = compile_report_components(db, authority, definition)
     if definition.where:
-        _, fields = expressions(db, authority, definition.dataset, definition.as_of)
         query = query.filter(compile_where(db, authority, definition.dataset, fields, definition.where, definition.as_of))
     if definition.date_field:
         from services.clinic_query import Predicate, predicate
-        _, fields = expressions(db, authority, definition.dataset, definition.as_of)
         if definition.date_field not in fields:
             raise HTTPException(422, 'agent.unsupportedReportField')
         field = fields[definition.date_field]

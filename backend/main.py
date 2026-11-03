@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import config
 from EndPoints import order_groups, auth, companies, clinics, users, clients, families, appointments, medical_logs, orders, referrals, files, settings, work_shifts, lookups, campaigns, billing, chats, email_logs, exam_layouts, exams, unified_exam_data, ai, ai_sidebar, control_center, dashboard, search, whatsapp_webhook, whatsapp, softoptic_migration, migration, migration_source_data, clinic_data_prune, clinic_holidays, inventory, plans, subscriptions, trash, web_auth
 from EndPoints import agent as prysm_agent
+from EndPoints import table_exports
 from agent.config import enabled as agents24_enabled
 import httpx
 import json
@@ -36,10 +37,11 @@ def seed_initial_data():
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    from workers.table_export_worker import table_export_services
     from agent.local_startup import local_agent_services
     from agent.runtime import close_runtime_clients
     try:
-        async with local_agent_services():
+        async with table_export_services(), local_agent_services():
             seed_initial_data()
             yield
     finally:
@@ -67,49 +69,34 @@ app.add_middleware(ClinicGZipMiddleware, minimum_size=1024)
 
 @app.middleware("http")
 async def enforce_subscription_access(request, call_next):
-    """Enforce only after rollout explicitly switches to `enforce`.
-
-    Legacy companies resolve to full access. Billing/auth/recovery endpoints remain
-    available even when the product workspace is read-only.
-    """
-    if (
-        config.settings.SUBSCRIPTION_ENFORCEMENT_MODE != "enforce"
-        or request.method in {"GET", "HEAD", "OPTIONS"}
-        or request.url.path.startswith("/api/agents24/")
-        or request.url.path.startswith(f"{config.settings.API_V1_STR}/auth")
-        or request.url.path.startswith(f"{config.settings.API_V1_STR}/subscriptions")
+    path = request.url.path
+    # These routers authenticate/authorize their own recovery and owner operations.
+    if request.method == "OPTIONS" or not path.startswith(config.settings.API_V1_STR + "/") or any(
+        path == config.settings.API_V1_STR + prefix or path.startswith(config.settings.API_V1_STR + prefix + "/")
+        for prefix in ("/auth", "/subscriptions", "/admin", "/plans")
     ):
         return await call_next(request)
     authorization = request.headers.get("authorization", "")
     if not authorization.lower().startswith("bearer "):
         return await call_next(request)
     try:
-        payload = jwt.decode(
-            authorization.split(" ", 1)[1],
-            config.settings.SECRET_KEY,
-            algorithms=[config.settings.ALGORITHM],
-            options={"verify_aud": False},
-        )
+        payload = jwt.decode(authorization.split(" ", 1)[1], config.settings.SECRET_KEY,
+            algorithms=[config.settings.ALGORITHM], options={"verify_aud": False})
         company_id = int(payload.get("company_id"))
     except (JWTError, TypeError, ValueError):
         return await call_next(request)
-
     from database import SessionLocal
-    from services.subscription_service import access_mode, ensure_legacy_subscription
-    db = SessionLocal()
-    try:
-        subscription = ensure_legacy_subscription(db, company_id)
-        mode = access_mode(subscription)
-        db.commit()
-    finally:
-        db.close()
-    if mode != "full":
-        code = "subscription_required" if mode == "billing_only" else "account_read_only"
-        return ORJSONResponse(
-            status_code=402,
-            content={"detail": {"code": code, "access_mode": mode, "billing_url": f"{config.settings.SITE_URL}/account/billing"}},
-        )
+    from fastapi import HTTPException
+    from services.subscription_service import enforce_workspace
+    with SessionLocal() as db:
+        try:
+            enforce_workspace(db, company_id, write=request.method not in {"GET", "HEAD"} and not (path == config.settings.API_V1_STR + "/table-exports" or path.startswith(config.settings.API_V1_STR + "/table-exports/")))
+        except HTTPException as exc:
+            return ORJSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
     return await call_next(request)
+
+from EndPoints import admin
+app.include_router(admin.router, prefix=config.settings.API_V1_STR)
 
 app.include_router(auth.router, prefix=config.settings.API_V1_STR)
 app.include_router(companies.router, prefix=config.settings.API_V1_STR)
@@ -138,6 +125,7 @@ app.include_router(unified_exam_data.router, prefix=config.settings.API_V1_STR)
 app.include_router(ai.router, prefix=config.settings.API_V1_STR)
 app.include_router(ai_sidebar.router, prefix=config.settings.API_V1_STR)
 app.include_router(prysm_agent.router, prefix=config.settings.API_V1_STR)
+app.include_router(table_exports.router, prefix=config.settings.API_V1_STR)
 if agents24_enabled():
     from agent.runtime import bff_router
     app.include_router(bff_router())

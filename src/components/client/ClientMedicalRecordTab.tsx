@@ -1,3 +1,6 @@
+import { TableFiltersBar } from "@/components/table-filters-bar"
+import { RecordClinicLabel } from "@/components/RecordClinicLabel"
+import { ImportedSourceDataDialog } from "@/components/migration/ImportedSourceDataDialog";
 import React, { useState, ChangeEvent, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,6 +28,8 @@ import {
 import { useAppLocale } from "@/localization/use-app-locale";
 import { CustomModal } from "@/components/ui/custom-modal";
 import { useTranslation } from "react-i18next";
+
+const EMPTY_MEDICAL_LOGS: MedicalLog[] = [];
 
 type MedicalRecord = MedicalLog & {
   isEditing?: boolean;
@@ -66,7 +71,7 @@ export const ClientMedicalRecordTab = ({
   const clientIdNum = Number(clientId);
   const queryClient = useQueryClient();
   const medicalLogsQuery = useClientMedicalLogsQuery(clientIdNum, enabled);
-  const medicalLogs = medicalLogsQuery.data || [];
+  const medicalLogs = medicalLogsQuery.data ?? EMPTY_MEDICAL_LOGS;
   const queryKey = clientQueryKeys.medicalLogs(clientIdNum);
   const { currentClinic } = useUser();
   const [records, setRecords] = useState<MedicalRecord[]>([]);
@@ -266,12 +271,14 @@ export const ClientMedicalRecordTab = ({
 
   return (
     <div className="flex w-full flex-col" dir={direction}>
-      <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-xl font-semibold">גליון רפואי</h2>
-        <Button onClick={addNewRecord} dir={direction}>
-          רשומה חדשה
-          <Plus className="ms-2 h-4 w-4" />
-        </Button>
+      <div className="mb-6">
+        <TableFiltersBar
+          navigation={<h2 className="text-xl font-semibold">גליון רפואי</h2>}
+          actions={<Button onClick={addNewRecord} dir={direction}>
+            רשומה חדשה
+            <Plus className="ms-2 h-4 w-4" />
+          </Button>}
+        />
       </div>
 
       {medicalLogsQuery.isLoading ? (
@@ -321,7 +328,9 @@ export const ClientMedicalRecordTab = ({
                       )}
                     </div>
 
+                    <RecordClinicLabel clinicId={record.clinic_id} />
                     <div className="ms-1 flex gap-1">
+                      {!record.isEditing && <ImportedSourceDataDialog recordType="medical_log" recordId={record.id} />}
                       {record.isEditing ? (
                         <Button
                           size="sm"

@@ -78,7 +78,7 @@ describe('safe tool presentation', () => {
   });
 });
 function mount(parts: any[], loading = true) {
-  return <I18nextProvider i18n={i18n}><ApprovalTimeline {...({ parts, isLoading: loading, message: { id: 'message', parts } } as any)} /></I18nextProvider>;
+  return <I18nextProvider i18n={i18n}><ApprovalTimeline {...({ parts, isLoading: loading, message: { id: 'message', role: 'assistant', content: '', parts } } as any)} /></I18nextProvider>;
 }
 describe('activity grouping', () => {
   it('keeps expansion while a single tool grows into a streamed group', () => {
@@ -110,7 +110,7 @@ describe('activity grouping', () => {
   it('preserves expansion when model turns are added around a streamed tool group', () => {
     const { rerender } = render(mount([tool('search_patients', {}, 'input-streaming')]));
     fireEvent.click(screen.getByRole('button'));
-    rerender(mount([{id:'planning',kind:'model-turn',turnKind:'agent'},tool('search_patients',outputs.search_patients),{id:'next',kind:'model-turn',turnKind:'agent'}]));
+    rerender(mount([{id:'planning',kind:'model-turn',turnKind:'agent',status:'running'},tool('search_patients',outputs.search_patients),{id:'next',kind:'model-turn',turnKind:'agent',status:'running'}]));
     expect(screen.getByRole('button')).toHaveAttribute('aria-expanded','true');
   });
   it('hides internal ask-user calls and keeps their input card visible', () => {
@@ -128,5 +128,39 @@ describe('activity grouping', () => {
     expect(document.getElementById(button.getAttribute('aria-controls')!)).not.toBeVisible();
     fireEvent.click(button);
     expect(document.getElementById(button.getAttribute('aria-controls')!)).toBeVisible();
+  });
+});
+
+
+describe('continuous run activity', () => {
+  it.each(['he', 'en', 'fr'])('shows initial thinking and tool-to-planning activity in %s', async locale => {
+    await i18n.changeLanguage(locale);
+    const view = render(mount([]));
+    expect(screen.getByRole('status')).toHaveTextContent(i18n.t('agent.timeline.reasoning'));
+    const part = tool('search_patients', {}, 'input-available');
+    view.rerender(mount([part]));
+    fireEvent.click(screen.getByRole('button'));
+    view.rerender(mount([tool('search_patients', outputs.search_patients),
+      { id:'next', kind:'model-turn', turnKind:'agent', status:'running' }]));
+    expect(screen.getByRole('button')).toHaveTextContent(i18n.t('agent.activity.planning'));
+    expect(screen.getByRole('button')).toHaveAttribute('aria-expanded', 'true');
+  });
+  it('shows capacity waiting without streaming or moving the approval', () => {
+    const props = { parts: [], isLoading: false, message: { id:'answer', role:'assistant', content:'', parts:[],
+      activity: { status:'waiting', capacityWait: { reason:'local_capacity' } } } } as any;
+    const view = render(<I18nextProvider i18n={i18n}><ApprovalTimeline {...props} /></I18nextProvider>);
+    expect(screen.getByRole('status')).toHaveTextContent(i18n.t('agent.activity.capacity'));
+    view.rerender(<I18nextProvider i18n={i18n}><ApprovalTimeline {...props}
+      message={{...props.message, activity:undefined, isFinal:true}} /></I18nextProvider>);
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+  it('keeps external waits distinct from user approvals', () => {
+    const props = { parts: [], isLoading: false, message: { id:'answer', role:'assistant', content:'', parts:[],
+      activity: { status:'waiting' } } } as any;
+    const view = render(<I18nextProvider i18n={i18n}><ApprovalTimeline {...props} /></I18nextProvider>);
+    expect(screen.getByRole('status')).toHaveTextContent(i18n.t('agent.activity.waiting'));
+    view.rerender(mount([{id:'review', kind:'hitl', status:'pending'}], false));
+    expect(screen.getByText('Approval card')).toBeVisible();
+    expect(screen.queryByRole('status')).toBeNull();
   });
 });

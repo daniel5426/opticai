@@ -294,6 +294,15 @@ def get_users_for_select(
         ))
     return result
 
+@router.get("/record-directory")
+def get_record_staff(db: Session = Depends(get_db), current_user: UserModel = Depends(get_current_user)):
+    """Names for historical attribution; never account settings or credentials."""
+    company_id = resolve_company_id(db, current_user)
+    return [{"id": row.id, "company_id": company_id, "clinic_id": row.clinic_id,
+             "username": row.username, "full_name": row.full_name, "role_level": row.role_level, "is_active": row.is_active}
+            for row in _company_users_query(db, company_id).filter(or_(User.company_id == company_id, User.company_id.is_(None))).order_by(User.id).all()]
+
+
 @router.get("/{user_id}/google-tokens")
 def get_user_google_tokens(
     user_id: int,

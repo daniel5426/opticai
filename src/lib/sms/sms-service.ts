@@ -1,8 +1,11 @@
+import { apiClient } from '../api-client';
 import { Client, Settings } from '../db/schema-interface';
 
 export class SmsService {
   async sendSms(phoneNumber: string, message: string): Promise<boolean> {
     try {
+      const authorization = await apiClient.authorizeModule('campaigns');
+      if (!authorization.data?.allowed) return false;
       console.log('SMS Service (DUMMY): Sending SMS to:', phoneNumber);
       console.log('SMS Content:', message);
       

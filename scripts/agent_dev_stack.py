@@ -16,6 +16,11 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
 
 
+def published_platform(env):
+    return (env.get('AGENTS24_BASE_URL', '').rstrip('/') == 'https://api.agents24.dev'
+            and env.get('AGENTS24_RUNTIME_TARGET') == 'published')
+
+
 def validate_environment(env, profile='synthetic', require_resources=True):
     try:
         database = make_url(env.get('DATABASE_URL', ''))
@@ -23,9 +28,6 @@ def validate_environment(env, profile='synthetic', require_resources=True):
         api = urlsplit(env.get('VITE_API_URL', ''))
         renderer = urlsplit(env.get('PRYSM_RENDERER_URL', ''))
         if profile == 'clinic':
-            clinic_id = env.get('PRYSM_AGENT_CLINIC_ID', '')
-            if not clinic_id.isascii() or not clinic_id.isdecimal() or int(clinic_id) <= 0:
-                raise ValueError()
             local_staging = database.host == 'aws-0-eu-central-1.pooler.supabase.com' and database.username == 'postgres.eoyqvffwzllggemzfxaw'
             direct_staging = database.host == 'db.eoyqvffwzllggemzfxaw.supabase.co' and database.username == 'postgres'
             valid_database = database.get_backend_name() == 'postgresql' and database.database == 'postgres' and (local_staging or direct_staging)
@@ -33,16 +35,16 @@ def validate_environment(env, profile='synthetic', require_resources=True):
             valid_database = database.get_backend_name() == 'postgresql' and database.host in {None, 'localhost', '127.0.0.1'} and database.database == 'opticai_agent_dev'
         if not valid_database or database.query:
             raise ValueError()
-        if platform.scheme != 'http' or platform.hostname not in {'localhost', '127.0.0.1'}:
+        if not (profile == 'clinic' and published_platform(env)) and (platform.scheme != 'http' or platform.hostname not in {'localhost', '127.0.0.1'}):
             raise ValueError()
         if api.scheme != 'http' or api.hostname not in {'localhost', '127.0.0.1'} or api.port != (8000 if profile == 'clinic' else 8016) or api.path != '/api/v1':
             raise ValueError()
         if renderer.scheme != 'http' or renderer.hostname not in {'localhost', '127.0.0.1'} or renderer.port != (5126 if profile == 'clinic' else 5136):
             raise ValueError()
-        if env.get('AGENTS24_ENABLED', '').lower() != 'true' or env.get('AGENTS24_RUNTIME_TARGET') != 'draft':
+        if env.get('AGENTS24_ENABLED', '').lower() != 'true' or not (env.get('AGENTS24_RUNTIME_TARGET') == 'draft' or (profile == 'clinic' and published_platform(env))):
             raise ValueError()
     except (ValueError, ArgumentError):
-        raise RuntimeError('Use the documented nonproduction database, draft target and matching API/renderer ports.') from None
+        raise RuntimeError('Use the documented nonproduction database, supported Agents24 target and matching API/renderer ports.') from None
     required = ['AGENTS24_API_KEY', 'AGENTS24_ARTIFACT_SIGNING_SECRET', 'SECRET_KEY']
     if require_resources:
         required += ['AGENTS24_AGENT_ID', 'AGENTS24_INSIGHTS_AGENT_ID', 'AGENTS24_BRIEF_AGENT_ID',
@@ -63,10 +65,30 @@ class Stack:
         self.profile = profile
         self.package = env.get('PRYSM_AGENT_PACKAGE_DIR', 'agents24')
         self.children = []
+        self.devdesk_ready = False
+        self.devdesk_phase = 'configuration'
         self.owner_pid = owner_pid
         self.logs = root / '.agent-data' / ('clinic-services' if services else 'clinic-stack' if profile == 'clinic' else 'local-stack')
         self.logs.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.logs.chmod(0o700)
+
+    def devdesk_status(self, state=None):
+        destination = os.environ.get('DEVDESK_STATUS_FILE')
+        if not destination:
+            return
+        services = []
+        for name, child in self.children:
+            identity = subprocess.run(['/bin/ps', '-p', str(child.pid), '-o', 'lstart='],
+                                      capture_output=True, text=True).stdout.strip()
+            services.append({'name': name, 'pid': child.pid, 'identity': identity,
+                             'state': 'stopped' if child.poll() is not None else
+                             'ready' if self.devdesk_ready else 'starting'})
+        target = Path(destination)
+        temporary = target.with_suffix('.tmp')
+        temporary.write_text(json.dumps({'state': state or ('ready' if self.devdesk_ready else 'starting'),
+                                         'services': services}))
+        temporary.chmod(0o600)
+        temporary.replace(target)
 
     def command(self, *arguments):
         entry = 'clinic-dev.py' if self.profile == 'clinic' else 'agent-dev.py'
@@ -84,9 +106,11 @@ class Stack:
                                      env={**self.env, 'PRYSM_AGENT_SUPERVISOR_PID': str(os.getpid())},
                                      stdout=output, stderr=subprocess.STDOUT, start_new_session=True)
         self.children.append((name, child))
+        self.devdesk_status()
         print(f'Starting {name}.', flush=True)
 
     def check_children(self):
+        self.devdesk_status()
         if self.owner_pid:
             try:
                 os.kill(self.owner_pid, 0)
@@ -110,6 +134,7 @@ class Stack:
         raise RuntimeError(f'{name} did not become ready; inspect protected logs in {self.logs}.')
 
     def status(self):
+        self.devdesk_phase = 'local package status'
         result = subprocess.run(self.command('cli', 'status', self.package, '--json'), cwd=self.root,
                                 env=self.env, capture_output=True, text=True, timeout=15)
         return json.loads(result.stdout) if result.returncode == 0 else {}
@@ -129,17 +154,26 @@ class Stack:
                     if item.get('kind') == 'artifact' and item.get('resource_key') == 'clinic-tools'
                     and not item.get('retained_orphan')}
         ready = {item['artifact_id'] for item in app.get('registrations', [])
-                 if item.get('target') == 'draft' and item.get('ready')}
+                 if item.get('target') == self.env.get('AGENTS24_RUNTIME_TARGET', 'draft') and item.get('ready')}
         return (app.get('id') == self.env['AGENTS24_RELAY_CLIENT_ID'] and app.get('status') == 'connected'
                 and bool(expected) and expected.issubset(ready))
 
     def apply(self):
+        self.devdesk_phase = 'local resource package apply'
         with self.log('apply') as output:
             result = subprocess.run(self.command('cli', 'apply', self.package, '--integration', 'bff',
                                                 '--agent', 'main', '--yes', '--json'),
                                     cwd=self.root, env=self.env, stdout=output, stderr=subprocess.STDOUT, timeout=90)
         if result.returncode:
             raise RuntimeError(f'Clinic tool binding failed; inspect the protected apply log in {self.logs}.')
+
+    def synchronize_tools(self):
+        if published_platform(self.env):
+            state = self.status()
+            if state.get('installation', {}).get('publication_state') != 'current':
+                raise RuntimeError('Publish the Prysm resource package before starting published serving.')
+        else:
+            self.apply()
 
     def verify_approval(self):
         from agent_dev_policy import verify_approval_policy
@@ -165,6 +199,7 @@ class Stack:
                 print(f'Could not signal owned {name}; remaining services will still be stopped.', file=sys.stderr)
 
     def stop(self):
+        self.devdesk_status("stopping")
         for name, child in reversed(self.children):
             self.signal_child(name, child, signal.SIGTERM)
         deadline = time.monotonic() + 8
@@ -178,6 +213,7 @@ class Stack:
                 except subprocess.TimeoutExpired:
                     print(f'Owned {name} did not exit; inspect its protected log.', file=sys.stderr)
 
+        self.devdesk_status("stopped")
 
 def run_stack(root, env, arguments, profile='synthetic'):
     parser = argparse.ArgumentParser(description=__doc__)
@@ -186,7 +222,7 @@ def run_stack(root, env, arguments, profile='synthetic'):
     options = parser.parse_args(arguments)
     stack = Stack(root, env, profile)
     api_port = 8000 if profile == 'clinic' else 8016
-    artifact_port = 4317 if profile == 'clinic' else 4316
+    artifact_port = 4316 if published_platform(env) else 4317 if profile == 'clinic' else 4316
     renderer_port = 5126 if profile == 'clinic' else 5136
     lock = open(stack.logs / 'supervisor.lock', 'w')
     try:
@@ -215,10 +251,10 @@ def run_stack(root, env, arguments, profile='synthetic'):
 
         stack.configure_relay()
         if not stack.status().get('installation', {}).get('bindings'):
-            stack.apply()
+            stack.synchronize_tools()
         stack.start('relay-host', 'relay')
         stack.wait('Clinic app connection', stack.relay_ready)
-        stack.apply()
+        stack.synchronize_tools()
         stack.wait('Clinic tools', lambda: stack.status().get('binding_summary') == {'total': 3, 'healthy': 3, 'unhealthy': 0})
         stack.verify_approval()
         stack.start('api', 'api', '--no-access-log')
@@ -230,6 +266,8 @@ def run_stack(root, env, arguments, profile='synthetic'):
         if not options.no_renderer:
             stack.start('renderer', 'browser' if options.browser else 'web')
         stack.wait('OpticAI interface', lambda: urlopen(f'http://localhost:{renderer_port}', timeout=3).close() or True)
+        stack.devdesk_ready = True
+        stack.devdesk_status()
         print(f'OpticAI ready at http://localhost:{renderer_port} against the existing local Agents24 API. Ctrl+C stops this consumer stack.', flush=True)
         while True:
             stack.check_children()
@@ -237,8 +275,9 @@ def run_stack(root, env, arguments, profile='synthetic'):
     except KeyboardInterrupt:
         return 0
     except (RuntimeError, OSError, ValueError, subprocess.TimeoutExpired) as error:
+        stack.devdesk_status("failed")
         # Never print HTTP bodies, subprocess output, or environment values.
-        print(str(error) if isinstance(error, RuntimeError) else 'Local startup failed; inspect protected local-stack logs.', file=sys.stderr)
+        print(str(error) if isinstance(error, RuntimeError) else f'Local {stack.devdesk_phase} timed out; inspect protected logs in {stack.logs}.' if isinstance(error, subprocess.TimeoutExpired) else 'Local startup failed; inspect protected local-stack logs.', file=sys.stderr)
         return 1
     finally:
         stack.stop()
@@ -272,11 +311,11 @@ def run_services(root, env, arguments):
         stack.wait('Agents24 API', lambda: bool(read_json(env['AGENTS24_BASE_URL'].rstrip('/') + '/health')))
         stack.configure_relay()
         if not stack.status().get('installation', {}).get('bindings'):
-            stack.apply()
+            stack.synchronize_tools()
         stack.start('relay-host', 'relay')
         stack.wait('Clinic app connection', stack.relay_ready)
         if stack.status().get('binding_summary', {}).get('healthy') != 3:
-            stack.apply()
+            stack.synchronize_tools()
         stack.wait('Clinic tools', lambda: stack.status().get('binding_summary') == {'total': 3, 'healthy': 3, 'unhealthy': 0})
         stack.verify_approval()
         stack.start('requested-worker', 'worker', '--queue', 'requested')

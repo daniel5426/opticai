@@ -4,7 +4,7 @@ import type { Client, Order } from './db/schema-interface';
 
 export type OrderListBackend = 'groups' | 'legacy';
 export interface OrderListOptions {
-  clinicId: number;
+  clinicId?: number;
   clientId?: number;
   page: number;
   q: string;
@@ -47,7 +47,7 @@ export function legacyOrderRow(order: Partial<Order> & { __contact?: boolean; cl
 export async function loadOrderList(backend: OrderListBackend, options: OrderListOptions): Promise<OrderListPage> {
   const { clinicId, clientId, page, q, kind, status, direction } = options;
   if (backend === 'groups') {
-    return groupRequest<OrderListPage>(`?clinic_id=${clinicId}${clientId ? `&client_id=${clientId}` : ''}&limit=25&offset=${(page - 1) * 25}&q=${encodeURIComponent(q)}&kind=${kind}&status=${encodeURIComponent(status)}&order=date_${direction}`);
+    return groupRequest<OrderListPage>(`?${clinicId === undefined ? "" : `clinic_id=${clinicId}&`}${clientId ? `client_id=${clientId}` : ''}&limit=25&offset=${(page - 1) * 25}&q=${encodeURIComponent(q)}&kind=${kind}&status=${encodeURIComponent(status)}&order=date_${direction}`);
   }
   if (!clientId) {
     const result = dataOrThrow(await apiClient.getOrdersPaginated(clinicId, {
@@ -61,7 +61,7 @@ export async function loadOrderList(backend: OrderListBackend, options: OrderLis
   const owner = dataOrThrow(client);
   const rows = [...dataOrThrow(regular), ...dataOrThrow(contact).map(order => ({ ...order, __contact: true }))]
     .map(order => legacyOrderRow(order, owner))
-    .filter(row => (kind === 'all' || row.legacy_order!.kind === kind)
+    .filter(row => (clinicId === undefined || row.clinic_id === clinicId) && (kind === 'all' || row.legacy_order!.kind === kind)
       && (status === 'all' || row.entries[0].order.order_status === status)
       && (!q || `${owner.first_name || ''} ${owner.last_name || ''} ${row.entries[0].order.type || ''} ${row.legacy_order!.id}`.toLocaleLowerCase().includes(q.toLocaleLowerCase())))
     .sort((a, b) => (String(a.opened_date || '').localeCompare(String(b.opened_date || '')) || a.id - b.id) * (direction === 'asc' ? 1 : -1));

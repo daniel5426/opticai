@@ -5,7 +5,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import and_
 from sqlalchemy.orm import aliased
-from models import AuthSession, User, Clinic, Client
+from models import AuthSession, User, Clinic, Client, Subscription
 from auth import access_session_id, validate_auth_session, validate_current_user, is_expired
 from security.scope import assert_clinic_scope, get_scoped_client, validate_loaded_clinic_scope
 from .models import AgentContext, AgentJob, PreparedChange
@@ -39,9 +39,11 @@ def resolve_request(db, request):
     if not bearer.startswith('Bearer '):
         raise HTTPException(401, 'agent.sessionRequired')
     session_id = access_session_id(HTTPAuthorizationCredentials(scheme='Bearer', credentials=bearer[7:]))
-    loaded = db.query(AuthSession, User).join(User, User.id == AuthSession.user_id).filter(AuthSession.id == session_id).first()
+    loaded = db.query(AuthSession, User, Subscription).join(User, User.id == AuthSession.user_id).outerjoin(Subscription, Subscription.company_id == User.company_id).filter(AuthSession.id == session_id).first()
     session = validate_auth_session(loaded[0] if loaded else None)
     user = validate_current_user(loaded[1] if loaded else None)
+    from services.subscription_service import require_module
+    require_module(db, user.company_id, "ai", subscription=loaded[2] if loaded else None)
     clinic_id = positive(request.headers.get('x-prysm-clinic-id') or session.clinic_id or user.clinic_id)
     patient_id = request.headers.get('x-prysm-client-id')
     patient_id = positive(patient_id) if patient_id else 0
@@ -58,7 +60,7 @@ def resolve_request(db, request):
     validate_loaded_clinic_scope(user, clinic, company_id)
     if patient_id and not patient:
         raise HTTPException(404, 'Client not found')
-    if patient_id and patient.clinic_id != clinic_id:
+    if patient_id and (not patient or patient.company_id != company_id):
         raise HTTPException(403, 'agent.scopeDenied')
     if binding and (binding.user_id != user.id or binding.company_id != company_id):
         raise HTTPException(403, 'agent.scopeDenied')
@@ -115,6 +117,8 @@ def resolve_artifact(db, context):
         user = db.get(User, job.user_id)
         if not user or not user.is_active:
             raise HTTPException(403, 'agent.scopeDenied')
+        from services.subscription_service import require_module
+        require_module(db, user.company_id, "ai")
         assert_clinic_scope(db, user, job.clinic_id)
         return Authority(user, job.clinic_id, context_id, read_only=True)
     binding = db.get(AgentContext, context_id)
@@ -124,17 +128,17 @@ def resolve_artifact(db, context):
     user = db.get(User, binding.user_id)
     if not user or not user.is_active or user.company_id != binding.company_id or session.user_id != user.id or session.company_id != binding.company_id:
         raise HTTPException(403, 'agent.scopeDenied')
+    from services.subscription_service import require_module
+    require_module(db, user.company_id, "ai")
     assert_clinic_scope(db, user, binding.clinic_id)
     return Authority(user, binding.clinic_id, binding.id, binding.patient_scope or None)
 
 
 def patient(db, authority, client_id):
     client_id = positive(client_id)
-    if authority.patient_id and client_id != authority.patient_id:
-        raise HTTPException(403, 'agent.patientContextMismatch')
     row = get_scoped_client(db, authority.user, client_id)
-    if row.clinic_id != authority.clinic_id:
-        raise HTTPException(403, 'agent.scopeDenied')
+    if authority.patient_id and get_scoped_client(db, authority.user, authority.patient_id).id != row.id:
+        raise HTTPException(403, 'agent.patientContextMismatch')
     return row
 
 

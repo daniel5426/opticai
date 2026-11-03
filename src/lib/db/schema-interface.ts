@@ -46,6 +46,7 @@ export interface Clinic {
 }
 
 export interface Client {
+  company_id?: number;
   id?: number;
   clinic_id?: number; // Added for multi-clinic support
   first_name?: string;
@@ -162,6 +163,7 @@ export interface Family {
 }
 
 export interface MedicalLog {
+  company_id?: number;
   id?: number;
   client_id: number;
   clinic_id?: number; // Added for multi-clinic support
@@ -171,6 +173,8 @@ export interface MedicalLog {
 }
 
 export interface OpticalExam {
+  clinic_name?: string | null;
+  company_id?: number;
   id?: number;
   client_id: number;
   clinic_id?: number; // Added for multi-clinic support
@@ -460,6 +464,7 @@ export interface CompactPrescriptionExam {
 }
 
 export interface Order {
+  company_id?: number;
   id?: number;
   client_id: number;
   clinic_id?: number; // Added for multi-clinic support
@@ -524,6 +529,8 @@ export interface ReferralEye {
 }
 
 export interface Appointment {
+  calendar_sync_owned?: boolean;
+  company_id?: number;
   id?: number;
   client_id: number;
   clinic_id?: number; // Added for multi-clinic support
@@ -722,6 +729,7 @@ export interface ContactLensExam {
 
 
 export interface ContactLensOrder {
+  company_id?: number;
   id?: number;
   layout_instance_id?: number;
   clinic_id?: number;
@@ -1018,6 +1026,7 @@ export interface LookupVADecimal {
 }
 
 export interface File {
+  company_id?: number;
   id?: number;
   client_id: number;
   clinic_id?: number; // Added for multi-clinic support

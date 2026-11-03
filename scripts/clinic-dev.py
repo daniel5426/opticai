@@ -7,12 +7,12 @@ import subprocess
 import sys
 
 from dotenv import dotenv_values
-from agent_dev_stack import run_stack, validate_environment
+from agent_dev_stack import run_stack, validate_environment, published_platform
 
 ROOT = Path(__file__).resolve().parents[1]
 env = {**os.environ, **{key: value for key, value in dotenv_values(ROOT / 'backend/.env').items() if value is not None}}
 env.update(VITE_API_URL='http://localhost:8000/api/v1', PRYSM_RENDERER_URL='http://localhost:5126',
-           PRYSM_AGENT_PACKAGE_DIR=str(ROOT / '.agent-data/clinic-package'))
+           PRYSM_AGENT_PACKAGE_DIR=str(ROOT / ('agents24' if published_platform(env) else '.agent-data/clinic-package')))
 node_bin = Path.home() / '.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin'
 if (node_bin / 'node').exists():
     env['PATH'] = str(node_bin) + os.pathsep + env.get('PATH', '')
@@ -41,11 +41,10 @@ elif mode in {'relay', 'relay-status'}:
 elif mode == 'artifact':
     command = [python, '-m', 'uvicorn', 'agent.artifact:artifact_app', '--factory', '--host', '127.0.0.1', '--port', '4317', '--no-access-log', *arguments]
 elif mode == 'worker':
-    parser = argparse.ArgumentParser(description='Run one clinic-scoped worker queue.')
+    parser = argparse.ArgumentParser(description='Run one shared worker queue across clinics.')
     parser.add_argument('--queue', choices=['requested', 'summaries'], default='requested')
     options = parser.parse_args(arguments)
-    command = [python, '-m', 'workers.agent_worker', '--queue', options.queue,
-               '--clinic-id', env['PRYSM_AGENT_CLINIC_ID']]
+    command = [python, '-m', 'workers.agent_worker', '--queue', options.queue]
 elif mode == 'migrate':
     command = [python, '-m', 'alembic', 'upgrade', 'head']
 elif mode in {'web', 'browser'}:

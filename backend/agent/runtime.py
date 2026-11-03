@@ -3,12 +3,14 @@ import asyncio
 import json
 import time
 import logging
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from dataclasses import dataclass
 from anyio import CapacityLimiter, to_thread
 from functools import lru_cache
 from agents24 import Agents24, AsyncAgents24
 from agents24.errors import Agents24SDKError
-from agents24.bff import AgentBffAgent, AgentBffPrincipal, AgentBffPrincipalResolution, create_agents24_bff_router
+from agents24.bff import AgentBffResolverError, AgentBffAgent, AgentBffPrincipal, AgentBffPrincipalResolution, create_agents24_bff_router
 from fastapi import Request, HTTPException
 from database import SessionLocal
 from .config import setting
@@ -60,6 +62,8 @@ class PrincipalScope:
     context_id: str
     chat_scope: str
     principal_ref: str | None
+    trusted_context: dict | None = None
+    customer_tenant: dict | None = None
 
 
 def load_principal_scope(request: Request, expected: PrincipalScope | None = None, principal_ref: str | None = None):
@@ -68,7 +72,12 @@ def load_principal_scope(request: Request, expected: PrincipalScope | None = Non
     with SessionLocal() as db:
         auth = resolve_request(db, request)
         result = PrincipalScope(f'{auth.company_id}:{auth.user.id}', auth.context_id,
-            f'clinic:{auth.clinic_id}:patient:{auth.patient_id or 0}', auth.platform_principal_ref)
+            f'clinic:{auth.clinic_id}:patient:{auth.patient_id or 0}', auth.platform_principal_ref,
+            trusted_context={'clinic_id':auth.clinic_id, 'user_id':auth.user.id,
+                'company_id':auth.company_id, 'timezone':'Asia/Jerusalem',
+                'business_date':datetime.now(ZoneInfo('Asia/Jerusalem')).date().isoformat(),
+                'locale':request.headers.get('accept-language','he').split(',')[0].split('-')[0] if request.headers.get('accept-language','he').split(',')[0].split('-')[0] in {'he','en','fr'} else 'he'},
+            customer_tenant={'issuer':'prysm-company','subject':str(auth.company_id)})
         if expected:
             if result.subject != expected.subject or result.context_id != expected.context_id or result.chat_scope != expected.chat_scope:
                 raise HTTPException(403, 'agent.scopeDenied')
@@ -78,20 +87,35 @@ def load_principal_scope(request: Request, expected: PrincipalScope | None = Non
 
 
 async def resolve_bff_principal(request: Request):
-    scope = await to_thread.run_sync(load_principal_scope, request, limiter=_authorization_limiter)
-    if not scope.principal_ref:
-        identity = await async_client().embed.resolve_customer_principal({
-            'integration_id': integration(), 'issuer': 'prysm', 'subject': scope.subject})
-        # Reauthorize after the network await before binding the identity.
-        await to_thread.run_sync(load_principal_scope, request, scope, identity['customer_principal_ref'], limiter=_authorization_limiter)
+    try:
+        scope = await to_thread.run_sync(load_principal_scope, request, limiter=_authorization_limiter)
+    except HTTPException as error:
+        if error.status_code in {401, 403, 404}:
+            raise AgentBffResolverError('unauthenticated' if error.status_code == 401 else 'denied') from None
+        raise
+    request.state.prysm_agent_scope = scope
     return AgentBffPrincipalResolution(
-        principal=AgentBffPrincipal(subject=scope.subject, issuer='prysm'), chat_scope=scope.chat_scope,
+        principal=AgentBffPrincipal(subject=scope.subject, issuer='prysm'),
+        chat_scope=scope.chat_scope, customer_tenant=scope.customer_tenant, trusted_context=scope.trusted_context,
         relay_client_id=relay_client_id())
+
+
+async def on_principal_resolved(request, resolution, principal_ref):
+    scope = request.state.prysm_agent_scope
+    if scope.principal_ref == principal_ref:
+        return
+    # Reauthorize after the platform await; context facts grant no permissions.
+    try:
+        await to_thread.run_sync(load_principal_scope, request, scope, principal_ref, limiter=_authorization_limiter)
+    except HTTPException as error:
+        if error.status_code in {401, 403, 404}:
+            raise AgentBffResolverError('unauthenticated' if error.status_code == 401 else 'denied') from None
+        raise
 
 
 def bff_router():
     return create_agents24_bff_router(client=async_client(), agents=[AgentBffAgent(agent_id=agent_id())],
-        integration_id=integration(), resolve_principal=resolve_bff_principal, runtime_target=target(), prefix='/api/agents24')
+        integration_id=integration(), resolve_principal=resolve_bff_principal, on_principal_resolved=on_principal_resolved, runtime_target=target(), prefix='/api/agents24')
 
 
 def run_text(resource_id, text, *, subject, session_id=None, scope=None, request_key=None, metadata=None, on_admitted=None, existing_run_id=None, existing_thread_id=None, cancel_check=None):
@@ -137,7 +161,8 @@ def run_text(resource_id, text, *, subject, session_id=None, scope=None, request
         ordered = [events[key] for key in sorted(events)]
         if any(e['event'] in {'run.failed', 'run.cancelled'} for e in ordered):
             failed = next(e for e in ordered if e['event'] in {'run.failed', 'run.cancelled'})
-            raise PlatformOperationFailed(failed.get('payload', {}).get('failure'))
+            payload = failed.get('payload', {})
+            raise PlatformOperationFailed(payload.get('failure') or payload.get('error'))
         completed = any(e['event'] == 'assistant.completed' for e in ordered)
         if completed:
             content = ''.join(e['payload']['content'] for e in ordered if e['event'] == 'assistant.delta')

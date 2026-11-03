@@ -1,3 +1,4 @@
+import { AgentEntryButtons } from '@/components/agent/AgentVoice';
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Separator } from "@/components/ui/separator";
@@ -397,6 +398,7 @@ export function SiteHeader({
             </Tabs>
           )}
           {actions}
+          <AgentEntryButtons />
         </div>
       </div>
     </header>

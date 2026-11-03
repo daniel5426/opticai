@@ -58,14 +58,33 @@ def test_clinic_launcher_accepts_scoped_nonproduction_target(clinic_env):
     stack.validate_environment(clinic_env, 'clinic')
 
 
-@pytest.mark.parametrize('clinic_id', ['', '0', '-1', 'all', '33,34'])
-def test_clinic_launcher_requires_one_explicit_clinic(clinic_env, clinic_id):
-    clinic_env['PRYSM_AGENT_CLINIC_ID'] = clinic_id
-    with pytest.raises(RuntimeError):
-        stack.validate_environment(clinic_env, 'clinic')
+def test_clinic_launcher_does_not_require_single_clinic_scope(clinic_env):
+    clinic_env.pop('PRYSM_AGENT_CLINIC_ID', None)
+    stack.validate_environment(clinic_env, 'clinic')
 
 
 def test_clinic_launcher_rejects_production(clinic_env):
     clinic_env['DATABASE_URL'] = 'postgresql://postgres:test@db.ncmcwspdjtyetwfijahj.supabase.co/postgres'
     with pytest.raises(RuntimeError):
         stack.validate_environment(clinic_env, 'clinic')
+
+
+def test_clinic_accepts_official_published_platform_only(clinic_env):
+    clinic_env.update(AGENTS24_BASE_URL='https://api.agents24.dev', AGENTS24_RUNTIME_TARGET='published')
+    stack.validate_environment(clinic_env, 'clinic')
+    for url in ['http://api.agents24.dev', 'https://api.agents24.dev.evil.invalid', 'https://api.agents24.dev/other']:
+        with pytest.raises(RuntimeError):
+            stack.validate_environment({**clinic_env, 'AGENTS24_BASE_URL': url}, 'clinic')
+    with pytest.raises(RuntimeError):
+        stack.validate_environment({**clinic_env, 'AGENTS24_RUNTIME_TARGET': 'draft'}, 'clinic')
+
+
+def test_published_serving_never_applies_resource_drafts(tmp_path, monkeypatch):
+    worker = stack.Stack(tmp_path, {'AGENTS24_BASE_URL': 'https://api.agents24.dev',
+                                  'AGENTS24_RUNTIME_TARGET': 'published'}, 'clinic')
+    monkeypatch.setattr(worker, 'apply', lambda: pytest.fail('Published serving must not apply drafts'))
+    monkeypatch.setattr(worker, 'status', lambda: {'installation': {'publication_state': 'current'}})
+    worker.synchronize_tools()
+    monkeypatch.setattr(worker, 'status', lambda: {'installation': {'publication_state': 'never_published'}})
+    with pytest.raises(RuntimeError, match='Publish'):
+        worker.synchronize_tools()

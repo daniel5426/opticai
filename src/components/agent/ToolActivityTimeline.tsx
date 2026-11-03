@@ -1,10 +1,10 @@
 import React from 'react';
-import { partitionAgentChatToolTimeline, type AgentChatTimelineSlotProps } from '@agents24/chat-react/ui';
+import { getAgentChatActivity, partitionAgentChatToolTimeline, type AgentChatTimelineSlotProps } from '@agents24/chat-react/ui';
 import type { ChatToolPart } from '@agents24/react';
 import { Check, ChevronDown, CircleAlert, CircleMinus, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAppLocale } from '@/localization/use-app-locale';
-import { LocalizedTimelinePart } from './LocalizedTimelinePart';
+import { isLocalizedTimelinePartVisible, LocalizedTimelinePart } from './LocalizedTimelinePart';
 import { presentTool, type ActivityStatus } from './tool-presentation';
 const AgentDataResults = React.lazy(() => import('./AgentDataResults').then(module => ({ default: module.AgentDataResults })));
 
@@ -12,13 +12,14 @@ function StatusIcon({ status }: { status: ActivityStatus }) {
   const Icon = status === 'running' ? Loader2 : status === 'failed' ? CircleAlert : status === 'cancelled' ? CircleMinus : Check;
   return <Icon aria-hidden="true" className={`size-3.5 shrink-0 ${status === 'running' ? 'animate-spin motion-reduce:animate-none' : ''} ${status === 'failed' ? 'text-destructive' : 'text-muted-foreground'}`} />;
 }
-export function ToolActivityGroup({ parts }: { parts: readonly ChatToolPart[] }) {
+export function ToolActivityGroup({ parts, planning = false }: { parts: readonly ChatToolPart[]; planning?: boolean }) {
   const { t } = useTranslation();
   const { locale, direction } = useAppLocale();
   const [open, setOpen] = React.useState(false);
   const id = React.useId();
   const steps = parts.map(part => presentTool(part, t, locale));
-  const current = steps.findLast(step => step.status === 'running') || steps.findLast(step => step.meaningful) || steps[steps.length - 1];
+  const current = planning ? { status: 'running' as const, label: t('agent.activity.planning') }
+    : steps.findLast(step => step.status === 'running') || steps.findLast(step => step.meaningful) || steps[steps.length - 1];
   const failed = steps.some(step => step.status === 'failed');
   const cancelled = steps.some(step => step.status === 'cancelled');
   const issue = failed && cancelled ? 'both' : failed ? 'failed' : cancelled ? 'cancelled' : null;
@@ -44,25 +45,31 @@ export function ToolActivityGroup({ parts }: { parts: readonly ChatToolPart[] })
 export function ToolActivityTimeline(props: AgentChatTimelineSlotProps) {
   const { t } = useTranslation();
   // The SDK owns partitioning. Keep its internal ask-user invocation hidden; its approval/input card renders separately.
-  const parts = props.parts.filter(part => part.kind !== 'tool' || ![part.toolName, part.toolKey, part.action].some(value => value?.trim().toLowerCase() === 'runtime__ask_user'));
+  const parts = props.parts.filter(part => isLocalizedTimelinePartVisible(part, props.nodeActivityMode)
+    && (part.kind !== 'tool' || ![part.toolName, part.toolKey, part.action].some(value => value?.trim().toLowerCase() === 'runtime__ask_user')));
   const segments = partitionAgentChatToolTimeline(parts, 'closed');
   const loading = props.isLoading && !props.message.responseCompletion;
+  const planningAllowed = !props.message.activity || props.message.activity.status === 'running';
+  const activity = getAgentChatActivity(props.message, parts, loading);
   return <>{segments.map((segment, index) => {
     if (segment.kind !== 'part') {
       const tools = segment.kind === 'tool-session' ? segment.parts : [segment.part];
-      return <React.Fragment key={tools[0].id}><ToolActivityGroup parts={tools} />
+      const planning = loading && planningAllowed && index === segments.length - 1 && segment.kind === 'tool-session'
+        && segment.modelTurn?.status === 'running' && segment.modelTurn.turnKind === 'agent';
+      return <React.Fragment key={tools[0].id}><ToolActivityGroup parts={tools} planning={planning} />
         {tools.filter(tool => tool.state === 'output-available' && tool.output && typeof tool.output === 'object' &&
           ['record_search', 'prescription_search', 'document_search'].includes(String((tool.output as Record<string, unknown>).type)))
           .map(tool => <React.Suspense key={tool.id} fallback={null}><AgentDataResults output={tool.output} /></React.Suspense>)}
       </React.Fragment>;
     }
-    if (segment.part.kind === 'model-turn') return loading && index === segments.length - 1 && segment.part.status === 'running' && segment.part.turnKind === 'agent'
-      ? <p key={segment.part.id} className="py-2 text-xs text-muted-foreground">{t('agent.activity.planning')}</p> : null;
+    if (segment.part.kind === 'model-turn') return loading && planningAllowed && index === segments.length - 1 && segment.part.status === 'running' && segment.part.turnKind === 'agent'
+      ? <p role="status" key={segment.part.id} className="py-2 text-xs text-muted-foreground">{t('agent.activity.planning')}</p> : null;
     // A filtered individual part must not trigger the SDK's whole-message or thinking fallback.
     // Only the final text segment can still be streaming; earlier text stays settled.
     return <LocalizedTimelinePart key={segment.part.id} {...props} part={segment.part}
       message={{ ...props.message, content: '' }}
       isLoading={Boolean(loading && index === segments.length - 1 && segment.part.kind === 'text')}
       parts={[segment.part]} />;
-  })}</>;
+  })}{activity && <p role="status" className="py-2 text-xs text-muted-foreground">{t(activity === 'thinking'
+    ? 'agent.timeline.reasoning' : `agent.activity.${activity}`)}</p>}</>;
 }

@@ -31,6 +31,7 @@ function renderCalendar(blockHeight: number) {
         timeSlots={[{ time: "10:30", startMinutes: 630, durationMinutes: 30 }]}
         totalWorkMinutes={30}
         currentUser={null}
+        holidaysByDate={{}}
         clients={[client]}
         getAppointmentBlocks={() => [appointment]}
         getUserColor={() => "#3b82f6"}

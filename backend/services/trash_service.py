@@ -36,7 +36,7 @@ from models import (
     TrashMember,
     User,
 )
-from security.scope import assert_clinic_scope, resolve_company_id
+from security.scope import assert_company_access, assert_record_scope, resolve_company_id
 from services.file_storage_service import FileStorageService
 from services.inventory_service import release_order_allocations_for_delete, restore_order_allocations
 from services.prescription_search_index import (
@@ -123,11 +123,30 @@ def _members_for_delete(db: Session, entity_type: str, row: Any) -> list[tuple[s
     if entity_type != "client":
         return [(entity_type, row)]
     members: list[tuple[str, Any]] = [("client", row)]
+    aliases = db.query(Client).filter(Client.company_id == row.company_id,
+        Client.merged_into_client_id == row.id).with_for_update().all()
+    members.extend(("client", alias) for alias in aliases)
     for child_type, model in ENTITY_MODELS.items():
         if child_type in {"client", "order_group"}:
             continue
         children = db.query(model).filter(model.client_id == row.id).with_for_update().all()
         members.extend((child_type, child) for child in children)
+    # A client can remove a whole invoice only when no other client uses it.
+    order_ids = [member.id for kind, member in members if kind == "order"]
+    contact_ids = [member.id for kind, member in members if kind == "contact_lens_order"]
+    matching_groups = db.query(OrderGroup.id).outerjoin(OrderGroupEntry).filter(or_(
+        OrderGroup.payer_client_id == row.id, OrderGroupEntry.order_id.in_(order_ids),
+        OrderGroupEntry.contact_lens_id.in_(contact_ids))).distinct()
+    groups = db.query(OrderGroup).filter(OrderGroup.id.in_(matching_groups)).order_by(OrderGroup.id).with_for_update().all()
+    from services.order_group_service import entry_order
+    for group in groups:
+        entries = db.query(OrderGroupEntry).filter_by(group_id=group.id).all()
+        if group.payer_client_id not in (None, row.id) or any(
+            child and child.client_id != row.id for child in (entry_order(db, entry) for entry in entries)):
+            if db.info.get("client_delete_preserve_shared"):
+                continue
+            raise HTTPException(409, "companyClients.sharedInvoice")
+        members.append(("order_group", group))
     return members
 
 
@@ -202,7 +221,20 @@ def _enqueue(db: Session, item: TrashItem, job_type: str, payload: dict | None =
     return job
 
 
-def move_to_trash(db: Session, current_user: User, entity_type: str, entity_id: int, *, commit: bool = True) -> TrashItem:
+def move_to_trash(db, current_user, entity_type, entity_id, *, commit=True):
+    if entity_type == "client":
+        from services.order_group_service import group_write
+        previous = db.info.get("client_delete_preserve_shared", False)
+        db.info["client_delete_preserve_shared"] = bool(db.info.get("order_group_write"))
+        try:
+            with group_write(db):
+                return _move_to_trash(db, current_user, entity_type, entity_id, commit=commit)
+        finally:
+            db.info["client_delete_preserve_shared"] = previous
+    return _move_to_trash(db, current_user, entity_type, entity_id, commit=commit)
+
+
+def _move_to_trash(db: Session, current_user: User, entity_type: str, entity_id: int, *, commit: bool = True) -> TrashItem:
     _require_editor(current_user)
     row = _entity(db, entity_type, entity_id, lock=True)
     if row.deleted_at is not None:
@@ -211,15 +243,14 @@ def move_to_trash(db: Session, current_user: User, entity_type: str, entity_id: 
             return existing
         raise HTTPException(status_code=409, detail="Record is already deleted")
 
-    clinic_id = row.clinic_id
-    assert_clinic_scope(db, current_user, clinic_id)
+    clinic_id = row.clinic_id or current_user.clinic_id
+    if clinic_id is None:
+        raise HTTPException(400, "companyClients.deleteClinic")
+    assert_record_scope(db, current_user, row)
     company_id = resolve_company_id(db, current_user)
     members = _members_for_delete(db, entity_type, row)
-    foreign_clinics = {member.clinic_id for _kind, member in members if member.clinic_id != clinic_id}
-    if foreign_clinics and (current_user.role_level or 1) < CEO_LEVEL:
-        raise HTTPException(status_code=409, detail="Client records span multiple clinics")
-    for member_clinic_id in foreign_clinics:
-        assert_clinic_scope(db, current_user, member_clinic_id)
+    for _kind, member in members:
+        assert_record_scope(db, current_user, member)
 
     client = row if entity_type == "client" else db.query(Client).filter(Client.id == (row.payer_client_id if entity_type == "order_group" else row.client_id)).first()
     client_label = _client_label(client)
@@ -279,11 +310,28 @@ def _scoped_item(db: Session, current_user: User, item_id: int, *, lock: bool = 
     item = query.first()
     if not item:
         raise HTTPException(status_code=404, detail="Trash item not found")
-    assert_clinic_scope(db, current_user, item.clinic_id)
+    assert_company_access(db, current_user, item.company_id)
     return item
 
 
-def restore_item(db: Session, current_user: User, item_id: int) -> dict[str, Any]:
+def restore_item(db, current_user, item_id):
+    item = _scoped_item(db, current_user, item_id)
+    if item.root_entity_type == "client":
+        from services.order_group_service import group_write
+        with group_write(db):
+            return _restore_item(db, current_user, item_id)
+    if item.root_entity_type in {"order", "contact_lens_order"}:
+        from services.order_group_service import group_for_order, get_group, group_write
+        group = group_for_order(db, item.root_entity_id, item.root_entity_type == "contact_lens_order", include_deleted=True)
+        if group and group.legacy_write_protected:
+            group = get_group(db, current_user, group.id, lock=True)
+            with group_write(db):
+                group.revision += 1
+                return _restore_item(db, current_user, item_id)
+    return _restore_item(db, current_user, item_id)
+
+
+def _restore_item(db: Session, current_user: User, item_id: int) -> dict[str, Any]:
     _require_editor(current_user)
     item = _scoped_item(db, current_user, item_id, lock=True)
     if item.status == "restored":
@@ -306,6 +354,7 @@ def restore_item(db: Session, current_user: User, item_id: int) -> dict[str, Any
     appointment_ids: list[int] = []
     for member in members:
         row = _entity(db, member.entity_type, member.entity_id, lock=True)
+        assert_record_scope(db, current_user, row)
         if row.trash_item_id != item.id:
             continue
         row.deleted_at = None
@@ -556,6 +605,15 @@ def _purge(db: Session, job: TrashJob, storage: FileStorageService) -> None:
         from services.order_group_service import group_write, group_for_order
         standalone_group = group_for_order(db, root.id, item.root_entity_type == "contact_lens_order", include_deleted=True) if item.root_entity_type in {"order", "contact_lens_order"} else None
         with group_write(db):
+            if item.root_entity_type == "client":
+                group_ids = [member.entity_id for member in members if member.entity_type == "order_group"]
+                if group_ids:
+                    _include_deleted(db.query(OrderGroup)).filter(OrderGroup.id.in_(group_ids),
+                        OrderGroup.company_id == item.company_id).delete(synchronize_session=False)
+                alias_ids = [member.entity_id for member in members if member.entity_type == "client" and member.entity_id != root.id]
+                if alias_ids:
+                    _include_deleted(db.query(Client)).filter(Client.id.in_(alias_ids),
+                        Client.company_id == item.company_id).delete(synchronize_session=False)
             db.delete(root)
             db.flush()
             if standalone_group and not standalone_group.legacy_write_protected:

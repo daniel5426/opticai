@@ -1,3 +1,4 @@
+import { RecordClinicLabel } from "@/components/RecordClinicLabel"
 import React, { useState, useEffect } from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
 import { FileDown, FileText, Loader2, Plus, Printer, Trash2 } from "lucide-react"
@@ -244,6 +245,7 @@ export function ReferralTable({
   return (
     <div className={fillHeight ? "flex min-h-0 flex-1 flex-col gap-2.5" : "space-y-2.5"} style={{ scrollbarWidth: "none" }}>
       <TableFiltersBar
+          exportTable="referrals"
         searchValue={searchValue}
         onSearchChange={(value) => (onSearchChange ? onSearchChange(value) : setSearchTerm(value))}
         searchPlaceholder="חיפוש הפניות…"
@@ -393,7 +395,7 @@ export function ReferralTable({
                     <TableCell className="text-right">
                       {referral.date ? new Date(referral.date).toLocaleDateString("he-IL") : "-"}
                     </TableCell>
-                    <TableCell className="text-right">{referral.type || "-"}</TableCell>
+                    <TableCell className="text-right">{referral.type || "-"}<RecordClinicLabel clinicId={referral.clinic_id} /></TableCell>
                     {clientId === 0 && (
                       <TableCell className="text-right">
                         <button

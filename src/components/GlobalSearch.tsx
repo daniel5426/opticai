@@ -1,3 +1,6 @@
+import { useCompanyClinicFilter } from "@/hooks/client/useCompanyClinicFilter";
+import { CompanyClinicFilter } from "@/components/CompanyClinicFilter";
+import { importedExamName } from "@/lib/opticplus-cards";
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -78,6 +81,7 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
     return null;
   }
 
+  const clinicFilter = useCompanyClinicFilter();
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -171,7 +175,7 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
       setLoading(true);
       try {
         const offset = (page - 1) * pageSize;
-        const res = await apiClient.unifiedSearch(q, currentClinic.id, {
+        const res = await apiClient.unifiedSearch(q, clinicFilter.clinicId, {
           limit: pageSize,
           offset,
         });
@@ -198,7 +202,7 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
     };
     run();
     return () => { cancelled = true; };
-  }, [activePanel, isOpen, currentClinic?.id, debouncedQuery, page]);
+  }, [activePanel, isOpen, currentClinic?.id, clinicFilter.clinicId, debouncedQuery, page]);
 
   const normalizeDate = (dateStr: string): string => {
     return dateStr.replace(/[.-]/g, "-");
@@ -407,7 +411,7 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
         return {
           id: `exam-${exam.id}`,
           type: "exam" as const,
-          title: exam.test_name || "בדיקה",
+          title: importedExamName(t, exam.test_name) || t("examName"),
           subtitle: client
             ? `${client.first_name} ${client.last_name}`
             : "לקוח לא נמצא",
@@ -926,6 +930,7 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
         <Search
           className={`text-muted-foreground pointer-events-none absolute top-1/2 -translate-y-1/2 transform ${inModal ? "start-3 h-4 w-4" : "start-3 h-3 w-4"}`}
         />
+        <CompanyClinicFilter filter={{ ...clinicFilter, setValue: value => { clinicFilter.setValue(value); setPage(1) } }} allClients />
         <Input
           ref={inputRef}
           type="text"

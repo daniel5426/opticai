@@ -1,3 +1,4 @@
+import { importedOrderName } from "@/lib/opticplus-cards";
 import React, { useState } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -999,7 +1000,7 @@ export function OrdersTable({
                     <TableCell>
                       {order.order_date ? new Date(order.order_date).toLocaleDateString("he-IL") : ""}
                     </TableCell>
-                    <TableCell>{order.type}</TableCell>
+                    <TableCell>{importedOrderName(t,order.type)}</TableCell>
                     <TableCell>{(order as any).__contact ? "עדשות מגע" : "הזמנה רגילה"}</TableCell>
                     {clientId === 0 && (
                       <TableCell>

@@ -8,6 +8,14 @@ import { toolPresentationRegistry } from './tool-presentation';
 import { TimelineCode } from './TimelineCode';
 
 const object = (value: unknown): Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+export function isLocalizedTimelinePartVisible(part: ChatPart, mode = 'default') {
+  if (part.kind === 'node-activity') return mode !== 'hidden' && (mode !== 'default' || part.defaultChatVisible);
+  if (part.kind === 'reasoning') {
+    const tool = part.label?.replace(/^artifact__prysm_clinic_tools_/, '');
+    return !(part.label && (/^(artifact|runtime)__/.test(part.label) || (tool && Object.hasOwn(toolPresentationRegistry, tool))));
+  }
+  return true;
+}
 export function LocalizedTimelinePart({ part, ...props }: AgentChatTimelineSlotProps & { part: ChatPart }) {
   const { t } = useTimelineLabels();
   const { direction } = useAppLocale();
@@ -15,14 +23,12 @@ export function LocalizedTimelinePart({ part, ...props }: AgentChatTimelineSlotP
   if (part.kind === 'context-compression') return <p dir={direction} role="status" className={`py-2 text-xs ${part.status === 'failed' ? 'text-destructive' : 'text-muted-foreground'}`}>{t(`agent.timeline.context.${part.status}`)}</p>;
   if (part.kind === 'error') return <p dir={direction} role="alert" className="text-sm text-destructive">{t('agent.operationFailed')}</p>;
   if (part.kind === 'node-activity') {
-    const mode = props.nodeActivityMode || 'default';
-    if (mode === 'hidden' || (mode === 'default' && !part.defaultChatVisible)) return null;
+    if (!isLocalizedTimelinePartVisible(part, props.nodeActivityMode)) return null;
     return <p dir={direction} role="status" className={`py-2 text-xs ${part.status === 'failed' ? 'text-destructive' : 'text-muted-foreground'}`}>{t(`agent.timeline.node.${part.status}`)}</p>;
   }
   if (part.kind === 'reasoning') {
     // Tool trace notes duplicate the app's localized tool activity, rather than agent-authored prose.
-    const tool = part.label?.replace(/^artifact__prysm_clinic_tools_/, '');
-    if (part.label && (/^(artifact|runtime)__/.test(part.label) || (tool && Object.hasOwn(toolPresentationRegistry, tool)))) return null;
+    if (!isLocalizedTimelinePartVisible(part)) return null;
     const value = part.text || part.label;
     const generic = !value || /^(thinking|working|planning next moves|reasoning|processing)(?:\.{3}|…)?$/i.test(value.trim());
     return <p dir={direction} className="py-2 text-sm text-muted-foreground">{generic ? t('agent.timeline.reasoning') : value}</p>;

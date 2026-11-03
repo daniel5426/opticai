@@ -6,7 +6,7 @@ from .runtime import client
 
 
 def cleanup_expired(db, clinic_ids=None):
-    jobs = db.query(AgentJob)
+    jobs = db.query(AgentJob).filter(AgentJob.kind != 'table_export')
     if clinic_ids is not None:
         jobs = jobs.filter(AgentJob.clinic_id.in_(clinic_ids))
     # Unfinished application upload failures are visible and eventually expire.
@@ -44,6 +44,8 @@ def cleanup_expired(db, clinic_ids=None):
             from .report_runs import paths, temporary_paths
             for path in (*paths(row), *temporary_paths(row)):
                 path.unlink(missing_ok=True)
-        row.file_name, row.result = None, None
+        row.file_name = None
+        if row.kind != 'supply' or (row.result or {}).get('status') != 'committed':
+            row.result = None
         row.definition = {**row.definition, 'retention_cleaned': True}
         db.commit()

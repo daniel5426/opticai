@@ -1,3 +1,5 @@
+import { useAppLocale } from "@/localization/use-app-locale"
+import { useTranslation } from "react-i18next"
 import React, { useEffect, useState } from "react"
 import { AlertTriangle, CheckCircle2, Loader2, RefreshCw, Trash2 } from "lucide-react"
 import { toast } from "sonner"
@@ -37,7 +39,7 @@ const SECTION_LABELS: Record<(typeof PREVIEW_SECTIONS)[number], string> = {
 
 const SECTION_KEYS: Record<(typeof PREVIEW_SECTIONS)[number], string[]> = {
   people: ["clients", "families"],
-  clinical: ["exams", "exam_instances", "appointments", "referrals", "referral_eyes", "medical_logs", "recent_visits", "prescription_index"],
+  clinical: ["exams", "exam_instances", "appointments", "referrals", "referral_eyes", "medical_logs", "recent_visits", "prescription_index", "tasks"],
   commerce: ["orders", "contact_lens_orders", "billings", "billing_payments", "order_line_items"],
   documents: ["files"],
   communications: ["campaigns", "campaign_executions", "chats", "chat_messages", "email_logs"],
@@ -73,6 +75,8 @@ const COUNT_LABELS: Record<string, string> = {
 }
 
 export function ClinicDataPruneTab({ clinicId, clinicName }: { clinicId?: number; clinicName?: string }) {
+  const { t } = useTranslation()
+  const { direction } = useAppLocale()
   const [preview, setPreview] = useState<PreviewData | null>(null)
   const [loadedSections, setLoadedSections] = useState<string[]>([])
   const [previewLoading, setPreviewLoading] = useState(false)
@@ -175,17 +179,17 @@ export function ClinicDataPruneTab({ clinicId, clinicName }: { clinicId?: number
   }
 
   return (
-    <div className="space-y-4" dir="rtl">
+    <div className="space-y-4" dir={direction}>
       <Card className="border-destructive/40">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-right text-destructive">
+          <CardTitle className="flex items-center gap-2 text-start text-destructive">
             <AlertTriangle className="h-5 w-5" />
             ניקוי מלא של נתוני המרפאה
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-right">
+        <CardContent className="space-y-4 text-start">
           <p className="text-sm text-muted-foreground">
-            הפעולה מוחקת לקוחות, בדיקות, הזמנות, תורים, מסמכים ומידע תפעולי. משתמשי המרפאה, ההגדרות ותבניות הבדיקות נשמרים. הפעלות המשתמשים מתנתקות מטעמי בטיחות.
+            {t("companyClients.cleanupDescription")}
           </p>
           <Button variant="destructive" onClick={loadPreview} disabled={!clinicId || previewLoading || jobLocksClinic}>
             <Trash2 className="ml-2 h-4 w-4" />
@@ -204,7 +208,7 @@ export function ClinicDataPruneTab({ clinicId, clinicName }: { clinicId?: number
         showCloseButton={!modalLocked}
       >
         {job ? (
-          <div className="space-y-4 text-right">
+          <div className="space-y-4 text-start">
             {job.status === "completed" ? (
               <div className="flex flex-col items-center gap-3 py-6 text-center">
                 <CheckCircle2 className="h-12 w-12 text-emerald-600" />
@@ -234,7 +238,7 @@ export function ClinicDataPruneTab({ clinicId, clinicName }: { clinicId?: number
             )}
           </div>
         ) : (
-          <div className="space-y-4 text-right">
+          <div className="space-y-4 text-start">
             <p className="text-sm text-muted-foreground">
               הספירה מתעדכנת בזמן אמת. משתמשי המרפאה והגדרות המרפאה לא יימחקו.
             </p>
@@ -250,7 +254,7 @@ export function ClinicDataPruneTab({ clinicId, clinicName }: { clinicId?: number
                     </div>
                     {loaded && entries.map(([name, count]) => (
                       <div key={name} className="mt-1 flex items-center justify-between text-sm text-muted-foreground">
-                        <span>{COUNT_LABELS[name] || name}</span>
+                        <span>{name === "tasks" ? t("companyClients.tasks") : COUNT_LABELS[name] || name}</span>
                         <span dir="ltr">{Number(count).toLocaleString("he-IL")}</span>
                       </div>
                     ))}
@@ -270,11 +274,11 @@ export function ClinicDataPruneTab({ clinicId, clinicName }: { clinicId?: number
                   הפעולה בלתי הפיכה. יש להקליד את שם המרפאה בדיוק: <strong>{clinicName}</strong>
                 </p>
                 <Input
-                  dir="rtl"
+                  dir={direction}
                   value={confirmation}
                   onChange={event => setConfirmation(event.target.value)}
                   placeholder={clinicName}
-                  className="text-right"
+                  className="text-start"
                 />
                 <div className="flex justify-start gap-2">
                   <Button variant="destructive" onClick={start} disabled={actionLoading || confirmation !== clinicName}>

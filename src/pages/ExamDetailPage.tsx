@@ -43,6 +43,7 @@ import { useRowWidthTracking } from "@/hooks/shared/useRowWidthTracking";
 import { ExamBreadcrumbFields } from "@/components/exam/ExamBreadcrumbFields";
 import { useAppLocale } from "@/localization/use-app-locale";
 import { useTranslation } from "react-i18next";
+import { hasOpticPlusLayout, importedExamName } from '@/lib/opticplus-cards';
 import { LayoutSelectorDropdown } from "@/components/exam/LayoutSelectorDropdown";
 import { ImportedSourceDataDialog } from "@/components/migration/ImportedSourceDataDialog";
 import { ExamDetailPageProps, CardRow, LayoutTab } from "./exam-detail/types";
@@ -1045,10 +1046,10 @@ export default function ExamDetailPage({
               setAvailableLayouts(available_layouts as any);
             }
             const regularInstances = (instances || []).filter(
-              (e: any) => e?.instance?.layout_id != null,
+              (e: any) => e?.instance?.layout_id != null || hasOpticPlusLayout(e),
             );
             const noLayoutInstances = (instances || []).filter(
-              (e: any) => e?.instance?.layout_id == null,
+              (e: any) => e?.instance?.layout_id == null && !hasOpticPlusLayout(e),
             );
             const layoutInstances = regularInstances.map(
               (e: any) => e.instance,
@@ -1064,13 +1065,14 @@ export default function ExamDetailPage({
                 const layout = layoutMapLocal[instance.layout_id];
                 const layoutDataStr =
                   layout?.layout_data || instance?.layout_data || "";
-                const name = layout?.name || "";
+                const name = layout?.name || importedExamName(t, examData?.test_name) || "OpticPlus";
                 return {
                   id: instance.id || 0,
                   layout_id: instance.layout_id,
                   name,
                   layout_data: layoutDataStr,
                   isActive: instance.id === chosen_active_instance_id,
+                  instance_layout: hasOpticPlusLayout(regularInstances.find((entry: any) => entry.instance.id === instance.id) || {}),
                 };
               });
               const chosenInstId = chosen_active_instance_id as

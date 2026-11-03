@@ -1,17 +1,44 @@
 # Agents24 local development
 
-Last Updated: 2026-10-22
+Last Updated: 2026-11-03
 
 Current Artifact transport and migration: [shared clinic relay](agents24-shared-relay.md).
+
+
+## Prysm organization on hosted Agents24
+
+The clinic development profile can use the official `https://api.agents24.dev` with
+`AGENTS24_RUNTIME_TARGET=published`. It retains the existing nonproduction clinic database
+allowlist. Shared requested/summary workers serve all clinics in that configured database. Synthetic demo mode remains local-only and retains
+its own key, resources and data. The organization key is stored only in protected backend/package
+environment files, never renderer or Electron-packaged environment files.
+
+The clinic launcher uses the canonical `agents24` package for hosted serving, its declared Artifact
+port 4316, one stable `prysm-production` relay identity, and the new organization resource IDs.
+Published startup serves the existing contract and checks explicit Ask on `commit_change`;
+it does not apply drafts or publish resources. Use DevDesk's clinic profile to start the complete
+consumer stack. Core backend startup alone still does not supervise remote-platform dependencies.
+
+For an intentional resource release, `devdesk start opticai --profile prysm-authoring --wait`
+starts only the local contract-authoring relay. Apply and publish remain explicit official CLI
+actions. Stop that instance before starting clinic serving because both use port 4316.
+All four chat Agents share the explicit GPT-6 Luna model binding. OCR, embeddings and Scribe v2
+speech retain their separate capabilities. The document settings contain published executable IDs,
+not editable pipeline IDs.
+
+Migration note: Resource publication recreates the package in the target organization; it does
+not copy historical conversations, ingestion results, business data or knowledge records. Existing
+source-organization resources remain intact. No database schema migration or hosted OpticAI
+application deployment is included. Existing signed-in accounts with principal bindings to the old
+organization should sign out and sign in to establish a fresh application session; old context
+records are preserved. Verified hosted chat used clinic_context and restored its conversation.
 
 ## Normal backend and Electron startup
 
 Agents24 is experimental and optional. Set `AGENTS24_ENABLED=false` in
 `backend/.env` to run the core application without an Agents24 connection. Use
 the normal commands below; do not use `dev:agent` or `dev:agent:demo` for this
-setup. AI navigation, chat, patient insights, and campaign generation stay hidden
-until availability discovery and SDK bootstrap succeed. Discovery failures are
-silent and checked again every 30 seconds. Existing AI data is preserved.
+setup. With the integration enabled and a trusted staff scope available, navigation, chat and drafts remain mounted through temporary connection failures. The shared SDK lifecycle handles bootstrap recovery; authoritative denial or identity changes clear access. Temporary recovery never resubmits a chat message. Existing AI data is preserved.
 
 For integrated AI development, start the existing Agents24 backend on 8026.
 Use the normal commands in separate terminals:
@@ -26,7 +53,7 @@ python3 main.py
 npm run dev
 ```
 
-The normal API and Electron/browser defaults now agree on port 8000. The backend no longer silently changes ports. With Agents24 enabled against the local draft runtime, backend lifespan owns `clinic-dev.py services`: Artifact 4317, one shared app-profile relay host, and separate requested/summary workers scoped to `PRYSM_AGENT_CLINIC_ID`. If the optional platform is offline or local dependency startup fails, the core API still starts. Successful integrated startup waits for local tool readiness. Stopping the backend stops only its children; the existing Agents24 API and separately started Electron remain independent. The supervisor also checks its backend owner's PID so an abruptly killed backend does not leave dependencies behind. Logs/readiness receipts are protected under `.agent-data/clinic-services/`.
+The normal API and Electron/browser defaults now agree on port 8000. The backend no longer silently changes ports. With Agents24 enabled against the local draft runtime, backend lifespan owns `clinic-dev.py services`: Artifact 4317, one shared app-profile relay host, and separate requested/summary workers serving all clinics in the configured database. If the optional platform is offline or local dependency startup fails, the core API still starts. Successful integrated startup waits for local tool readiness. Stopping the backend stops only its children; the existing Agents24 API and separately started Electron remain independent. The supervisor also checks its backend owner's PID so an abruptly killed backend does not leave dependencies behind. Logs/readiness receipts are protected under `.agent-data/clinic-services/`.
 
 Automatic supervision is disabled for production/staging application environments, Railway contexts, remote Agents24 origins, disabled integrations and explicitly managed API children. The dependency launcher still validates the exact allowlisted nonproduction database and clinic scope before starting anything. It does not migrate or seed the clinic database or publish resources; it only applies existing local draft bindings when necessary.
 
@@ -34,11 +61,11 @@ Electron can start first: the host retries failed network/server bootstrap with 
 
 ## Combined development launcher
 
-`npm run dev:agent` uses `scripts/clinic-dev.py` and protected `backend/.env`: the allowlisted nonproduction database, local Agents24 draft runtime, frontend 5126, APIs 8000/8001, and Artifact tools 4317. `PRYSM_AGENT_CLINIC_ID` is required. Use `-- --no-renderer` to retain an existing frontend. Logs live under `.agent-data/clinic-stack`; the API and workers share `.agent-data/clinic-data`.
+`npm run dev:agent` uses `scripts/clinic-dev.py` and protected `backend/.env`: the allowlisted nonproduction database, local Agents24 draft runtime, frontend 5126, APIs 8000/8001, and Artifact tools 4317. No single-clinic worker setting is required. Use `-- --no-renderer` to retain an existing frontend. Logs live under `.agent-data/clinic-stack`; the API and workers share `.agent-data/clinic-data`.
 
-Startup launches independent `requested` (reports/documents) and `summaries` (daily briefs) workers. Both are scoped to the configured clinic, including job recovery and retention. Requested workers never schedule daily summaries. Existing jobs in other clinics remain untouched and cannot block requested reports.
+Startup launches independent `requested` (reports/documents) and `summaries` (daily briefs) workers. Both serve all clinics, including job recovery and retention. Each job retains its own authenticated clinic/company authority. Requested workers never schedule daily summaries. Older daily briefs cannot block requested reports.
 
-The worker CLI accepts `--queue requested` (default) or `--queue summaries`, with repeatable `--clinic-id` arguments. Omitting clinic arguments serves the configured database globally; the clinic launcher always supplies its required clinic ID. Existing rows and leases remain compatible; no schema migration is needed. Do not retain an old combined worker. No hosted services are changed by local startup.
+The worker CLI accepts `--queue requested` (default) or `--queue summaries`, with repeatable `--clinic-id` arguments. Omitting clinic arguments serves the configured database globally; the clinic launcher omits clinic arguments to use the shared pool. Existing rows and leases remain compatible; no schema migration is needed. Do not retain an old combined worker. No hosted services are changed by local startup.
 
 Use `npm run dev:agent:demo` for the separate synthetic profile documented below. Historical verification in this document refers to that synthetic profile.
 
@@ -124,3 +151,24 @@ The live harness is opt-in and asserts the exact local PostgreSQL database, loop
 The daily-brief check explicitly simulated admission at 06:00 Asia/Jerusalem on the local synthetic database. It is not evidence of wall-clock scheduler admission. The Hebrew job was reclaimed after a controlled worker restart/expired local lease and recovered its original completed Agents24 run; English/French also completed. Model output was inspected against synthetic facts (including ILS 400 and five-day overdue order), with missing clinical data left explicit.
 
 Migration note: No new database migration is needed for these robustness fixes. Approval review input is retained in existing gate JSON; older already-paused gates lacking those arguments must be recreated. The public presentation adds an optional tool-call reference. Consumer job errors retain only safe platform references in existing result JSON; old generic failures remain generic. Deploy the Agents24 backend fix with the Prysm consumer fix before repeating the approval acceptance checks. No package release is needed for these backend/consumer-only changes.
+
+## Shared-clinic reports — 2026-11-02
+
+The clinic launcher no longer supplies a single-clinic filter. Both worker queues serve all clinics
+in the configured nonproduction database; requested jobs retain their original session and clinic
+permissions. The database target allowlist remains in force. Single-clinic worker arguments remain
+available for deliberate operator runs, but are not a prerequisite for normal startup.
+
+Financial report filters and date ranges reuse the query's original bound field expressions. They
+must not rebuild independent ledger subqueries with the same SQL alias. Migration note: No schema
+migration is needed; restart local workers after this compiler fix. Recovery of the two affected
+exports is restricted to those existing failed report jobs, with their definitions unchanged.
+
+
+## Coordinated published integration — 2026-11-03
+
+Main now uses public Node/browser SDK train client 0.2.22, React 0.2.27, Chat React 0.5.41, CLI 0.3.35 and Python `agents24[fastapi]==0.7.25`. Install with the checked-in registry lock and requirements; release-input provenance is regenerated through `scripts/devdesk-release-inputs.mjs`. No package-internal copies or local links are required.
+
+Apply additive `0050_agent_report_completion` after prerequisite 0049 on the explicitly authorized database before activating report callbacks. It adds callback evidence/retry state to existing jobs; startup never migrates automatically. The November 3 local activation used staging only and preserved production. The report worker sends stable idempotent completion receipts rather than asking the model to poll.
+
+An SDK update that changes the Artifact manifest requires an intentional official CLI apply/publish from the authoring profile before published serving can pass its contract check. Stop authoring through DevDesk before clinic-web startup; wait for owned children to drain. A stale manifest or occupied port must fail clearly, without bypassing validation or moving ports. Current published serving and all six local service roles passed readiness. Browser chat, mid-run reload, callback completion and valid report export passed against the staging clinic database.

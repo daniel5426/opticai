@@ -354,6 +354,8 @@ async def register_complete(
             entry_pin_version=1,
         )
         db.add(clinic)
+        from services.subscription_service import create_pending_subscription
+        create_pending_subscription(db, company.id, "essential")
         pending.used_at = utcnow()
         db.flush()
         ensure_default_exam_layouts_for_clinic(db, clinic.id)

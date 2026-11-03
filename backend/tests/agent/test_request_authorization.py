@@ -14,7 +14,7 @@ from agent.config import now
 def request(db, auth, **headers):
     session = db.query(AuthSession).first()
     token = issue_access_token(session, db.get(User, auth.user.id))
-    return SimpleNamespace(headers={'authorization': f'Bearer {token}', 'x-prysm-clinic-id': str(auth.clinic_id), **headers})
+    return SimpleNamespace(state=SimpleNamespace(), headers={'authorization': f'Bearer {token}', 'x-prysm-clinic-id': str(auth.clinic_id), **headers})
 
 
 def test_established_scope_has_two_selects_and_no_write(clinic):
@@ -77,7 +77,7 @@ async def test_slow_database_authorization_does_not_block_async_loop(monkeypatch
         release.wait(2)
         return runtime.PrincipalScope('1:1', 'context', 'clinic:1:patient:0', 'bound')
     monkeypatch.setattr(runtime, 'load_principal_scope', slow)
-    task = asyncio.create_task(runtime.resolve_bff_principal(object()))
+    task = asyncio.create_task(runtime.resolve_bff_principal(SimpleNamespace(state=SimpleNamespace())))
     try:
         for _ in range(100):
             if started.is_set(): break
@@ -141,8 +141,11 @@ async def test_cold_binding_closes_db_during_remote_await_and_reauthorizes(clini
     monkeypatch.setattr(runtime, 'SessionLocal', sessions)
     monkeypatch.setattr(runtime, 'async_client', lambda: SimpleNamespace(embed=SimpleNamespace(resolve_customer_principal=resolve)))
     try:
-        with pytest.raises(HTTPException) as failure:
-            await runtime.resolve_bff_principal(req)
+        from agents24.bff import AgentBffResolverError
+        resolution = await runtime.resolve_bff_principal(req)
+        reference = (await resolve(None))['customer_principal_ref']
+        with pytest.raises(AgentBffResolverError) as failure:
+            await runtime.on_principal_resolved(req, resolution, reference)
         assert failure.value.status_code == 401
         assert not checked_out
     finally:

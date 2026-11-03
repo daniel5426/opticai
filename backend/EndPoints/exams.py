@@ -1,3 +1,4 @@
+from security.scope import record_filter
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import select
@@ -5,7 +6,7 @@ from sqlalchemy import func
 from sqlalchemy import or_
 from typing import List, Optional
 from database import get_db
-from models import OpticalExam, User, Client
+from models import OpticalExam, User, Client, Clinic
 from schemas import OpticalExam as OpticalExamSchema, OpticalExamCreate
 from auth import get_current_user
 from .exam_layouts import build_layout_tree
@@ -13,13 +14,65 @@ from services.prism_axis_compatibility import normalize_prism_axis_exam_data
 from utils.table_search import build_all_terms_search_condition, search_blob, spaced_concat
 from security.scope import (
     apply_clinic_user_scope,
-    assert_clinic_scope,
-    get_allowed_clinic_ids,
+    assert_record_scope,
+    get_record_clinic_ids,
     get_scoped_client,
 )
 from services.trash_service import move_to_trash
 
 router = APIRouter(prefix="/exams", tags=["exams"])
+
+def exam_list_query(db, current_user, clinic_id, search, test_name, type, order):
+    """Get paginated exams with user and client information in a single query"""
+    base_query = db.query(
+        OpticalExam,
+        User.username.label('username'),
+        User.full_name.label('full_name'),
+        Client.first_name.label('client_first_name'),
+        Client.last_name.label('client_last_name'),
+        Clinic.name.label('clinic_name')
+    ).outerjoin(User, OpticalExam.user_id == User.id).outerjoin(Client, OpticalExam.client_id == Client.id).outerjoin(Clinic, (Clinic.id == OpticalExam.clinic_id) & (Clinic.company_id == OpticalExam.company_id))
+
+    allowed_clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
+    base_query = base_query.filter(record_filter(db, current_user, OpticalExam, clinic_id))
+
+    # Apply filters
+    if type:
+        base_query = base_query.filter(OpticalExam.type == type)
+    if test_name and test_name != "all":
+        base_query = base_query.filter(OpticalExam.test_name == test_name)
+
+    search_condition = build_all_terms_search_condition(
+        search,
+        text_expressions=[
+            search_blob(Client.first_name, Client.last_name, Client.national_id, Client.phone_mobile, Client.email),
+            search_blob(User.full_name, User.username, User.email, User.phone),
+            search_blob(OpticalExam.test_name, Clinic.name, OpticalExam.clinic),
+        ],
+        date_columns=[OpticalExam.exam_date],
+    )
+    if search_condition is not None:
+        base_query = base_query.filter(search_condition)
+
+    # Count total before pagination
+
+    order_columns = {
+        "exam_date": OpticalExam.exam_date,
+        "test_name": OpticalExam.test_name,
+        "client": spaced_concat(Client.first_name, Client.last_name),
+        "clinic": Clinic.name,
+        "examiner": func.coalesce(User.full_name, User.username),
+    }
+    order_key, _, order_direction = (order or "exam_date_desc").rpartition("_")
+    order_column = order_columns.get(order_key, OpticalExam.exam_date)
+    if order_direction == "asc":
+        base_query = base_query.order_by(order_column.asc().nulls_last(), OpticalExam.id.asc())
+    else:
+        base_query = base_query.order_by(order_column.desc().nulls_last(), OpticalExam.id.desc())
+
+    # Pagination
+    return base_query
+
 
 @router.get("/enriched")
 def get_enriched_exams(
@@ -35,65 +88,20 @@ def get_enriched_exams(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get paginated exams with user and client information in a single query"""
-    base_query = db.query(
-        OpticalExam,
-        User.username.label('username'),
-        User.full_name.label('full_name'),
-        Client.first_name.label('client_first_name'),
-        Client.last_name.label('client_last_name')
-    ).outerjoin(User, OpticalExam.user_id == User.id).outerjoin(Client, OpticalExam.client_id == Client.id)
-
-    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
-    base_query = base_query.filter(OpticalExam.clinic_id.in_(allowed_clinic_ids))
-
-    # Apply filters
-    if type:
-        base_query = base_query.filter(OpticalExam.type == type)
-    if test_name and test_name != "all":
-        base_query = base_query.filter(OpticalExam.test_name == test_name)
-
-    search_condition = build_all_terms_search_condition(
-        search,
-        text_expressions=[
-            search_blob(Client.first_name, Client.last_name, Client.national_id, Client.phone_mobile, Client.email),
-            search_blob(User.full_name, User.username, User.email, User.phone),
-            search_blob(OpticalExam.test_name, OpticalExam.clinic),
-        ],
-        date_columns=[OpticalExam.exam_date],
-    )
-    if search_condition is not None:
-        base_query = base_query.filter(search_condition)
-
-    # Count total before pagination
-    total = base_query.count() if include_total or count_only else None
+    base_query = exam_list_query(db, current_user, clinic_id, search, test_name, type, order)
+    total = base_query.order_by(None).count() if include_total or count_only else None
     if count_only:
         return {"items": [], "total": total or 0, "has_more": False}
-
-    order_columns = {
-        "exam_date": OpticalExam.exam_date,
-        "test_name": OpticalExam.test_name,
-        "client": spaced_concat(Client.first_name, Client.last_name),
-        "clinic": OpticalExam.clinic,
-        "examiner": func.coalesce(User.full_name, User.username),
-    }
-    order_key, _, order_direction = (order or "exam_date_desc").rpartition("_")
-    order_column = order_columns.get(order_key, OpticalExam.exam_date)
-    if order_direction == "asc":
-        base_query = base_query.order_by(order_column.asc().nulls_last(), OpticalExam.id.asc())
-    else:
-        base_query = base_query.order_by(order_column.desc().nulls_last(), OpticalExam.id.desc())
-
-    # Pagination
     rows = base_query.offset(offset).limit(limit + 1).all()
 
     items = []
-    for exam, username, full_name, client_first_name, client_last_name in rows[:limit]:
+    for exam, username, full_name, client_first_name, client_last_name, clinic_name in rows[:limit]:
         items.append({
             "id": exam.id,
             "client_id": exam.client_id,
             "clinic_id": exam.clinic_id,
             "clinic": exam.clinic,
+            "clinic_name": clinic_name,
             "user_id": exam.user_id,
             "exam_date": exam.exam_date,
             "test_name": exam.test_name,
@@ -115,8 +123,8 @@ def get_exams(
 ):
     """Get all exams with optional filtering"""
     query = db.query(OpticalExam)
-    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
-    query = query.filter(OpticalExam.clinic_id.in_(allowed_clinic_ids))
+    allowed_clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
+    query = query.filter(record_filter(db, current_user, OpticalExam, clinic_id))
     
     # Apply filters
     if type:
@@ -164,7 +172,7 @@ def get_exam(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
     
-    assert_clinic_scope(db, current_user, exam.clinic_id)
+    assert_record_scope(db, current_user, exam)
     
     return exam
 
@@ -181,7 +189,7 @@ def get_exam_with_layouts(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
     
-    assert_clinic_scope(db, current_user, exam.clinic_id)
+    assert_record_scope(db, current_user, exam)
     
     # Get all layout instances for this exam
     layout_instances = db.query(ExamLayoutInstance).filter(
@@ -218,7 +226,7 @@ def get_exam_page_data(
     exam = db.query(OpticalExam).filter(OpticalExam.id == exam_id).first()
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
-    assert_clinic_scope(db, current_user, exam.clinic_id)
+    assert_record_scope(db, current_user, exam)
     # One roundtrip: fetch instances joined with layouts
     pairs = (
         db.query(ExamLayoutInstance, ExamLayout)
@@ -259,8 +267,7 @@ def get_exam_page_data(
     active_exam_data = active_instance.exam_data if active_instance and getattr(active_instance, 'exam_data', None) else {}
     # Gather available layouts (include clinic-specific and global where applicable)
     available_layouts_q = db.query(ExamLayout)
-    if exam.clinic_id is not None:
-        available_layouts_q = available_layouts_q.filter(or_(ExamLayout.clinic_id == exam.clinic_id, ExamLayout.clinic_id == None))
+    available_layouts_q = available_layouts_q.filter(or_(ExamLayout.clinic_id == exam.clinic_id, ExamLayout.clinic_id == None))
     available_layouts = (
         available_layouts_q
         .order_by(ExamLayout.sort_index.asc(), ExamLayout.id.asc())
@@ -309,7 +316,7 @@ def update_exam(
     if not db_exam:
         raise HTTPException(status_code=404, detail="Exam not found")
     
-    assert_clinic_scope(db, current_user, db_exam.clinic_id)
+    assert_record_scope(db, current_user, db_exam)
     
     try:
         update_fields = exam_update.dict(exclude_unset=True)
@@ -355,7 +362,7 @@ def delete_exam(
     if not db_exam:
         raise HTTPException(status_code=404, detail="Exam not found")
     
-    assert_clinic_scope(db, current_user, db_exam.clinic_id)
+    assert_record_scope(db, current_user, db_exam)
     
     item = move_to_trash(db, current_user, "exam", exam_id)
     return {"message": "Exam deleted successfully", "trash_item_id": item.id, "expires_at": item.expires_at, "side_effects": "backend"}
@@ -363,16 +370,20 @@ def delete_exam(
 @router.get("/client/{client_id}", response_model=List[OpticalExamSchema])
 def get_exams_by_client(
     client_id: int,
+    clinic_id: Optional[int] = Query(None),
     type: Optional[str] = Query(None, description="Filter by exam type"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Get all exams for a specific client"""
-    get_scoped_client(db, current_user, client_id)
-    query = db.query(OpticalExam).filter(OpticalExam.client_id == client_id)
+    client_id = get_scoped_client(db, current_user, client_id).id
+    query = db.query(OpticalExam, Clinic.name).outerjoin(Clinic, (Clinic.id == OpticalExam.clinic_id) & (Clinic.company_id == OpticalExam.company_id)).filter(OpticalExam.client_id == client_id, record_filter(db, current_user, OpticalExam, clinic_id))
     
     # Apply filters
     if type:
         query = query.filter(OpticalExam.type == type)
     
-    return query.order_by(OpticalExam.exam_date.desc().nulls_last(), OpticalExam.id.desc()).all() 
+    rows = query.order_by(OpticalExam.exam_date.desc().nulls_last(), OpticalExam.id.desc()).all()
+    for exam, clinic_name in rows:
+        exam.clinic_name = clinic_name
+    return [exam for exam, _ in rows]

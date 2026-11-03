@@ -1,3 +1,4 @@
+import { RecordClinicLabel } from "@/components/RecordClinicLabel"
 import React, { useRef, useState } from "react";
 import {
   Table,
@@ -116,7 +117,7 @@ const AppointmentTableRow = React.memo(function AppointmentTableRow({
           : ""}
       </TableCell>
       <TableCell onClick={() => onEdit(appointment)} className="cursor-pointer">
-        {appointment.time}
+        {appointment.time}<RecordClinicLabel clinicId={appointment.clinic_id} />
       </TableCell>
       {clientId === 0 && (
         <TableCell>
@@ -471,7 +472,7 @@ export function AppointmentsTable({
   React.useEffect(() => {
     const loadUsersOnce = async () => {
       try {
-        const data = await getAllUsers();
+        const data = await getAllUsers(undefined, true);
         setUsers(data || []);
       } catch {}
     };
@@ -913,6 +914,7 @@ export function AppointmentsTable({
       style={{ scrollbarWidth: "none" }}
     >
       <TableFiltersBar
+          exportTable="appointments"
         searchValue={searchValue}
         onSearchChange={(value) =>
           onSearchChange ? onSearchChange(value) : setSearchQuery(value)

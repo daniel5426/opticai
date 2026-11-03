@@ -9,10 +9,11 @@ from auth import get_current_user
 from models import User
 from utils.table_search import build_all_terms_search_condition, search_blob
 from security.scope import (
-    get_allowed_clinic_ids,
+    get_record_clinic_ids,
+    family_clinic_condition,
     get_scoped_client,
     get_scoped_family,
-    normalize_clinic_id_for_company,
+    normalize_record_clinic,
     resolve_company_id,
 )
 
@@ -32,14 +33,14 @@ def get_families_paginated(
     current_user: User = Depends(get_current_user)
 ):
     effective_company_id = resolve_company_id(db, current_user)
-    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
+    allowed_clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
 
     count_q = db.query(func.count(Family.id))
     
     if effective_company_id is not None:
         count_q = count_q.filter(Family.company_id == effective_company_id)
         
-    count_q = count_q.filter(Family.clinic_id.in_(allowed_clinic_ids))
+    count_q = count_q.filter((family_clinic_condition(allowed_clinic_ids) if clinic_id is not None else True))
         
     search_condition = build_all_terms_search_condition(
         search,
@@ -66,7 +67,7 @@ def get_families_paginated(
     if effective_company_id is not None:
         base = base.filter(Family.company_id == effective_company_id)
 
-    base = base.filter(Family.clinic_id.in_(allowed_clinic_ids))
+    base = base.filter((family_clinic_condition(allowed_clinic_ids) if clinic_id is not None else True))
         
     if search_condition is not None:
         base = base.filter(search_condition)
@@ -139,7 +140,7 @@ def create_family(
 ):
     payload = family.dict()
     payload["company_id"] = resolve_company_id(db, current_user)
-    payload["clinic_id"] = normalize_clinic_id_for_company(db, current_user, payload.get("clinic_id"))
+    payload["clinic_id"] = normalize_record_clinic(db, current_user, payload.get("clinic_id"))
     db_family = Family(**payload)
     db.add(db_family)
     db.commit()
@@ -162,8 +163,8 @@ def get_all_families(
     current_user: User = Depends(get_current_user)
 ):
     effective_company_id = resolve_company_id(db, current_user)
-    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
-    query = db.query(Family).filter(Family.company_id == effective_company_id).filter(Family.clinic_id.in_(allowed_clinic_ids))
+    allowed_clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
+    query = db.query(Family).filter(Family.company_id == effective_company_id).filter((family_clinic_condition(allowed_clinic_ids) if clinic_id is not None else True))
     families = query.all()
     family_ids = [family.id for family in families]
 
@@ -222,8 +223,7 @@ def update_family(
     db_family = get_scoped_family(db, current_user, family_id)
     update_fields = family.dict(exclude_unset=True)
     update_fields.pop("company_id", None)
-    if "clinic_id" in update_fields:
-        update_fields["clinic_id"] = normalize_clinic_id_for_company(db, current_user, update_fields["clinic_id"])
+    update_fields.pop("clinic_id", None)
     for field, value in update_fields.items():
         setattr(db_family, field, value)
     
@@ -275,8 +275,6 @@ def add_client_to_family(
 ):
     family = get_scoped_family(db, current_user, family_id)
     client = get_scoped_client(db, current_user, client_id)
-    if client.clinic_id != family.clinic_id:
-        raise HTTPException(status_code=403, detail="Client does not belong to family clinic")
     
     client.family_id = family_id
     client.family_role = role

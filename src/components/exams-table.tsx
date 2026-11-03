@@ -1,3 +1,5 @@
+import { useRecordClinicName } from "@/components/RecordClinicLabel"
+import { importedExamName } from "@/lib/opticplus-cards";
 import React, { useState, useEffect } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
@@ -90,6 +92,7 @@ export function ExamsTable({
   const [activeLayouts, setActiveLayouts] = useState<ExamLayout[]>([])
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const { currentClinic } = useUser()
+  const clinicName = useRecordClinicName()
   const [previewExamId, setPreviewExamId] = useState<number | null>(null)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [selectedTestName, setSelectedTestName] = useState<string>(ALL_FILTER_VALUE)
@@ -102,10 +105,10 @@ export function ExamsTable({
       exam_date: { getValue: (exam) => exam.exam_date, type: "date" },
       test_name: { getValue: (exam) => exam.test_name },
       client: { getValue: (exam) => exam.clientName },
-      clinic: { getValue: (exam) => exam.clinic },
+      clinic: { getValue: (exam) => clinicName(exam.clinic_id, exam.clinic_name, exam.clinic) },
       examiner: { getValue: (exam) => exam.full_name || exam.username }
     }),
-    []
+    [clinicName]
   )
 
   useEffect(() => {
@@ -146,8 +149,8 @@ export function ExamsTable({
 
     return result.filter((exam) => {
       const fullName = (exam.full_name || exam.username || "").toLowerCase()
-      const clinic = (exam.clinic || "").toLowerCase()
-      const testName = (exam.test_name || "").toLowerCase()
+      const clinic = (clinicName(exam.clinic_id, exam.clinic_name, exam.clinic) || "").toLowerCase()
+      const testName = importedExamName(t, exam.test_name).toLowerCase()
 
       if (fullName.includes(searchLower) || clinic.includes(searchLower) || testName.includes(searchLower)) {
         return true
@@ -155,7 +158,7 @@ export function ExamsTable({
 
       return DateSearchHelper.matchesDate(searchLower, exam.exam_date)
     })
-  }, [data, searchValue, testNameFilter, serverFiltered])
+  }, [clinicName, data, searchValue, testNameFilter, serverFiltered])
 
   const displayData = React.useMemo(() => {
     return onSortChange ? filteredData : sortRows(filteredData, activeSort, sortColumns)
@@ -190,7 +193,7 @@ export function ExamsTable({
   return (
     <>
       <TableListLayout fillHeight={fillHeight} columnCount={clientId === 0 ? 6 : 5} loading={loading}
-        toolbar={{searchValue:searchValue,
+        toolbar={{exportTable:'exams',searchValue:searchValue,
 onSearchChange:(value) => (onSearchChange ? onSearchChange(value) : setSearchQuery(value)),
 searchPlaceholder:t("examList.search"),
 filters:[
@@ -203,7 +206,7 @@ filters:[
               { value: ALL_FILTER_VALUE, label: t("examList.all") },
               ...uniqueTestNames.map((testName) => ({
                 value: testName || "unknown",
-                label: testName || t("examList.unknown")
+                label: importedExamName(t, testName) || t("examList.unknown")
               }))
             ],
             widthClassName: "w-[190px]"
@@ -322,7 +325,7 @@ actions:clientId > 0 ? (
                   }}
                 >
                   <TableCell>{exam.exam_date ? new Date(exam.exam_date).toLocaleDateString({he:"he-IL",en:"en-US",fr:"fr-FR"}[locale]) : ""}</TableCell>
-                  <TableCell>{exam.test_name}</TableCell>
+                  <TableCell>{importedExamName(t, exam.test_name)}</TableCell>
                   {clientId === 0 && (
                     <TableCell>
                       <button
@@ -343,7 +346,7 @@ actions:clientId > 0 ? (
                       </button>
                     </TableCell>
                   )}
-                  <TableCell>{exam.clinic}</TableCell>
+                  <TableCell>{clinicName(exam.clinic_id, exam.clinic_name, exam.clinic) || "—"}</TableCell>
                   <TableCell>{exam.full_name || exam.username}</TableCell>
                   <TableCell>
                     <Button

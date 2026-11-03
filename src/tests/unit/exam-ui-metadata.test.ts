@@ -680,6 +680,12 @@ describe("internal full data tab helpers", () => {
     expect(isInternalFullDataTab(realTab)).toBe(false);
     expect(isPersistableLayoutTab(realTab)).toBe(true);
   });
+
+  test("keeps explicit instance-owned import layouts without making virtual tabs persistable", () => {
+    expect(isPersistableLayoutTab({id:123,layout_id:null,instance_layout:true})).toBe(true);
+    expect(isPersistableLayoutTab({id:123,layout_id:null})).toBe(false);
+    expect(isPersistableLayoutTab({id:VIRTUAL_FULL_DATA_TAB_ID,layout_id:null,instance_layout:true})).toBe(false);
+  });
 });
 
 describe("old refraction extension compatibility", () => {

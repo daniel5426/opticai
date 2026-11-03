@@ -15,6 +15,7 @@ interface ExamGridLayoutProps {
   className?: string;
   itemClassName?: string;
   separators?: boolean;
+  compact?: boolean;
   renderItem: (
     item: GridLayoutItem,
     index: number,
@@ -29,8 +30,29 @@ export function ExamGridLayout({
   className,
   itemClassName,
   separators = false,
+  compact = false,
   renderItem,
 }: ExamGridLayoutProps) {
+  const [heights, setHeights] = React.useState<Record<string, number>>({});
+  const contentRefs = React.useRef(new Map<string, HTMLDivElement>());
+  const measurementKey = items.map(item => item.id).join('|');
+  React.useLayoutEffect(() => {
+    if (!compact) return;
+    const observer = new ResizeObserver(entries => {
+      setHeights(previous => {
+        const next = {...previous};
+        let changed = false;
+        for (const entry of entries) {
+          const id = (entry.target as HTMLElement).dataset.compactCardId!;
+          const height = Math.ceil(entry.target.getBoundingClientRect().height) + 16;
+          if (next[id] !== height) {next[id] = height; changed = true;}
+        }
+        return changed ? next : previous;
+      });
+    });
+    contentRefs.current.forEach(element => observer.observe(element));
+    return () => observer.disconnect();
+  }, [compact, measurementKey]);
   const sortedItems = sortGridItems(items);
   const resolvedLanes = React.useMemo(() => {
     if (lanes && lanes.length) return lanes;
@@ -51,10 +73,11 @@ export function ExamGridLayout({
       style={{
         gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
         alignItems: "start",
+        ...(compact ? {gridAutoRows:"1px",gridAutoFlow:"row dense",rowGap:0} : {}),
         alignContent: separators ? "start" : undefined,
       }}
     >
-      {resolvedLanes.map((lane) => {
+      {!compact && resolvedLanes.map((lane) => {
         const laneItems = sortedItems.filter((item) => item.y === lane);
         if (laneItems.length > 0) return null;
 
@@ -107,15 +130,17 @@ export function ExamGridLayout({
             className={cn(
               "min-w-0",
               separators && "self-stretch px-5 py-3",
-              item.type === "notes" && "h-full self-stretch",
+              item.type === "notes" && !compact && "h-full self-stretch",
               itemClassName,
             )}
             style={{
-              gridColumn: `${item.x + 1} / span ${item.w}`,
-              gridRow: item.y + 1,
+              gridColumn: compact ? `span ${item.w}` : `${item.x + 1} / span ${item.w}`,
+              gridRow: compact ? `span ${heights[item.id] || 200}` : item.y + 1,
             }}
           >
-            {renderItem(item, laneIndex, laneItems)}
+            <div className={!compact ? "contents" : undefined} data-compact-card-id={item.id} ref={element => {if (element) contentRefs.current.set(item.id, element); else contentRefs.current.delete(item.id);}}>
+              {renderItem(item, laneIndex, laneItems)}
+            </div>
           </div>
         );
       })}

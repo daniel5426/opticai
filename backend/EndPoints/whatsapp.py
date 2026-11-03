@@ -8,7 +8,9 @@ import logging
 from auth import get_current_user
 from security.scope import require_company_admin
 
-router = APIRouter(prefix="/whatsapp", tags=["whatsapp"])
+from security.entitlements import campaign_access
+
+router = APIRouter(prefix="/whatsapp", tags=["whatsapp"], dependencies=[Depends(campaign_access)])
 logger = logging.getLogger(__name__)
 
 @router.post("/connect")

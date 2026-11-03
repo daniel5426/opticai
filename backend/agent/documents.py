@@ -13,10 +13,11 @@ from datetime import timedelta
 from .failures import PlatformOperationFailed, job_failure
 
 TYPES = {'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-         'text/plain', 'image/png', 'image/jpeg', 'image/webp'}
+         'text/plain', 'audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/x-wav', 'image/png', 'image/jpeg', 'image/webp'}
 
 
 def submit_document(db, authority, filename, media_type, data):
+    media_type = {'audio/x-m4a': 'audio/mp4', 'audio/wave': 'audio/wav', 'audio/x-wav': 'audio/wav'}.get(media_type, media_type)
     if media_type not in TYPES or not data or len(data) > 25 * 1024 * 1024:
         raise HTTPException(422, 'agent.invalidDocument')
     sdk = client()
@@ -77,7 +78,7 @@ def upload_document(db, job, sdk, filename, media_type, data):
 def process_document(db, job):
     sdk = client()
     native = job.definition.get('media_type') in {'text/plain', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}
-    executable = setting('AGENTS24_NATIVE_DOCUMENT_PIPELINE_ID' if native else 'AGENTS24_DOCUMENT_PIPELINE_ID')
+    executable = setting('AGENTS24_SPEECH_PIPELINE_ID' if job.definition.get('media_type', '').startswith('audio/') else 'AGENTS24_NATIVE_DOCUMENT_PIPELINE_ID' if native else 'AGENTS24_DOCUMENT_PIPELINE_ID')
     if not executable:
         raise RuntimeError('Document pipeline is not configured')
     definition = job.definition
@@ -108,7 +109,7 @@ def process_document(db, job):
         state = sdk.ingestion_jobs.get(platform_id, lite=True)
         if state['status'] == 'completed':
             steps = sdk.ingestion_jobs.list_steps(platform_id)['steps']
-            outcomes = [value for step in steps if step['operator_id'] in {'document_extract', 'ocr'}
+            outcomes = [value for step in steps if step['operator_id'] in {'document_extract', 'ocr', 'speech_to_text'}
                         for value in step.get('metadata', {}).get('source_outcomes', [])
                         if value.get('source', {}).get('content_id') == job.definition.get('source_content_id', job.id) and value.get('source', {}).get('revision_id') == job.definition.get('source_revision', job.definition['digest'])]
             if not outcomes or any(not value.get('processed_ref') for value in outcomes):

@@ -754,7 +754,7 @@ export function SidebarQuickActions({
                   <DropdownMenuItem
                     onClick={() => triggerInventoryAction("import")}
                   >
-                    ייבוא CSV
+                    {t("supply.import")}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                 </>

@@ -1,3 +1,6 @@
+import { apiClient } from "@/lib/api-client"
+import { authService } from "@/lib/auth/AuthService"
+import { useClientHistoryClinic } from "./useCompanyClinicFilter"
 import { QueryClient, QueryKey, useQuery } from "@tanstack/react-query"
 import { getAppointmentsByClient } from "@/lib/db/appointments-db"
 import { getClientById } from "@/lib/db/clients-db"
@@ -18,15 +21,20 @@ export type ClientTabName =
   | "appointments"
   | "files"
 
+const clientPrefix = (clientId: number) => {
+  const companyId = authService.getSession()?.user?.company_id
+  return companyId ? ["client", clientId, companyId] as const : ["client", clientId] as const
+}
+
 export const clientQueryKeys = {
-  client: (clientId: number) => ["client", clientId] as const,
-  exams: (clientId: number, type?: string) => ["client", clientId, "exams", type ?? "all"] as const,
-  orders: (clientId: number) => ["client", clientId, "orders"] as const,
-  ordersContext: (clientId: number) => ["client", clientId, "orders-context"] as const,
-  medicalLogs: (clientId: number) => ["client", clientId, "medical-logs"] as const,
-  referrals: (clientId: number) => ["client", clientId, "referrals"] as const,
-  appointments: (clientId: number) => ["client", clientId, "appointments"] as const,
-  files: (clientId: number) => ["client", clientId, "files"] as const,
+  client: (clientId: number) => [...clientPrefix(clientId)] as const,
+  exams: (clientId: number, type?: string) => [...clientPrefix(clientId), "exams", type ?? "all"] as const,
+  orders: (clientId: number) => [...clientPrefix(clientId), "orders"] as const,
+  ordersContext: (clientId: number) => [...clientPrefix(clientId), "orders-context"] as const,
+  medicalLogs: (clientId: number) => [...clientPrefix(clientId), "medical-logs"] as const,
+  referrals: (clientId: number) => [...clientPrefix(clientId), "referrals"] as const,
+  appointments: (clientId: number) => [...clientPrefix(clientId), "appointments"] as const,
+  files: (clientId: number) => [...clientPrefix(clientId), "files"] as const,
   users: (clinicId?: number) => ["users", clinicId ?? "all"] as const,
 }
 
@@ -35,23 +43,27 @@ const isValidClientId = (clientId: number) => Number.isFinite(clientId) && clien
 export function useUsersQuery(clinicId?: number, enabled = true) {
   return useQuery({
     queryKey: clientQueryKeys.users(clinicId),
-    queryFn: () => getAllUsers(clinicId),
+    queryFn: async () => { const response = await apiClient.getRecordStaff(); if (response.error) throw new Error(response.error); return response.data ?? [] },
     enabled,
   })
 }
 
 export function useClientExamsQuery(clientId: number, type: "exam" | "opticlens", enabled = true) {
+  const clinicId = useClientHistoryClinic()
   return useQuery({
     queryKey: clientQueryKeys.exams(clientId, type),
     queryFn: () => getExamsByClientId(clientId, type),
+    select: items => clinicId === undefined ? items : items.filter(item => item.clinic_id === clinicId),
     enabled: enabled && isValidClientId(clientId),
   })
 }
 
 export function useClientOrdersQuery(clientId: number, enabled = true) {
+  const clinicId = useClientHistoryClinic()
   return useQuery({
     queryKey: clientQueryKeys.orders(clientId),
     queryFn: () => getOrdersByClientId(clientId),
+    select: items => clinicId === undefined ? items : items.filter(item => item.clinic_id === clinicId),
     enabled: enabled && isValidClientId(clientId),
   })
 }
@@ -65,33 +77,41 @@ export function useClientOrdersContextQuery(clientId: number, enabled = true) {
 }
 
 export function useClientMedicalLogsQuery(clientId: number, enabled = true) {
+  const clinicId = useClientHistoryClinic()
   return useQuery({
     queryKey: clientQueryKeys.medicalLogs(clientId),
     queryFn: () => getMedicalLogsByClientId(clientId),
+    select: items => clinicId === undefined ? items : items.filter(item => item.clinic_id === clinicId),
     enabled: enabled && isValidClientId(clientId),
   })
 }
 
 export function useClientReferralsQuery(clientId: number, enabled = true) {
+  const clinicId = useClientHistoryClinic()
   return useQuery({
     queryKey: clientQueryKeys.referrals(clientId),
     queryFn: () => getReferralsByClientId(clientId),
+    select: items => clinicId === undefined ? items : items.filter(item => item.clinic_id === clinicId),
     enabled: enabled && isValidClientId(clientId),
   })
 }
 
 export function useClientAppointmentsQuery(clientId: number, enabled = true) {
+  const clinicId = useClientHistoryClinic()
   return useQuery({
     queryKey: clientQueryKeys.appointments(clientId),
     queryFn: () => getAppointmentsByClient(clientId),
+    select: items => clinicId === undefined ? items : items.filter(item => item.clinic_id === clinicId),
     enabled: enabled && isValidClientId(clientId),
   })
 }
 
 export function useClientFilesQuery(clientId: number, enabled = true) {
+  const clinicId = useClientHistoryClinic()
   return useQuery({
     queryKey: clientQueryKeys.files(clientId),
     queryFn: () => getFilesByClientId(clientId),
+    select: items => clinicId === undefined ? items : items.filter(item => item.clinic_id === clinicId),
     enabled: enabled && isValidClientId(clientId),
   })
 }
@@ -163,7 +183,7 @@ export function prefetchClientTab(
       }),
       queryClient.prefetchQuery({
         queryKey: clientQueryKeys.users(clinicId),
-        queryFn: () => getAllUsers(clinicId),
+        queryFn: async () => { const response = await apiClient.getRecordStaff(); if (response.error) throw new Error(response.error); return response.data ?? [] },
       }),
     ]).then(() => undefined)
   }

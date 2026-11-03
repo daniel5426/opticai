@@ -22,7 +22,7 @@ from auth import get_password_hash, utcnow
 from database import Base, get_db
 from EndPoints import auth as auth_endpoint
 from EndPoints import clinics as clinics_endpoint
-from models import Clinic, ClinicDeviceTrust, ExamLayout, User
+from models import Clinic, ClinicDeviceTrust, ExamLayout, Subscription, User
 
 
 @pytest.fixture()
@@ -250,6 +250,13 @@ def test_clinic_create_without_pin_and_remove_pin_revokes_trust(client_and_db):
     company_id = setup["company"]["id"]
     clinic_id = setup["clinic"]["id"]
     unique_id = setup["clinic"]["unique_id"]
+
+    # This PIN test needs a plan permitting a second clinic; new signups are capped.
+    with session_factory() as db:
+        subscription = db.query(Subscription).filter_by(company_id=company_id).one()
+        subscription.plan_code = "growth"
+        subscription.clinic_limit = 3
+        db.commit()
 
     created = client.post(
         "/api/v1/clinics/",

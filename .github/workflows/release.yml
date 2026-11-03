@@ -75,6 +75,11 @@ jobs:
         with:
           node-version: '20'
           
+      - name: Apply public release dependency lock
+        env:
+          DEVDESK_RELEASE_BUILD: "1"
+        run: node scripts/devdesk-release-inputs.mjs apply
+
       - name: Install dependencies
         run: npm ci
 
@@ -117,6 +122,11 @@ jobs:
         with:
           node-version: '20'
           
+      - name: Apply public release dependency lock
+        env:
+          DEVDESK_RELEASE_BUILD: "1"
+        run: node scripts/devdesk-release-inputs.mjs apply
+
       - name: Install dependencies
         run: npm ci
 
@@ -159,6 +169,8 @@ jobs:
           $unpacked = Get-ChildItem release -Filter "win-unpacked" -Directory -Recurse | Select-Object -First 1
           if (-not $unpacked) { throw "Windows unpacked application was not created" }
           $reader = Join-Path $unpacked.FullName "resources\optitech_reader\optitech-mdb-exporter.exe"
+          $profiles = & $reader --profiles | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $profiles.opticplus_format_version -ne 2 -or $profiles.profiles -notcontains "opticplus") { throw "Packaged OpticPlus reader capability check failed" }
           $notice = Join-Path $unpacked.FullName "resources\optitech_reader\THIRD_PARTY_NOTICES.md"
           $license = Join-Path $unpacked.FullName "resources\optitech_reader\COPYING.LIB"
           $source = Join-Path $unpacked.FullName "resources\optitech_reader\SOURCE_AND_BUILD.md"

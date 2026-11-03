@@ -646,7 +646,7 @@ export function LegacyOrderDetailPage({
         setWorkspaceLoadFailed(false);
 
         // Load users for display purposes
-        const usersData = await getAllUsers();
+        const usersData = await getAllUsers(undefined, true);
         setUsers(usersData);
 
         if (orderId) {

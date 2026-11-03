@@ -1,0 +1,251 @@
+{
+  "version": 1,
+  "id": "opticai",
+  "name": "OpticAI",
+  "defaultProfile": "clinic-web",
+  "profiles": {
+    "clinic-web": {
+      "name": "Clinic Web",
+      "command": [
+        "backend/.venv/bin/python",
+        "scripts/clinic-dev.py",
+        "up",
+        "--browser"
+      ],
+      "ports": [
+        8000,
+        8001,
+        4316,
+        5126
+      ],
+      "url": "http://localhost:5126",
+      "dependencies": [
+        {
+          "name": "Agents24 production",
+          "url": "https://api.agents24.dev/health",
+          "kind": "external"
+        }
+      ],
+      "readiness": [
+        "http://127.0.0.1:8000/health",
+        "http://localhost:5126"
+      ],
+      "startupSeconds": 300,
+      "shutdownSeconds": 15,
+      "envFiles": [
+        "backend/.env"
+      ],
+      "externalRoles": [
+        "web",
+        "API",
+        "artifact server",
+        "artifact relay",
+        "requested worker",
+        "summaries worker"
+      ]
+    },
+    "clinic-electron": {
+      "name": "Clinic Electron",
+      "command": [
+        "backend/.venv/bin/python",
+        "scripts/clinic-dev.py",
+        "up"
+      ],
+      "ports": [
+        8000,
+        8001,
+        4316,
+        5126
+      ],
+      "dependencies": [
+        {
+          "name": "Agents24 production",
+          "url": "https://api.agents24.dev/health",
+          "kind": "external"
+        }
+      ],
+      "readiness": [
+        "http://127.0.0.1:8000/health",
+        "http://localhost:5126"
+      ],
+      "startupSeconds": 300,
+      "shutdownSeconds": 15,
+      "envFiles": [
+        "backend/.env"
+      ],
+      "externalRoles": [
+        "web",
+        "API",
+        "artifact server",
+        "artifact relay",
+        "requested worker",
+        "summaries worker"
+      ]
+    },
+    "demo-web": {
+      "name": "Demo Web",
+      "command": [
+        ".venv-agent-dev/bin/python",
+        "scripts/agent-dev.py",
+        "up",
+        "--browser"
+      ],
+      "ports": [
+        8016,
+        4316,
+        5136
+      ],
+      "url": "http://localhost:5136",
+      "dependencies": [
+        {
+          "name": "Agents24",
+          "url": "http://127.0.0.1:8026/health",
+          "kind": "external"
+        }
+      ],
+      "readiness": [
+        "http://127.0.0.1:8016/health",
+        "http://localhost:5136"
+      ],
+      "startupSeconds": 300,
+      "shutdownSeconds": 15,
+      "envFiles": [
+        ".env.agent-dev"
+      ]
+    },
+    "demo-electron": {
+      "name": "Demo Electron",
+      "command": [
+        ".venv-agent-dev/bin/python",
+        "scripts/agent-dev.py",
+        "up"
+      ],
+      "ports": [
+        8016,
+        4316,
+        5136
+      ],
+      "dependencies": [
+        {
+          "name": "Agents24",
+          "url": "http://127.0.0.1:8026/health",
+          "kind": "external"
+        }
+      ],
+      "readiness": [
+        "http://127.0.0.1:8016/health",
+        "http://localhost:5136"
+      ],
+      "startupSeconds": 300,
+      "shutdownSeconds": 15,
+      "envFiles": [
+        ".env.agent-dev"
+      ]
+    },
+    "prysm-authoring": {
+      "name": "Prysm production contract authoring",
+      "command": [
+        "backend/.venv/bin/python",
+        "scripts/prysm-authoring.py"
+      ],
+      "ports": [
+        4316
+      ],
+      "dependencies": [
+        {
+          "name": "Agents24 production",
+          "url": "https://api.agents24.dev/health",
+          "kind": "external"
+        }
+      ],
+      "readiness": [
+        "http://127.0.0.1:4316/.well-known/agents24/artifact/health"
+      ],
+      "startupSeconds": 120,
+      "shutdownSeconds": 15,
+      "envFiles": [
+        "backend/.env"
+      ]
+    }
+  },
+  "checks": {
+    "fast": [
+      "node",
+      "scripts/devdesk-check.mjs",
+      "--fast"
+    ],
+    "full": [
+      "node",
+      "scripts/devdesk-check.mjs",
+      "--full"
+    ]
+  },
+  "release": {
+    "repository": "daniel5426/opticai",
+    "targets": [
+      "web",
+      "backend",
+      "desktop"
+    ],
+    "environment": "production",
+    "runbook": "CI.md",
+    "requiredWorkflows": [
+      "production-promotion.yml"
+    ],
+    "services": [
+      "opticai",
+      "softoptic-migration-worker-Z2hA",
+      "prysm-web"
+    ],
+    "healthUrls": [
+      "https://api.prysm.co.il/health"
+    ],
+    "projectId": "fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb",
+    "serviceTargets": {
+      "web": [
+        "prysm-web"
+      ],
+      "backend": [
+        "opticai",
+        "softoptic-migration-worker-Z2hA"
+      ],
+      "desktop": []
+    },
+    "inputs": {
+      "check": [
+        "node",
+        "scripts/devdesk-release-inputs.mjs",
+        "check"
+      ],
+      "apply": [
+        "node",
+        "scripts/devdesk-release-inputs.mjs",
+        "apply"
+      ],
+      "requiredFiles": [
+        "scripts/devdesk-release-inputs.mjs",
+        "config/devdesk-release/inputs.json",
+        "config/devdesk-release/package-lock.json",
+        "config/devdesk-release/package.json",
+        "config/devdesk-release/versions.json"
+      ]
+    },
+    "validationSetup": [
+      [
+        "python3",
+        "-m",
+        "venv",
+        "backend/.venv"
+      ],
+      [
+        "backend/.venv/bin/python",
+        "-m",
+        "pip",
+        "install",
+        "-r",
+        "backend/requirements.txt",
+        "pytest"
+      ]
+    ]
+  }
+}

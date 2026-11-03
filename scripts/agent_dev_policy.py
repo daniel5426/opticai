@@ -7,7 +7,7 @@ import httpx
 def verify_approval_policy(env, status, *, transport=None):
     base = env['AGENTS24_BASE_URL'].rstrip('/')
     url = urlsplit(base)
-    if url.scheme != 'http' or url.hostname not in {'localhost', '127.0.0.1'}:
+    if not (base == 'https://api.agents24.dev' and env.get('AGENTS24_RUNTIME_TARGET') == 'published') and (url.scheme != 'http' or url.hostname not in {'localhost', '127.0.0.1'}):
         raise RuntimeError('Approval readiness checks require the local Agents24 API.')
     artifacts = [binding['resource_id'] for binding in status.get('installation', {}).get('bindings', [])
                  if binding.get('kind') == 'artifact' and binding.get('resource_key') == 'clinic-tools'

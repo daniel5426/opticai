@@ -1,3 +1,4 @@
+import { GlobalAgentPanel } from '@/components/agent/GlobalAgentPanel';
 import React, { useState, useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
@@ -8,7 +9,7 @@ import {
   applyCompanyThemeColors,
   cacheCompanyThemeColors,
 } from "@/helpers/theme_helpers";
-import { Company, Settings, User } from "@/lib/db/schema-interface";
+import { Company, Settings } from "@/lib/db/schema-interface";
 import { SettingsContext } from "@/contexts/SettingsContext";
 import { ClientSidebarProvider } from "@/contexts/ClientSidebarContext";
 import { PrysmAgentProvider } from "@/contexts/PrysmAgentContext";
@@ -45,11 +46,13 @@ function SubscriptionBanner({
   if (
     !subscription ||
     (subscription.status !== "past_due" &&
-      subscription.access_mode !== "read_only")
+      subscription.access_mode !== "read_only" && subscription.access_mode !== "suspended" && subscription.access_mode !== "billing_only")
   )
     return null;
   const message =
-    subscription.access_mode === "read_only"
+    subscription.access_mode === "suspended" || subscription.access_mode === "billing_only"
+      ? t("billing.restricted")
+      : subscription.access_mode === "read_only"
       ? t("readOnlySubscription")
       : t("overdueSubscription");
   return (
@@ -86,22 +89,7 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
   const isAppearanceGallery = import.meta.env.DEV && location.pathname === "/dev/appearance";
   const routerLocation = useRouterState({ select: (state) => state.location });
 
-  // Safe access to user context (handles HMR gracefully)
-  let currentUser: User | null = null;
-  let currentClinic: any = null;
-  let isUserLoading = true;
-
-  try {
-    const userContext = useUser();
-    currentUser = userContext.currentUser;
-    currentClinic = userContext.currentClinic;
-    isUserLoading = userContext.isLoading;
-  } catch (error) {
-    // During HMR, UserProvider might be temporarily unavailable
-    console.log(
-      "[BaseLayout] UserContext temporarily unavailable (likely HMR)",
-    );
-  }
+  const { currentUser, currentClinic, isLoading: isUserLoading } = useUser();
 
   const updateSettings = (newSettings: Settings) => {
     setSettings(newSettings);
@@ -205,9 +193,22 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
       setSubscription(null);
       return;
     }
-    void apiClient.getSubscriptionSummary().then((response) => {
-      if (response.data) setSubscription(response.data);
-    });
+    let disposed = false;
+    const refresh = () => {
+      void apiClient.getSubscriptionSummary().then(response => {
+        if (!disposed && response.data) setSubscription(response.data);
+      });
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 30000);
+    window.addEventListener('subscription:attention', refresh);
+    window.addEventListener('focus', refresh);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+      window.removeEventListener('subscription:attention', refresh);
+      window.removeEventListener('focus', refresh);
+    };
   }, [currentUser?.id]);
 
   // Listen for company updates
@@ -273,6 +274,19 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
   const isCallbackRoute =
     currentPath === "/auth/callback" || currentPath === "/oauth/callback";
 
+  // Auth initialization can finish before the router is attached, and a session
+  // can expire after a page has mounted. Never render a protected page through
+  // the public, shell-free layout while navigation catches up.
+  const requiresStaffSession = shouldShowSidebar || isControlCenterRoute;
+  const needsStaffSignIn = requiresStaffSession && !currentUser && !isAppearanceGallery;
+  useEffect(() => {
+    if (isUserLoading || !needsStaffSignIn || isCallbackRoute) return;
+    void navigate({
+      to: currentClinic?.id ? "/user-selection" : "/control-center",
+      replace: true,
+    });
+  }, [isUserLoading, needsStaffSignIn, isCallbackRoute, currentClinic?.id, navigate]);
+
   useEffect(() => {
     if (
       !routerLocation?.pathname ||
@@ -325,7 +339,7 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
   if (isAppearanceGallery) return <div className="flex h-screen flex-col"><main className="min-h-0 flex-1">{children}</main></div>;
 
   // Show loading during auth initialization (except on callback route)
-  if (isUserLoading && !isCallbackRoute) {
+  if ((isUserLoading || needsStaffSignIn) && !isCallbackRoute) {
     return (
       <>
         <div className="bg-background flex h-screen flex-col items-center justify-center">
@@ -388,6 +402,7 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
                             <div className="no-scrollbar flex min-h-0 flex-1 flex-col overflow-auto">
                               {children}
                             </div>
+                            <GlobalAgentPanel />
                           </main>
                         </div>
                       </SidebarInset>
@@ -430,6 +445,7 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
                               {children}
                             </div>
                             <ClientSidebar />
+                            <GlobalAgentPanel />
                           </main>
                         </div>
                       </SidebarInset>

@@ -1,3 +1,4 @@
+import { useSupplyRevision } from '@/lib/inventory-events';
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -31,6 +32,8 @@ const MEASUREMENT_FIELDS: { field: "width" | "bridge" | "height" | "length"; lab
 ];
 
 interface FrameSectionProps {
+  clinicId?: number;
+  orderId?: number;
   frame: Frame;
   isEditing: boolean;
   onFrameFieldChange: (field: keyof Frame, value: string) => void;
@@ -39,7 +42,8 @@ interface FrameSectionProps {
   onInventoryClear: () => void;
 }
 
-const useFrameCatalog = (clinicId?: number) => {
+const useFrameCatalog = (clinicId?: number, orderId?: number) => {
+  const supplyRevision = useSupplyRevision();
   const [variants, setVariants] = useState<CatalogVariant[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -52,7 +56,7 @@ const useFrameCatalog = (clinicId?: number) => {
     }
     setLoading(true);
     void apiClient
-      .getInventoryVariants(clinicId, { category: "frame", stockableOnly: true })
+      .getInventoryVariants(clinicId, { category: "frame", stockableOnly: true, ...(orderId ? { orderId, orderKind: "regular" as const } : {}) })
       .then((response) => {
         if (mounted) setVariants(response.data?.items || []);
       })
@@ -66,13 +70,15 @@ const useFrameCatalog = (clinicId?: number) => {
     return () => {
       mounted = false;
     };
-  }, [clinicId]);
+  }, [clinicId, orderId, supplyRevision]);
 
   return { variants, setVariants, loading };
 };
 
 export function FrameSection({
   frame,
+  clinicId: recordClinicId,
+  orderId,
   isEditing,
   onFrameFieldChange,
   selectedInventory,
@@ -82,7 +88,8 @@ export function FrameSection({
   const { t } = useTranslation();
   const { direction } = useAppLocale();
   const { currentClinic } = useUser();
-  const { variants, setVariants, loading } = useFrameCatalog(currentClinic?.id);
+  const clinicId = recordClinicId ?? currentClinic?.id;
+  const { variants, setVariants, loading } = useFrameCatalog(clinicId, orderId);
   const consumed = selectedInventory?.lifecycle_state === "consumed";
   const catalogValues = {
     supplier: frame.supplier,
@@ -92,7 +99,7 @@ export function FrameSection({
     width: frame.width,
   };
   const canCreateProduct =
-    Boolean(currentClinic?.id) &&
+    Boolean(currentClinic?.id) && clinicId === currentClinic?.id &&
     canCreateFrameCatalogProduct(catalogValues) &&
     !hasMatchingFrameCatalogVariant(variants, catalogValues);
 

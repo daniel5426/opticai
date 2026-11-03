@@ -1,6 +1,8 @@
+import type { InventoryImportPreview, InventoryImportRow, ImportDiagnostic } from './inventory-import';
 import { normalizeApiBaseUrl } from '@/services/api-base-url';
 import { getActiveLocale } from "@/localization/locale";
 import i18n from "@/localization/i18n";
+import { fullExamsList } from './exam-field-mappings';
 import { 
   User, Company, Clinic, Client, Family, Settings, OpticalExam, Appointment, 
   File, MedicalLog, Order, ClientOrdersContext, Billing, BillingPayment, ExamLayout, ExamLayoutInstance,
@@ -42,6 +44,10 @@ import type {
 import type { TrashItem, TrashPage } from "./trash";
 
 const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_URL);
+const EXAM_WRITE_HEADERS = {
+  'X-Prysm-Exam-Write': 'replace-v1',
+  'X-Prysm-Exam-Components': fullExamsList.join(','),
+};
 
 function getFallbackApiBaseUrl(baseUrl: string): string | null {
   try {
@@ -76,7 +82,15 @@ interface ApiResponse<T> {
 
 export interface SubscriptionSummary {
   status: 'pending_checkout' | 'trialing' | 'active' | 'legacy_active' | 'past_due' | 'read_only' | 'cancelled';
-  access_mode: 'full' | 'billing_only' | 'read_only';
+  access_mode: 'full' | 'billing_only' | 'read_only' | 'suspended';
+  provider?: string;
+  amount_minor?: number | null;
+  automatic_billing?: boolean;
+  access_override?: string | null;
+  entitlements?: { ai: boolean; campaigns: boolean };
+  payment_method?: { last4: string | null; brand: string | null } | null;
+  renewal_setup_incomplete?: boolean;
+  can_administer?: boolean;
   plan_code: string;
   pending_plan_code: string | null;
   usage: { clinics: number; staff: number };
@@ -119,6 +133,11 @@ class ApiClient {
   private refreshTokenPromise: Promise<boolean> | null = null;
 
   private emitTrashCreated(endpoint: string, options: RequestInit, data: any) {
+    if (typeof window !== "undefined" && options.method && options.method.toUpperCase() !== "GET" &&
+        /^\/(clients|families|exams|orders|contact-lens-orders|order-groups|appointments|files|referrals|medical-logs|trash|unified-exam-data)(\/|$)/.test(endpoint) &&
+        !endpoint.includes("recent-visit")) {
+      window.dispatchEvent(new Event("prysm:client-records-changed"));
+    }
     if (
       typeof window !== "undefined" &&
       options.method?.toUpperCase() === "DELETE" &&
@@ -209,6 +228,19 @@ class ApiClient {
     return this.request<T>(`/order-groups${path}`, options);
   }
 
+  public async tableExportFetch(path: string, options: RequestInit = {}): Promise<Response> {
+    if (path && !/^\/(?:count|[a-zA-Z0-9-]+(?:\/(?:cancel|download))?)$/.test(path)) throw new Error('tableExport.invalidRequest');
+    const headers = new Headers(options.headers);
+    if (options.body) headers.set('Content-Type', 'application/json');
+    const perform = () => {
+      if (this.token) headers.set('Authorization', `Bearer ${this.token}`);
+      return fetch(`${this.baseUrl}/table-exports${path}`, { ...options, headers, cache: 'no-store' });
+    };
+    let response = await perform();
+    if (response.status === 401 && await this.refreshTokenIfPossible()) response = await perform();
+    return response;
+  }
+
   public async agentFetch(path: string, options: RequestInit = {}, nativeFetch?: typeof fetch): Promise<Response> {
     if (!/^\/api\/(agents24(?:\/|$)|v1\/agent(?:\/|$))/.test(path)) throw new Error('Invalid agent request');
     const headers = new Headers(options.headers);
@@ -282,7 +314,7 @@ class ApiClient {
                 const retryError = await response.json().catch(() => errorData);
                 const detail = (retryError && (retryError as any).detail) || `HTTP ${response.status}`;
                 emitSubscriptionError(response.status, detail);
-                return { error: typeof detail === 'string' ? detail : (detail?.code || `HTTP ${response.status}`), errorDetail: detail, status: response.status };
+                return { error: typeof detail === 'string' ? (detail.startsWith('companyClients.') ? i18n.t(detail) : detail) : (detail?.code || `HTTP ${response.status}`), errorDetail: detail, status: response.status };
               }
             }
             this.clearToken();
@@ -302,7 +334,7 @@ class ApiClient {
         const second = await response.json().catch(() => errorData);
         const detail = (second && (second as any).detail) || `HTTP ${response.status}`;
         emitSubscriptionError(response.status, detail);
-        return { error: typeof detail === 'string' ? detail : (detail?.code || `HTTP ${response.status}`), errorDetail: detail, status: response.status };
+        return { error: typeof detail === 'string' ? (detail.startsWith('companyClients.') ? i18n.t(detail) : detail) : (detail?.code || `HTTP ${response.status}`), errorDetail: detail, status: response.status };
       }
 
       const data = await response.json();
@@ -397,6 +429,16 @@ class ApiClient {
     const response = await this.getCurrentSession(options);
     if (response.error) return { error: response.error } as ApiResponse<User>;
     return { data: response.data?.user } as ApiResponse<User>;
+  }
+
+  async authorizeModule(module: 'ai' | 'campaigns', clinicId?: number) {
+    return this.request<{ allowed: boolean }>(`/subscriptions/modules/${module}/authorize${clinicId ? `?clinic_id=${clinicId}` : ''}`);
+  }
+
+  async sendCampaignEmail(campaignId: number, clientId: number, html: string, text: string) {
+    return this.request<{ sent: boolean }>(`/campaigns/${campaignId}/deliver-email/${clientId}`, {
+      method: 'POST', body: JSON.stringify({ html, text }),
+    });
   }
 
   async getSubscriptionSummary() {
@@ -524,6 +566,18 @@ class ApiClient {
   }
 
   // Clinics
+  async getRecordClinic(id: number) {
+    return this.request<Clinic>(`/clinics/record-directory/${id}`);
+  }
+
+  async getRecordStaff() {
+    return this.request<User[]>('/users/record-directory');
+  }
+
+  async getRecordClinics() {
+    return this.request<{ id: number; name: string }[]>('/clinics/record-directory');
+  }
+
   async getClinics() {
     return this.request<Clinic[]>('/clinics/');
   }
@@ -694,8 +748,8 @@ class ApiClient {
     return this.request<RecentClientVisit[]>(`/clients/recent${qs ? `?${qs}` : ''}`);
   }
 
-  async markClientVisited(clientId: number) {
-    return this.request<{ success: boolean; visited_at: string }>(`/clients/${clientId}/recent-visit`, {
+  async markClientVisited(clientId: number, clinicId?: number) {
+    return this.request<{ success: boolean; visited_at: string }>(`/clients/${clientId}/recent-visit${clinicId ? `?clinic_id=${clinicId}` : ""}`, {
       method: 'POST',
     });
   }
@@ -1098,6 +1152,7 @@ class ApiClient {
   async updateExamLayoutInstance(id: number, instance: any) {
     return this.request<ExamLayoutInstance>(`/exam-layouts/instances/${id}`, {
       method: 'PUT',
+      headers: EXAM_WRITE_HEADERS,
       body: JSON.stringify(instance),
     });
   }
@@ -1338,6 +1393,8 @@ class ApiClient {
     clinicId: number,
     options?: {
       category?: "frame" | "contact_lens";
+      orderId?: number;
+      orderKind?: "regular" | "contact";
       search?: string;
       barcode?: string;
       includeArchived?: boolean;
@@ -1345,14 +1402,20 @@ class ApiClient {
     },
   ) {
     const params = new URLSearchParams({ clinic_id: String(clinicId) });
+    if (options?.orderId) { params.set("order_id", String(options.orderId)); params.set("order_kind", options.orderKind ?? "regular"); }
     if (options?.category) params.set("category", options.category);
     if (options?.search) params.set("search", options.search);
     if (options?.barcode) params.set("barcode", options.barcode);
     if (options?.includeArchived) params.set("include_archived", "true");
     if (options?.stockableOnly) params.set("stockable_only", "true");
-    return this.request<{ items: CatalogVariant[]; total: number; clinic_id: number }>(
-      "/inventory/variants?" + params.toString(),
-    );
+    const items: CatalogVariant[] = [];
+    for (let offset = 0; ; offset += 500) {
+      params.set("offset", String(offset));
+      const response = await this.request<{ items: CatalogVariant[]; total: number; clinic_id: number; has_more?: boolean }>("/inventory/variants?" + params.toString());
+      if (response.error || !response.data) return response;
+      items.push(...response.data.items);
+      if (!response.data.has_more) return { ...response, data: { ...response.data, items, total: items.length } };
+    }
   }
 
   async getInventorySummary(clinicId: number) {
@@ -1522,6 +1585,13 @@ class ApiClient {
     });
   }
 
+  async previewInventoryImportFile(file: globalThis.File, worksheet?: string) {
+    const form = new FormData();
+    form.append('file', file);
+    if (worksheet !== undefined) form.append('worksheet', worksheet);
+    return this.request<InventoryImportPreview>('/inventory/import/preview-file', { method: 'POST', body: form });
+  }
+
   async previewInventoryImport(csvText: string) {
     return this.request<any>("/inventory/import/preview", {
       method: "POST",
@@ -1529,8 +1599,8 @@ class ApiClient {
     });
   }
 
-  async commitInventoryImport(clinicId: number, rows: any[], importId: string) {
-    return this.request<any>("/inventory/import/commit", {
+  async commitInventoryImport(clinicId: number, rows: InventoryImportRow[], importId: string) {
+    return this.request<{ created: number; skipped: number; validation_errors: { row_number: number; errors: string[]; error_details?: ImportDiagnostic[] }[] }>("/inventory/import/commit", {
       method: "POST",
       body: JSON.stringify({ clinic_id: clinicId, rows, import_id: importId }),
     });
@@ -2120,6 +2190,7 @@ class ApiClient {
   async saveUnifiedExamData(layoutInstanceId: number, data: Record<string, any>) {
     return this.request(`/unified-exam-data/${layoutInstanceId}`, {
       method: 'POST',
+      headers: EXAM_WRITE_HEADERS,
       body: JSON.stringify(data),
     });
   }
@@ -2127,6 +2198,7 @@ class ApiClient {
   async deleteUnifiedExamData(layoutInstanceId: number) {
     return this.request(`/unified-exam-data/${layoutInstanceId}`, {
       method: 'DELETE',
+      headers: EXAM_WRITE_HEADERS,
     });
   }
 
@@ -2567,9 +2639,13 @@ class ApiClient {
     return this.request(`/migration/softoptic/imports/${jobId}/cancel`, { method: 'POST' });
   }
 
+  async getMigrationCapabilities() {
+    return this.request('/migration/capabilities');
+  }
+
   async createMigrationImport(data: {
     clinicId: number;
-    sourceSystem: 'softoptic' | 'optitech';
+    sourceSystem: 'softoptic' | 'optitech' | 'opticplus';
     sourceMetadata: Record<string, any>;
     exportSummary: Record<string, any>;
     includeDocuments: boolean;
@@ -2577,6 +2653,7 @@ class ApiClient {
     clientImportLimit?: number | null;
     bundleFormatVersion?: number | null;
     sourceFingerprint?: string | null;
+    previousImportJobId?: string | null;
   }) {
     return this.request('/migration/imports', {
       method: 'POST',
@@ -2587,6 +2664,7 @@ class ApiClient {
         export_summary: data.exportSummary || {},
         bundle_format_version: data.bundleFormatVersion ?? null,
         source_fingerprint: data.sourceFingerprint ?? null,
+        ...(data.previousImportJobId ? { previous_import_job_id: data.previousImportJobId } : {}),
         options: {
           include_documents: data.includeDocuments,
           import_users: data.importUsers ?? false,
@@ -2598,7 +2676,7 @@ class ApiClient {
 
   async listMigrationImports(
     clinicId: number,
-    sourceSystem?: 'softoptic' | 'optitech',
+    sourceSystem?: 'softoptic' | 'optitech' | 'opticplus',
     activeOnly = false,
   ) {
     const params = new URLSearchParams({ clinic_id: String(clinicId), limit: '10' });
@@ -2623,8 +2701,15 @@ class ApiClient {
     );
   }
 
+  async getMigrationReferenceData(jobId: string, table: string, q: string, page: number) {
+    const params = new URLSearchParams({ table, q, page: String(page), limit: '25' });
+    return this.request<{ items: Array<{ source_key: string; values: Record<string, unknown> }>; total: number; page: number; limit: number }>(
+      `/migration/imports/${jobId}/reference-data?${params}`,
+    );
+  }
+
   async getMigrationSourceDataSummary(
-    recordType: 'client' | 'exam' | 'order' | 'contact_lens_order',
+    recordType: 'client' | 'exam' | 'order' | 'contact_lens_order' | 'medical_log',
     recordId: number,
   ) {
     return this.request<{
@@ -2636,7 +2721,7 @@ class ApiClient {
   }
 
   async getMigrationSourceData(
-    recordType: 'client' | 'exam' | 'order' | 'contact_lens_order',
+    recordType: 'client' | 'exam' | 'order' | 'contact_lens_order' | 'medical_log',
     recordId: number,
   ) {
     return this.request<{
@@ -2674,6 +2759,10 @@ class ApiClient {
 
   async cancelMigrationImport(jobId: string) {
     return this.request(`/migration/imports/${jobId}/cancel`, { method: 'POST' });
+  }
+
+  async getMigrationRollbackPreview(jobId: string) {
+    return this.request(`/migration/imports/${jobId}/rollback-preview`);
   }
 
   async previewClinicDataPrune(clinicId: number, section?: string) {

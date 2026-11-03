@@ -1,3 +1,4 @@
+from services.company_record_ownership import validate_records
 from .common import *
 from pathlib import Path
 from services import order_group_service  # Register legacy import/group compatibility hooks.
@@ -383,6 +384,7 @@ def migrate_clients_and_families(
             pending += 1
             if pending % family_batch_size == 0:
                 families_only = [f[0] for f in batch_families]
+                validate_records(db, families_only)
                 db.bulk_save_objects(families_only, return_defaults=True)
                 db.flush()
                 for fam_obj, head_val in batch_families:
@@ -394,6 +396,7 @@ def migrate_clients_and_families(
                 print(f"[accounts] families created: {family_count}", flush=True)
     if batch_families:
         families_only = [f[0] for f in batch_families]
+        validate_records(db, families_only)
         db.bulk_save_objects(families_only, return_defaults=True)
         db.flush()
         for fam_obj, head_val in batch_families:
@@ -661,6 +664,7 @@ def migrate_optical_exams(
         if pending % 5000 == 0:
             exams_only = [e[0] for e in batch_exams if e[0].client_id is not None]
             if exams_only:
+                validate_records(db, exams_only)
                 db.bulk_save_objects(exams_only, return_defaults=True)
                 db.flush()
                 saved_exams = set(exams_only)
@@ -687,6 +691,7 @@ def migrate_optical_exams(
                         exam_data=exam_data,
                     )
                     batch_instances.append(layout_instance)
+            validate_records(db, batch_instances)
             db.bulk_save_objects(batch_instances, return_defaults=True)
             db.flush()
             batch_exams.clear()
@@ -699,6 +704,7 @@ def migrate_optical_exams(
     if batch_exams:
         exams_only = [e[0] for e in batch_exams if e[0].client_id is not None]
         if exams_only:
+            validate_records(db, exams_only)
             db.bulk_save_objects(exams_only, return_defaults=True)
             db.flush()
             saved_exams = set(exams_only)
@@ -726,6 +732,7 @@ def migrate_optical_exams(
                 )
                 batch_instances.append(layout_instance)
             if batch_instances:
+                validate_records(db, batch_instances)
                 db.bulk_save_objects(batch_instances, return_defaults=True)
     db.commit()
     contact_fit_count = 0
@@ -1726,6 +1733,7 @@ def migrate_files(
         batch.append(f)
         pending += 1
         if pending % 2000 == 0:
+            validate_records(db, batch)
             db.bulk_save_objects(batch, return_defaults=True)
             db.flush()
             batch.clear()
@@ -1733,6 +1741,7 @@ def migrate_files(
         if count % 1000 == 0:
             print(f"[files] staged: {count}", flush=True)
     if batch:
+        validate_records(db, batch)
         db.bulk_save_objects(batch, return_defaults=True)
     db.commit()
     print(f"[files] inserted total: {count}, took {time.time()-t0:.2f}s", flush=True)
@@ -1808,6 +1817,7 @@ def migrate_medical_logs(db: Session, csv_dir: str, account_to_client: Dict[str,
         )
         pending += 1
         if pending % 5000 == 0:
+            validate_records(db, batch_m)
             db.bulk_save_objects(batch_m, return_defaults=True)
             db.flush()
             batch_m.clear()
@@ -1848,6 +1858,7 @@ def migrate_medical_logs(db: Session, csv_dir: str, account_to_client: Dict[str,
                 print(f"[charts] staged: {chart_count}", flush=True)
 
     if batch_m:
+        validate_records(db, batch_m)
         db.bulk_save_objects(batch_m, return_defaults=True)
     db.commit()
     print(f"[memos] inserted total: {count}, chart entries: {chart_count}, skipped empty: {skipped_empty}, took {time.time()-t0:.2f}s", flush=True)
@@ -1882,6 +1893,7 @@ def migrate_appointments(db: Session, csv_dir: str, account_to_client: Dict[str,
         batch_a.append(app)
         pending += 1
         if pending % 5000 == 0:
+            validate_records(db, batch_a)
             db.bulk_save_objects(batch_a, return_defaults=True)
             db.flush()
             batch_a.clear()
@@ -1889,6 +1901,7 @@ def migrate_appointments(db: Session, csv_dir: str, account_to_client: Dict[str,
         if count % 1000 == 0:
             print(f"[appointments] staged: {count}", flush=True)
     if batch_a:
+        validate_records(db, batch_a)
         db.bulk_save_objects(batch_a, return_defaults=True)
     db.commit()
     print(f"[appointments] inserted total: {count}, took {time.time()-t0:.2f}s", flush=True)

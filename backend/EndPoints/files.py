@@ -1,3 +1,4 @@
+from security.scope import record_filter
 import base64
 from pathlib import Path
 from typing import List, Optional
@@ -13,7 +14,8 @@ from database import get_db
 from models import Client, File as FileModel, User
 from schemas import File as FileSchema, FileUpdate
 from security.scope import (
-    get_allowed_clinic_ids,
+    get_record_clinic_ids,
+    normalize_record_clinic,
     get_scoped_client,
     get_scoped_file,
 )
@@ -256,6 +258,7 @@ async def create_file(
     storage: FileStorageService = Depends(get_file_storage_service),
 ):
     scoped_client = get_scoped_client(db, current_user, client_id)
+    clinic_id = normalize_record_clinic(db, current_user, clinic_id)
     display_name = normalize_file_name(upload.filename)
     content_type = normalize_content_type(upload.content_type)
     object_extension = validate_upload_type(display_name, content_type)
@@ -264,12 +267,13 @@ async def create_file(
         raise HTTPException(status_code=422, detail="File is empty")
 
     bucket = config.settings.SUPABASE_BUCKET or "opticai"
-    storage_key = f"clinics/{scoped_client.clinic_id}/clients/{scoped_client.id}/files/{uuid4().hex}.{object_extension}"
+    storage_key = f"clinics/{clinic_id}/clients/{scoped_client.id}/files/{uuid4().hex}.{object_extension}"
     storage.upload(bucket, storage_key, file_bytes, content_type)
 
     db_file = FileModel(
         client_id=scoped_client.id,
-        clinic_id=scoped_client.clinic_id,
+        clinic_id=clinic_id,
+        company_id=scoped_client.company_id,
         file_name=display_name,
         original_file_name=display_name,
         storage_bucket=bucket,
@@ -295,27 +299,15 @@ async def create_file(
     return db_file
 
 
-@router.get("/paginated")
-def get_files_paginated(
-    clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
-    limit: int = Query(25, ge=1, le=100, description="Max items to return"),
-    offset: int = Query(0, ge=0, description="Items to skip"),
-    order: Optional[str] = Query("upload_date_desc", description="Sort order: upload_date_desc|upload_date_asc|id_desc|id_asc"),
-    search: Optional[str] = Query(None, description="Search by file name/type/uploader/client name/notes"),
-    file_category: Optional[str] = Query(None, description="Filter by file category"),
-    include_total: bool = Query(True, description="Include the exact total count"),
-    count_only: bool = Query(False, description="Return only the exact total count"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
+def file_list_query(db, current_user, clinic_id, search, file_category, order):
+    allowed_clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
     base = (
         db.query(
             FileModel,
             spaced_concat(Client.first_name, Client.last_name).label("client_full_name"),
         )
         .outerjoin(Client, Client.id == FileModel.client_id)
-        .filter(FileModel.clinic_id.in_(allowed_clinic_ids))
+        .filter(record_filter(db, current_user, FileModel, clinic_id))
     )
     file_category_filter = build_file_category_filter(file_category or "")
     if file_category_filter is not None:
@@ -348,7 +340,23 @@ def get_files_paginated(
         base = base.order_by(order_column.asc().nulls_last(), FileModel.id.asc())
     else:
         base = base.order_by(order_column.desc().nulls_last(), FileModel.id.desc())
+    return base
 
+
+@router.get("/paginated")
+def get_files_paginated(
+    clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
+    limit: int = Query(25, ge=1, le=100, description="Max items to return"),
+    offset: int = Query(0, ge=0, description="Items to skip"),
+    order: Optional[str] = Query("upload_date_desc", description="Sort order: upload_date_desc|upload_date_asc|id_desc|id_asc"),
+    search: Optional[str] = Query(None, description="Search by file name/type/uploader/client name/notes"),
+    file_category: Optional[str] = Query(None, description="Filter by file category"),
+    include_total: bool = Query(True, description="Include the exact total count"),
+    count_only: bool = Query(False, description="Return only the exact total count"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    base = file_list_query(db, current_user, clinic_id, search, file_category, order)
     total = base.count() if include_total or count_only else None
     if count_only:
         return {"items": [], "total": total or 0, "has_more": False}
@@ -367,20 +375,21 @@ def get_all_files(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
-    return db.query(FileModel).filter(FileModel.clinic_id.in_(allowed_clinic_ids)).all()
+    allowed_clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
+    return db.query(FileModel).filter(record_filter(db, current_user, FileModel, clinic_id)).all()
 
 
 @router.get("/client/{client_id}", response_model=List[FileSchema])
 def get_files_by_client(
     client_id: int,
+    clinic_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    get_scoped_client(db, current_user, client_id)
+    client_id = get_scoped_client(db, current_user, client_id).id
     return (
         db.query(FileModel)
-        .filter(FileModel.client_id == client_id)
+        .filter(FileModel.client_id == client_id, record_filter(db, current_user, FileModel, clinic_id))
         .order_by(FileModel.upload_date.desc().nulls_last(), FileModel.id.desc())
         .all()
     )

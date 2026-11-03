@@ -51,7 +51,7 @@ from services.clinic_catalog import expressions, age_at, CLIENT_REPORT_FIELDS
 from services.clinic_query import predicate
 
 
-def compile_report(db, authority, definition):
+def compile_report_components(db, authority, definition):
     if definition.dataset == 'measurements':
         from .models import PrescriptionIndexState
         state = db.get(PrescriptionIndexState, authority.clinic_id)
@@ -127,7 +127,12 @@ def compile_report(db, authority, definition):
         query = query.order_by(selected[key].desc() if descending else selected[key].asc())
     if not definition.sort_by:
         query = query.order_by(*[value.asc() for value in selected.values()])
-    return query, list(selected)
+    return query, list(selected), fields
+
+
+def compile_report(db, authority, definition):
+    query, columns, _ = compile_report_components(db, authority, definition)
+    return query, columns
 
 
 def catalog(db, authority):

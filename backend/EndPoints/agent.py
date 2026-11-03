@@ -8,7 +8,7 @@ from database import SessionLocal
 from auth import get_current_user
 from agent.authority import resolve_request
 from agent.models import AgentJob, PreparedChange, FollowupTask
-from agent.config import enabled, now, data_directory
+from agent.config import enabled, now, data_directory, setting
 from agent import records, reports
 from agent.report_definitions import SavedReportRequest
 
@@ -19,7 +19,7 @@ router = APIRouter(prefix='/agent', tags=['agent'])
 async def availability(current_user=Depends(get_current_user)):
     # Use ordinary app authentication; discovery must not create agent contexts.
     from agent.availability import platform_available
-    return {'available': await platform_available()}
+    return {'available': await platform_available(), 'namespace': setting('AGENTS24_AGENT_ID')}
 
 
 def get_db():
@@ -239,7 +239,7 @@ def original(job_id: str, auth=Depends(authorized), db: Session = Depends(get_db
     expiry = row.expires_at
     if expiry and expiry.tzinfo is None:
         expiry = expiry.replace(tzinfo=now().tzinfo)
-    if row.kind != 'document' or expiry and expiry <= now():
+    if row.kind not in {'document', 'supply'} or expiry and expiry <= now():
         raise HTTPException(410, 'agent.downloadUnavailable')
     name = row.definition.get('original_name', '')
     if name != row.id + '.original':
@@ -248,3 +248,39 @@ def original(job_id: str, auth=Depends(authorized), db: Session = Depends(get_db
     if not path.is_file():
         raise HTTPException(410, 'agent.downloadUnavailable')
     return FileResponse(path, media_type=row.definition['media_type'], filename=row.definition['title'])
+
+
+# Product routes share the same authenticated agent boundary.
+from EndPoints.supply import router as supply_router
+router.include_router(supply_router)
+
+
+@router.post('/transcriptions')
+def transcribe(file: UploadFile = File(...), auth=Depends(authorized), db: Session = Depends(get_db)):
+    from agent.config import setting
+    from agent.documents import submit_document
+    if not setting('AGENTS24_SPEECH_PIPELINE_ID'):
+        raise HTTPException(503, 'agent.voice.notConfigured')
+    media_type = (file.content_type or '').split(';')[0]
+    if not media_type.startswith('audio/'):
+        raise HTTPException(422, 'agent.invalidDocument')
+    data = file.file.read(25 * 1024 * 1024 + 1)
+    return submit_document(db, auth, file.filename or 'voice.webm', media_type, data)
+
+
+def transcript_text(value):
+    if isinstance(value, str): return value
+    if isinstance(value, list): return '\n'.join(filter(None, (transcript_text(item) for item in value)))
+    if isinstance(value, dict):
+        for key in ('data', 'text', 'transcript', 'content', 'sections', 'segments', 'documents'):
+            if value.get(key): return transcript_text(value[key])
+    return ''
+
+
+@router.get('/transcriptions/{job_id}')
+def transcription(job_id: str, auth=Depends(authorized), db: Session = Depends(get_db)):
+    row = owned_job(db, auth, job_id)
+    expiry = row.expires_at
+    if row.kind != 'document' or not row.definition.get('media_type', '').startswith('audio/') or expiry and expiry.replace(tzinfo=now().tzinfo) <= now():
+        raise HTTPException(404, 'agent.recordNotFound')
+    return {'status': row.status, 'text': transcript_text((row.result or {}).get('documents', [])) if row.status == 'completed' else None}

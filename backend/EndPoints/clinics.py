@@ -75,6 +75,22 @@ def get_clinics(
         clinics = db.query(Clinic).filter(Clinic.id == current_user.clinic_id).all()
     return clinics
 
+@router.get("/record-directory")
+def get_record_clinics(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Public clinic labels for company client history, without settings/credentials."""
+    rows = db.query(Clinic.id, Clinic.name).filter(Clinic.company_id == resolve_company_id(db, current_user)).order_by(Clinic.name, Clinic.id).all()
+    return [{"id": row.id, "name": row.name} for row in rows]
+
+
+@router.get("/record-directory/{clinic_id}")
+def get_record_clinic_branding(clinic_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from security.scope import assert_record_clinic
+    clinic = assert_record_clinic(db, current_user, clinic_id)
+    fields = ("id", "company_id", "name", "location", "phone_number", "email", "clinic_name", "clinic_position",
+              "clinic_address", "clinic_city", "clinic_postal_code", "clinic_directions", "clinic_website", "manager_name", "license_number", "clinic_logo_path")
+    return {field: getattr(clinic, field, None) for field in fields}
+
+
 @router.get("/{clinic_id}", response_model=ClinicSchema)
 def get_clinic(
     clinic_id: int,

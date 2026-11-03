@@ -195,4 +195,11 @@ def get_current_user(
     db: Session = Depends(get_db),
 ) -> User:
     user = db.query(User).filter(User.id == auth_session.user_id).first()
-    return validate_current_user(user)
+    user = validate_current_user(user)
+    if auth_session.clinic_id:
+        from models import Clinic
+        from security.owner import is_owner
+        clinic = db.get(Clinic, auth_session.clinic_id)
+        if (not clinic or not clinic.is_active) and not is_owner(user):
+            raise HTTPException(403, detail={"code": "clinic_inactive"})
+    return user

@@ -1,3 +1,4 @@
+import { AgentVoicePreferences } from './AgentVoicePreferences';
 import React from "react";
 import { Link } from "@tanstack/react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,6 +40,7 @@ export function PreferencesTab({
 
   return (
     <div className="space-y-6" dir={direction}>
+      <AgentVoicePreferences />
       <Card>
         <CardHeader>
           <CardTitle className="text-start">{t("language")}</CardTitle>

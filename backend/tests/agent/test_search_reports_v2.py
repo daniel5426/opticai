@@ -332,3 +332,18 @@ def test_single_aggregate_rows_generate_honest_stat_cards_and_old_retries_work(c
     old_job = db.get(AgentJob, old['job_id'])
     old_job.definition = {key: value for key, value in old_job.definition.items() if key != 'presentation'}; db.commit()
     assert report_definitions.queue(db, auth, {'dataset': 'clients', 'columns': ['id']}, 'old-retry')['job_id'] == old_job.id
+
+
+@pytest.mark.parametrize('dataset', ['billing', 'clients'])
+def test_financial_filters_reuse_the_selected_ledger_alias(clinic, dataset):
+    db, auth, patients, _ = clinic
+    raw = {'version': 2, 'dataset': dataset, 'columns': ['id', 'outstanding', 'currency'],
+           'comparison': False,
+           'where': {'conditions': [{'field': 'outstanding', 'operator': 'gt', 'value': 0}]}}
+    if dataset == 'billing':
+        raw.update(date_field='order_date', start_date='2026-10-01', end_date='2026-10-31')
+    query, columns = report_definitions.compile_definition(db, auth, report_definitions.resolve(raw))
+    rows = query.all()
+    assert columns == ['id', 'outstanding', 'currency']
+    assert len(rows) == 1
+    assert rows[0].outstanding == 400

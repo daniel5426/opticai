@@ -753,6 +753,8 @@ def prepare_bundle_direct_upload(
     if job.status != "awaiting_upload":
         raise HTTPException(status_code=409, detail="Migration job is not awaiting upload")
     bucket, key = softoptic_bundle_storage_location(job)
+    if job.source_system == "opticplus" and storage.exists(bucket, key):
+        return {"bucket": bucket, "key": key, "already_uploaded": True}
     signed_upload_url = storage.create_signed_upload_url(bucket, key)
     return {
         "bucket": bucket,
@@ -881,11 +883,15 @@ def resume_job(db: Session, job: SoftOpticMigrationJob) -> SoftOpticMigrationJob
 def cancel_job(db: Session, job: SoftOpticMigrationJob) -> SoftOpticMigrationJob:
     checkpoint = job.checkpoint or {}
     destructive_started = bool(
+        checkpoint.get("writes_started")
+        or
         set(checkpoint.get("completed_phases", [])) & {"cleanup", "clients", "clinical", "supplemental"}
         or checkpoint.get("optitech_phase2_started")
         or checkpoint.get("optitech_phase3_started")
     )
-    if job.status not in {"awaiting_upload", "queued", "running", "paused"} or destructive_started:
+    cancellable = {"awaiting_upload", "queued", "running", "paused"}
+    if job.source_system == "opticplus": cancellable.add("failed")
+    if job.status not in cancellable or destructive_started:
         raise HTTPException(status_code=409, detail="Migration can no longer be cancelled safely")
     update_job(db, job, status="cancelled", step="בוטל", progress=job.progress)
     return job
@@ -1149,7 +1155,8 @@ def job_to_dict(job: SoftOpticMigrationJob) -> dict[str, Any]:
         "progress": job.progress,
         "include_documents": bool(job.include_documents),
         "client_import_limit": job.client_import_limit,
-        "source_metadata": job.source_metadata or {},
+        "source_metadata": {key: value for key, value in (job.source_metadata or {}).items()
+                            if job.source_system != "opticplus" or key != "selected_client_ids"},
         "export_summary": job.export_summary or {},
         "validation_summary": job.validation_summary or {},
         "import_summary": job.import_summary or {},

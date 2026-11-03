@@ -1,3 +1,4 @@
+from security.scope import record_filter
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -8,7 +9,7 @@ from schemas import MedicalLogCreate, MedicalLogUpdate, MedicalLog as MedicalLog
 from auth import get_current_user
 from security.scope import (
     apply_clinic_user_scope,
-    get_allowed_clinic_ids,
+    get_record_clinic_ids,
     get_scoped_client,
     get_scoped_medical_log,
 )
@@ -53,20 +54,21 @@ def get_all_medical_logs(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
-    query = db.query(MedicalLog).filter(MedicalLog.clinic_id.in_(allowed_clinic_ids))
+    allowed_clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
+    query = db.query(MedicalLog).filter(record_filter(db, current_user, MedicalLog, clinic_id))
     return query.all()
 
 @router.get("/client/{client_id}", response_model=List[MedicalLogSchema])
 def get_medical_logs_by_client(
     client_id: int,
+    clinic_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    get_scoped_client(db, current_user, client_id)
+    client_id = get_scoped_client(db, current_user, client_id).id
     medical_logs = (
         db.query(MedicalLog)
-        .filter(MedicalLog.client_id == client_id)
+        .filter(MedicalLog.client_id == client_id, record_filter(db, current_user, MedicalLog, clinic_id))
         .order_by(MedicalLog.log_date.desc().nulls_last(), MedicalLog.id.desc())
         .all()
     )

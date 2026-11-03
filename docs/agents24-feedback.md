@@ -1,6 +1,51 @@
 # Agents24 integration feedback
 
-Last Updated: 2026-10-25
+Last Updated: 2026-11-03
+
+## Supply acceptance resolution — 2026-11-03
+
+The three supply failures below are repaired locally and requalified with the original Excel file, not a text workaround. The host composer advertises only spreadsheet conversions supported by the actual text-attachment contract; runtime/server validation stays authoritative after conversion. JSON request headers are centralized without altering multipart uploads. The Artifact Tool now publishes explicit source/flat-value schemas and rejects missing frame details at its boundary; instructions match the schema and support new-variant receipts.
+
+33 focused backend tests, 25 real-composer/client/review tests and web build pass. Official CLI apply/publish refreshed the resource contract; the six-role local stack is ready. Live staging acceptance: one valid two-row Excel receipt, source/identifier preservation, editable review, retail correction 100 -> 101, successful validation, reload before approval, explicit UI approval, and committed inventory 2/3 units. Only the two synthetic test products were added to staging; production inventory/application deployment is unchanged. Earlier reports below are retained as reproduction history, not current unresolved failures.
+
+## Excel chat submission blocked before host conversion — 2026-11-03
+
+Confirmed consumer integration gap with public client 0.2.22 / React 0.2.27 / Chat React 0.5.41 and Python 0.7.25. On the running staging-backed clinic web app, attach a valid two-row XLSX through the Agent composer. The file appears, but Send is disabled: `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` is not accepted by the selected Agent contract. No model request or supply proposal is submitted.
+
+Cause: `AgentChatPanel` passes `runtime.inputContract` directly to the shared composer, while `useAgentSubmission` converts XLS/XLSX through authenticated `/api/v1/agent/supply/extract` only inside its submit callback. Composer validation rejects the original format before that callback runs. Extraction itself and the ordinary manual Excel preview both pass. The shared composer correctly enforces the declared contract; this is a mismatch between Prysm's host preprocessing and its declared upload surface, not evidence of provider throttling.
+
+Fix direction: make host-preprocessed spreadsheet selection and validation an explicit supported input path before shared submission validation; validate the converted text again against the authoritative Agent contract. Keep server authorization, size limits, source coordinates, barcodes and approval intact. Do not globally relax Agent MIME restrictions or bypass server validation. Add a real-composer regression from XLSX selection through extraction and runtime submission; current supply tests do not cover that bridge. This investigation changes no runtime behavior and installs no workaround.
+
+## Supply proposal mapping and review wire failures — 2026-11-03
+
+To isolate downstream behavior from the Excel selection blocker, a diagnostic test attached the exact text envelope emitted by the existing spreadsheet parser, not the original XLSX. This is diagnostic evidence, not a product workaround or a passing Excel Agent import. Two synthetic frame rows contained color, eye size, SKU, barcode, quantity, currency, price and worksheet/row coordinates.
+
+The live model produced two separate review proposals for the same two rows (`9a496f9b-a20e-4d66-9988-45735072c0d5`, `32480ba6-30fc-414b-a024-74c14e757212`). Persisted values retained quantities 2/3, identifiers and prices, but omitted colors/eye sizes and had empty source objects. Both proposals failed server validation. The model then attributed the problem to absent catalog matches, despite receipt creation supporting new validated variants. No inventory was applied. Contract inspection shows `SupplyProposal.rows` is an unstructured `list[dict]`; its tool description advertises `specifications`, while the canonical service admits flat `color`/`eye_size` fields and discards unrecognized keys. This is a confirmed contract mismatch; the persisted proposal alone does not prove which omitted fields the model originally emitted. Use an explicit source/row/value schema and actionable required-field diagnostics rather than relying on prompt-only repair.
+
+Editing the missing fields in the live review card and choosing Validate displayed a generic processing failure. `SupplyIntake` uses `agentJson` with a JSON-string body, but `agentJson`/`scopedFetch`/`apiClient.agentFetch` add no JSON content type for this route. A focused diagnostic reused the actual authenticated supply route and the existing disposable SQLite fixture: the browser-equivalent text/plain body returned **422**, the same payload with explicit application/json returned **200**, and inventory remained empty. This likely also affects Apply and other agentJson JSON POST callers. Centralize correct JSON headers for JSON bodies while preserving multipart uploads and add an unmocked wire regression; do not weaken backend body validation.
+
+All 44 focused backend cases (22 supply + 22 separately collected inventory) and 26 UI cases pass, demonstrating the missing integration coverage. Manual XLSX preview parsed both rows and preserved leading zeros, without committing. Runtime behavior was not changed in this testing task.
+
+## Production organization migration — 2026-11-02
+
+Confirmed CLI 0.3.31 dotenv parsing gap: a package `.env.local` containing a single-quoted
+`AGENTS24_BASE_URL='https://api.agents24.dev'` fails with "invalid baseUrl" before authentication.
+The installed parser decodes double-quoted JSON values but leaves single quotes literal. Minimal
+reproduction needs only that nonsecret URL setting. Standard Python dotenv accepts this syntax.
+Temporary configuration uses raw values in the CLI-owned dotenv file and the existing Python
+dotenv parser for backend commands. Suggested platform fix: canonical dotenv parsing with focused
+single/double/unquoted cases. No CLI internals were copied or changed.
+
+Consumer-only integration changes allow explicitly published hosted Agents24 in the clinic launcher,
+while keeping the synthetic demo local and preserving database/clinic guards. All nine resources
+were published in Prysm; four chat Agents use GPT-6 Luna. A live authenticated read-only clinic tool
+and conversation restoration passed. Package status reports three healthy attached Toolsets and
+one connected published relay. No historical conversations/uploads/knowledge data were copied.
+
+Verification question: opening the Assistant directly during initial application load can return
+users to the dashboard before optional availability/bootstrap finishes. Once discovery completes,
+the Assistant opens and restores its thread. This is separate from model execution and resource
+publication; characterize the initial-route lifecycle before changing provider retries or prompts.
 
 ## Local startup recurrence after worker disconnect — 2026-10-25
 
@@ -204,3 +249,61 @@ Delivery staging: the blocked `document-search` source is preserved under `agent
 Confirmed consumer development-cache defect, not a failed implementation of `setText`: `node_modules/@agents24/chat-react` 0.5.37 exported the new public handle, while the ordinary Electron renderer's immutable versioned Vite dependency URL still returned an older composer without its `ref` argument or imperative handle. Suggestion clicks silently no-op because the ref stays null. Fresh test/preview contexts passed and therefore missed the active window's old module graph.
 
 Repair: isolate Electron/browser Vite dependency directories and explicitly prebundle the public UI/runtime entries, then refresh the development app. The new served URL contains `useImperativeHandle(ref, ...)`; StrictMode prefill passes. The user's subsequent native report request used the filled suggestion; the verification agent did not send it. Removal condition: no workaround API or component fork exists; cache separation remains normal dev configuration. Prefer unique package versions/build identities when delivering an API change, even in local registry builds, and verify the actual served module alongside installed exports.
+
+## Supply and shared-agent integration — 2026-10-29
+
+
+- Versions: `@agents24/chat-react` 0.5.37, `@agents24/client` 0.2.19,
+  `agents24[fastapi]` 0.7.21, CLI 0.3.31.
+- The public composer/validator MIME list excludes Excel even when the consuming application can
+  parse it. Prysm adds a host-owned spreadsheet attachment picker and normalizes workbooks into
+  evidence-preserving text before SDK submission. A documented asynchronous attachment-normalizer
+  hook would avoid the extra picker. This is a capability gap, not a confirmed defect.
+- Per-message page context currently enters through the host's BFF fetch metadata adapter because
+  AgentChatRuntimeSubmit exposes text/files/attachments but no metadata parameter. A typed
+  per-submit context/metadata callback would simplify immutable voice-start context.
+- The public composer owns attachment drafts but does not expose a complete read-only draft
+  snapshot through its component ref. Prysm preserves its mounted composer using a stable portal
+  container when moving between sidebar/full-page hosts. A maintained presentation-host pattern
+  would help apps with this layout.
+- New supply/speech resource packages pass local CLI preparation. Live deployed model bindings,
+  OCR quality, STT result shape and browser/Electron recording behavior still need verification;
+  these are not confirmed platform defects. No diagnostics, credentials or customer data are included.
+
+## Live supply and speech acceptance — 2026-10-29
+
+Real OCR imports (PDF/PNG) and Excel mapping now complete and apply idempotently in the isolated synthetic clinic. STT returned the expected synthetic speech; Prysm now reads the documented processed-content data envelope. Strict structured mapper output prevents invalid exclusion reasons; these were consumer fixes.
+
+The configured main assistant's real acceptance request failed with retryable `MODEL_PROVIDER_CAPACITY_WAIT` (failure `e714ab05-2221-4ed7-98ad-14c5c3688148`, run `2fb60082-f732-4c28-81bf-e49426756d26`). Thread history preserved the error. This is a provider-capacity limitation, not evidence of a Toolset authorization defect. Retrying the same configured model once; no silent model substitution. Improve the UI/API's explicit retry guidance when a stream lease expires before capacity becomes available.
+
+## New organization setup and dependency timeout investigation — 2026-10-30
+
+Both local resource installations were applied and published with the user-supplied new organization key. Four agents, three processing pipelines, a Store and the shared Artifact were recreated per installation. Publication and relay/Toolset validation succeeded initially. A later startup exposed source-default `always_allow` on both new `commit_change` Tools; Prysm correctly refuses readiness until the exact installed Tool has explicit Ask. Package publication does not carry that governance setting. The organization API key can read `governance.capabilities.update_policy=true`, but the documented `PUT /tools/{id}/approval-policy` rejects it with 403; continue through the authenticated governance UI, without a database edit or approval bypass.
+
+User-reported failure `0278dc02-caf2-4f73-bc93-540c8f4fa124` is `DEPENDENCY_TIMEOUT`. The first run-level check showed a completed run; correlation subsequently found the exact failure nested in its Tool response block (see the confirmed findings below). The public key cannot access admin-wide thread search (403). Separately confirmed local dependency issue: the clinic supervisor exits on the missing explicit Ask policy, leaving optional tool services stopped. Do not claim that this caused the exact supplied failure without its trace.
+
+The earlier configured-model capacity failure also reproduced in the new organization (run `d2b4dab1-c657-449c-88a1-74bfdb970317`, failure `d8e7a9af-2bc9-4517-ba79-6cf446a85e9c`). Prysm now keeps a bootstrapped chat visible for run errors, allowing the maintained SDK's error/retry controls to render. Saved active-thread preferences are scoped by the server's non-secret agent installation ID, so switching organizations does not automatically restore an inaccessible old thread.
+
+Timeout correlation confirmed: failure `0278dc02-caf2-4f73-bc93-540c8f4fa124` is nested in a canonical
+clinic_context tool failure in run `14099a1d-d8cf-4894-b574-209c71f69d1f`; its completed top-level run
+has no run-level failure. The authenticated UI also reports two failed tool calls. The clinic
+Artifact listener was absent after the consumer approval readiness check stopped its supervisor.
+Both exact new Tools now have explicit Ask through the governance UI, with API readback; the
+supervisor passes its approval gate and starts both workers. A synthetic follow-up run
+`f946dd9c-be69-4929-91ad-5be8461272c0` completed four real tool calls without failures and returned
+the expected client count. No platform implementation or database was edited.
+
+The new-org supply check exposed a separate billing block, failure
+`1491be5d-ebaf-4f3f-9a3a-6afc1ac91b69`, BILLING_CREDITS_INSUFFICIENT. The consumer had read only
+payload.failure on run.failed; the canonical stream supplies payload.error. This consumer defect
+is fixed with a regression test and privacy-filtered support references. No account funding or
+provider/model substitution was performed.
+
+Portable approval policy gap confirmed against the installed CLI 0.3.31 resource-package/v2 schemas
+and Python SDK 0.7.21 Artifact exporter: artifact/manifest schemas expose no authored per-tool
+approval policy, and the Python decorator exports side_effects but no approval policy. Prysm's
+commit_change declares write side effects and review instructions; neither configures Ask.
+Requested improvement: support an authored per-tool approval requirement, apply it during
+installation before tools become usable, and fail publication/readiness if it cannot be enforced.
+Preserve stricter organization overrides such as Deny. This would make organization moves
+reproducible without silently inheriting always_allow.

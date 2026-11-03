@@ -308,6 +308,18 @@ class Subscription(Base):
     enterprise_clinic_limit = Column(Integer)
     enterprise_staff_limit = Column(Integer)
     stripe_event_created_at = Column(DateTime(timezone=True))
+    provider = Column(String(16), nullable=False, default="none", server_default="none")
+    amount_minor = Column(Integer)
+    automatic_billing = Column(Boolean, nullable=False, default=False, server_default=false())
+    billing_locale = Column(String(2), nullable=False, default="en", server_default="en")
+    billing_anchor_at = Column(DateTime(timezone=True))
+    balance_minor = Column(Integer, nullable=False, default=0, server_default="0")
+    billing_revision = Column(Integer, nullable=False, default=0, server_default="0")
+    access_override = Column(String(16))
+    override_ends_at = Column(DateTime(timezone=True))
+    ai_enabled = Column(Boolean, nullable=False, default=True, server_default="true")
+    campaigns_enabled = Column(Boolean, nullable=False, default=True, server_default="true")
+    stripe_retired_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
@@ -476,7 +488,7 @@ class Family(Base):
     __tablename__ = "families"
     
     id = Column(Integer, primary_key=True, index=True)
-    company_id = Column(Integer, ForeignKey("companies.id"))
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
     name = Column(String, nullable=False)
     created_date = Column(Date, server_default=func.current_date())
@@ -622,6 +634,7 @@ class MedicalLog(SoftDeletableMixin, Base):
     
     id = Column(Integer, primary_key=True, index=True)
     client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
     log_date = Column(Date)
@@ -632,6 +645,7 @@ class OpticalExam(SoftDeletableMixin, Base):
     
     id = Column(Integer, primary_key=True, index=True)
     client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
     clinic = Column(String)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
@@ -687,6 +701,7 @@ class OrderGroup(SoftDeletableMixin, Base):
     __tablename__ = "order_groups"
 
     id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
     clinic_id = Column(Integer, ForeignKey("clinics.id"), index=True)
     payer_client_id = Column(Integer, ForeignKey("clients.id", ondelete="SET NULL"), index=True)
     opened_date = Column(Date)
@@ -766,6 +781,7 @@ class Order(SoftDeletableMixin, Base):
     
     id = Column(Integer, primary_key=True, index=True)
     client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
     order_date = Column(Date)
     type = Column(String)
@@ -784,6 +800,7 @@ class ContactLensOrder(SoftDeletableMixin, Base):
 
     id = Column(Integer, primary_key=True, index=True)
     client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
     order_date = Column(Date)
@@ -1077,6 +1094,7 @@ class Referral(SoftDeletableMixin, Base):
     
     id = Column(Integer, primary_key=True, index=True)
     client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
     referral_notes = Column(Text, nullable=False)
@@ -1110,6 +1128,7 @@ class Appointment(SoftDeletableMixin, Base):
     
     id = Column(Integer, primary_key=True, index=True)
     client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     date = Column(Date)
@@ -1125,6 +1144,7 @@ class File(SoftDeletableMixin, Base):
     
     id = Column(Integer, primary_key=True, index=True)
     client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
     file_name = Column(String, nullable=False)
     original_file_name = Column(String)
@@ -1403,3 +1423,99 @@ Index('ix_prescription_search_clinic_id', PrescriptionSearchIndex.clinic_id, Pre
 Index('ix_optical_exams_clinic_id', OpticalExam.clinic_id)
 Index('ix_optical_exams_type', OpticalExam.type)
 Index('ix_optical_exams_clinic_type_date', OpticalExam.clinic_id, OpticalExam.type, OpticalExam.exam_date)
+
+
+# Provider-neutral SaaS billing. Clinic order billing remains independent.
+class SubscriptionTrialRequest(Base):
+    __tablename__ = "subscription_trial_requests"
+    __table_args__ = (CheckConstraint("status IN ('pending','approved','rejected')", name="ck_subscription_trial_request_status"),)
+    id = Column(String, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, unique=True)
+    requested_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    status = Column(String(16), nullable=False, default="pending", index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    reviewed_at = Column(DateTime(timezone=True))
+    reviewed_by_user_id = Column(Integer, ForeignKey("users.id"))
+    trial_ends_at = Column(DateTime(timezone=True))
+    decision_reason = Column(Text)
+
+
+class SubscriptionPaymentMethod(Base):
+    __tablename__ = "subscription_payment_methods"
+    company_id = Column(Integer, ForeignKey("companies.id"), primary_key=True)
+    token_encrypted = Column(Text, nullable=False)
+    card_last4 = Column(String(4))
+    card_brand = Column(String(32))
+    consent_at = Column(DateTime(timezone=True), nullable=False)
+    consent_version = Column(String(32), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class SubscriptionInvoice(Base):
+    __tablename__ = "subscription_invoices"
+    id = Column(String, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    billing_revision = Column(Integer, nullable=False, default=0, server_default="0")
+    carry_minor = Column(Integer, nullable=False, default=0, server_default="0")
+    cycle_key = Column(String, unique=True, nullable=False)
+    kind = Column(String(16), nullable=False)
+    plan_code = Column(String(32), nullable=False)
+    amount_minor = Column(Integer, nullable=False)
+    currency = Column(String(3), nullable=False, default="ILS")
+    status = Column(String(16), nullable=False, default="open")
+    period_start = Column(DateTime(timezone=True))
+    period_end = Column(DateTime(timezone=True))
+    due_at = Column(DateTime(timezone=True), nullable=False)
+    next_attempt_at = Column(DateTime(timezone=True))
+    receipt_url = Column(Text)
+    refunded_minor = Column(Integer, nullable=False, default=0, server_default="0")
+    notification_kind = Column(String(32))
+    notification_sent_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class SubscriptionPaymentAttempt(Base):
+    __tablename__ = "subscription_payment_attempts"
+    id = Column(String, primary_key=True)  # Also the unique Allpay order_id.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    invoice_id = Column(String, ForeignKey("subscription_invoices.id"), index=True)
+    billing_revision = Column(Integer, nullable=False, default=0, server_default="0")
+    kind = Column(String(16), nullable=False, default="payment")
+    status = Column(String(16), nullable=False, default="created")
+    payment_url = Column(Text)
+    consent_at = Column(DateTime(timezone=True))
+    consent_version = Column(String(32))
+    test_mode = Column(Boolean, nullable=False, default=True)
+    error_code = Column(String(40))
+    token_pending = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    submitted_at = Column(DateTime(timezone=True))
+    reconciled_at = Column(DateTime(timezone=True))
+
+
+class SubscriptionAuditEvent(Base):
+    __tablename__ = "subscription_audit_events"
+    id = Column(String, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    actor_user_id = Column(Integer, ForeignKey("users.id"))
+    action = Column(String(64), nullable=False)
+    reason = Column(Text, nullable=False)
+    before = Column(JSON, nullable=False, default=dict)
+    after = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class SubscriptionRefund(Base):
+    __tablename__ = "subscription_refunds"
+    id = Column(String, primary_key=True)
+    invoice_id = Column(String, ForeignKey("subscription_invoices.id"), nullable=False, index=True)
+    attempt_id = Column(String, ForeignKey("subscription_payment_attempts.id"), nullable=False)
+    amount_minor = Column(Integer, nullable=False)
+    refunded_before = Column(Integer, nullable=False, default=0, server_default="0")
+    status = Column(String(16), nullable=False, default="submitted")
+    receipt_url = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+# Validate company ownership for every ORM writer, including imports and workers.
+from services.company_record_ownership import install_ownership_validation
+install_ownership_validation()

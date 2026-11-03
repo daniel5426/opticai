@@ -20,6 +20,7 @@ import EndPoints.lookups as lookups
 import EndPoints.search as search
 import EndPoints.work_shifts as work_shifts
 import main
+from EndPoints.agent import authorized as authorized_agent
 
 
 def _route_has_auth(router, path: str, method: str) -> bool:
@@ -64,7 +65,9 @@ def test_non_public_api_routes_require_auth():
     )
     allowed_public_routes = {
         ("GET", "/api/v1/plans"),
-        # Stripe authenticates this endpoint with its signed raw request body.
+        ("GET", "/api/v1/order-groups/capabilities"),
+        # Allpay verifies its signed JSON; Stripe is an inert retired endpoint.
+        ("POST", "/api/v1/subscriptions/webhooks/allpay"),
         ("POST", "/api/v1/subscriptions/webhooks/stripe"),
     }
 
@@ -76,7 +79,9 @@ def test_non_public_api_routes_require_auth():
             continue
         if any((method, route.path) in allowed_public_routes for method in route.methods or set()):
             continue
-        if not any(dep.call is get_current_user for dep in route.dependant.dependencies):
+        def authenticated(dependant):
+            return any(dep.call in {get_current_user, authorized_agent} or authenticated(dep) for dep in dependant.dependencies)
+        if not authenticated(route.dependant):
             methods = ",".join(sorted(route.methods or []))
             missing.append(f"{methods} {route.path}")
 

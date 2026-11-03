@@ -84,6 +84,7 @@ def _seed(db):
         "user_b": user_b.id,
         "client_a": client_a.id,
         "client_b": client_b.id,
+        "clinic_a": clinic_a.id,
         "clinic_b": clinic_b.id,
         "file_a": file_a.id,
     }
@@ -124,7 +125,7 @@ def test_upload_derives_scope_and_uses_ascii_storage_key():
             "/api/v1/files/",
             data={
                 "client_id": str(ids["client_a"]),
-                "clinic_id": str(ids["clinic_b"]),
+                "clinic_id": str(ids["clinic_a"]),
                 "uploaded_by": str(ids["user_b"]),
                 "notes": "note",
             },

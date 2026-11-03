@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from auth import get_current_user
 from database import get_db
-from models import Client, ContactLensOrder, MigrationSourceLink, OpticalExam, Order, User
+from models import Client, ContactLensOrder, MigrationSourceLink, OpticalExam, Order, User, MedicalLog
 from security.scope import (
     assert_clinic_scope,
     get_scoped_client,
@@ -21,6 +21,7 @@ router = APIRouter(prefix="/migration-source-data", tags=["migration-source-data
 _TARGETS: dict[str, Tuple[str, Type[Any]]] = {
     "client": ("Client", Client),
     "exam": ("OpticalExam", OpticalExam),
+    "medical_log": ("MedicalLog", MedicalLog),
     "order": ("Order", Order),
     "contact_lens_order": ("ContactLensOrder", ContactLensOrder),
 }
@@ -38,6 +39,12 @@ def _resolve_scoped_target(
         return "Order", get_scoped_order(db, current_user, record_id)
     if record_type == "contact_lens_order":
         return "ContactLensOrder", get_scoped_contact_lens_order(db, current_user, record_id)
+    if record_type == "medical_log":
+        log = db.get(MedicalLog, record_id)
+        if not log:
+            raise HTTPException(status_code=404, detail="Medical history not found")
+        assert_clinic_scope(db, current_user, log.clinic_id)
+        return "MedicalLog", log
     if record_type == "exam":
         exam = db.get(OpticalExam, record_id)
         if not exam:

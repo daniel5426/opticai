@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from agent.models import FollowupTask
+
 from datetime import datetime, timedelta, timezone
 import os
 from typing import Any
@@ -56,6 +58,7 @@ ACTIVE_PRUNE_STATUSES = {"queued", "running"}
 PRUNE_LEASE_SECONDS = int(os.environ.get("CLINIC_PRUNE_LEASE_SECONDS", "120"))
 
 COUNT_MODELS = {
+    "tasks": FollowupTask,
     "clients": Client,
     "families": Family,
     "exams": OpticalExam,
@@ -74,10 +77,10 @@ COUNT_MODELS = {
 }
 
 PRUNE_PREVIEW_SECTIONS = {
-    "people": {"clients", "families"},
+    "people": set(),
     "clinical": {
         "exams", "exam_instances", "appointments", "referrals", "referral_eyes",
-        "medical_logs", "recent_visits", "prescription_index",
+        "medical_logs", "recent_visits", "prescription_index", "tasks",
     },
     "commerce": {
         "orders", "contact_lens_orders", "billings", "billing_payments", "order_line_items",
@@ -166,6 +169,7 @@ def verify_preview_token(token: str, *, clinic_id: int, user_id: int) -> None:
 
 
 def create_prune_job(db: Session, *, clinic: Clinic, requested_by: User, counts: dict[str, int]) -> ClinicDataPruneJob:
+    clinic = db.query(Clinic).filter_by(id=clinic.id).populate_existing().with_for_update().one()
     if clinic.maintenance_mode:
         raise ValueError("Clinic is already in maintenance mode; resume its existing cleanup job")
     if db.query(SoftOpticMigrationJob.id).filter(
@@ -239,15 +243,13 @@ def _queue_storage_objects(db: Session, job: ClinicDataPruneJob) -> int:
     for row in db.query(File.storage_bucket, File.storage_key).filter(File.clinic_id == job.clinic_id).all():
         if row.storage_bucket and row.storage_key:
             objects.add((row.storage_bucket, row.storage_key))
-    profile_urls = [
-        row[0]
-        for row in db.query(Client.profile_picture).filter(Client.clinic_id == job.clinic_id).all()
-    ]
-    for value in profile_urls:
-        parsed = _parse_managed_storage_object(value)
-        if parsed:
-            objects.add(parsed)
     for row in db.query(SoftOpticMigrationJob).filter(SoftOpticMigrationJob.clinic_id == job.clinic_id).all():
+        report = (row.import_summary or {}).get("report") or {}
+        if report.get("bucket") and report.get("key"):
+            objects.add((report["bucket"], report["key"]))
+        for part in (row.checkpoint or {}).get("opticplus_report_parts", []):
+            if row.bundle_storage_bucket and isinstance(part, str):
+                objects.add((row.bundle_storage_bucket, part))
         if row.bundle_storage_bucket and row.bundle_storage_key:
             objects.add((row.bundle_storage_bucket, row.bundle_storage_key))
             row.bundle_storage_bucket = None
@@ -302,11 +304,29 @@ def _delete_operational_rows(db: Session, job: ClinicDataPruneJob) -> dict[str, 
     campaign_ids = db.query(Campaign.id).filter(Campaign.clinic_id == clinic_id)
     chat_ids = db.query(Chat.id).filter(Chat.clinic_id == clinic_id)
 
-    trash_item_ids = db.query(TrashItem.id).filter(TrashItem.clinic_id == clinic_id)
+    from agent.models import InsightCache
+    affected = set()
+    for model in (OpticalExam, MedicalLog, Referral, Appointment, File, Order, ContactLensOrder):
+        affected.update(row[0] for row in db.query(model.client_id).filter(model.clinic_id == clinic_id).distinct())
+    if affected:
+        updates = {"client_updated_date": utcnow(), "ai_updated_date": None}
+        updates.update({f"ai_{part}_state": None for part in ("exam", "order", "referral", "contact_lens", "appointment", "file", "medical")})
+        db.query(Client).filter(Client.id.in_(affected)).update(updates, synchronize_session=False)
+        db.query(InsightCache).filter(InsightCache.client_id.in_(affected)).delete(synchronize_session=False)
+
+    # Remove only this clinic's members from company-wide client Trash envelopes.
+    for entity_type, model in (("exam", OpticalExam), ("appointment", Appointment),
+            ("order", Order), ("contact_lens_order", ContactLensOrder), ("order_group", OrderGroup),
+            ("referral", Referral), ("medical_log", MedicalLog), ("file", File)):
+        db.query(TrashMember).filter(TrashMember.entity_type == entity_type,
+            TrashMember.entity_id.in_(db.query(model.id).filter(model.clinic_id == clinic_id))).delete(synchronize_session=False)
+
+    # Shared client Trash may contain other clinics: preserve its envelope/jobs.
+    trash_item_ids = db.query(TrashItem.id).filter(TrashItem.clinic_id == clinic_id, TrashItem.root_entity_type != "client")
     db.query(TrashJob).filter(TrashJob.trash_item_id.in_(trash_item_ids)).delete(synchronize_session=False)
     db.query(TrashMember).filter(TrashMember.trash_item_id.in_(trash_item_ids)).delete(synchronize_session=False)
-    db.query(TrashAuditEvent).filter(TrashAuditEvent.clinic_id == clinic_id).delete(synchronize_session=False)
-    db.query(TrashItem).filter(TrashItem.clinic_id == clinic_id).delete(synchronize_session=False)
+    db.query(TrashAuditEvent).filter(TrashAuditEvent.trash_item_id.in_(trash_item_ids)).delete(synchronize_session=False)
+    db.query(TrashItem).filter(TrashItem.id.in_(trash_item_ids)).delete(synchronize_session=False)
 
     if user_ids:
         db.query(WorkShift).filter(WorkShift.user_id.in_(user_ids)).delete(synchronize_session=False)
@@ -322,6 +342,7 @@ def _delete_operational_rows(db: Session, job: ClinicDataPruneJob) -> dict[str, 
     db.query(CampaignClientExecution).filter(CampaignClientExecution.campaign_id.in_(campaign_ids)).delete(synchronize_session=False)
     db.query(ChatMessage).filter(ChatMessage.chat_id.in_(chat_ids)).delete(synchronize_session=False)
     for model in (
+        FollowupTask,
         RecentClientVisit,
         PrescriptionSearchIndex,
         Campaign,
@@ -334,8 +355,6 @@ def _delete_operational_rows(db: Session, job: ClinicDataPruneJob) -> dict[str, 
         Order,
         OrderGroup,
         OpticalExam,
-        Client,
-        Family,
         ClinicDeviceTrust,
         MigrationSourceLink,
     ):

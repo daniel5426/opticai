@@ -5,8 +5,10 @@ from database import get_db
 from models import ExamLayoutInstance
 # Unified exam data now stored on ExamLayoutInstance.exam_data
 from auth import get_current_user
-from models import User
+from models import User, OpticalExam
+from security.scope import assert_record_scope
 from services.prescription_search_index import rebuild_exam_instance_index
+from services.legacy_exam_compatibility import preserve_unrepresented_components
 from services.prism_axis_compatibility import (
     is_prism_axis_component_key,
     normalize_prism_axis_block,
@@ -60,7 +62,8 @@ async def get_exam_data(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Layout instance not found"
         )
-    
+
+    assert_record_scope(db, current_user, db.get(OpticalExam, layout_instance.exam_id))
     # Return instance-level JSON
     return _normalize_exam_payload(layout_instance.exam_data or {})
 
@@ -82,6 +85,8 @@ async def save_exam_data(
         print(f"DEBUG: Raw request body: {body}")
         
         exam_data = await request.json()
+        if not isinstance(exam_data, dict):
+            raise ValueError("Body must be a JSON object")
         print(f"DEBUG: Parsed exam data: {exam_data}")
         print(f"DEBUG: Exam data type: {type(exam_data)}")
     except Exception as e:
@@ -92,7 +97,7 @@ async def save_exam_data(
         )
     
     # Verify the layout instance exists and user has access
-    layout_instance = db.query(ExamLayoutInstance).filter(
+    layout_instance = db.query(ExamLayoutInstance).populate_existing().with_for_update().filter(
         ExamLayoutInstance.id == layout_instance_id
     ).first()
     
@@ -104,9 +109,11 @@ async def save_exam_data(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Layout instance not found"
         )
-    
+
+    assert_record_scope(db, current_user, db.get(OpticalExam, layout_instance.exam_id))
     # Upsert directly on instance row, upgrading legacy OPC keys to NPC.
-    layout_instance.exam_data = _normalize_exam_payload(exam_data)
+    layout_instance.exam_data = preserve_unrepresented_components(
+        _normalize_exam_payload(layout_instance.exam_data), _normalize_exam_payload(exam_data), request)
     rebuild_exam_instance_index(db, layout_instance)
     db.commit()
     db.refresh(layout_instance)
@@ -117,13 +124,14 @@ async def save_exam_data(
 async def delete_exam_data(
     layout_instance_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    request: Request = None,
 ):
     """
     Delete all exam data for a specific layout instance
     """
     # Verify the layout instance exists and user has access
-    layout_instance = db.query(ExamLayoutInstance).filter(
+    layout_instance = db.query(ExamLayoutInstance).populate_existing().with_for_update().filter(
         ExamLayoutInstance.id == layout_instance_id
     ).first()
     
@@ -132,9 +140,11 @@ async def delete_exam_data(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Layout instance not found"
         )
+
+    assert_record_scope(db, current_user, db.get(OpticalExam, layout_instance.exam_id))
     
     # Clear instance JSON
-    layout_instance.exam_data = {}
+    layout_instance.exam_data = preserve_unrepresented_components(layout_instance.exam_data, {}, request)
     rebuild_exam_instance_index(db, layout_instance)
     db.commit()
     return {"success": True, "message": "Exam data cleared successfully"}
@@ -159,6 +169,8 @@ async def get_exam_component_data(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Layout instance not found"
         )
+
+    assert_record_scope(db, current_user, db.get(OpticalExam, layout_instance.exam_id))
     
     data = _normalize_exam_payload(layout_instance.exam_data or {})
     canonical_component_type = _normalize_npc_key(component_type)
@@ -192,6 +204,8 @@ async def save_exam_component_data(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Layout instance not found"
         )
+
+    assert_record_scope(db, current_user, db.get(OpticalExam, layout_instance.exam_id))
     
     # Update the specific component on instance JSON
     merged = _normalize_exam_payload(dict(layout_instance.exam_data or {}))

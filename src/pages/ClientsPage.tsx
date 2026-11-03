@@ -1,3 +1,6 @@
+import { TableExportProvider } from "@/components/table-export/context";
+import { CompanyClinicToolbarProvider } from "@/components/CompanyClinicFilter"
+import { useCompanyClinicFilter } from "@/hooks/client/useCompanyClinicFilter"
 import React, { useEffect, useState } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
@@ -26,7 +29,8 @@ export default function ClientsPage() {
   const navigate = useNavigate()
   const { currentClinic } = useUser()
   const { direction } = useAppLocale()
-  const clinicId = currentClinic?.id
+  const clinicFilter = useCompanyClinicFilter()
+  const clinicId = clinicFilter.clinicId
   const [clients, setClients] = useState<Client[]>([])
   const [families, setFamilies] = useState<Family[]>([])
   const [clientsLoading, setClientsLoading] = useState(true)
@@ -98,7 +102,7 @@ export default function ClientsPage() {
   }, [navigate, search.q, searchInput])
 
   const loadClients = async () => {
-    if (!clinicId) return
+    if (!currentClinic) return
     const canCommit = startSearchRequest(search.q)
     try {
       setClientsLoading(true)
@@ -128,7 +132,7 @@ export default function ClientsPage() {
   }
 
   const loadFamilies = async () => {
-    if (!clinicId) return
+    if (!currentClinic) return
     const canCommit = startSearchRequest(search.q)
     try {
       setFamiliesLoading(true)
@@ -165,7 +169,7 @@ export default function ClientsPage() {
   }
 
   useEffect(() => {
-    if (!clinicId) {
+    if (!currentClinic) {
       setClients([])
       setFamilies([])
       setClientsLoading(false)
@@ -173,7 +177,7 @@ export default function ClientsPage() {
       return
     }
     void loadData()
-  }, [activeSort, clinicId, pageSize, isFamilyMode, search.gender, search.page, search.q, startSearchRequest])
+  }, [activeSort, clinicFilter.companyId, currentClinic?.id, clinicId, pageSize, isFamilyMode, search.gender, search.page, search.q, startSearchRequest])
 
   const handleClientDeleted = (clientId: number) => {
     setClients((previous) => previous.filter((client) => client.id !== clientId))
@@ -320,8 +324,15 @@ export default function ClientsPage() {
     }
   }
 
+  useEffect(() => {
+    const refresh = () => { void loadData() }
+    window.addEventListener("prysm:client-records-changed", refresh)
+    return () => window.removeEventListener("prysm:client-records-changed", refresh)
+  }, [loadData])
+
   return (
-    <>
+    <TableExportProvider value={isFamilyMode ? null : { table: "clients", clinicId: clinicFilter.clinicId, sort: sortToOrder(activeSort, "id_desc") }}>
+    <CompanyClinicToolbarProvider filter={{ ...clinicFilter, setValue: value => { clinicFilter.setValue(value); void navigate({ to: "/clients", search: buildSearchState({ page: 1 }) }) } }} allClients>
       <SiteHeader title="לקוחות" />
       <div className="flex h-full min-h-0 flex-1 flex-col p-4 lg:p-6" dir={direction} style={{ scrollbarWidth: "none" }}>
         <div className="@container/main flex min-h-0 flex-1 flex-col">
@@ -505,6 +516,7 @@ export default function ClientsPage() {
           ) : null}
         </div>
       </CustomModal>
-    </>
+    </CompanyClinicToolbarProvider>
+    </TableExportProvider>
   )
 }

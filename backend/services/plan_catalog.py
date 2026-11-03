@@ -27,17 +27,17 @@ class PlanDefinition:
 def plan_catalog() -> dict[str, PlanDefinition]:
     return {
         "essential": PlanDefinition(
-            "essential", "Essential", 43_000, "ils", 1, 5, 30,
+            "essential", "Essential", 43_000, "ils", 1, 5, 0,
             "Self-service onboarding", "Standard support and configuration", True,
             settings.STRIPE_ESSENTIAL_PRICE_ID or None,
         ),
         "growth": PlanDefinition(
-            "growth", "Growth", 99_900, "ils", 3, 15, 30,
+            "growth", "Growth", 99_900, "ils", 3, 15, 0,
             "Priority onboarding", "Priority support and setup assistance", True,
             settings.STRIPE_GROWTH_PRICE_ID or None,
         ),
         "network": PlanDefinition(
-            "network", "Network", 189_000, "ils", 6, 35, 30,
+            "network", "Network", 189_000, "ils", 6, 35, 0,
             "Guided multi-clinic rollout", "Tailored configuration", True,
             settings.STRIPE_NETWORK_PRICE_ID or None,
         ),

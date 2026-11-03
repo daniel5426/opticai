@@ -146,3 +146,23 @@ async def test_slow_database_does_not_block_health_and_session_stays_on_worker(a
         response = await pending
     assert response.json()['status'] == 'completed'
     assert len(set(threads)) == 1 and threads[0] != threading.get_ident()
+
+
+@pytest.mark.asyncio
+async def test_typed_supply_preserves_source_and_rejects_lost_frame_fields(app, clinic):
+    db, auth, *_ = clinic
+    context = {'external_session_id': auth.context_id}
+    row = {'source': {'sheet': 'Delivery', 'row': 2}, 'values': {
+        'category': 'frame', 'brand': 'Synthetic', 'model': 'A', 'color': 'Black',
+        'eye_size': 50, 'barcode': '000123', 'quantity': 2}}
+    result = (await call(app, 'prepare_supply', {'operation':'receipt','rows':[row]}, context)).json()
+    assert result['status'] == 'completed'
+    from agent.models import AgentJob
+    job = db.get(AgentJob, result['result']['job_id'])
+    saved = job.result['rows'][0]
+    assert saved['source'] == row['source'] and saved['values']['barcode'] == '000123'
+    assert saved['values']['color'] == 'Black' and saved['errors'] == []
+    del row['values']['color']
+    failed = (await call(app, 'prepare_supply', {'operation':'receipt','rows':[row]}, context)).json()
+    assert failed['status'] == 'failed'
+    assert failed['error']['code'] == 'CLINIC_INPUT_INVALID'

@@ -1,3 +1,4 @@
+from security.scope import record_filter
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -9,7 +10,7 @@ from auth import get_current_user
 from utils.table_search import build_all_terms_search_condition, search_blob, spaced_concat
 from security.scope import (
     apply_clinic_user_scope,
-    get_allowed_clinic_ids,
+    get_record_clinic_ids,
     get_scoped_client,
     get_scoped_referral,
 )
@@ -18,20 +19,7 @@ from services.trash_service import move_to_trash
 
 router = APIRouter(prefix="/referrals", tags=["referrals"])
 
-@router.get("/paginated")
-def get_referrals_paginated(
-    clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
-    limit: int = Query(25, ge=1, le=100, description="Max items to return"),
-    offset: int = Query(0, ge=0, description="Items to skip"),
-    order: Optional[str] = Query("date_desc", description="Sort order: date_desc|date_asc|id_desc|id_asc"),
-    search: Optional[str] = Query(None, description="Search by type/recipient/urgency_level/client name"),
-    urgency_level: Optional[str] = Query(None, description="Filter by urgency level"),
-    referral_type: Optional[str] = Query(None, alias="type", description="Filter by referral type"),
-    include_total: bool = Query(True, description="Include the exact total count"),
-    count_only: bool = Query(False, description="Return only the exact total count"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
+def referral_list_query(db, current_user, clinic_id, search, urgency_level, referral_type, order):
     base = (
         db.query(
             Referral,
@@ -41,8 +29,8 @@ def get_referrals_paginated(
         .outerjoin(Client, Client.id == Referral.client_id)
         .outerjoin(User, User.id == Referral.user_id)
     )
-    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
-    base = base.filter(Referral.clinic_id.in_(allowed_clinic_ids))
+    allowed_clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
+    base = base.filter(record_filter(db, current_user, Referral, clinic_id))
     if urgency_level and urgency_level != "all":
         base = base.filter(Referral.urgency_level == urgency_level)
     if referral_type and referral_type != "all":
@@ -72,6 +60,24 @@ def get_referrals_paginated(
         base = base.order_by(order_column.asc().nulls_last(), Referral.id.asc())
     else:
         base = base.order_by(order_column.desc().nulls_last(), Referral.id.desc())
+    return base
+
+
+@router.get("/paginated")
+def get_referrals_paginated(
+    clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
+    limit: int = Query(25, ge=1, le=100, description="Max items to return"),
+    offset: int = Query(0, ge=0, description="Items to skip"),
+    order: Optional[str] = Query("date_desc", description="Sort order: date_desc|date_asc|id_desc|id_asc"),
+    search: Optional[str] = Query(None, description="Search by type/recipient/urgency_level/client name"),
+    urgency_level: Optional[str] = Query(None, description="Filter by urgency level"),
+    referral_type: Optional[str] = Query(None, alias="type", description="Filter by referral type"),
+    include_total: bool = Query(True, description="Include the exact total count"),
+    count_only: bool = Query(False, description="Return only the exact total count"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    base = referral_list_query(db, current_user, clinic_id, search, urgency_level, referral_type, order)
     total = base.count() if include_total or count_only else None
     if count_only:
         return {"items": [], "total": total or 0, "has_more": False}
@@ -122,20 +128,21 @@ def get_all_referrals(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
-    query = db.query(Referral).filter(Referral.clinic_id.in_(allowed_clinic_ids))
+    allowed_clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
+    query = db.query(Referral).filter(record_filter(db, current_user, Referral, clinic_id))
     return query.all()
 
 @router.get("/client/{client_id}", response_model=List[ReferralSchema])
 def get_referrals_by_client(
     client_id: int,
+    clinic_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    get_scoped_client(db, current_user, client_id)
+    client_id = get_scoped_client(db, current_user, client_id).id
     referrals = (
         db.query(Referral)
-        .filter(Referral.client_id == client_id)
+        .filter(Referral.client_id == client_id, record_filter(db, current_user, Referral, clinic_id))
         .order_by(Referral.date.desc().nulls_last(), Referral.id.desc())
         .all()
     )

@@ -162,17 +162,19 @@ export function BillingLineItem({
         {item.description?.trim() ? (
           <p className="text-sm break-words">{item.description}</p>
         ) : null}
-        <p className="text-muted-foreground text-xs">
+        {(item.price != null && item.quantity != null || item.sku) ? <p className="text-muted-foreground text-xs">
+          {item.price != null && item.quantity != null ? (
           <span className="tabular-nums">
-            {item.quantity || 0} × {formatCurrency(item.price, item.currency)}
+            {item.quantity} × {formatCurrency(item.price, item.currency)}
           </span>
+          ) : null}
           {item.sku ? (
             <>
-              <span className="px-1">·</span>
+              {item.price != null && item.quantity != null ? <span className="px-1">·</span> : null}
               <span dir="ltr" className="break-all">{item.sku}</span>
             </>
           ) : null}
-        </p>
+        </p> : null}
         {item.supplied ? (
           <p className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
             <Check className="size-3" />

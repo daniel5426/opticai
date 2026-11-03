@@ -12,6 +12,8 @@ import { useAppLocale } from '@/localization/use-app-locale';
 import { Button } from '@/components/ui/button';
 import { reportMessageResults } from './report-message-results';
 import { MessageReportResults } from './MessageReportResults';
+import { supplyMessageResults } from './supply-message-results';
+const SupplyReview = React.lazy(() => import('../inventory/SupplyIntake').then(module => ({ default: module.SupplyReview })));
 
 type Proposal = { id: string; kind: string; action: string; before: Record<string, unknown>; after: Record<string, unknown>; status: string; patient?: { label: string; path: string } | null };
 function Value({ value }: { value: unknown }) {
@@ -70,16 +72,21 @@ export function ApprovalTimeline(props: AgentChatTimelineSlotProps) {
     const input = tool.input as { change_id?: unknown } | undefined;
     if (tool.toolCallId && typeof input?.change_id === 'string') changesByCall.set(tool.toolCallId, input.change_id);
   }
-  const flush = () => { if (chunk.length) { groups.push(<ToolActivityTimeline key={chunk.find(part => part.kind !== 'model-turn')?.id || chunk[0].id} {...props} parts={chunk} responseProps={{ ...props.responseProps, components: { a: AgentLink, img: ({ alt }: { alt?: string }) => <span>{alt}</span> } }} />); chunk = []; } };
+  const flush = (active = false) => { if (chunk.length || active && !groups.length) { groups.push(<ToolActivityTimeline key={chunk.find(part => part.kind !== 'model-turn')?.id || chunk[0]?.id || 'activity'} {...props}
+    message={active ? props.message : { ...props.message, activity: undefined }} isLoading={active && props.isLoading}
+    parts={chunk} responseProps={{ ...props.responseProps, components: { a: AgentLink, img: ({ alt }: { alt?: string }) => <span>{alt}</span> } }} />); chunk = []; } };
   for (const part of props.parts) {
     if (part.kind === 'hitl' && part.hitlKind === 'tool_review' && part.presentation.tool_name === 'commit_change') {
       const changeId = changesByCall.get(String(part.presentation.tool_call_id || ''));
       flush(); groups.push(<Review key={part.id} {...props} part={part} changeId={changeId} />);
     } else chunk.push(part);
   }
-  flush();
+  flush(true);
   const reports = reportMessageResults(props.parts);
   return <div className="space-y-3">{groups}
     <MessageReportResults reports={reports} />
+    {supplyMessageResults(props.parts).map(jobId => <React.Suspense key={jobId} fallback={null}>
+      <section className="min-w-0 rounded-xl border bg-card p-3" data-supply-proposal={jobId}><SupplyReview jobId={jobId} /></section>
+    </React.Suspense>)}
   </div>;
 }

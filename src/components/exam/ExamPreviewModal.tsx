@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { importedExamName } from "@/lib/opticplus-cards";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { CustomModal } from "@/components/ui/custom-modal";
 import { getExamPageData } from "@/lib/db/exams-db";
@@ -56,6 +58,7 @@ export function ExamPreviewModal({
   hasNext,
   hasPrev,
 }: ExamPreviewModalProps) {
+  const { t, i18n } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [examData, setExamData] = useState<any>(null);
   const [activeInstanceId, setActiveInstanceId] = useState<number | null>(null);
@@ -310,10 +313,10 @@ export function ExamPreviewModal({
     <CustomModal
       isOpen={isOpen}
       onClose={onClose}
-      title={examData?.test_name || "תצוגה מהירה"}
+      title={importedExamName(t, examData?.test_name) || t("examDetails")}
       subtitle={
         examData
-          ? `${new Date(examData.exam_date).toLocaleDateString("he-IL")}${examData.dominant_eye ? ` · עין דומיננטית: ${examData.dominant_eye === "R" ? "ימין" : "שמאל"}` : ""}`
+          ? `${examData.exam_date ? new Date(examData.exam_date).toLocaleDateString(i18n.language) : ""}${examData.dominant_eye ? ` · ${t("dominantEye")}: ${t(["R", "right", "ימין"].includes(examData.dominant_eye) ? "right" : "left")}` : ""}`
           : undefined
       }
       width="!w-[95vw] max-w-[95vw]"

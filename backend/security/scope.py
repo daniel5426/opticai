@@ -1,7 +1,8 @@
 from typing import Optional
 
 from fastapi import HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy import or_, select
+from sqlalchemy.orm import Session, aliased
 
 from models import (
     Appointment,
@@ -127,6 +128,8 @@ def validate_loaded_clinic_scope(current_user: User, clinic: Clinic | None, comp
         raise HTTPException(status_code=403, detail="Access denied")
     if (current_user.role_level or 1) < CEO_LEVEL and current_user.clinic_id != clinic.id:
         raise HTTPException(status_code=403, detail="Access denied")
+    if clinic.is_active is False:
+        raise HTTPException(status_code=403, detail={"code": "clinic_inactive"})
     if not allow_maintenance and clinic.maintenance_mode:
         raise HTTPException(status_code=423, detail="Clinic is in maintenance mode")
 
@@ -145,6 +148,70 @@ def get_allowed_clinic_ids(db: Session, current_user: User, clinic_id: Optional[
     assert_clinic_scope(db, current_user, current_user.clinic_id)
     return [current_user.clinic_id]
 
+
+
+def assert_record_clinic(db, user, clinic_id, *, write=False):
+    """Client activity is shared; clinic administration retains its separate policy."""
+    clinic = db.get(Clinic, clinic_id) if clinic_id is not None else None
+    if not clinic or clinic.company_id != resolve_company_id(db, user):
+        raise HTTPException(403, "Access denied")
+    if write and clinic.is_active is False:
+        raise HTTPException(403, {"code": "clinic_inactive"})
+    if write and clinic.maintenance_mode:
+        raise HTTPException(423, "Clinic is in maintenance mode")
+    return clinic
+
+
+def get_record_clinic_ids(db, user, clinic_id=None):
+    company_id = resolve_company_id(db, user)
+    if clinic_id is not None:
+        assert_record_clinic(db, user, clinic_id)
+        return [clinic_id]
+    return list_company_clinic_ids(db, company_id, include_maintenance=True)
+
+
+def normalize_record_clinic(db, user, clinic_id=None):
+    clinic_id = clinic_id or user.clinic_id
+    if clinic_id is None:
+        raise HTTPException(400, "clinic_id is required")
+    assert_record_clinic(db, user, clinic_id, write=True)
+    return clinic_id
+
+
+def assert_record_scope(db, user, row):
+    if row is None:
+        raise HTTPException(404, "Record not found")
+    assert_company_access(db, user, row.company_id)
+    return row
+
+
+def client_clinic_condition(clinic_ids):
+    """Registration or live activity. EXISTS avoids duplicate directory rows."""
+    from models import OpticalExam
+    aliases = aliased(Client)
+    conditions = [Client.clinic_id.in_(clinic_ids), select(aliases.id).where(
+        aliases.merged_into_client_id == Client.id, aliases.company_id == Client.company_id,
+        aliases.clinic_id.in_(clinic_ids), aliases.deleted_at.is_(None)).correlate(Client).exists()]
+    for model in (OpticalExam, Order, ContactLensOrder, Appointment, Referral, MedicalLog, File):
+        conditions.append(select(model.id).where(
+            model.client_id == Client.id, model.company_id == Client.company_id,
+            model.clinic_id.in_(clinic_ids), model.deleted_at.is_(None)
+        ).correlate(Client).exists())
+    return or_(*conditions)
+
+
+def family_clinic_condition(clinic_ids):
+    return or_(Family.clinic_id.in_(clinic_ids), select(Client.id).where(
+        Client.family_id == Family.id, Client.company_id == Family.company_id,
+        Client.deleted_at.is_(None), Client.merged_into_client_id.is_(None),
+        client_clinic_condition(clinic_ids)).correlate(Family).exists())
+
+
+def client_scope_conditions(db, user, clinic_id=None):
+    conditions = [Client.company_id == resolve_company_id(db, user), Client.merged_into_client_id.is_(None)]
+    if clinic_id is not None:
+        conditions.append(client_clinic_condition(get_record_clinic_ids(db, user, clinic_id)))
+    return conditions
 
 def normalize_user_id(db: Session, current_user: User, user_id: Optional[int]) -> int:
     if user_id is None or user_id <= 0:
@@ -202,8 +269,8 @@ def get_visible_user(db: Session, current_user: User, user_id: int) -> User:
 
 def normalize_client_id(db: Session, current_user: User, client_id: int, clinic_id: Optional[int] = None) -> int:
     client = get_scoped_client(db, current_user, client_id)
-    if clinic_id is not None and client.clinic_id != clinic_id:
-        raise HTTPException(status_code=403, detail="Client does not belong to clinic")
+    if clinic_id is not None:
+        assert_record_clinic(db, current_user, clinic_id)
     return client.id
 
 
@@ -220,30 +287,41 @@ def apply_clinic_user_scope(
     scoped.pop("company_id", None)
 
     if require_clinic or scoped.get("clinic_id") is not None:
-        scoped["clinic_id"] = normalize_clinic_id_for_company(db, current_user, scoped.get("clinic_id"))
+        scoped["clinic_id"] = normalize_record_clinic(db, current_user, scoped.get("clinic_id"))
 
     if validate_client and scoped.get("client_id") is not None:
         scoped["client_id"] = normalize_client_id(db, current_user, scoped["client_id"], scoped.get("clinic_id"))
 
     if validate_user and "user_id" in scoped:
-        scoped["user_id"] = normalize_user_id(db, current_user, scoped.get("user_id"))
+        target_id = scoped.get("user_id") or current_user.id
+        target = db.get(User, target_id)
+        if not target or not user_belongs_to_company(db, target, resolve_company_id(db, current_user)):
+            raise HTTPException(403, "Access denied")
+        scoped["user_id"] = target.id
 
+    scoped["company_id"] = resolve_company_id(db, current_user)
     return scoped
 
 
 def get_scoped_client(db: Session, current_user: User, client_id: int) -> Client:
-    client = db.query(Client).filter(Client.id == client_id).first()
-    if not client:
-        raise HTTPException(status_code=404, detail="Client not found")
-    assert_clinic_scope(db, current_user, client.clinic_id)
-    return client
+    seen = set()
+    while client_id not in seen:
+        seen.add(client_id)
+        client = db.query(Client).filter(Client.id == client_id).first()
+        if not client:
+            raise HTTPException(404, "Client not found")
+        assert_record_scope(db, current_user, client)
+        if not client.merged_into_client_id:
+            return client
+        client_id = client.merged_into_client_id
+    raise HTTPException(409, "companyClients.mergeChain")
 
 
 def get_scoped_family(db: Session, current_user: User, family_id: int) -> Family:
     family = db.query(Family).filter(Family.id == family_id).first()
     if not family:
         raise HTTPException(status_code=404, detail="Family not found")
-    assert_clinic_scope(db, current_user, family.clinic_id)
+    assert_record_scope(db, current_user, family)
     return family
 
 
@@ -251,7 +329,7 @@ def get_scoped_medical_log(db: Session, current_user: User, medical_log_id: int)
     medical_log = db.query(MedicalLog).filter(MedicalLog.id == medical_log_id).first()
     if not medical_log:
         raise HTTPException(status_code=404, detail="Medical log not found")
-    assert_clinic_scope(db, current_user, medical_log.clinic_id)
+    assert_record_scope(db, current_user, medical_log)
     return medical_log
 
 
@@ -259,7 +337,7 @@ def get_scoped_referral(db: Session, current_user: User, referral_id: int) -> Re
     referral = db.query(Referral).filter(Referral.id == referral_id).first()
     if not referral:
         raise HTTPException(status_code=404, detail="Referral not found")
-    assert_clinic_scope(db, current_user, referral.clinic_id)
+    assert_record_scope(db, current_user, referral)
     return referral
 
 
@@ -291,7 +369,7 @@ def get_scoped_file(db: Session, current_user: User, file_id: int) -> File:
     file = db.query(File).filter(File.id == file_id).first()
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
-    assert_clinic_scope(db, current_user, file.clinic_id)
+    assert_record_scope(db, current_user, file)
     return file
 
 
@@ -316,7 +394,7 @@ def get_scoped_order(db: Session, current_user: User, order_id: int) -> Order:
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    assert_clinic_scope(db, current_user, order.clinic_id)
+    assert_record_scope(db, current_user, order)
     return order
 
 
@@ -324,7 +402,7 @@ def get_scoped_contact_lens_order(db: Session, current_user: User, order_id: int
     order = db.query(ContactLensOrder).filter(ContactLensOrder.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Contact lens order not found")
-    assert_clinic_scope(db, current_user, order.clinic_id)
+    assert_record_scope(db, current_user, order)
     return order
 
 
@@ -332,7 +410,7 @@ def get_scoped_appointment(db: Session, current_user: User, appointment_id: int)
     appointment = db.query(Appointment).filter(Appointment.id == appointment_id).first()
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
-    assert_clinic_scope(db, current_user, appointment.clinic_id)
+    assert_record_scope(db, current_user, appointment)
     return appointment
 
 
@@ -348,17 +426,17 @@ def assert_billing_scope(db: Session, current_user: User, billing: Billing) -> N
     if billing.order_group_id:
         group = db.query(OrderGroup).filter(OrderGroup.id == billing.order_group_id).first()
         if group:
-            assert_clinic_scope(db, current_user, group.clinic_id)
+            assert_record_scope(db, current_user, group)
             return
     if billing.order_id:
         order = db.query(Order).filter(Order.id == billing.order_id).first()
         if order:
-            assert_clinic_scope(db, current_user, order.clinic_id)
+            assert_record_scope(db, current_user, order)
             return
     if billing.contact_lens_id:
         order = db.query(ContactLensOrder).filter(ContactLensOrder.id == billing.contact_lens_id).first()
         if order:
-            assert_clinic_scope(db, current_user, order.clinic_id)
+            assert_record_scope(db, current_user, order)
             return
     raise HTTPException(status_code=403, detail="Access denied")
 
@@ -369,3 +447,12 @@ def get_scoped_order_line_item(db: Session, current_user: User, item_id: int) ->
         raise HTTPException(status_code=404, detail="Order line item not found")
     get_scoped_billing(db, current_user, item.billings_id)
     return item
+
+
+def record_filter(db, user, model, clinic_id=None):
+    from sqlalchemy import and_
+    conditions = [model.company_id == resolve_company_id(db, user)]
+    if clinic_id is not None:
+        assert_record_clinic(db, user, clinic_id)
+        conditions.append(model.clinic_id == clinic_id)
+    return and_(*conditions)

@@ -166,7 +166,7 @@ def test_grouped_invoice_survives_physical_member_purge(context):
 
 
 @pytest.mark.parametrize('path', ['order','contact','status','delete_order','delete_contact','invoice','delete_invoice','item','move_item','delete_item','payment','delete_payment','client','full','full_contact'])
-def test_every_legacy_mutation_rejects_protected_groups(context, path):
+def test_legacy_mutations_use_safe_group_adapters(context, path):
     from EndPoints import orders as orders_api, billing as billing_api, clients as clients_api
     from schemas import OrderUpdate, ContactLensOrderUpdate, BillingUpdate, OrderLineItemUpdate, BillingPaymentCreate
     db, user, clinic, clients = context
@@ -174,6 +174,7 @@ def test_every_legacy_mutation_rejects_protected_groups(context, path):
     regular, contact = first['entries']; invoice = first['billing']; item = first['line_items'][0]
     with group_write(db):
         payment = BillingPayment(billing_id=invoice['id'],amount=5,paid_at=date.today())
+        db.get(Billing, invoice['id']).prepayment_amount = 5
         db.add(payment);db.commit()
     single = Order(client_id=clients[0].id,clinic_id=clinic.id,type='independent')
     db.add(single);db.commit()
@@ -195,11 +196,26 @@ def test_every_legacy_mutation_rejects_protected_groups(context, path):
         'full': lambda: orders_api.upsert_order_full({'order':regular['order'],'billing':invoice,'line_items':first['line_items']},db,user),
         'full_contact': lambda: orders_api.upsert_contact_lens_order_full({'order':contact['order'],'billing':invoice,'line_items':first['line_items']},db,user),
     }
-    with pytest.raises(HTTPException) as error:actions[path]()
-    assert error.value.status_code == 409
-    db.rollback()
-    assert db.get(Billing,invoice['id']).total_after_discount == 90
-    assert db.query(BillingPayment).count() == 1
+    rejected = {'invoice', 'delete_invoice', 'move_item', 'full', 'full_contact'}
+    if path in rejected:
+        with pytest.raises(HTTPException) as error:
+            actions[path]()
+        assert error.value.status_code == (422 if path == 'move_item' else 409)
+        db.rollback()
+        assert db.get(Billing,invoice['id']).total_after_discount == 90
+        assert db.query(BillingPayment).count() == 1
+    else:
+        actions[path]()
+        group = db.get(OrderGroup, first['id'])
+        assert group.legacy_write_protected
+        assert group.payer_client_id == clients[0].id
+        shared = db.get(Billing, invoice['id'])
+        assert shared.order_id is None and shared.contact_lens_id is None
+        assert db.query(BillingPayment).count() == (2 if path == 'payment' else 0 if path == 'delete_payment' else 1)
+        if path in {'item', 'delete_item'}:
+            assert shared.total_after_discount == 0
+        else:
+            assert shared.total_after_discount == 90
 
 
 def test_removal_with_ui_billing_payload_preserves_manual_history(context):
@@ -219,6 +235,32 @@ def test_billing_metadata_edit_does_not_recalculate_historical_invoice(context):
         db.get(Billing,first['billing']['id']).total_after_discount=88.88;db.commit()
     result=save_group(db,user,{'revision':first['revision'],'billing':{**first['billing'],'notes':'updated'},'line_items':first['line_items']},group_id=first['id'])
     assert result['billing']['total_after_discount']==88.88
+
+
+@pytest.mark.parametrize("amount", [225, -25])
+def test_total_only_imported_line_survives_metadata_save_and_ignores_sent_total(context, amount):
+    db, user, clinic, clients = context
+    first = save_group(db, user, payload(clinic, clients), creation_key='imported-total')
+    with group_write(db):
+        line = db.get(OrderLineItem, first['line_items'][0]['id'])
+        line.price = line.quantity = line.discount = None
+        line.line_total = amount
+        line.source_slot = '1:gpricet'
+        line.manually_edited = False
+        db.commit()
+    first = group_dict(db, db.get(OrderGroup, first['id']))
+    result = save_group(db, user, {
+        'revision': first['revision'], 'billing': {**first['billing'], 'notes': 'updated'},
+        'line_items': [{**first['line_items'][0], 'description': 'Readable source product', 'line_total': 99999}],
+    }, group_id=first['id'])
+    assert result['line_items'][0]['line_total'] == amount
+    assert result['billing']['total_after_discount'] == first['billing']['total_after_discount']
+    assert db.query(BillingPayment).count() == 0
+    changed = save_group(db, user, {
+        'revision': result['revision'], 'billing': result['billing'],
+        'line_items': [{**result['line_items'][0], 'price': 15, 'quantity': 2}],
+    }, group_id=result['id'])
+    assert changed['line_items'][0]['line_total'] == 30
 
 
 def test_group_schema_rejects_invalid_financial_values_and_preserves_clinical_extras():
@@ -377,10 +419,10 @@ def test_history_includes_unlinked_legacy_orders_with_billing_without_writes(con
     from EndPoints.order_groups import link_imported_order
     db, user, clinic, clients = context
     # Core imports bypass ORM creation hooks, as does data predating groups.
-    db.execute(insert(Order).values(id=70, client_id=clients[0].id, clinic_id=clinic.id,
+    db.execute(insert(Order).values(company_id=clinic.company_id, id=70, client_id=clients[0].id, clinic_id=clinic.id,
                                    type='Distance', order_date=date(2024, 1, 1),
                                    order_data={'details': {'order_status': 'ready'}}))
-    db.execute(insert(ContactLensOrder).values(id=70, client_id=clients[1].id, clinic_id=clinic.id,
+    db.execute(insert(ContactLensOrder).values(company_id=clinic.company_id, id=70, client_id=clients[1].id, clinic_id=clinic.id,
                                               type='Contact', order_date=date(2024, 2, 1), order_status='ready'))
     db.execute(insert(Billing).values(id=80, order_id=70, currency='EUR',
                                      total_after_discount=100, prepayment_amount=30))
@@ -413,7 +455,7 @@ def test_history_excludes_deleted_and_other_clinic_orders(context):
     other = Clinic(company_id=clinic.company_id, name='Other', unique_id='other')
     db.add(other); db.commit()
     for order_id, clinic_id, deleted in ((71, clinic.id, True), (72, other.id, False)):
-        db.execute(insert(Order).values(id=order_id, client_id=clients[0].id, clinic_id=clinic_id,
+        db.execute(insert(Order).values(company_id=clinic.company_id, id=order_id, client_id=clients[0].id, clinic_id=clinic_id,
                                        deleted_at=datetime.now(timezone.utc) if deleted else None))
     saved = save_group(db, user, payload(clinic, clients), creation_key='deleted-history')
     with group_write(db):

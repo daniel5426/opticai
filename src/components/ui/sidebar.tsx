@@ -42,7 +42,11 @@ type SidebarContextProps = {
   toggleSidebar: () => void;
 };
 
-const SidebarContext = React.createContext<SidebarContextProps | null>(null);
+// Vite may retain router components while refreshing their layout imports.
+const hot = (import.meta as ImportMeta & { hot?: { data?: Record<string, unknown> } }).hot;
+const SidebarContext = (hot?.data?.sidebarContext as React.Context<SidebarContextProps | null> | undefined)
+  ?? React.createContext<SidebarContextProps | null>(null);
+if (hot?.data) hot.data.sidebarContext = SidebarContext;
 
 function useSidebar() {
   const context = React.useContext(SidebarContext);

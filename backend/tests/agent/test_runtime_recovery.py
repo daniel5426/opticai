@@ -40,3 +40,18 @@ def test_completed_projection_returns_output_without_looping_for_deltas(monkeypa
         attach_agent_run=attach)
     monkeypatch.setattr('agent.runtime.client', lambda: SimpleNamespace(embed=embed))
     assert run_text('brief', '', subject='synthetic', existing_run_id='saved') == '{"ok":true}'
+
+
+def test_failed_run_reads_the_canonical_error_envelope(monkeypatch):
+    from agent.failures import PlatformOperationFailed, job_failure
+    failure = {'schema_version': 'agents24.failure.v1', 'failure_id': '1491be5d-ebaf-4f3f-9a3a-6afc1ac91b69',
+               'code': 'BILLING_CREDITS_INSUFFICIENT', 'retryable': False, 'details': {'private': 'omit'}}
+    def attach(*args, on_event, **kwargs):
+        on_event({'seq': 1, 'event': 'run.failed', 'payload': {'error': failure}})
+    embed = SimpleNamespace(resolve_customer_principal=Mock(return_value={'customer_principal_ref': 'principal'}),
+                            attach_agent_run=attach)
+    monkeypatch.setattr('agent.runtime.client', lambda: SimpleNamespace(embed=embed))
+    with pytest.raises(PlatformOperationFailed) as caught:
+        run_text('supply', '', subject='synthetic', existing_run_id='saved')
+    assert job_failure(caught.value) == {'code': 'agent.jobFailed', 'platform_failure': {
+        'failure_id': failure['failure_id'], 'code': failure['code'], 'retryable': False}}

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from auth import get_current_user
 from database import get_db
 from models import Appointment, Client, ContactLensOrder, File, MedicalLog, OpticalExam, Order, Referral, TrashItem, TrashJob, TrashMember, User
-from security.scope import get_allowed_clinic_ids
+from security.scope import get_record_clinic_ids, resolve_company_id
 from services.file_storage_service import FileStorageService, get_file_storage_service
 from services.trash_service import request_purge, restore_item, retry_failed_jobs
 
@@ -87,12 +87,20 @@ def list_trash(
     current_user: User = Depends(get_current_user),
 ):
     _require_editor(current_user)
-    clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
+    clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
     query = (
         db.query(TrashItem, User.full_name)
         .outerjoin(User, User.id == TrashItem.deleted_by_user_id)
-        .filter(TrashItem.clinic_id.in_(clinic_ids), TrashItem.status.in_(("trashed", "purging")))
+        .filter(TrashItem.company_id == resolve_company_id(db, current_user), TrashItem.status.in_(("trashed", "purging")))
     )
+    if clinic_id is not None:
+        # Company-wide client envelopes are visible wherever their history occurred.
+        member_conditions = []
+        for kind, model in (("exam", OpticalExam), ("order", Order), ("contact_lens_order", ContactLensOrder),
+                ("appointment", Appointment), ("referral", Referral), ("medical_log", MedicalLog), ("file", File)):
+            member_conditions.append(db.query(TrashMember.id).filter(TrashMember.trash_item_id == TrashItem.id,
+                TrashMember.entity_type == kind, TrashMember.entity_id.in_(db.query(model.id).filter(model.clinic_id == clinic_id))).exists())
+        query = query.filter(or_(TrashItem.clinic_id == clinic_id, *member_conditions)).execution_options(include_deleted=True)
     if entity_type:
         query = query.filter(TrashItem.root_entity_type == entity_type)
     if deleted_by_user_id:
@@ -129,7 +137,7 @@ def get_trash_item(
     if not row:
         raise HTTPException(status_code=404, detail="Trash item not found")
     item, deleted_by = row
-    get_allowed_clinic_ids(db, current_user, item.clinic_id)
+    get_record_clinic_ids(db, current_user, item.clinic_id)
     members = db.query(TrashMember).filter(TrashMember.trash_item_id == item.id).all()
     jobs = db.query(TrashJob).filter(TrashJob.trash_item_id == item.id).order_by(TrashJob.created_at.desc()).all()
     payload = _serialize(item, deleted_by)
@@ -182,7 +190,7 @@ def preview_trashed_file(
     item = db.query(TrashItem).filter(TrashItem.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Trash item not found")
-    get_allowed_clinic_ids(db, current_user, item.clinic_id)
+    get_record_clinic_ids(db, current_user, item.clinic_id)
     if item.status != "trashed":
         raise HTTPException(status_code=409, detail="File preview is unavailable during permanent cleanup")
     member = db.query(TrashMember).filter(

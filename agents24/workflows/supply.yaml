@@ -1,0 +1,14 @@
+schema: agents24.workflow/v1
+name: Prysm Supply Mapping
+description: Tool-free supplier data interpretation for staff review.
+inputs:
+  text: string
+outputs:
+  response: object
+entry: supply
+nodes:
+  supply:
+    uses: ../agents/supply.md
+flow:
+  - from: supply.output_json
+    to: output.response

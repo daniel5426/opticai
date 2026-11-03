@@ -134,7 +134,7 @@ async def clinic_context(inputs, config, context):
     locale = (context.get('embed_metadata') or {}).get('app.locale')
     return await invoke(context, lambda db, auth: {'clinic_id': auth.clinic_id, 'client_id': auth.patient_id,
         'current_user_id': auth.user.id, 'business_date': now().astimezone(ZoneInfo('Asia/Jerusalem')).date().isoformat(),
-        'timezone': 'Asia/Jerusalem', 'locale': locale if locale in {'he', 'en', 'fr'} else None, 'read_only': auth.read_only})
+        'timezone': 'Asia/Jerusalem', 'locale': locale if locale in {'he', 'en', 'fr'} else None, 'read_only': auth.read_only, 'page_context': (context.get('embed_metadata') or {}).get('app.page')})
 
 
 @tool(name='search_catalog', description='Discover searchable authorized datasets, typed fields and registered relationships. File contents have a separate search tool; numeric prescription similarity uses search_prescriptions.', input_schema=Input, result_handling={'strategy': 'artifact', 'limit_chars': 48000})
@@ -244,10 +244,12 @@ async def report_catalog(inputs, config, context):
     return await invoke(context, report_definitions.catalog)
 
 
-@tool(name='run_report', description='Execute a version-2 report as a durable immutable result with tables, charts and complete Excel/CSV exports. Supports nested relationship filters and business_health. Reuse request_key after uncertain delivery; read_report retrieves the result.', input_schema=ReportRun)
+@tool(name='run_report', description='Execute a version-2 report as a durable immutable result with tables, charts and complete Excel/CSV exports. Supports nested relationship filters and business_health. Reuse request_key after uncertain delivery. Execution suspends until the immutable result is ready; do not poll read_report.', input_schema=ReportRun)
 async def run_report(inputs, config, context):
     args = parse(ReportRun, inputs)
-    return await invoke(context, lambda db, auth: report_definitions.queue(db, auth, args.definition.model_dump(mode='json'), args.request_key))
+    from .report_completion import queued_report
+    return await invoke(context, lambda db, auth: queued_report(db, auth, context,
+        lambda db, auth: report_definitions.queue(db, auth, args.definition.model_dump(mode='json'), args.request_key)))
 
 
 @tool(name='read_report', description='Read an authorized completed report execution, including metrics, charts and a page of rows. Does not rerun the query. Pending/expired reports are explicit.', input_schema=ReportPage, result_handling={'strategy': 'artifact', 'limit_chars': 48000})
@@ -261,17 +263,23 @@ async def read_report(inputs, config, context):
         if job.status != 'completed':
             return {'type': 'report_run', 'job_id': job.id, 'status': job.status}
         return {**(job.result or {}), **page(job, args.offset, args.limit)}
-    from anyio import sleep
-    for attempt in range(20):
-        result = await invoke(context, read)
-        if result.get('status') not in {'queued', 'running'} or attempt == 19:
-            return result
-        await sleep(1)
+    def read_or_wait(db, auth):
+        from EndPoints.agent import owned_job
+        from .report_completion import wait_for_report
+        job = owned_job(db, auth, args.job_id)
+        if job.status in {'queued','running'}:
+            return wait_for_report(db, auth, job, context, offset=args.offset, limit=args.limit)
+        return read(db, auth)
+    return await invoke(context, read_or_wait)
 
 
 @tool(name='saved_reports', description='List, save, rename, delete or rerun the current staff member’s private report definitions in this clinic/patient scope. Save only when asked; rename/delete require the current revision. Reruns need a fresh request_key.', input_schema=SavedReportInput)
 async def saved_reports(inputs, config, context):
     args = parse(SavedReportInput, inputs)
+    if args.action == 'run':
+        from .report_completion import queued_report
+        return await invoke(context, lambda db, auth: queued_report(db, auth, context,
+            lambda db, auth: report_definitions.saved(db, auth, **args.model_dump(mode='json'))))
     return await invoke(context, lambda db, auth: report_definitions.saved(db, auth, **args.model_dump(mode='json')))
 
 
@@ -284,7 +292,9 @@ async def preview_report(inputs, config, context):
 @tool(name='export_report', description='Queue a complete Excel or CSV export of a validated report, including all matches beyond the preview. Reuse request_key after uncertain delivery.', input_schema=Export)
 async def export_report(inputs, config, context):
     args = parse(Export, inputs)
-    return await invoke(context, lambda db, auth: reports.queue_export(db, auth, args.definition.model_dump(mode="json"), args.request_key))
+    from .report_completion import queued_report
+    return await invoke(context, lambda db, auth: queued_report(db, auth, context,
+        lambda db, auth: reports.queue_export(db, auth, args.definition.model_dump(mode="json"), args.request_key)))
 
 
 @tool(name='job_status', description='Read an authorized report/document job; when a report completes provide its protected download path.', input_schema=JobId)
@@ -305,11 +315,40 @@ async def job_status(inputs, config, context):
     return await invoke(context, read)
 
 
-exports = [clinic_context, search_catalog, search_records, search_prescriptions, search_documents, search_patients, find_staff, patient_history, list_records, exam_layout_catalog, compare_exams, check_order, find_appointments,
+class SupplySearch(Input):
+    text: str = Field(default='', max_length=300)
+    offset: int = Field(default=0, ge=0)
+    limit: int = Field(default=50, ge=1, le=100)
+
+
+@tool(name='search_supply', description='Look up authorized company catalog variants and current clinic stock, including catalog-only items. Search by brand, model, supplier, SKU or barcode. Paginate with offset; cost is manager-only.', input_schema=SupplySearch)
+async def search_supply(inputs, config, context):
+    args = parse(SupplySearch, inputs)
+    def lookup(db, auth):
+        if auth.patient_id:
+            raise HTTPException(403, 'agent.scopeDenied')
+        from EndPoints.inventory import _variant_rows
+        from services.inventory_service import variant_dict, can_view_cost
+        rows = _variant_rows(db, company_id=auth.user.company_id, clinic_id=auth.clinic_id, search=args.text, offset=args.offset, limit=args.limit + 1)
+        return {'items': [variant_dict(variant, product, balance=balance, include_cost=can_view_cost(auth.user)) for variant, product, balance in rows[:args.limit]], 'has_more': len(rows) > args.limit}
+    return await invoke(context, lookup)
+
+
+from .supply_contracts import SupplyProposal
+
+
+@tool(name='prepare_supply', description='Prepare supply rows for staff review. Never applies stock or prices. Use the explicit row schema: original source.sheet/source.row (or source.text), flat values including color and eye_size for new frames, and optional existing variant_id. Never nest fields under specifications or omit known source fields. Valid new variants can be created by receipt approval; a missing catalog match is not an error. Catalog never changes stock; receipt adds units; count sets physically counted units. Return the job ID and tell staff to review the supply card.', input_schema=SupplyProposal)
+async def prepare_supply(inputs, config, context):
+    args = parse(SupplyProposal, inputs)
+    from services.supply_intake import prepare
+    return await invoke(context, lambda db, auth: prepare(db, auth, args.operation, [row.model_dump(exclude_none=True) for row in args.rows]))
+
+
+exports = [search_supply, prepare_supply, clinic_context, search_catalog, search_records, search_prescriptions, search_documents, search_patients, find_staff, patient_history, list_records, exam_layout_catalog, compare_exams, check_order, find_appointments,
            change_catalog, prepare_change, commit_change, report_catalog, run_report, read_report, saved_reports, preview_report, export_report, job_status]
 toolsets = [
     toolset(key='records', name='Prysm patient records', description='Authorized patient history and exam comparisons.', tools=[clinic_context, search_catalog, search_records, search_prescriptions, search_documents, search_patients, find_staff, patient_history, list_records, exam_layout_catalog, compare_exams, check_order]),
-    toolset(key='workflow', name='Prysm clinic workflows', description='Scheduling and approval-gated record, order, referral and follow-up changes.', tools=[find_appointments, change_catalog, prepare_change, commit_change]),
+    toolset(key='workflow', name='Prysm clinic workflows', description='Scheduling and approval-gated record, order, referral and follow-up changes.', tools=[search_supply, prepare_supply, find_appointments, change_catalog, prepare_change, commit_change]),
     toolset(key='reporting', name='Prysm reporting', description='Custom reports, full exports and asynchronous result tracking.', tools=[report_catalog, run_report, read_report, saved_reports, preview_report, export_report, job_status]),
 ]
 

@@ -1,3 +1,5 @@
+vi.mock('@/components/inventory/SupplyIntake', () => ({ PreviousSupplyImports: () => null }));
+vi.mock('@tanstack/react-router', () => ({ useNavigate: () => vi.fn() }));
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, within, waitFor, cleanup } from '@testing-library/react';
@@ -5,6 +7,7 @@ import { I18nextProvider } from 'react-i18next';
 import i18next from 'i18next';
 import copy from '@/localization/agent.json';
 
+vi.mock('@/lib/api-client', () => ({apiClient: {agentFetch: vi.fn()}}));
 const mock = vi.hoisted(() => ({ submit: vi.fn(), patientId: null as number | null, epoch: 0 }));
 vi.mock('@/contexts/PrysmAgentContext', () => ({ usePrysmAgent: () => ({
   scope: { userId: 1, clinicId: 1, patientId: mock.patientId }, jobActivityKey: mock.epoch, closePatientChat: vi.fn(),
@@ -42,7 +45,7 @@ describe('default composer and contextual prompts', () => {
     expect(within(suggestions).getAllByRole('button')).toHaveLength(3);
     const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
     expect(textarea.rows).toBe(1);
-    expect(view.container.querySelector('.a24-composer__toolbar--external')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Attach files' })).toBeVisible();
     fireEvent.click(within(suggestions).getAllByRole('button')[0]);
     const blank = i18n.t('agent.prompt.customReport.blank');
     await waitFor(() => expect(textarea.value.slice(textarea.selectionStart, textarea.selectionEnd)).toBe(blank));
@@ -61,7 +64,7 @@ describe('default composer and contextual prompts', () => {
     await i18n.changeLanguage('en');
     const view = mount();
     const file = new File(['synthetic prescription'], 'prescription.png', { type: 'image/png' });
-    fireEvent.change(view.container.querySelector('input[type=file]')!, { target: { files: [file] } });
+    fireEvent.change(view.container.querySelector('.a24-composer input[type=file]')!, { target: { files: [file] } });
     await screen.findByTestId('agent-chat-composer-attachments');
     const suggestions = screen.getByLabelText(i18n.t('agent.suggestions'));
     fireEvent.click(within(suggestions).getAllByRole('button')[2]);
@@ -87,4 +90,24 @@ describe('default composer and contextual prompts', () => {
     await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue(''));
     expect(mock.submit).not.toHaveBeenCalled();
   });
+});
+
+it('accepts host-converted Excel through the real composer and submits only extracted text', async () => {
+  const { apiClient } = await import('@/lib/api-client');
+  const transport = vi.spyOn(apiClient, 'agentFetch').mockResolvedValue(new Response(JSON.stringify({text:'{"spreadsheet_rows":[{"sheet":"Delivery","row":2,"cells":["000123"]}]}'})));
+  await i18n.changeLanguage('en');
+  const view = mount();
+  const file = new File(['synthetic workbook bytes'], 'supplier.xlsx', {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  Object.defineProperty(file, 'arrayBuffer', {value: async () => new TextEncoder().encode('synthetic workbook bytes').buffer});
+  fireEvent.change(view.container.querySelector('.a24-composer input[type=file]')!, {target:{files:[file]}});
+  fireEvent.change(screen.getByRole('textbox'), {target:{value:'Prepare receipt'}});
+  fireEvent.click(screen.getByRole('button',{name:/Send supplier.xlsx/}));
+  await waitFor(() => expect(mock.submit).toHaveBeenCalledTimes(1));
+  expect(transport.mock.calls[0][0]).toBe('/api/v1/agent/supply/extract');
+  expect(transport.mock.calls[0][1]?.body).toBeInstanceOf(FormData);
+  const sent = mock.submit.mock.calls[0][0].files[0];
+  expect(sent.name).toBe('supplier.xlsx.txt');
+  expect(sent.mediaType).toBe('text/plain');
+  expect(new TextDecoder().decode(sent.data)).toContain('000123');
+  transport.mockRestore();
 });

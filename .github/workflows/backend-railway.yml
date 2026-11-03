@@ -4,16 +4,14 @@ on:
   push:
     branches:
       - main
-    paths:
-      - "backend/**"
-      - ".github/workflows/backend-railway.yml"
   pull_request:
     branches:
       - main
-    paths:
-      - "backend/**"
-      - ".github/workflows/backend-railway.yml"
   workflow_dispatch:
+
+concurrency:
+  group: backend-validation-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -29,6 +27,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12.8"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
 
       - name: Install backend dependencies
         working-directory: backend
@@ -47,3 +47,6 @@ jobs:
           backend/tests/test_default_exam_layout_seeds.py
           backend/tests/test_migration_helpers.py
           backend/tests/test_softoptic_migration_service.py
+          backend/tests/test_order_groups.py
+          backend/tests/test_legacy_order_compatibility.py
+          backend/tests/test_legacy_referral_compatibility.py

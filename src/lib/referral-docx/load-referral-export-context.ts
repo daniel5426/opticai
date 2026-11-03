@@ -7,7 +7,7 @@ import type { LoadedReferralExportContext } from "./types";
 
 async function loadClinic(id?: number | null): Promise<Clinic | null> {
   if (!id) return null;
-  const response = await apiClient.getClinic(id);
+  const response = await apiClient.getRecordClinic(id);
   if (response.error) {
     console.error(`Failed to load clinic ${id}:`, response.error);
     return null;
@@ -38,7 +38,7 @@ export async function loadReferralExportContext({
 
   const [client, user] = await Promise.all([
     referral.client_id ? getClientById(referral.client_id) : Promise.resolve(undefined),
-    referral.user_id ? getUserById(referral.user_id) : Promise.resolve(null),
+    referral.user_id ? apiClient.getRecordStaff().then(response => response.data?.find(user => user.id === referral.user_id) ?? null) : Promise.resolve(null),
   ]);
 
   const clinic = await loadClinic(referral.clinic_id ?? client?.clinic_id);

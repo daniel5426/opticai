@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from services.order_group_service import billing_for_order, ensure_standalone_group
+from services import legacy_order_compatibility as legacy_orders
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -8,7 +9,7 @@ from models import Billing, BillingPayment, Clinic, Company, ContactLensOrder, O
 from currency import DEFAULT_CURRENCY, normalize_currency
 from auth import get_current_user
 from security.scope import (
-    get_allowed_clinic_ids,
+    get_record_clinic_ids,
     get_scoped_billing,
     get_scoped_client,
     get_scoped_contact_lens_order,
@@ -99,6 +100,16 @@ def create_billing(
     line_items = billing.line_items or []
     billing_data = billing.dict(exclude={"line_items"})
     _scope_billing_payload(db, current_user, billing_data)
+    existing = billing_for_order(db, billing_data.get("order_id") or billing_data.get("contact_lens_id"), bool(billing_data.get("contact_lens_id")))
+    if existing and existing.order_group_id:
+        group = db.get(OrderGroup, existing.order_group_id)
+        if group and group.legacy_write_protected:
+            # An older table can still have a pre-conversion "no billing" cache.
+            # Reuse the invoice without replacing shared amounts with that cache.
+            if line_items:
+                from services.order_group_service import check_revision
+                check_revision(group, None)
+            return legacy_orders.billing_response(db, current_user, existing)
     _prepare_billing_currency(db, billing_data)
 
     db_billing = Billing(**billing_data)
@@ -122,10 +133,10 @@ def get_all_billing(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
+    allowed_clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
     if not allowed_clinic_ids:
         return []
-    return _billing_query_for_allowed_clinics(db, allowed_clinic_ids).all()
+    return legacy_orders.billing_responses(db, current_user, _billing_query_for_allowed_clinics(db, allowed_clinic_ids).all())
 
 
 @router.get("/order/{order_id}", response_model=BillingSchema)
@@ -138,7 +149,7 @@ def get_billing_by_order(
     billing = billing_for_order(db, order_id)
     if not billing:
         raise HTTPException(status_code=404, detail="Billing not found for order")
-    return billing
+    return legacy_orders.billing_response(db, current_user, billing)
 
 
 @router.get("/contact-lens/{contact_lens_id}", response_model=BillingSchema)
@@ -151,7 +162,7 @@ def get_billing_by_contact_lens(
     billing = billing_for_order(db, contact_lens_id, True)
     if not billing:
         raise HTTPException(status_code=404, detail="Billing not found for contact lens order")
-    return billing
+    return legacy_orders.billing_response(db, current_user, billing)
 
 
 @router.get("/client/{client_id}", response_model=List[BillingSchema])
@@ -161,7 +172,7 @@ def get_billings_by_client(
     current_user: User = Depends(get_current_user),
 ):
     get_scoped_client(db, current_user, client_id)
-    return (
+    rows = (
         db.query(Billing)
         .outerjoin(Order, Billing.order_id == Order.id)
         .outerjoin(OrderGroup, Billing.order_group_id == OrderGroup.id)
@@ -169,6 +180,7 @@ def get_billings_by_client(
         .filter(or_(OrderGroup.payer_client_id == client_id, (Billing.order_group_id.is_(None) & or_(Order.client_id == client_id, ContactLensOrder.client_id == client_id))))
         .all()
     )
+    return legacy_orders.billing_responses(db, current_user, rows)
 
 
 @router.get("/{billing_id}", response_model=BillingSchema)
@@ -177,7 +189,7 @@ def get_billing(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return get_scoped_billing(db, current_user, billing_id)
+    return legacy_orders.billing_response(db, current_user, get_scoped_billing(db, current_user, billing_id))
 
 
 @router.get("/{billing_id}/payments", response_model=List[BillingPaymentSchema])
@@ -203,6 +215,9 @@ def create_billing_payment(
     current_user: User = Depends(get_current_user),
 ):
     db_billing = get_scoped_billing(db, current_user, billing_id)
+    adapted = legacy_orders.change_payment(db, current_user, db_billing, payment=payment)
+    if adapted is not None:
+        return adapted
     if payment.kind == "payment" and payment.amount <= 0:
         raise HTTPException(status_code=422, detail="Payment amount must be positive")
     if payment.kind == "adjustment" and payment.amount == 0:
@@ -231,6 +246,9 @@ def delete_billing_payment(
     current_user: User = Depends(get_current_user),
 ):
     db_billing = get_scoped_billing(db, current_user, billing_id)
+    adapted = legacy_orders.change_payment(db, current_user, db_billing, payment_id=payment_id)
+    if adapted is not None:
+        return adapted
     db_payment = (
         db.query(BillingPayment)
         .filter(BillingPayment.id == payment_id, BillingPayment.billing_id == billing_id)
@@ -255,6 +273,10 @@ def update_billing(
     db_billing = get_scoped_billing(db, current_user, billing_id)
     payload = billing.dict(exclude_unset=True)
     line_items = payload.pop("line_items", None)
+    adapted = legacy_orders.update_billing(db, current_user, db_billing, payload, line_items)
+    if adapted is not None:
+        return adapted
+    payload.pop("compatibility_token", None)
 
     if "order_id" in payload or "contact_lens_id" in payload:
         candidate = {
@@ -334,7 +356,10 @@ def create_order_line_item(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    get_scoped_billing(db, current_user, item.billings_id)
+    billing = get_scoped_billing(db, current_user, item.billings_id)
+    adapted = legacy_orders.change_line(db, current_user, billing, item.dict(exclude_unset=True))
+    if adapted is not None:
+        return adapted
     db_item = OrderLineItem(**item.dict())
     db.add(db_item)
     db.commit()
@@ -351,6 +376,10 @@ def update_order_line_item(
 ):
     db_item = get_scoped_order_line_item(db, current_user, item_id)
     payload = item.dict(exclude_unset=True)
+    billing = get_scoped_billing(db, current_user, db_item.billings_id)
+    adapted = legacy_orders.change_line(db, current_user, billing, payload, item=db_item)
+    if adapted is not None:
+        return adapted
     if "billings_id" in payload:
         get_scoped_billing(db, current_user, payload["billings_id"])
     for field, value in payload.items():
@@ -367,6 +396,10 @@ def delete_order_line_item(
     current_user: User = Depends(get_current_user),
 ):
     db_item = get_scoped_order_line_item(db, current_user, item_id)
+    billing = get_scoped_billing(db, current_user, db_item.billings_id)
+    adapted = legacy_orders.change_line(db, current_user, billing, item=db_item, delete=True)
+    if adapted is not None:
+        return adapted
     db.delete(db_item)
     db.commit()
     return {"message": "Order line item deleted successfully"}

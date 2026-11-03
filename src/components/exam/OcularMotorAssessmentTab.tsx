@@ -3,6 +3,8 @@ import { Card } from "@/components/ui/card"
 import { OcularMotorAssessmentExam } from "@/lib/db/schema-interface"
 import { FastInput } from "./shared/OptimizedInputs"
 import { EXAM_FIELDS } from "./data/exam-field-definitions"
+import { ImportedClinicalContext } from '@/lib/imported-clinical-context'
+import { useTranslation } from 'react-i18next'
 
 interface OcularMotorAssessmentTabProps {
   ocularMotorAssessmentData: OcularMotorAssessmentExam;
@@ -19,6 +21,16 @@ export const OcularMotorAssessmentTab: React.FC<OcularMotorAssessmentTabProps> =
   hideEyeLabels = false,
   needsMiddleSpacer = false
 }) => {
+  const { t, i18n } = useTranslation();
+  const importedFields = React.useContext(ImportedClinicalContext)?.fields;
+  if (importedFields?.length === 1 && importedFields[0] === 'ocular_motility') {
+    return <Card className="examcard w-full space-y-2 p-4 pt-3" dir={i18n.dir()}>
+      <h3 className="text-center font-medium text-muted-foreground">{t('opticplusCards.fields.tst54')}</h3>
+      <FastInput aria-label={t('opticplusCards.fields.tst54')} name="ocular_motility" type="text"
+        value={String(ocularMotorAssessmentData.ocular_motility ?? '')} disabled={!isEditing}
+        onChange={value => onOcularMotorAssessmentChange('ocular_motility', value)} dir="auto" className="h-8 text-xs" />
+    </Card>;
+  }
   return (
     <Card className="w-full p-4 pt-3 examcard">
       <div className="grid grid-cols-3 gap-x-3 gap-y-2 w-full" dir="rtl">

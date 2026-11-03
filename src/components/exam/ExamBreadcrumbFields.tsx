@@ -1,3 +1,4 @@
+import { importedExamName } from "@/lib/opticplus-cards";
 import React, { useLayoutEffect, useRef, useState } from "react";
 import { MoreVertical } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -85,7 +86,7 @@ export function ExamBreadcrumbFields({ detailProps }: { detailProps: DetailProps
       name="test_name"
       aria-label={t("examName")}
       placeholder={t("examName")}
-      value={formData.test_name || ""}
+      value={importedExamName(t, formData.test_name)}
       onChange={isEditing ? (value) => handleSelectChange(value, "test_name") : undefined}
       readOnly={!isEditing}
       disabled={!isEditing}

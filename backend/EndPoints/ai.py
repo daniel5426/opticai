@@ -14,7 +14,9 @@ from security.scope import get_scoped_chat, get_allowed_clinic_ids
 from services.ai_service import AIError, LANGUAGES, get_ai_service, locale, translated
 from services.ai_tools import definitions, execute_tool
 
-router = APIRouter(prefix='/ai', tags=['ai'])
+from security.entitlements import ai_access
+
+router = APIRouter(prefix='/ai', tags=['ai'], dependencies=[Depends(ai_access)])
 USER_MEMORY: dict[tuple, list] = {}
 USER_LOCKS: dict[tuple, asyncio.Lock] = {}
 

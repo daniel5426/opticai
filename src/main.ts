@@ -30,6 +30,7 @@ import { autoUpdater } from "electron-updater";
 import { GoogleOAuthService } from './lib/google/google-oauth';
 import { GoogleCalendarService } from './lib/google/google-calendar';
 import { pruneSoftOpticExport } from "./lib/softoptic-prune";
+import { discoverOpticPlus, prepareOpticPlusInput, exportOpticPlus, type OpticPlusCandidate } from "./lib/opticplus-export";
 import registerListeners from "./helpers/ipc/listeners-register";
 // "electron-squirrel-startup" seems broken when packaging with vite
 //import started from "electron-squirrel-startup";
@@ -416,7 +417,7 @@ function sanitizePdfFileName(fileName: string) {
 type SoftOpticCandidate = {
   id: string;
   kind: "dsn" | "db-file" | "access-db";
-  sourceSystem?: "softoptic" | "optitech";
+  sourceSystem?: "softoptic" | "optitech" | "opticplus";
   label: string;
   dsn?: string;
   dbFile?: string;
@@ -429,7 +430,7 @@ type SoftOpticCandidate = {
   reasons: string[];
 };
 
-type MigrationSourceSystem = "softoptic" | "optitech";
+type MigrationSourceSystem = "softoptic" | "optitech" | "opticplus";
 
 type OptiTechFullScanStatus = {
   jobId: string;
@@ -461,8 +462,10 @@ type SoftOpticExportStatus = {
 };
 
 const activeSoftOpticExportJobs = new Set<string>();
+const activeSoftOpticUploadJobs = new Set<string>();
 
 type SoftOpticUploadStatus = {
+  sourceSystem?: "opticplus";
   jobId: string;
   status: "preparing" | "uploading" | "finalizing" | "completed" | "failed";
   progress: number;
@@ -566,7 +569,13 @@ async function saveSoftOpticUploadStatus(status: SoftOpticUploadStatus) {
 
 async function getSoftOpticUploadStatus(jobId: string): Promise<SoftOpticUploadStatus | null> {
   const jobs = await readSoftOpticUploadJobs();
-  return jobs[jobId] || null;
+  const status = jobs[jobId];
+  if (status?.sourceSystem === "opticplus" && ["preparing", "uploading", "finalizing"].includes(status.status) && !activeSoftOpticUploadJobs.has(jobId)) {
+    const failed: SoftOpticUploadStatus = { ...status, status: "failed", error: "opticplus.uploadFailed" };
+    await saveSoftOpticUploadStatus(failed);
+    return failed;
+  }
+  return status || null;
 }
 
 function runProcess(command: string, args: string[], options: { cwd?: string } = {}): Promise<{ stdout: string; stderr: string }> {
@@ -1239,8 +1248,10 @@ async function startMigrationExportJob(payload: {
   sqlAnywhereBin?: string;
   includeDocuments?: boolean;
   clientImportLimit?: number | null;
+  selectedClientIds?: number[];
 }) {
   if (payload.sourceSystem === "softoptic") return startSoftOpticExportJob(payload);
+  if (!["optitech", "opticplus"].includes(payload.sourceSystem)) return { success: false, error: "Unsupported migration source" };
   const now = new Date().toISOString();
   const jobId = randomUUID();
   const status: SoftOpticExportStatus = {
@@ -1248,7 +1259,7 @@ async function startMigrationExportJob(payload: {
     status: "running",
     phase: "exporting",
     progress: 35,
-    step: "ייצוא נתוני OptiTech",
+    step: payload.sourceSystem === "opticplus" ? "opticplus.exporting" : "ייצוא נתוני OptiTech",
     clinicId: payload.clinicId,
     candidate: payload.candidate,
     includeDocuments: Boolean(payload.includeDocuments),
@@ -1259,7 +1270,10 @@ async function startMigrationExportJob(payload: {
   await saveSoftOpticExportStatus(status);
   void (async () => {
     try {
-      const result = await exportOptiTechCandidate(
+      const result = payload.sourceSystem === "opticplus" ? await exportOpticPlus(payload.candidate as OpticPlusCandidate, {
+        tempRoot: app.getPath("temp"), reader: getOptiTechReaderPath(),
+        clientLimit: payload.clientImportLimit, selectedClientIds: payload.selectedClientIds, includeDocuments: payload.includeDocuments,
+      }) : await exportOptiTechCandidate(
         payload.candidate,
         Boolean(payload.includeDocuments),
         payload.clientImportLimit,
@@ -1280,8 +1294,11 @@ async function startMigrationExportJob(payload: {
         progress: 35,
         step: "ייצוא נכשל",
         outputDir: result.outputDir,
-        error: result.error || "OptiTech export failed",
+        error: ("error" in result && result.error) || "OptiTech export failed",
       });
+    } catch (error) {
+      await saveSoftOpticExportStatus({ ...status, status: "failed", phase: "failed", progress: 35,
+        step: payload.sourceSystem === "opticplus" ? "opticplus.failed" : "ייצוא נכשל", error: error instanceof Error ? error.message : String(error) });
     } finally {
       activeSoftOpticExportJobs.delete(jobId);
     }
@@ -1352,8 +1369,12 @@ function uploadFileToSignedUrl(
 const SOFTOPTIC_BUNDLE_CONTENT_TYPE = "application/zip";
 
 async function uploadSoftOpticBundle(payload: { apiBaseUrl: string; jobId: string; zipPath: string; accessToken: string }) {
+  const opticplus = path.basename(payload.zipPath).startsWith("opticplus-export-");
+  if (opticplus && activeSoftOpticUploadJobs.has(payload.jobId)) return { success: false, error: "opticplus.uploadFailed" };
+  activeSoftOpticUploadJobs.add(payload.jobId);
   const now = new Date().toISOString();
   const baseStatus: SoftOpticUploadStatus = {
+    sourceSystem: opticplus ? "opticplus" : undefined,
     jobId: payload.jobId,
     status: "preparing",
     progress: 0,
@@ -1393,7 +1414,7 @@ async function uploadSoftOpticBundle(payload: { apiBaseUrl: string; jobId: strin
       await saveSoftOpticUploadStatus({ ...baseStatus, status: "failed", step: "Upload failed", totalBytes: stat.size, error });
       return { success: false, error };
     }
-    if (!uploadTarget?.signed_upload_url || !uploadTarget?.bucket || !uploadTarget?.key) {
+    if ((!uploadTarget?.already_uploaded && !uploadTarget?.signed_upload_url) || !uploadTarget?.bucket || !uploadTarget?.key) {
       const error = "Backend did not return a complete signed upload target";
       await saveSoftOpticUploadStatus({ ...baseStatus, status: "failed", step: "Upload failed", totalBytes: stat.size, error });
       return { success: false, error };
@@ -1410,7 +1431,7 @@ async function uploadSoftOpticBundle(payload: { apiBaseUrl: string; jobId: strin
     });
     let lastProgressPersistAt = 0;
     let lastProgressPersistedBytes = 0;
-    await uploadFileToSignedUrl(uploadTarget.signed_upload_url, payload.zipPath, stat.size, transferredBytes => {
+    if (!uploadTarget.already_uploaded) await uploadFileToSignedUrl(uploadTarget.signed_upload_url, payload.zipPath, stat.size, transferredBytes => {
       const nowMs = Date.now();
       const minByteDelta = Math.max(1024 * 1024, Math.floor(stat.size / 100));
       if (transferredBytes < stat.size && nowMs - lastProgressPersistAt < 500 && transferredBytes - lastProgressPersistedBytes < minByteDelta) {
@@ -1492,6 +1513,8 @@ async function uploadSoftOpticBundle(payload: { apiBaseUrl: string; jobId: strin
       error: message,
     });
     return { success: false, error: message };
+  } finally {
+    activeSoftOpticUploadJobs.delete(payload.jobId);
   }
 }
 
@@ -1535,8 +1558,34 @@ function setupIpcHandlers() {
     return getSoftOpticUploadStatus(payload.jobId);
   });
 
-  ipcMain.handle('migration-scan', async (_event, payload: { sourceSystem: MigrationSourceSystem }) => {
-    return payload.sourceSystem === "optitech" ? scanOptiTechCandidates() : scanSoftOpticCandidates();
+  ipcMain.handle('migration-scan', async (_event, payload: { sourceSystem: MigrationSourceSystem; inputPath?: string }) => {
+    if (payload.sourceSystem === "opticplus") {
+      if (process.platform !== "win32") return { supported: false, candidates: [], error: "opticplus.windowsOnly" };
+      try {
+        let roots: string[];
+        if (payload.inputPath) roots = [await prepareOpticPlusInput(payload.inputPath, app.getPath("temp"))];
+        else {
+          roots = [];
+          for (const drive of await getLocalDriveRoots()) {
+            for (const entry of await fs.promises.readdir(drive).catch(() => [] as string[])) {
+              if (/^opticplus/i.test(entry)) roots.push(path.join(drive, entry));
+            }
+          }
+        }
+        return { supported: true, candidates: await discoverOpticPlus(roots, getOptiTechReaderPath()) };
+      } catch (error) { return { supported: true, candidates: [], error: error instanceof Error ? error.message : String(error) }; }
+    }
+    if (payload.sourceSystem === "optitech") return scanOptiTechCandidates();
+    if (payload.sourceSystem === "softoptic") return scanSoftOpticCandidates();
+    return { supported: false, candidates: [], error: "Unsupported migration source" };
+  });
+
+  ipcMain.handle('migration-select-source', async (_event, payload: { kind: "file" | "folder" }) => {
+    const result = await dialog.showOpenDialog({
+      properties: payload?.kind === "folder" ? ["openDirectory"] : ["openFile"],
+      ...(payload?.kind === "folder" ? {} : { filters: [{ name: "OpticPlus", extensions: ["zip", "accdb", "accdr"] }] }),
+    });
+    return result.canceled ? null : result.filePaths[0] || null;
   });
 
   ipcMain.handle('migration-start-full-scan', async (_event, payload: { sourceSystem: MigrationSourceSystem }) => {

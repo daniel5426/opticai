@@ -97,3 +97,15 @@ def test_scoped_retention_does_not_change_foreign_jobs(clinic):
     db.refresh(local)
     db.refresh(foreign)
     assert local.status == 'failed' and foreign.status == 'uploading'
+
+
+def test_shared_requested_worker_claims_jobs_from_each_clinic(clinic):
+    db, auth, patients, _ = clinic
+    first = add_job(db, auth, 'shared-local', 'report')
+    second = add_job(db, auth, 'shared-other', 'report')
+    second.clinic_id, second.company_id = patients[2].clinic_id, patients[2].company_id
+    db.commit()
+    claimed = {worker.claim(db, 'shared', 'requested').id,
+               worker.claim(db, 'shared', 'requested').id}
+    assert claimed == {first.id, second.id}
+    assert worker.claim(db, 'shared', 'requested') is None

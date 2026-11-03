@@ -32,6 +32,9 @@ backend/migration/optitech/*
 !backend/migration/optitech/src/
 !backend/migration/optitech/src/*.py
 backend/migration/optitech/src/.gitkeep
+!backend/migration/opticplus/
+backend/migration/opticplus/*
+!backend/migration/opticplus/*.py
 
 # Python
 __pycache__/

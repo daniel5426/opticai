@@ -1,3 +1,4 @@
+import { OPTICPLUS_CARD_TYPES, type OpticPlusCardType } from './opticplus-cards'
 import {
   SOFTOPTIC_COVER_TEST_FIELDS,
   SOFTOPTIC_MADDOX_GRID_FIELDS,
@@ -39,6 +40,7 @@ import {
 } from './db/schema-interface'
 
 export type ExamComponentType =
+  | OpticPlusCardType
   | 'optitech-examination'
   | 'optitech-prescription'
   | 'optitech-contact-measurements'
@@ -85,6 +87,7 @@ export type ExamComponentType =
   | 'npc';
 
 export const fullExamsList: ExamComponentType[] = [
+  ...OPTICPLUS_CARD_TYPES,
   'optitech-examination',
   'optitech-prescription',
   'optitech-contact-measurements',
@@ -133,6 +136,13 @@ export const fullExamsList: ExamComponentType[] = [
 ];
 
 export const examComponentTypeToExamFields: Record<ExamComponentType, ExamComponentType[]> = {
+  'opticplus-prescription-details': [],
+  'opticplus-contact-fitting': [],
+  'opticplus-measurements': [],
+  'opticplus-ocular-health': [],
+  'opticplus-binocular': [],
+  'opticplus-questionnaire': [],
+  'opticplus-legacy-history': [],
   'old-ref': [],
   'old-refraction': [],
   'old-refraction-extension': [],
@@ -191,6 +201,13 @@ export interface ComponentFieldMappings {
 
 export class ExamFieldMapper {
   private static defaultMaps: Record<ExamComponentType, ExamComponentType[]> = {
+  'opticplus-prescription-details': [],
+  'opticplus-contact-fitting': [],
+  'opticplus-measurements': [],
+  'opticplus-ocular-health': [],
+  'opticplus-binocular': [],
+  'opticplus-questionnaire': [],
+  'opticplus-legacy-history': [],
     'old-ref': [],
     'old-refraction': fullExamsList,
     'old-refraction-extension': fullExamsList,

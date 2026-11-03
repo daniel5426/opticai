@@ -8,7 +8,7 @@ import type { LoadedOrderExportContext, OrderExportKind } from "./types";
 
 async function loadClinic(id?: number | null): Promise<Clinic | null> {
   if (!id) return null;
-  const response = await apiClient.getClinic(id);
+  const response = await apiClient.getRecordClinic(id);
   if (response.error) {
     console.error(`Failed to load clinic ${id}:`, response.error);
     return null;
@@ -39,7 +39,7 @@ export async function loadOrderExportContext({
 
   const [client, user, lineItems] = await Promise.all([
     order.client_id ? getClientById(order.client_id) : Promise.resolve(undefined),
-    order.user_id ? getUserById(order.user_id) : Promise.resolve(null),
+    order.user_id ? apiClient.getRecordStaff().then(response => response.data?.find(user => user.id === order.user_id) ?? null) : Promise.resolve(null),
     billing?.id ? getOrderLineItemsByBillingId(billing.id) : Promise.resolve([]),
   ]);
 

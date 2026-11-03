@@ -12,6 +12,9 @@ export default defineConfig({
   test: {
     dir: "./src/tests/unit",
     globals: true,
+    // Keep DOM suites isolated without oversubscribing local builds and CI runners.
+    maxWorkers: 4,
+    minWorkers: 1,
     environment: "jsdom",
     setupFiles: "./src/tests/unit/setup.ts",
     css: true,

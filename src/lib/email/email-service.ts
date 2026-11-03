@@ -135,6 +135,8 @@ export class EmailService {
       };
 
       console.log('Sending email from:', mailOptions.from, 'to:', mailOptions.to);
+      const authorization = await apiClient.authorizeModule('campaigns', client.clinic_id);
+      if (!authorization.data?.allowed) return false;
       await this.transporter.sendMail(mailOptions);
       console.log(`Reminder email sent successfully to ${client.email}`);
       return true;
@@ -146,38 +148,15 @@ export class EmailService {
 
   async sendCampaignEmail(
     client: Client,
-    campaign: { name: string; email_content: string },
+    campaign: { id?: number; name: string; email_content: string },
     settings: Settings
   ): Promise<boolean> {
-    if (!this.transporter) {
-      console.error('Email transporter not initialized');
-      return false;
-    }
-
-    if (!client.email) {
-      console.error('Client email not provided');
-      return false;
-    }
-
+    if (!client.email || !campaign.id) return false;
     try {
-      console.log('Generating campaign email content...');
-      const emailHtml = this.generateCampaignEmailHtml(client, campaign, settings);
-      const emailText = this.generateCampaignEmailText(client, campaign, settings);
-
-      const mailOptions = {
-        from: settings.clinic_email || this.config?.auth?.user,
-        to: client.email,
-        subject: `${campaign.name} - ${settings.clinic_name || 'מרפאת העיניים'}`,
-        text: emailText,
-        html: emailHtml
-      };
-
-      console.log('Sending campaign email from:', mailOptions.from, 'to:', mailOptions.to);
-      await this.transporter.sendMail(mailOptions);
-      console.log(`Campaign email sent successfully to ${client.email}`);
-      return true;
-    } catch (error) {
-      console.error('Error sending campaign email:', error);
+      const result = await apiClient.sendCampaignEmail(campaign.id, client.id,
+        this.generateCampaignEmailHtml(client, campaign, settings), this.generateCampaignEmailText(client, campaign, settings));
+      return result.data?.sent === true;
+    } catch {
       return false;
     }
   }
@@ -213,7 +192,7 @@ ${settings.clinic_directions ? `הוראות הגעה: ${settings.clinic_directi
 
   private generateCampaignEmailText(
     client: Client,
-    campaign: { name: string; email_content: string },
+    campaign: { id?: number; name: string; email_content: string },
     settings: Settings
   ): string {
     const content = campaign.email_content
@@ -388,7 +367,7 @@ ${content}
 
   private generateCampaignEmailHtml(
     client: Client,
-    campaign: { name: string; email_content: string },
+    campaign: { id?: number; name: string; email_content: string },
     settings: Settings
   ): string {
     const content = campaign.email_content

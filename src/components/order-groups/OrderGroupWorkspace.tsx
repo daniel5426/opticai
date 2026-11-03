@@ -1,3 +1,4 @@
+import { importedOrderName } from "@/lib/opticplus-cards";
 import { createPortal, flushSync } from "react-dom";
 import { useSettings } from "@/hooks/useSettings";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -112,7 +113,7 @@ export function OrderGroupWorkspace(props: OrderDetailPageProps) {
  useEffect(()=>{
   const changed=priorFinancialLines.current!==financialLines;priorFinancialLines.current=financialLines;
   if(!changed||!editing||loading)return;
-  const total=Math.round(lines.reduce((sum,item)=>sum+Math.max(0,Number(item.line_total)||0),0)*100)/100;
+  const total=Math.round(lines.reduce((sum,item)=>sum+(Number(item.line_total)||0),0)*100)/100;
   setBilling(previous=>{const discount=previous.discount_percent?Math.round(total*previous.discount_percent)/100:previous.discount_amount||0;return {...previous,total_before_discount:total,discount_amount:discount,discount_percent:total?Math.round(discount/total*10000)/100:0,total_after_discount:Math.max(0,Math.round((total-discount)*100)/100)}});
  },[financialLines,editing,loading]);
  const entryWorkspaces=useMemo(()=>new Map(entries.map(entry=>[entry.key,{key:entry.key,kind:entry.kind,record:entry.order,client:entry.client,active:entry.key===active,editing,register,onChange,suggest}])),[entries,active,editing,register,onChange,suggest]);
@@ -141,12 +142,12 @@ export function OrderGroupWorkspace(props: OrderDetailPageProps) {
  const paymentAdapter={create:async(payment:{amount:number;paid_at:string;kind:'payment'})=>{const response=await groupRequest<{payment:BillingPayment;group:OrderGroup}>(`/${group!.id}/payments?revision=${group!.revision}`,{method:'POST',body:JSON.stringify(payment)});setGroup(response.group);setBilling(response.group.billing!);savedBilling.current=JSON.stringify({billing:response.group.billing,lines:stateRef.current.lines});pendingBaseline.current=true;void queryClient.invalidateQueries({queryKey:["order-groups"]});return response.payment},remove:async(paymentId:number)=>{try{const value=await groupRequest<OrderGroup>(`/${group!.id}/payments/${paymentId}?revision=${group!.revision}`,{method:'DELETE'});setGroup(value);setBilling(value.billing!);savedBilling.current=JSON.stringify({billing:value.billing,lines:stateRef.current.lines});pendingBaseline.current=true;void queryClient.invalidateQueries({queryKey:["order-groups"]});return true}catch{toast.error(t('orderGroupConflict'));return false}}};
  const print=async(all:boolean)=>{if(!group)return;setPrinting(true);try{const chosen=all?group.entries:group.entries.filter(entry=>`entry:${entry.id}`===active);const result=await printOrderGroup(chosen);if(!result.success)throw new Error(result.error)}catch{toast.error(t('orderGroupPrintError'))}finally{setPrinting(false)}};
  const reorder=(from:string,to:string)=>{setEntries(previous=>{const next=[...previous];const index=next.findIndex(entry=>entry.key===from);const target=next.findIndex(entry=>entry.key===to);if(index<0||target<0)return previous;const [entry]=next.splice(index,1);next.splice(target,0,entry);return next})};
- const tabEntries=entries.map(entry=>({key:entry.key,client:entry.client,label:metadata(entry).type||t(entry.kind==='regular'?'orderGroupGlasses':'orderGroupContact'),values:metadata(entry)}));
+ const tabEntries=entries.map(entry=>({key:entry.key,client:entry.client,label:importedOrderName(t,metadata(entry).type)||t(entry.kind==='regular'?'orderGroupGlasses':'orderGroupContact'),values:metadata(entry)}));
  const payerOptions=Array.from(new Map([...(group?.clients||[]),...otherPayers,...entries.map(entry=>entry.client)].map(client=>[client.id,client])).values());
  const errorKey=error.includes('order_group_conflict')?'orderGroupConflict':error==='orderGroupImportPending'?'orderGroupImportPending':'orderGroupLoadError';
  const removeLine=(id:number)=>setLines(previous=>{const line=previous.find(item=>item.id===id);if(line?.source_client_key&&line.source_slot)suppressed.current.add(`${line.source_client_key}:${line.source_slot}`);return previous.filter(item=>item.id!==id)});
 
- return <><SiteHeader title={t('clients')} backLink="/clients" clientBackLink={`/clients/${contextClientId}`} examInfo={t('orderGroupTitle')} hasUnsavedChanges={guard.hasUnsavedChanges} tabs={{activeTab:activeHeaderTab,onTabChange:setActiveHeaderTab}}/>
+ return <><SiteHeader title={t('clients')} backLink="/clients" clientBackLink={`/clients/${contextClientId}`} examInfo={<span>{t('orderGroupTitle')}</span>} hasUnsavedChanges={guard.hasUnsavedChanges} tabs={{activeTab:activeHeaderTab,onTabChange:setActiveHeaderTab}}/>
  <ClientSpaceLayout><div className="relative flex h-full min-h-0 flex-1" dir={direction}>
  <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-4 lg:p-5">
  <div className="flex shrink-0 items-end gap-3">

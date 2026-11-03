@@ -1,8 +1,11 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render as renderWithoutQueries, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import i18n from "@/localization/i18n";
 import { GlobalSearch } from "@/components/GlobalSearch";
+
+const render = (element: React.ReactNode) => renderWithoutQueries(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{element}</QueryClientProvider>);
 
 const { search, recent, navigate } = vi.hoisted(() => ({
   search: vi.fn(), recent: vi.fn(), navigate: vi.fn(),
