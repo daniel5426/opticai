@@ -1,4 +1,5 @@
 import React from "react";
+import { OpticPlusImportedItems } from "@/components/migration/OpticPlusImportedItems";
 import { useTranslation } from "react-i18next";
 import { ExamToolbox } from "@/components/exam/ExamToolbox";
 import { OrderFinalPrescriptionTab } from "@/components/orders/OrderFinalPrescriptionTab";
@@ -97,6 +98,8 @@ export default function RegularOrderTab({
           />
         )}
 
+        <OpticPlusImportedItems orderData={(formData as any).order_data} />
+
         <div className="bg-card relative" data-clinical-nav-card="true">
           {isEditing && (
             <ExamToolbox
@@ -132,6 +135,8 @@ export default function RegularOrderTab({
             onLensFieldChange={onLensFieldChange}
           />
           <FrameSection
+            clinicId={formData.clinic_id}
+            orderId={formData.id}
             frame={frame}
             isEditing={isEditing}
             onFrameFieldChange={onFrameFieldChange}

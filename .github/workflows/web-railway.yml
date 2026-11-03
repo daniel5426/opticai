@@ -4,30 +4,14 @@ on:
   push:
     branches:
       - main
-    paths:
-      - "src/**"
-      - "public/**"
-      - "index.html"
-      - "package.json"
-      - "package-lock.json"
-      - "vite.renderer.config.mts"
-      - "railway.json"
-      - "scripts/serve-web.mjs"
-      - ".github/workflows/web-railway.yml"
   pull_request:
     branches:
       - main
-    paths:
-      - "src/**"
-      - "public/**"
-      - "index.html"
-      - "package.json"
-      - "package-lock.json"
-      - "vite.renderer.config.mts"
-      - "railway.json"
-      - "scripts/serve-web.mjs"
-      - ".github/workflows/web-railway.yml"
   workflow_dispatch:
+
+concurrency:
+  group: web-validation-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -42,10 +26,23 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
+          cache: npm
+
+      - name: Validate public release inputs
+        run: node scripts/devdesk-check.mjs --release --lock-only
+
+      - name: Test change selection
+        run: node scripts/devdesk-check.mjs --selection-test
+
+      - name: Apply public release dependency lock
+        run: DEVDESK_RELEASE_BUILD=1 node scripts/devdesk-release-inputs.mjs apply
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Test web
+        run: npm test -- --run
 
       - name: Build web
         run: npm run build:web

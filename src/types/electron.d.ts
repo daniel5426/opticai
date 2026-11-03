@@ -154,17 +154,19 @@ export interface ElectronAPI {
   softOpticUploadStatus: (payload: {
     jobId: string;
   }) => Promise<Record<string, any> | null>;
-  migrationScan: (payload: { sourceSystem: "softoptic" | "optitech" }) => Promise<any>;
+  migrationScan: (payload: { sourceSystem: "softoptic" | "optitech" | "opticplus"; inputPath?: string }) => Promise<any>;
+  migrationSelectSource: (payload: { kind: "file" | "folder" }) => Promise<string | null>;
   migrationStartFullScan: (payload: { sourceSystem: "optitech" }) => Promise<{ success: boolean; jobId?: string; error?: string }>;
   migrationFullScanStatus: (payload: { jobId: string }) => Promise<Record<string, any> | null>;
   migrationCancelFullScan: (payload: { jobId: string }) => Promise<{ success: boolean; error?: string }>;
   migrationStartExport: (payload: {
-    sourceSystem: "softoptic" | "optitech";
+    sourceSystem: "softoptic" | "optitech" | "opticplus";
     clinicId?: number;
     candidate: any;
     sqlAnywhereBin?: string;
     includeDocuments?: boolean;
     clientImportLimit?: number | null;
+    selectedClientIds?: number[];
   }) => Promise<any>;
   migrationExportStatus: (payload: { jobId: string }) => Promise<Record<string, any> | null>;
   migrationUploadBundle: (payload: { apiBaseUrl: string; jobId: string; zipPath: string; accessToken: string }) => Promise<any>;

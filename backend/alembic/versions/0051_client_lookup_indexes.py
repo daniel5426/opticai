@@ -5,8 +5,8 @@ clinic_id, so opening a client file or searching scanned whole tables (exams by 
 ~640 ms; medical-log search in a clinic without logs: ~1.9 s). Planner statistics for
 deleted_at were missing, which made global search pick nested loops until it timed out.
 
-Revision ID: 0047_client_lookup_indexes
-Revises: 0046_prescription_components
+Revision ID: 0051_client_lookup_indexes
+Revises: 0050_agent_report_completion
 Create Date: 2026-10-26
 """
 
@@ -15,8 +15,8 @@ from typing import Sequence, Union
 from alembic import op
 
 
-revision: str = "0047_client_lookup_indexes"
-down_revision: Union[str, None] = "0046_prescription_components"
+revision: str = "0051_client_lookup_indexes"
+down_revision: Union[str, None] = "0050_agent_report_completion"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

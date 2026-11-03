@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "registry": "https://registry.npmjs.org",
+  "packageJsonHash": "f28fdd1117c9682394e32ddbbb7a667ee0979699e05ab2e33d521ef3311bb6a9",
+  "publicPackageJsonHash": "f28fdd1117c9682394e32ddbbb7a667ee0979699e05ab2e33d521ef3311bb6a9",
+  "versionsHash": "4e0e963cef268b0681fa7e063be9a9b99632dd0df2f69c1cf38a57a0f91b3b0a",
+  "versions": {
+    "@agents24/chat-react": "0.5.42"
+  },
+  "developmentLockHash": "25692a1d0f6189ca2f8795edcd97d64e5e128bbc7414b743ed4d3310d9cb1568",
+  "publicLockHash": "25692a1d0f6189ca2f8795edcd97d64e5e128bbc7414b743ed4d3310d9cb1568",
+  "replacements": []
+}

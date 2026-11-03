@@ -1,6 +1,38 @@
 # Clinic agent tests
 
-Last Updated: 2026-10-25
+Last Updated: 2026-11-03
+
+## Shared local workers across clinics — 2026-11-02
+
+Removed the clinic launcher's mandatory single-clinic filter and its environment requirement.
+Requested and summary workers serve all clinics in the configured database. Optional explicit
+clinic filters remain supported by the standalone worker CLI. Existing job/session/company/clinic
+authorization, database target allowlist and separate requested/summary queues are unchanged.
+The shared-claim regression covers jobs from two clinics; scoped-claim regressions remain intact.
+Commands: `backend/.venv/bin/python -m pytest backend/tests/agent/test_local_setup.py backend/tests/agent/test_worker_queues.py -q`
+— **23 passed**, three existing warnings. `backend/.venv/bin/python -m pytest backend/tests/agent/test_request_authorization.py -q` — **14 passed**, existing warnings.
+The first live claims exposed a separate report compiler defect: nested financial/date filters rebuilt
+invoice-ledger aliases. Query projection and filters now reuse the same bound field expressions.
+`backend/.venv/bin/python -m pytest backend/tests/agent/test_search_reports_v2.py -q` — **22 passed**,
+existing warnings; exact affected PostgreSQL queries also validated with zero-row reads.
+Migration note: No schema or job migration is required. Restart local workers to pick up already
+queued reports. Live recovery: both affected clinic-65 reports completed after the guarded retry;
+XLSX, CSV and saved snapshots verified (one and two result rows). Only those failed exports
+were requeued; no Agent/model request or business-record write was repeated.
+
+## Hosted Prysm organization migration — 2026-11-02
+
+Scope: allow only the official HTTPS production platform with published resources in the clinic
+profile; preserve the database/clinic allowlist, reject remote draft mode and lookalike URLs,
+verify exact installed write-tool Ask policy with read-only calls, and prohibit draft apply during
+published serving. Synthetic mode remains local-only. Command:
+`backend/.venv/bin/python -m pytest backend/tests/agent/test_local_setup.py backend/tests/agent/test_approval_setup.py backend/tests/agent/test_process_lifecycle.py backend/tests/agent/test_normal_startup.py -q`
+— **57 passed**, two existing warnings. Web build passed. Live publication installed all nine
+resources with four GPT-6 Luna Agents and three healthy toolset bindings. Standalone model probe
+completed. Authenticated web chat called clinic_context successfully and returned Asia/Jerusalem;
+reload restored the same conversation without another submission. All three published ingestion
+executables passed input-schema checks; fresh OCR/speech/embedding execution was not repeated.
+No database schema migration or business mutation is part of these checks.
 
 ## Worker disconnect and process ownership — 2026-10-25
 
@@ -75,3 +107,36 @@ Checks: full agent plus analytics/prescription/unified-search backend selection 
 Real-model synthetic run `55954e54-cf5a-4008-9c97-44b20d93fcbf` completed two report executions: Payment mix selected a pie chart; Clinic totals selected a bar chart and two stat cards, including recorded ILS 400 outstanding. Both returned matching report-name/download metadata. Protected evidence: `.agent-data/generative-live-events.json`. Browser inspection verifies area/donut/stats presentation and equal-width download cards at the end of the response, with no composer report rail, including narrow Hebrew RTL/dark and English/French LTR.
 
 The owner subsequently authorized staging only. Supabase `opticai` (`eoyqvffwzllggemzfxaw`, verified against deployment configuration) was upgraded through 0045/0046 with Alembic. The approximately 9.2-million-row prescription table received its component index concurrently; verification confirms a valid/ready index, nullable column, private RLS-protected tables and zero readiness/document-mapping rows. The API, Artifact relay and workers were restarted; current report/attachment workflow and assistant instructions were applied to the existing local clinic draft. API/database/Artifact health, metadata-only job parameter, presentation manifest, relay readiness and 3/3 healthy Toolsets passed. Final backend selection with isolated PostgreSQL enabled: **238 passed**; migration upgrade/retry/downgrade checks passed on both SQLite and PostgreSQL. No production mutation, backfill, permanent-document ingestion or publication occurred.
+
+## Durable report completion integration — 2026-11-02
+
+Isolated integration checkout only. Focused Agent backend selection: **35 passed**. `backend/.venv/bin/python -m pytest backend/tests/agent/test_report_completion.py -q --tb=short`: **3 passed**, including uncertain callback retry reusing the exact saved payload despite later job-result changes. Report helpers return explicit pending work; worker-owned callback leases/backoff release DB sessions before HTTP. Trusted principal binding reauthorizes membership and snapshots current locale/clinic/user facts. Existing clinic routing baseline remains untouched. Additive `0050_agent_report_completion` applied only to disposable `prysm_integration_latency_test`; legacy empty-bootstrap index collision is documented in the platform integration record. Real authenticated clinic/report qualification against the new backend remains outstanding.
+
+
+## Published lifecycle adoption — 2026-11-03
+
+Applied the resolved integration to the existing dirty main checkout, preserving unrelated changes and shared clinic workers. Public `agents24[fastapi]==0.7.25` installed; dependency check passes. Command: `APP_ENV=test DATABASE_URL=sqlite:///:memory: PYTHONPATH=backend backend/.venv/bin/python -m pytest backend/tests/agent/test_runtime_recovery.py backend/tests/agent/test_request_authorization.py backend/tests/agent/test_artifact_contract.py backend/tests/agent/test_report_completion.py -q --tb=short` — **33 passed**, 78 existing warnings, 2.17 s. Scenarios include principal binding/denial, trusted facts, explicit pending results, immutable completion retry and report authorization.
+
+The owner applied staging prerequisite 0049. Guarded Alembic upgrade to `0050_agent_report_completion` then succeeded only on staging project `eoyqvffwzllggemzfxaw`; revision and both new columns verified. No unrelated transaction was terminated. Updated main Agent instructions and the SDK-derived Artifact contract were applied/published through the official CLI, then DevDesk clinic-web reached readiness with both APIs, Artifact/relay and both worker queues. Ask policy, existing GPT-6 Luna binding and generation limits were preserved.
+
+Live browser verification: trusted business date/timezone answered correctly; a new aggregate-only inventory report completed after a reload during the active run, without resubmission. One report job, one completion reference, one delivery attempt, delivered=true, blocked=false, no retry deadline. XLSX export saved and opened with openpyxl (5,634 bytes, two sheets). Empty inventory produced an honest zero-row report. No patient/billing query or business mutation was requested. Navigation/history remained mounted. Earlier clinic-selection load emitted a routing-depth error before the authenticated session became available; subsequent authenticated reload and report recovery passed. Full signed-out auth/routing qualification and fresh OCR/speech/embedding execution were not repeated. No Prysm production schema/application deployment.
+
+
+## Supply inventory acceptance — 2026-11-03
+
+Commands: `APP_ENV=test DATABASE_URL=sqlite:///:memory: PYTHONPATH=backend backend/.venv/bin/python -m pytest backend/tests/agent/test_supply_intake.py backend/tests/agent/test_supply_routes.py -q --tb=short` — **22 passed**, 3.24 s; separate inventory collection `backend/tests/test_inventory_file_import.py backend/tests/test_inventory_v1.py` with the same environment — **22 passed**, 3.06 s. `npm exec -- vitest run src/tests/unit/agent/supply-review.test.tsx src/tests/unit/agent/supply-message-results.test.ts src/tests/unit/agent/manual-inventory-import.test.tsx` — **26 passed**, 2.88 s. Existing deprecation warnings only. Scope includes extraction, quantities, approval/apply idempotency, pricing/count semantics, authorization, duplicate rows, worksheet/formula validation, locale presentation and saved receipts.
+
+Live running staging-backed web acceptance is **not passing end to end**: XLSX selection is blocked by the shared composer before Prysm's submit-time conversion. Manual XLSX preview succeeds. A separate diagnostic using parser-produced text reaches the Agent, but loses required frame fields/source coordinates and creates two invalid proposals. Manual correction revalidation fails; actual-route isolated reproduction confirms missing JSON content type returns 422 while explicit JSON returns 200. See `docs/agents24-feedback.md` for exact owners and reproduction. No shared inventory apply, model/resource change, deployment or migration. Protected test files/screenshots/diagnostics: `/tmp/prysm-supply-verification/`.
+
+
+## Excel supply repairs and full approval acceptance — 2026-11-03
+
+Fixed host spreadsheet input-contract projection only when the actual runtime permits text files; converted output still goes through the original runtime/server contract. Added the real composer -> authenticated extraction -> text submission regression. Central agentJson marks string JSON bodies, preserving multipart boundaries. Added typed Tool source/value/row schemas, flat frame specifications, mandatory source evidence, missing-frame rejection and explicit model instructions. No inventory authorization or financial owner changed.
+
+Commands: `APP_ENV=test DATABASE_URL=sqlite:///:memory: PYTHONPATH=backend backend/.venv/bin/python -m pytest backend/tests/agent/test_artifact_contract.py backend/tests/agent/test_supply_routes.py backend/tests/agent/test_supply_intake.py -q --tb=short` — **33 passed**, 3.92 s; `npm exec -- vitest run src/tests/unit/agent/composer-suggestions.test.tsx src/tests/unit/agent/client.test.ts src/tests/unit/agent/supply-review.test.tsx` — **25 passed**, 2.45 s. `npm run build:web` passed, 18.70 s, existing chunk warnings. Generated release-input check and diff whitespace check pass. The new composer test supplies jsdom's missing File.arrayBuffer with synthetic bytes; production code uses the browser API normally.
+
+Official resource apply/publish refreshed the typed Artifact manifest and assistant instructions. Local DevDesk clinic stack reached readiness. Real original XLSX upload produced one valid receipt proposal (`5fd7e9a9-fb33-48c9-b6cb-8a4c661b7a96`), preserving Delivery rows 2/3, leading-zero barcodes, SKUs, colors, eye sizes and quantities 2/3. Editing retail 100 -> 101 disabled approval until server revalidation succeeded. Reload preserved the reviewed revision and value; no variants existed before approval. Explicit UI approval created only the two synthetic variants (958/959) in the verified staging clinic 65, with stock 2/3 and reviewed prices 101/150. Production inventory was untouched. Receipt/reload evidence is under `/tmp/prysm-supply-verification/`.
+
+Migration note: No schema migration. Existing jobs, receipts and inventory remain intact; deploy the compatible consumer backend/Artifact contract and host UI together. No Prysm production application deployment or SDK publication was performed.
+
+Final post-approval reload restored the committed “2 items applied” receipt; a second read-only staging audit confirmed exactly two variants and unchanged stock 2/3 (no replay). Screenshot: `/tmp/prysm-supply-verification/excel-approved-restored.jpg`.

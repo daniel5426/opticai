@@ -15,6 +15,15 @@
           "src": "package.json",
           "dest": "package.json"
         },
+        {
+          "src": "config/devdesk-release",
+          "dest": "config/devdesk-release"
+        },
+        {
+          "src": "scripts/devdesk-release-inputs.mjs",
+          "dest": "scripts/devdesk-release-inputs.mjs"
+        },
+        "DEVDESK_RELEASE_BUILD=1 node scripts/devdesk-release-inputs.mjs apply",
         "ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci"
       ]
     }

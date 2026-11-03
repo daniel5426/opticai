@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 
 import pytest
-from agent import local_startup
+from agent import local_startup, availability
 
 
 BASE = {'AGENTS24_ENABLED': 'true', 'AGENTS24_BASE_URL': 'http://127.0.0.1:8026'}
@@ -83,8 +83,13 @@ async def test_dependency_failure_does_not_block_core_api(monkeypatch, tmp_path)
         return type('Stopped', (), {'returncode': 1})()
 
     monkeypatch.setattr(local_startup.asyncio, 'create_subprocess_exec', spawn)
+    monkeypatch.setattr(availability, 'enabled', lambda: True)
+    monkeypatch.setattr(availability, 'setting', lambda _: 'configured')
+    monkeypatch.setattr(availability.httpx, 'AsyncClient', lambda **_: pytest.fail('Stopped tools must not be advertised as available'))
     async with local_startup.local_agent_services():
-        pass
+        assert await availability.platform_available() is False
+
+    assert availability._local_services_ready is None
 
 
 @pytest.mark.asyncio

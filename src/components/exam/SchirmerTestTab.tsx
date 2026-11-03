@@ -4,6 +4,8 @@ import { ChevronUp, ChevronDown } from "lucide-react"
 import { SchirmerTestExam } from "@/lib/db/schema-interface"
 import { EXAM_FIELDS } from "./data/exam-field-definitions"
 import { FastInput, inputSyncManager } from "./shared/OptimizedInputs"
+import { ImportedClinicalContext } from '@/lib/imported-clinical-context'
+import { useTranslation } from 'react-i18next'
 
 interface SchirmerTestTabProps {
   schirmerTestData: SchirmerTestExam
@@ -20,6 +22,8 @@ export function SchirmerTestTab({
   hideEyeLabels = false,
   needsMiddleSpacer = false
 }: SchirmerTestTabProps) {
+  const { t } = useTranslation();
+  const butOnly = React.useContext(ImportedClinicalContext)?.butOnly === true;
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null)
 
   const dataRef = useRef(schirmerTestData);
@@ -28,7 +32,7 @@ export function SchirmerTestTab({
   const columns = [
     { key: "mm", ...EXAM_FIELDS.MM },
     { key: "but", ...EXAM_FIELDS.BUT }
-  ]
+  ].filter(column => !butOnly || column.key === 'but')
 
   const getFieldValue = (eye: "R" | "L", field: string) => {
     const eyeField = `${eye.toLowerCase()}_${field}` as keyof SchirmerTestExam
@@ -62,6 +66,7 @@ export function SchirmerTestTab({
     return (
       <FastInput
         type="number"
+        aria-label={butOnly ? t(`opticplusCards.fields.tb${eye.toLowerCase()}`) : `${eye} ${col.label}`}
         step={step}
         min={min}
         value={value}
@@ -79,10 +84,10 @@ export function SchirmerTestTab({
       <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
         <div className="space-y-3">
           <div className="text-center">
-            <h3 className="font-medium text-muted-foreground">Schirmer Test</h3>
+            <h3 className="font-medium text-muted-foreground">{butOnly ? t('opticplusCards.sections.tearFilm') : 'Schirmer Test'}</h3>
           </div>
 
-          <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(2,1fr)]' : 'grid-cols-[20px_repeat(2,1fr)]'} gap-2 items-center`}>
+          <div className="grid gap-2 items-center" style={{gridTemplateColumns: `${hideEyeLabels ? '' : '20px '}repeat(${columns.length},minmax(0,1fr))`}}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
               <div key={key} className="h-4 flex items-center justify-center">
@@ -131,4 +136,4 @@ export function SchirmerTestTab({
       </CardContent>
     </Card>
   )
-} 
+}

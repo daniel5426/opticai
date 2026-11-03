@@ -1,3 +1,6 @@
+import { TableExportProvider } from "@/components/table-export/context";
+import { CompanyClinicToolbarProvider } from "@/components/CompanyClinicFilter"
+import { useCompanyClinicFilter } from "@/hooks/client/useCompanyClinicFilter"
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/site-header";
@@ -21,6 +24,7 @@ import { deferPaginationTotal } from "@/lib/deferred-pagination";
 
 export default function AllFilesPage() {
   const { currentClinic } = useUser();
+  const clinicFilter = useCompanyClinicFilter()
   const search = useSearch({ from: "/files" });
   const navigate = useNavigate();
   const [files, setFiles] = useState<File[]>([]);
@@ -104,12 +108,12 @@ export default function AllFilesPage() {
         columnFilters: search.filters || undefined,
         includeTotal: false,
       };
-      const { items, hasMore: nextHasMore } = await getPaginatedFiles(currentClinic?.id, paginationOptions);
+      const { items, hasMore: nextHasMore } = await getPaginatedFiles(clinicFilter.clinicId, paginationOptions);
       if (!canCommit()) return;
       setFiles(items);
       setHasMore(nextHasMore);
       deferPaginationTotal(
-        () => getPaginatedFiles(currentClinic?.id, { ...paginationOptions, countOnly: true }),
+        () => getPaginatedFiles(clinicFilter.clinicId, { ...paginationOptions, countOnly: true }),
         canCommit,
         setTotal,
       );
@@ -129,6 +133,7 @@ export default function AllFilesPage() {
   }, [
     activeSort,
     currentClinic,
+    clinicFilter.clinicId,
     pageSize,
     search.fileCategory,
     search.page,
@@ -172,8 +177,15 @@ export default function AllFilesPage() {
     );
   };
 
+  useEffect(() => {
+    const refresh = () => { void loadFiles() }
+    window.addEventListener("prysm:client-records-changed", refresh)
+    return () => window.removeEventListener("prysm:client-records-changed", refresh)
+  }, [loadFiles])
+
   return (
-    <>
+    <TableExportProvider value={{ table: "files", clinicId: clinicFilter.clinicId, sort: sortToOrder(activeSort, "upload_date_desc") }}>
+    <CompanyClinicToolbarProvider filter={{ ...clinicFilter, setValue: value => { clinicFilter.setValue(value); void navigate({ to: "/files", search: buildSearchState({ page: 1 }) }) } }}>
       <SiteHeader title="מסמכים" />
       <div
         className="flex h-full min-h-0 flex-1 flex-col p-4 lg:p-6"
@@ -226,6 +238,7 @@ export default function AllFilesPage() {
           }}
         />
       </div>
-    </>
+    </CompanyClinicToolbarProvider>
+    </TableExportProvider>
   );
 }

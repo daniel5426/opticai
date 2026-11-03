@@ -1,6 +1,6 @@
 """Additive app-owned context, action, task and result persistence."""
 import uuid
-from sqlalchemy import Column, String, Integer, Boolean, Date, DateTime, JSON, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, String, Integer, Boolean, Date, DateTime, JSON, ForeignKey, UniqueConstraint, Index, text
 from database import Base
 from .config import now
 
@@ -39,6 +39,7 @@ class PreparedChange(Base):
 class FollowupTask(Base):
     __tablename__ = 'prysm_followup_tasks'
     id = Column(String(36), primary_key=True, default=identifier)
+    company_id = Column(Integer, ForeignKey('companies.id'), nullable=False, index=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'), nullable=False, index=True)
     client_id = Column(Integer, ForeignKey('clients.id'))
     assigned_user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
@@ -64,6 +65,9 @@ class TaskEvent(Base):
 
 class AgentJob(Base):
     __tablename__ = 'prysm_agent_jobs'
+    __table_args__ = (Index('ix_prysm_agent_jobs_completion_retry', 'completion_retry_at', postgresql_where=text('completion_retry_at IS NOT NULL')),)
+    platform_callbacks = Column(JSON)
+    completion_retry_at = Column(DateTime(timezone=True))
     id = Column(String(36), primary_key=True, default=identifier)
     unique_key = Column(String(200), unique=True, nullable=False)
     company_id = Column(Integer, ForeignKey('companies.id'), nullable=False)

@@ -468,12 +468,16 @@ class AuthService {
     }
     if (this.state !== AuthState.AUTHENTICATED || !this.session?.user) return
 
+    // The development-only synthetic gallery does not represent clinic data.
+    if (import.meta.env.DEV && currentPath === '/dev/appearance') return
+
     if (this.session.clinic) {
       const isOnClinicPage = [
         '/dashboard',
         '/clients',
         '/exams',
         '/orders',
+        '/inventory',
         '/appointments',
         '/referrals',
         '/files',

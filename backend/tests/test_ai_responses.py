@@ -47,6 +47,8 @@ def mock_service(responses):
 
 @pytest.fixture
 def workspace(monkeypatch):
+    # This suite tests the retained legacy transport, independently of local .env.
+    monkeypatch.setenv('AGENTS24_ENABLED', 'false')
     engine = create_engine('sqlite://', connect_args={'check_same_thread': False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)
     sessions = sessionmaker(bind=engine, expire_on_commit=False)

@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime, date
+from datetime import date as DateType
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Date, Float, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -485,6 +486,8 @@ class AppointmentUpdate(AppointmentBase):
     client_id: Optional[int] = None
 
 class Appointment(AppointmentBase):
+    calendar_sync_owned: bool = False
+    company_id: int
     id: int
     client_full_name: Optional[str] = None
     examiner_name: Optional[str] = None
@@ -507,6 +510,7 @@ class MedicalLogUpdate(MedicalLogBase):
     client_id: Optional[int] = None
 
 class MedicalLog(MedicalLogBase):
+    company_id: int
     id: int
     
     class Config:
@@ -529,8 +533,11 @@ class OrderCreate(OrderBase):
 
 class OrderUpdate(OrderBase):
     client_id: Optional[int] = None
+    compatibility_token: Optional[str] = None
 
 class Order(OrderBase):
+    compatibility_token: Optional[str] = None
+    company_id: int
     id: int
     order_status: Optional[str] = None
     billing_id: Optional[int] = None
@@ -588,8 +595,11 @@ class ContactLensOrderCreate(ContactLensOrderBase):
 
 class ContactLensOrderUpdate(ContactLensOrderBase):
     client_id: Optional[int] = None
+    compatibility_token: Optional[str] = None
 
 class ContactLensOrder(ContactLensOrderBase):
+    compatibility_token: Optional[str] = None
+    company_id: int
     id: int
     billing_id: Optional[int] = None
     billing_total_after_discount: Optional[float] = None
@@ -617,9 +627,10 @@ class ReferralCreate(ReferralBase):
 class ReferralUpdate(ReferralBase):
     client_id: Optional[int] = None
     referral_notes: Optional[str] = None
-    date: Optional[date] = None
+    date: Optional[DateType] = None
 
 class Referral(ReferralBase):
+    company_id: int
     id: int
     
     class Config:
@@ -644,6 +655,7 @@ class FileUpdate(BaseModel):
     notes: Optional[str] = None
 
 class File(FileBase):
+    company_id: int
     id: int
     upload_date: datetime
     
@@ -853,9 +865,11 @@ class BillingCreate(BillingBase):
     line_items: Optional[List[OrderLineItemCreate]] = None
 
 class BillingUpdate(BillingBase):
+    compatibility_token: Optional[str] = None
     line_items: Optional[List[OrderLineItemUpdate]] = None
 
 class Billing(BillingBase):
+    compatibility_token: Optional[str] = None
     id: int
     
     class Config:
@@ -936,6 +950,8 @@ class OpticalExamUpdate(OpticalExamBase):
     client_id: Optional[int] = None
 
 class OpticalExam(OpticalExamBase):
+    clinic_name: Optional[str] = None
+    company_id: int
     id: int
     
     class Config:

@@ -9,13 +9,15 @@ from database import get_db
 from auth import get_current_user
 from models import OpticalExam, Appointment, Order, Referral, File, MedicalLog, User, Campaign
 from schemas import Campaign as CampaignSchema
-from security.scope import get_scoped_client, assert_clinic_scope, normalize_clinic_id_for_company
+from security.scope import assert_record_scope, get_scoped_client, assert_clinic_scope, normalize_clinic_id_for_company
 from services.ai_privacy import project_record
 from services.ai_service import AIError, LANGUAGES, get_ai_service, locale as active_locale, translated
 from services.ai_schemas import InsightSections, GeneratedCampaign
 from services.ai_campaign_catalog import FILTER_FIELDS, OPERATORS
 
-router = APIRouter(prefix='/ai', tags=['ai-sidebar'])
+from security.entitlements import ai_access
+
+router = APIRouter(prefix='/ai', tags=['ai-sidebar'], dependencies=[Depends(ai_access)])
 
 
 def _collect_all_client_data(db, client_id, current_user):
@@ -23,10 +25,10 @@ def _collect_all_client_data(db, client_id, current_user):
     data = {'client': project_record(client, 'client')}
     family = client.family
     if family:
-        assert_clinic_scope(db, current_user, family.clinic_id)
+        assert_record_scope(db, current_user, family)
     data['family'] = project_record(family, 'family')
     for kind, model in [('exams', OpticalExam), ('appointments', Appointment), ('orders', Order), ('referrals', Referral), ('files', File), ('medical_logs', MedicalLog)]:
-        records = db.query(model).filter(model.client_id == client_id, model.clinic_id == client.clinic_id)
+        records = db.query(model).filter(model.client_id == client_id, model.company_id == client.company_id)
         if hasattr(model, 'deleted_at'):
             records = records.filter(model.deleted_at.is_(None))
         data[kind] = [project_record(row, kind) for row in records.order_by(model.id.desc()).limit(100).all()]
@@ -78,6 +80,8 @@ async def generate_part_state(client_id: int, part: str, locale: str = 'he', db:
 
 @router.post('/create-campaign-from-prompt')
 async def create_campaign_from_prompt(body: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from services.subscription_service import require_module
+    require_module(db, current_user.company_id, "campaigns")
     prompt = body.get('prompt')
     if not isinstance(prompt, str) or not prompt.strip() or len(prompt) > 20000:
         raise HTTPException(422, detail='ai.invalidMessage')

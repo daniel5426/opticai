@@ -2,7 +2,7 @@
 from fastapi import HTTPException
 from hashlib import sha256
 from models import ExamLayout, ExamLayoutInstance, OpticalExam, Client
-from security.scope import get_scoped_client, assert_clinic_scope
+from security.scope import get_scoped_client, assert_record_scope, resolve_company_id
 from services.prism_axis_compatibility import normalize_prism_axis_exam_data
 from services.prescription_search_index import rebuild_exam_instance_index
 from services.ai_privacy import clean_nested
@@ -18,12 +18,13 @@ def template(db, clinic_id, layout_id):
 
 
 def save(db, user, clinic_id, exam_id, fields, expected, action):
-    assert_clinic_scope(db, user, clinic_id)
     if (user.role_level or 1) < 2:
         raise HTTPException(403, 'agent.editPermissionRequired')
-    exam = db.query(OpticalExam).filter_by(id=exam_id, clinic_id=clinic_id).filter(OpticalExam.deleted_at.is_(None)).with_for_update().first()
-    if not exam or get_scoped_client(db, user, exam.client_id).clinic_id != clinic_id:
+    exam = db.query(OpticalExam).filter_by(id=exam_id, company_id=resolve_company_id(db, user)).filter(OpticalExam.deleted_at.is_(None)).with_for_update().first()
+    if not exam:
         raise HTTPException(404, 'agent.recordNotFound')
+    assert_record_scope(db, user, exam)
+    get_scoped_client(db, user, exam.client_id)
     if action == 'create':
         layout = template(db, clinic_id, fields['layout_id'])
         if sha256(layout.layout_data.encode()).hexdigest() != expected['layout_digest']:

@@ -11,7 +11,8 @@ export type ImportedSourceRecordType =
   | "client"
   | "exam"
   | "order"
-  | "contact_lens_order";
+  | "contact_lens_order"
+  | "medical_log";
 
 type SourceRow = {
   source_system: string;

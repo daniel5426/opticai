@@ -1,3 +1,4 @@
+import { OpticPlusMigrationCard } from "@/components/exam/OpticPlusMigrationCard";
 import React, { useEffect, useState } from "react";
 import { I18nextProvider, useTranslation } from "react-i18next";
 import appI18n from "@/localization/i18n";
@@ -58,6 +59,21 @@ function CatalogDialog() {
       <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>{t("appearanceCancel")}</Button><Button onClick={() => setOpen(false)}>{t("appearanceSave")}</Button></DialogFooter>
     </DialogContent>
   </Dialog>;
+}
+
+function OpticPlusFixture() {
+  const [measurements, setMeasurements] = useState<Record<string, unknown>>({ card_instance_id: 'opticplus-demo-measurements', source_table: 'tb_comp', source_key: 'demo', gijr: '0', gijl: '7', tbr: '12', tbl: '13' });
+  const [questionnaire, setQuestionnaire] = useState<Record<string, unknown>>({ card_instance_id: 'opticplus-demo-questionnaire', source_table: 'tb_quest', source_key: 'demo', qyes1: true, qno1: false, remk1: '0', a1: false, a2: true });
+  const [extra, setExtra] = useState<Record<string, Record<string, unknown>>>({
+    'opticplus-ocular-health': {card_instance_id:'demo-ocular',source_table:'tb_gnrl_tests',source_key:'demo',tst1:'0.3',tst2:'0.4',tst7:'right macula',tst8:'left macula',tst13:'right eyelids',tst14:'left eyelids'},
+    'opticplus-binocular': {card_instance_id:'demo-binocular',source_table:'tb_gnrl_tests',source_key:'demo',tst35:'cover test d',tst36:'cover test n',tst38:'bo 6m',tst39:'bi 6m',tst40:'bo 40cm',tst41:'bi 40cm',tst47:'fcc',tst48:'nra',tst49:'pra'},
+    'opticplus-contact-fitting': {card_instance_id:'demo-fitting',source_table:'adchecks',source_key:'demo',cnrtype:'right lens type',cnltype:'left lens type',cnrcomp:'right company',cnlcomp:'left company',cnrkoter:'-3.00',cnlkoter:'-4.25'},
+  });
+  return <div className="grid gap-4 lg:grid-cols-2" data-testid="gallery-opticplus">
+    <OpticPlusMigrationCard type="opticplus-measurements" data={measurements} isEditing onChange={(field,value) => setMeasurements(previous => ({...previous,[field]:value}))} />
+    <OpticPlusMigrationCard type="opticplus-questionnaire" data={questionnaire} isEditing onChange={(field,value) => setQuestionnaire(previous => ({...previous,[field]:value}))} />
+    {Object.entries(extra).map(([type,data]) => <OpticPlusMigrationCard key={type} type={type as import('@/lib/opticplus-cards').OpticPlusCardType} data={data} isEditing onChange={(field,value) => setExtra(previous => ({...previous,[type]:{...previous[type],[field]:value}}))} />)}
+  </div>;
 }
 
 function ClinicalFixture() {
@@ -133,7 +149,7 @@ function GalleryContent({ locale, onLocaleChange }: { locale: AppLocale; onLocal
           <ListPageHeader title={t(surface)} actions={<Button variant="outline" onClick={() => setLoading(value => !value)}>{t("appearanceLoading")}</Button>} />
           {surface === "appearanceMenu" ? <div className="max-w-2xl"><AppearanceTab persistMode={false} /></div> : null}
           {surface === "clients" || surface === "inventory" ? <ListFixture inventory={surface === "inventory"} loading={loading} /> : null}
-          {surface === "exams" || surface === "orders" || surface === "appearanceWorkspace" ? <><Tabs defaultValue="details" dir={direction}><TabsList><TabsTrigger value="details">{t("clientDetails")}</TabsTrigger><TabsTrigger value="exams">{t("exams")}</TabsTrigger><TabsTrigger value="orders">{t("orders")}</TabsTrigger></TabsList></Tabs><ClinicalFixture /><Card className="gap-3 py-4"><CardHeader><CardTitle>{t("appearanceSampleClient")}</CardTitle></CardHeader><CardContent className="grid gap-4 sm:grid-cols-3"><Input aria-label={t("appearanceField")} defaultValue={t("appearanceSampleClient")} dir={direction} /><Input aria-label={t("appearanceDisabled")} value="+972 50 123 4567" disabled dir="ltr" /><Input aria-label={t("appearanceInvalid")} type="number" defaultValue="450" aria-invalid /></CardContent></Card></> : null}
+          {surface === "exams" || surface === "orders" || surface === "appearanceWorkspace" ? <><Tabs defaultValue="details" dir={direction}><TabsList><TabsTrigger value="details">{t("clientDetails")}</TabsTrigger><TabsTrigger value="exams">{t("exams")}</TabsTrigger><TabsTrigger value="orders">{t("orders")}</TabsTrigger></TabsList></Tabs><ClinicalFixture />{surface === "exams" ? <OpticPlusFixture /> : null}<Card className="gap-3 py-4"><CardHeader><CardTitle>{t("appearanceSampleClient")}</CardTitle></CardHeader><CardContent className="grid gap-4 sm:grid-cols-3"><Input aria-label={t("appearanceField")} defaultValue={t("appearanceSampleClient")} dir={direction} /><Input aria-label={t("appearanceDisabled")} value="+972 50 123 4567" disabled dir="ltr" /><Input aria-label={t("appearanceInvalid")} type="number" defaultValue="450" aria-invalid /></CardContent></Card></> : null}
           {surface === "calendar" ? <div className="overflow-hidden rounded-md border bg-card"><CalendarHeader currentDate={calendarDate} view={calendarView} onToday={() => setCalendarDate(fixedDate)} onNavigate={navigateCalendar} onViewChange={setCalendarView} />
             {calendarView === "month" ? <MonthView visibleDates={monthDates} currentDate={calendarDate} currentUser={null} holidaysByDate={{}} getAppointmentsForDate={() => []} onDateClick={setCalendarDate} onViewChange={setCalendarView} /> : (
               <Table elevated={false} containerClassName="mt-4"><TableHeader><TableRow><TableHead />{calendarDates.map(date => <TableHead key={date.toISOString()} className="text-center"><span dir="ltr">{format(date, "dd/MM")}</span></TableHead>)}</TableRow></TableHeader>

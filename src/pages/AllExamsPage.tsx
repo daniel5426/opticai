@@ -1,3 +1,6 @@
+import { TableExportProvider } from "@/components/table-export/context";
+import { CompanyClinicToolbarProvider } from "@/components/CompanyClinicFilter"
+import { useCompanyClinicFilter } from "@/hooks/client/useCompanyClinicFilter"
 import React, { useState, useEffect, useCallback } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
 import { TableListPageContent } from "@/components/table-list-layout"
@@ -18,6 +21,7 @@ import { deferPaginationTotal } from "@/lib/deferred-pagination"
 export default function AllExamsPage() {
   const { t } = useTranslation()
   const { currentClinic } = useUser()
+  const clinicFilter = useCompanyClinicFilter()
   const search = useSearch({ from: "/exams" })
   const navigate = useNavigate()
   const [exams, setExams] = useState<any[]>([])
@@ -100,12 +104,12 @@ export default function AllExamsPage() {
         columnFilters: search.filters || undefined,
         includeTotal: false
       }
-      const { items, hasMore: nextHasMore } = await getPaginatedEnrichedExams("exam", currentClinic?.id, paginationOptions)
+      const { items, hasMore: nextHasMore } = await getPaginatedEnrichedExams("exam", clinicFilter.clinicId, paginationOptions)
       if (!canCommit()) return
       setExams(items)
       setHasMore(nextHasMore)
       deferPaginationTotal(
-        () => getPaginatedEnrichedExams("exam", currentClinic?.id, { ...paginationOptions, countOnly: true }),
+        () => getPaginatedEnrichedExams("exam", clinicFilter.clinicId, { ...paginationOptions, countOnly: true }),
         canCommit,
         setTotal
       )
@@ -116,7 +120,7 @@ export default function AllExamsPage() {
         setLoading(false)
       }
     }
-  }, [activeSort, currentClinic, pageSize, search.page, search.q, search.testName, search.filters, startSearchRequest])
+  }, [activeSort, clinicFilter.clinicId, currentClinic, pageSize, search.page, search.q, search.testName, search.filters, startSearchRequest])
 
   useEffect(() => {
     if (currentClinic) {
@@ -143,8 +147,15 @@ export default function AllExamsPage() {
     loadData()
   }
 
+  useEffect(() => {
+    const refresh = () => { void loadData() }
+    window.addEventListener("prysm:client-records-changed", refresh)
+    return () => window.removeEventListener("prysm:client-records-changed", refresh)
+  }, [loadData])
+
   return (
-    <>
+    <TableExportProvider value={{ table: "exams", clinicId: clinicFilter.clinicId, sort: sortToOrder(activeSort, "exam_date_desc") }}>
+    <CompanyClinicToolbarProvider filter={{ ...clinicFilter, setValue: value => { clinicFilter.setValue(value); void navigate({ to: "/exams", search: buildSearchState({ page: 1 }) }) } }}>
       <SiteHeader title={t("exams")} />
       <TableListPageContent>
         <ExamsTable
@@ -191,6 +202,7 @@ export default function AllExamsPage() {
           }}
         />
       </TableListPageContent>
-    </>
+    </CompanyClinicToolbarProvider>
+    </TableExportProvider>
   )
 }

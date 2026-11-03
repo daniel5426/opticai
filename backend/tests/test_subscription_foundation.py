@@ -31,7 +31,7 @@ def test_launch_plan_catalog_is_exact():
     assert (plans["essential"].amount_minor, plans["essential"].clinic_limit, plans["essential"].staff_limit) == (43_000, 1, 5)
     assert (plans["growth"].amount_minor, plans["growth"].clinic_limit, plans["growth"].staff_limit) == (99_900, 3, 15)
     assert (plans["network"].amount_minor, plans["network"].clinic_limit, plans["network"].staff_limit) == (189_000, 6, 35)
-    assert all(plans[code].trial_days == 30 for code in ("essential", "growth", "network"))
+    assert all(plans[code].trial_days == 0 for code in ("essential", "growth", "network"))
 
 
 def test_pending_subscription_snapshots_selected_plan_limits():

@@ -2,9 +2,9 @@
 import { User } from './schema-interface'
 import { apiClient } from '../api-client';
 
-export async function getAllUsers(clinicId?: number): Promise<User[]> {
+export async function getAllUsers(clinicId?: number, forRecords = false): Promise<User[]> {
   try {
-    const response = clinicId 
+    const response = forRecords ? await apiClient.getRecordStaff() : clinicId
       ? await apiClient.getUsersByClinic(clinicId)
       : await apiClient.getUsers();
     if (response.error) {

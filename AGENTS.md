@@ -3,6 +3,7 @@
 - Be concise and respond in English unless the user asks otherwise.
 - Preserve unrelated work. Do not run formatters or make formatting-only edits unless requested.
 - Before UI changes, read only the relevant parts of `design.md` and reuse its page, toolbar, table, dialog, and RTL conventions.
+- Test against the running OpticAI web app by default. Use Electron only for behavior that requires the native app and cannot be verified on the web.
 
 ## Contributor Workflow (Owner Exempt)
 
@@ -35,3 +36,9 @@
 - Keep migrations production-safe and prefer expand/migrate/contract sequencing for destructive changes.
 - Do not automatically apply migrations to a shared or remote database merely because a migration was authored. Apply only when the requested task includes that environment mutation and the exact target is established.
 - Let Alembic own schema state; do not add normal startup-time schema mutation guards. If schema state was changed manually, verify it before using an idempotent migration or stamp.
+
+## App operations
+
+Read `Start.md` before local setup, startup, shutdown, or startup troubleshooting. Read `CI.md` before checks, CI changes, shipping, or production troubleshooting. Use the canonical scripts they identify. Update the relevant operational document when verified durable behavior changes.
+
+App-owned local services and workers start and stop with the app, preserving data. Separate apps, hosted/shared databases and shared host engines remain independent; declare ownership in `devdesk.json`.

@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from database import get_db
 from auth import get_current_user
 from models import User, OrderGroup, OrderGroupEntry, Order, ContactLensOrder, Billing, Client
-from security.scope import get_allowed_clinic_ids, get_scoped_order, get_scoped_contact_lens_order, get_scoped_client
+from security.scope import record_filter, get_record_clinic_ids, get_scoped_order, get_scoped_contact_lens_order, get_scoped_client
 from services.order_group_service import get_group, group_dict, group_dicts, save_group, group_for_order, ensure_standalone_group, check_revision, group_write, row_dict, order_groups_available
 from schemas import BillingPaymentCreate, OrderGroupSave
 from utils.column_filters import ColumnFilter, build_column_filter_conditions, parse_column_filters
@@ -40,11 +40,10 @@ def _option_values(column_filters: dict, key: str) -> list[str]:
         raise HTTPException(400, f"Invalid column filters: '{key}' expects a list of options")
     return [item for item in values if item]
 
-@router.get("")
-def list_groups(client_id: int | None = None, clinic_id: int | None = None, limit: int = Query(25, ge=1, le=100), offset: int = Query(0, ge=0), q: str | None = None, kind: str | None = None, status: str | None = None, order: str = "date_desc",
-                db: Session = Depends(get_db), user: User = Depends(get_current_user),
-                filters: str | None = None):  # JSON column filters: date|clients|kinds|status|payer
-    allowed = get_allowed_clinic_ids(db, user, clinic_id)
+
+def order_list_candidates(db, user, client_id, clinic_id, q, kind, status, filters=None):
+    """Groups plus ungrouped legacy orders as one union, filtered by the toolbar and the column filters."""
+    allowed = get_record_clinic_ids(db, user, clinic_id)
     if kind not in (None, "all", "regular", "contact"):
         raise HTTPException(422, "Unknown order kind")
     # Toolbar selects and column filters narrow the same sets; both must match.
@@ -62,7 +61,7 @@ def list_groups(client_id: int | None = None, clinic_id: int | None = None, limi
     client_names, payer_names = name_filter("clients"), name_filter("payer")
     named_clients = db.query(Client.id).filter(*client_names) if client_names else None
     named_payers = db.query(Client.id).filter(*payer_names) if payer_names else None
-    query = db.query(OrderGroup).filter(OrderGroup.clinic_id.in_(allowed))
+    query = db.query(OrderGroup).filter(record_filter(db, user, OrderGroup, clinic_id))
     if client_id:
         get_scoped_client(db, user, client_id)
         matches = exists().where(OrderGroupEntry.group_id == OrderGroup.id).where(or_(
@@ -111,9 +110,10 @@ def list_groups(client_id: int | None = None, clinic_id: int | None = None, limi
         legacy = legacy.where(*build_column_filter_conditions(filters, {"date": ColumnFilter(model.order_date, "date")}))
         candidates.append(legacy)
     combined = union_all(*candidates).subquery()
-    total = db.execute(select(func.count()).select_from(combined)).scalar_one()
-    dates = combined.c.opened_date.asc() if order == "date_asc" else combined.c.opened_date.desc()
-    page = db.execute(select(combined).order_by(dates.nulls_last(), combined.c.kind, combined.c.id.desc()).offset(offset).limit(limit)).all()
+    return combined
+
+
+def order_list_items(db, page):
     # Load everything the page needs in a few batched queries rather than several per row.
     ids_of = lambda kind: [row.id for row in page if row.kind == kind]
     groups = {group.id: group for group in db.query(OrderGroup).filter(OrderGroup.id.in_(ids_of("group"))).all()} if ids_of("group") else {}
@@ -141,8 +141,18 @@ def list_groups(client_id: int | None = None, clinic_id: int | None = None, limi
                       "entries": [{"kind": row.kind, "position": 0, "order": row_dict(record)}],
                       "clients": [{key: getattr(client, key) for key in ("id", "first_name", "last_name", "clinic_id")}] if client else [],
                       "billing": row_dict(billing) if billing else None, "line_items": []})
-    return {"items": items, "total": total}
+    return items
 
+
+@router.get("")
+def list_groups(client_id: int | None = None, clinic_id: int | None = None, limit: int = Query(25, ge=1, le=100), offset: int = Query(0, ge=0), q: str | None = None, kind: str | None = None, status: str | None = None, order: str = "date_desc",
+                db: Session = Depends(get_db), user: User = Depends(get_current_user),
+                filters: str | None = None):  # JSON column filters: date|clients|kinds|status|payer
+    combined = order_list_candidates(db, user, client_id, clinic_id, q, kind, status, filters)
+    total = db.execute(select(func.count()).select_from(combined)).scalar_one()
+    dates = combined.c.opened_date.asc() if order == "date_asc" else combined.c.opened_date.desc()
+    page = db.execute(select(combined).order_by(dates.nulls_last(), combined.c.kind, combined.c.id.desc()).offset(offset).limit(limit)).all()
+    return {"items": order_list_items(db, page), "total": total}
 
 @router.post("/resolve/{kind}/{order_id}")
 def link_imported_order(kind: str, order_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
@@ -159,8 +169,9 @@ def delete_group_client(client_id: int, db: Session = Depends(get_db), user: Use
     from services.trash_service import move_to_trash
     from services.order_group_service import protect_group
     client = get_scoped_client(db, user, client_id)
-    groups = db.query(OrderGroup).outerjoin(OrderGroupEntry).outerjoin(Order, OrderGroupEntry.order_id == Order.id).outerjoin(ContactLensOrder, OrderGroupEntry.contact_lens_id == ContactLensOrder.id).filter(
-        or_(Order.client_id == client.id, ContactLensOrder.client_id == client.id, OrderGroup.payer_client_id == client.id)).distinct().all()
+    group_ids = db.query(OrderGroup.id).outerjoin(OrderGroupEntry).outerjoin(Order, OrderGroupEntry.order_id == Order.id).outerjoin(ContactLensOrder, OrderGroupEntry.contact_lens_id == ContactLensOrder.id).filter(
+        or_(Order.client_id == client.id, ContactLensOrder.client_id == client.id, OrderGroup.payer_client_id == client.id)).distinct()
+    groups = db.query(OrderGroup).filter(OrderGroup.id.in_(group_ids)).order_by(OrderGroup.id).populate_existing().with_for_update().all()
     with group_write(db):
         for group in groups:
             protect_group(db, group)

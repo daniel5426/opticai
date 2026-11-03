@@ -1,3 +1,6 @@
+import { TableExportContext } from "@/components/table-export/context";
+import { TableExportButton } from "@/components/table-export/TableExportButton";
+import type { ExportConfig, ExportFilter, ExportTable } from "@/lib/table-exports";
 import * as React from "react";
 import { Search, X } from "lucide-react";
 
@@ -30,6 +33,28 @@ export type TableFiltersBarSelect = {
   ariaLabel?: string;
 };
 
+export const TableFiltersContext = React.createContext<TableFiltersBarSelect[]>([]);
+
+export function TableFilterSelect({ filter }: { filter: TableFiltersBarSelect }) {
+  const { direction } = useAppLocale();
+  return (
+    <Select value={filter.value} onValueChange={filter.onChange} dir={direction}>
+      <SelectTrigger
+        aria-label={filter.ariaLabel || filter.placeholder}
+        data-canvas-surface=""
+        className={cn(canvasSurfaceClassName, "h-9", filter.widthClassName || "w-[160px]")}
+      >
+        <SelectValue placeholder={filter.placeholder} />
+      </SelectTrigger>
+      <SelectContent dir={direction}>
+        {filter.options.map(option => (
+          <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 interface TableFiltersBarProps {
   searchValue?: string;
   onSearchChange?: (value: string) => void;
@@ -43,6 +68,8 @@ interface TableFiltersBarProps {
   hasActiveFilters?: boolean;
   className?: string;
   compact?: boolean;
+  exportConfig?: ExportConfig;
+  exportTable?: ExportTable;
 }
 
 export function TableFiltersBar({
@@ -58,12 +85,27 @@ export function TableFiltersBar({
   hasActiveFilters = false,
   className,
   compact = false,
+  exportConfig: explicitExportConfig,
+  exportTable,
 }: TableFiltersBarProps) {
   const { direction } = useAppLocale();
   const { t } = useTranslation();
   const resolvedSearchPlaceholder = searchPlaceholder ?? `${t("search")}…`;
-  const hasLeftContent = Boolean(navigation || actions);
-  const orderedFilters = direction === "rtl" ? [...filters].reverse() : filters;
+  const inheritedExportConfig = React.useContext(TableExportContext);
+  const exportConfig = explicitExportConfig || (inheritedExportConfig?.table === exportTable ? inheritedExportConfig : null);
+  const hasLeftContent = Boolean(navigation || actions || exportConfig);
+  const inheritedFilters = React.useContext(TableFiltersContext);
+  const effectiveFilters = [...filters, ...inheritedFilters.filter(filter => !filters.some(explicit => explicit.key === filter.key))];
+  const filterKeys: Record<string, string> = { "test-name": "test_name", "exam-type": "exam_name", "date-scope": "date_scope", "file-category": "file_category", urgency: "urgency_level", type: "referral_type" };
+  const filterLabels: Record<string, string> = { test_name: "column.test_name", exam_name: "column.exam_name", date_scope: "dates", file_category: "column.category", urgency_level: "column.urgency", referral_type: "column.type" };
+  const exportFilters: ExportFilter[] = effectiveFilters.filter(filter => filter.key !== "clinic").map(filter => {
+    const key = filterKeys[filter.key] || filter.key;
+    return { key, value: filter.value || "all", label: t(`tableExport.${filterLabels[key] || `column.${key}`}`), options: filter.options.map(option => ({ value: option.value, label: option.value === "all" ? t("tableExport.all") : t(`tableExport.value.${option.value}`, { defaultValue: option.label }) })) };
+  });
+  const clinicFilter = effectiveFilters.find(filter => filter.key === "clinic");
+  const clinicName = exportConfig?.clinicId == null ? t("tableExport.allClinics") : clinicFilter?.value === "current" ? t("companyClients.currentClinic") : clinicFilter?.options.find(option => option.value === String(exportConfig.clinicId))?.label || String(exportConfig.clinicId);
+  const exportButton = exportConfig ? <TableExportButton snapshot={{ ...exportConfig, search: searchValue, filters: [...exportFilters, ...(exportConfig.filters || [])], clinicName }} /> : null;
+  const orderedFilters = direction === "rtl" ? [...effectiveFilters].reverse() : effectiveFilters;
   const navigationOrder =
     direction === "ltr"
       ? "order-2 flex shrink-0 flex-wrap items-center justify-end gap-2"
@@ -95,8 +137,10 @@ export function TableFiltersBar({
             dir={direction}
             className={navigationOrder}
           >
+            {exportConfig?.placement === "beforeNavigation" && exportButton}
             {navigation}
             {actions}
+            {exportConfig?.placement !== "beforeNavigation" && exportButton}
           </div>
         ) : null}
 
@@ -138,33 +182,7 @@ export function TableFiltersBar({
             </Button>
           ) : null}
 
-          {orderedFilters.map((filter) => (
-            <Select
-              key={filter.key}
-              value={filter.value}
-              onValueChange={filter.onChange}
-              dir={direction}
-            >
-              <SelectTrigger
-                aria-label={filter.ariaLabel || filter.placeholder}
-                data-canvas-surface=""
-                className={cn(
-                  canvasSurfaceClassName,
-                  "h-9",
-                  filter.widthClassName || "w-[160px]",
-                )}
-              >
-                <SelectValue placeholder={filter.placeholder} />
-              </SelectTrigger>
-              <SelectContent>
-                {filter.options.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ))}
+          {orderedFilters.map(filter => <TableFilterSelect key={filter.key} filter={filter} />)}
 
           {inlineControls ? <div dir={direction}>{inlineControls}</div> : null}
 

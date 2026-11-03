@@ -152,7 +152,7 @@
   }
 }
 
-/* Bloom is an opt-in shell palette, independent of the lighter page canvas. */
+/* Bloom is the default shell palette, independent of the lighter page canvas. */
 @layer base {
   :root[data-style="classic"][data-palette="bloom"] {
     --bloom-neutral: 210 234 252;

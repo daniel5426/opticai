@@ -5,6 +5,7 @@ from datetime import datetime, date
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, extract, func
+from security.scope import client_clinic_condition
 from models import Campaign, Client, Appointment, OpticalExam, Order, CampaignClientExecution, Clinic, Settings
 from .messaging.whatsapp import whatsapp_service
 # Assuming we have email/sms services too, but focused on WhatsApp as requested
@@ -14,8 +15,9 @@ from .messaging.whatsapp import whatsapp_service
 logger = logging.getLogger(__name__)
 
 class CampaignService:
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, actor_user_id=None):
         self.db = db
+        self.actor_user_id = actor_user_id
 
     async def get_filtered_clients(self, campaign: Campaign) -> List[Client]:
         """
@@ -26,7 +28,7 @@ class CampaignService:
             if not filters:
                 return []
 
-            query = self.db.query(Client).filter(Client.clinic_id == campaign.clinic_id)
+            query = self.db.query(Client).filter(client_clinic_condition([campaign.clinic_id]))
 
             # Note: This is a complex translation from JSON filters to SQLAlchemy.
             # For a truly scalable solution, we would build a robust filter engine.
@@ -77,6 +79,8 @@ class CampaignService:
             logger.warning(f"Campaign {campaign_id} not found or not active.")
             return
 
+        from security.entitlements import campaign_delivery
+        campaign_delivery(self.db, campaign.clinic_id, self.actor_user_id)
         clients = await self.get_filtered_clients(campaign)
         if not clients:
             logger.info(f"No target clients for campaign {campaign.id}.")
@@ -93,6 +97,7 @@ class CampaignService:
                 error_msg = None
                 
                 try:
+                    campaign_delivery(self.db, campaign.clinic_id, self.actor_user_id)
                     if campaign.whatsapp_enabled:
                         if client.phone_mobile:
                             # In a real scenario, we'd replace placeholders in the content or use template components

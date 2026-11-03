@@ -47,9 +47,9 @@ def search_clients(db, authority, text, limit=20):
 
 
 def list_records(db, authority, kind, client_id=None, offset=0, limit=50):
-    query = scoped_query(db, authority, kind)
+    query = scoped_query(db, authority, kind, company_history=bool(client_id))
     if client_id:
-        patient(db, authority, client_id)
+        client_id = patient(db, authority, client_id).id
         model = MODELS[kind]
         query = query.filter((model.id if kind == 'clients' else model.client_id) == client_id)
     count = query.count()
@@ -66,7 +66,7 @@ def history(db, authority, client_id):
             result[kind] = list_records(db, authority, kind, client_id)
     # Measurements belong to layout instances, not the OpticalExam header.
     instances = db.query(ExamLayoutInstance, OpticalExam.exam_date).join(OpticalExam).filter(
-        OpticalExam.client_id == row.id, OpticalExam.clinic_id == authority.clinic_id, OpticalExam.deleted_at.is_(None)).order_by(ExamLayoutInstance.id).all()
+        OpticalExam.client_id == row.id, OpticalExam.company_id == (authority.company_id or authority.user.company_id), OpticalExam.deleted_at.is_(None)).order_by(ExamLayoutInstance.id).all()
     result['exam_layouts'] = [{'id': item.id, 'exam_id': item.exam_id, 'is_active': item.is_active,
                               'data': clean_nested(item.exam_data), 'exam_date': json_value(exam_date),
                               'source': {'kind': 'exams', 'id': item.exam_id, 'path': f'/clients/{row.id}/exams/{item.exam_id}'}}
@@ -101,7 +101,7 @@ def compare(db, authority, client_id, first_instance, second_instance):
     for identifier in (first_instance, second_instance):
         row = db.query(ExamLayoutInstance).join(OpticalExam).filter(
             ExamLayoutInstance.id == identifier, OpticalExam.client_id == client_id,
-            OpticalExam.clinic_id == authority.clinic_id, OpticalExam.deleted_at.is_(None)).first()
+            OpticalExam.company_id == (authority.company_id or authority.user.company_id), OpticalExam.deleted_at.is_(None)).first()
         if not row:
             raise HTTPException(404, 'agent.recordNotFound')
         rows.append(row)
@@ -137,9 +137,9 @@ def prescription_comparison(first, second):
 def check_order(db, authority, client_id, order_id, layout_instance_id, prescription_key, contact=False):
     patient(db, authority, client_id)
     kind = 'contact_lens_orders' if contact else 'orders'
-    order = scoped_query(db, authority, kind).filter(MODELS[kind].id == order_id, MODELS[kind].client_id == client_id).first()
+    order = scoped_query(db, authority, kind, company_history=True).filter(MODELS[kind].id == order_id, MODELS[kind].client_id == client_id).first()
     layout = db.query(ExamLayoutInstance).join(OpticalExam).filter(ExamLayoutInstance.id == layout_instance_id,
-        OpticalExam.client_id == client_id, OpticalExam.clinic_id == authority.clinic_id, OpticalExam.deleted_at.is_(None)).first()
+        OpticalExam.client_id == client_id, OpticalExam.company_id == (authority.company_id or authority.user.company_id), OpticalExam.deleted_at.is_(None)).first()
     if not order or not layout:
         raise HTTPException(404, 'agent.recordNotFound')
     exam_values, order_values = (layout.exam_data or {}).get(prescription_key), (order.order_data or {}).get(prescription_key)

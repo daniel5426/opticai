@@ -1,3 +1,4 @@
+vi.mock('@/components/agent/AgentVoice', () => ({ AgentVoiceCapture: () => null }));
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -6,7 +7,8 @@ import i18n from '@/localization/i18n';
 
 const mock = vi.hoisted(() => ({
   json: vi.fn(), sdk: vi.fn(), generate: vi.fn(), getClient: vi.fn(),
-  runtime: { bootstrap: {} as object | null, fatalError: null as Error | null, isBootstrapping: false, retryBootstrap: async () => {} },
+  listeners: new Set<() => void>(),
+  runtime: { state:'ready', bootstrap: {deployment:{agent_id:'new-agent'}} as object | null, fatalError: null as Error | null, isBootstrapping: false, retryBootstrap: async () => {} },
   user: { id: 1, role_level: 3 }, clinic: { id: 1 },
   sidebar: { isOpen: true, isClientSpacePage: true, panelMode: 'info', currentClient: { id: 1, first_name: 'Test', last_name: 'Patient' },
     activeTab: 'exams', resetPanelMode: vi.fn(), closeSidebar: vi.fn(), setPanelHost: vi.fn() },
@@ -19,7 +21,7 @@ vi.mock('@tanstack/react-router', () => ({
   Navigate: ({ to }: { to: string }) => <span data-testid="redirect">{to}</span>,
 }));
 vi.mock('@agents24/react', () => ({ Agents24Provider: ({ children }: React.PropsWithChildren) => children }));
-vi.mock('@agents24/chat-react/runtime', () => ({ useAgentChatRuntime: () => { mock.sdk(); return mock.runtime; } }));
+vi.mock('@agents24/chat-react/runtime', () => ({ useAgentChatRuntime: (options: unknown) => { mock.sdk(options); return React.useSyncExternalStore(callback => {mock.listeners.add(callback);return () => {mock.listeners.delete(callback);};},()=>mock.runtime); } }));
 vi.mock('@/services/agent-client', () => ({ createAgentClient: () => ({}), agentJson: mock.json }));
 vi.mock('@/lib/api-client', () => ({ apiClient: {
   getClientById: mock.getClient, aiGenerateAllStates: mock.generate,
@@ -43,6 +45,7 @@ vi.mock('@/components/ui/sidebar', () => ({
   useSidebar: () => ({ state: 'expanded' }),
 }));
 
+import { GlobalAgentPanel } from '@/components/agent/GlobalAgentPanel';
 import { PrysmAgentProvider, usePrysmAgent } from '@/contexts/PrysmAgentContext';
 import { AppSidebar } from '@/components/app-sidebar';
 import { ClientSidebar } from '@/components/ClientSidebar';
@@ -56,67 +59,61 @@ function PatientAction() {
 function mount() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const view = render(<QueryClientProvider client={client}><PrysmAgentProvider>
-    <AppSidebar currentUser={mock.user as any} /><ClientSidebar /><AIAssistantPage /><CampaignsPage /><PatientAction />
+    <AppSidebar currentUser={mock.user as any} /><ClientSidebar /><GlobalAgentPanel /><AIAssistantPage /><CampaignsPage /><PatientAction />
   </PrysmAgentProvider></QueryClientProvider>);
   return { ...view, client };
 }
 beforeEach(() => {
   vi.clearAllMocks(); localStorage.clear();
-  mock.runtime = { bootstrap: {}, fatalError: null, isBootstrapping: false, retryBootstrap: async () => {} };
+  mock.runtime = { state:'ready', bootstrap: {deployment:{agent_id:'new-agent'}}, fatalError: null, isBootstrapping: false, retryBootstrap: async () => {} };
   mock.json.mockResolvedValue({ available: false });
   mock.getClient.mockResolvedValue({ data: { client_updated_date: '2026-10-25' } });
   mock.generate.mockImplementation(async () => ({ data: { locale: i18n.language, states: { ai_exam_state: 'Test insight' } } }));
 });
 afterEach(cleanup);
 
-describe.each(['he', 'en', 'fr'])('optional AI in %s', locale => {
-  it('hides AI completely while keeping ordinary patient and campaign content', async () => {
+describe.each(['he', 'en', 'fr'])('temporary connection loss in %s', locale => {
+  it('keeps navigation and the mounted conversation without a health request', async () => {
     await i18n.changeLanguage(locale);
     const view = mount();
-    await screen.findByTestId('redirect');
-    expect(screen.getByTestId('redirect')).toHaveTextContent('/dashboard');
-    expect(screen.getByText('Test Patient')).toBeVisible();
-    expect(view.container.querySelector('[dir]')).toHaveAttribute('dir', locale === 'he' ? 'rtl' : 'ltr');
+    await screen.findByRole('link', {name:i18n.t('smartAssistant')});
+    fireEvent.click(screen.getByRole('button',{name:'Test patient chat'}));
+    await screen.findByText('Agent conversation');
+    await act(async () => {
+      mock.runtime = {...mock.runtime,state:'reconnecting',fatalError:new Error('offline')};
+      mock.listeners.forEach(callback=>callback());
+    });
+    expect(view.container.querySelector('a[href="/ai-assistant"]')).not.toBeNull();
+    expect(screen.getByText('Agent conversation')).toBeVisible();
     expect(view.container.querySelector('a[href="/clients"]')).not.toBeNull();
-    expect(view.container.querySelector('a[href="/ai-assistant"]')).toBeNull();
-    expect(screen.queryByRole('button', { name: i18n.t('agent.openChat') })).toBeNull();
-    expect(screen.queryByTitle(/AI/)).toBeNull();
-    expect(screen.queryByText('Agent conversation')).toBeNull();
-    expect(screen.queryByText(/מידע AI/)).toBeNull();
-    expect(mock.sdk).not.toHaveBeenCalled();
-    expect(mock.generate).not.toHaveBeenCalled();
-    expect(mock.getClient).not.toHaveBeenCalled();
+    expect(mock.json).not.toHaveBeenCalled();
+    expect(view.container.querySelector('[dir]')).toHaveAttribute('dir',locale==='he'?'rtl':'ltr');
   });
 });
 
-it('reveals AI only after bootstrap, preserves patient chat on scope changes, and removes it on service loss', async () => {
-  await i18n.changeLanguage('en');
-  mock.json.mockResolvedValue({ available: true });
-  const view = mount();
-  await screen.findByRole('link', { name: i18n.t('smartAssistant') });
-  await screen.findByRole('button', { name: i18n.t('agent.openChat') });
-  await screen.findByTitle(/AI/);
-  await waitFor(() => expect(mock.generate).toHaveBeenCalledTimes(1));
-  fireEvent.click(screen.getByRole('button', { name: 'Test patient chat' }));
-  await waitFor(() => expect(screen.getAllByText('Agent conversation')).toHaveLength(2));
-  mock.json.mockResolvedValue({ available: false });
-  await act(async () => { await view.client.invalidateQueries({ queryKey: ['agent-availability'] }); });
-  await waitFor(() => expect(view.container.querySelector('a[href="/ai-assistant"]')).toBeNull());
-  expect(screen.queryByText('Agent conversation')).toBeNull();
-  expect(screen.queryByTitle(/AI/)).toBeNull();
-  expect(screen.getByText('Test Patient')).toBeVisible();
-});
-
-it.each(['offline', 'bootstrap denied'])('does not expose AI when %s', async failure => {
-  if (failure === 'offline') mock.json.mockRejectedValue(new Error('network unavailable'));
-  else {
-    mock.json.mockResolvedValue({ available: true });
-    mock.runtime = { ...mock.runtime, bootstrap: null, fatalError: Object.assign(new Error('denied'), { status: 403 }) };
-  }
-  const view = mount();
+it('removes access on an authoritative bootstrap denial', async () => {
+  mock.runtime={...mock.runtime,state:'denied',bootstrap:null,fatalError:Object.assign(new Error('denied'),{status:403})};
+  const view=mount();
   await screen.findByTestId('redirect');
   expect(view.container.querySelector('a[href="/ai-assistant"]')).toBeNull();
-  expect(screen.queryByRole('button', { name: i18n.t('agent.openChat') })).toBeNull();
-  expect(screen.queryByTitle(/AI/)).toBeNull();
-  expect(mock.generate).not.toHaveBeenCalled();
+  expect(mock.json).not.toHaveBeenCalled();
+});
+
+it('keeps a connected chat available when a turn fails so the user can see and retry it', async () => {
+  mock.json.mockResolvedValue({ available: true, namespace: 'new-organization-agent' });
+  mock.runtime = { ...mock.runtime, fatalError: new Error('MODEL_PROVIDER_CAPACITY_WAIT') };
+  mount();
+  await screen.findByRole('link', { name: i18n.t('smartAssistant') });
+  fireEvent.click(screen.getByRole('button', { name: 'Test patient chat' }));
+  await screen.findByText('Agent conversation');
+});
+
+it('restores only the current installation thread after an organization switch', async () => {
+  localStorage.setItem('prysm-agent-thread:1:1:0', 'legacy-organization-thread');
+  localStorage.setItem('prysm-agent-thread:1:1:0:new-agent', 'current-organization-thread');
+  mock.runtime={...mock.runtime,bootstrap:{deployment:{agent_id:'new-agent'}}};
+  mount();
+  await screen.findByRole('link', { name: i18n.t('smartAssistant') });
+  expect(mock.sdk).toHaveBeenCalledWith(expect.objectContaining({ activeThreadId: 'current-organization-thread' }));
+  expect(mock.sdk.mock.calls.every(([options]) => options.activeThreadId !== 'legacy-organization-thread')).toBe(true);
 });

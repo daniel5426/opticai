@@ -1,3 +1,5 @@
+import { CompanyClinicToolbarProvider } from "@/components/CompanyClinicFilter"
+import { ClientHistoryClinicContext, useCompanyClinicFilter } from "@/hooks/client/useCompanyClinicFilter"
 import React, { useState, useRef, useEffect, useCallback } from "react"
 import { useParams, useSearch } from "@tanstack/react-router"
 import { useQueryClient } from "@tanstack/react-query"
@@ -62,6 +64,7 @@ export default function ClientDetailPage() {
 
   const { updateCurrentClient, setActiveTab: setSidebarActiveTab } = useClientSidebar()
   const { currentClinic } = useUser()
+  const clinicFilter = useCompanyClinicFilter(true)
   const queryClient = useQueryClient()
   const editor = useClientDetailsEditor(clientIdNum)
   const [activeTab, setActiveTab] = useState(initialTab)
@@ -120,10 +123,10 @@ export default function ClientDetailPage() {
 
   useEffect(() => {
     if (!clientIdNum || Number.isNaN(clientIdNum)) return
-    apiClient.markClientVisited(clientIdNum).catch((error) => {
+    apiClient.markClientVisited(clientIdNum, currentClinic?.id).catch((error) => {
       console.error("Error marking recent client visit:", error)
     })
-  }, [clientIdNum])
+  }, [clientIdNum, currentClinic?.id])
 
   useEffect(() => {
     if (!editor.isEditing) {
@@ -173,6 +176,8 @@ export default function ClientDetailPage() {
           onTabChange: handleTabChange
         }}
       />
+      <ClientHistoryClinicContext.Provider value={clinicFilter.clinicId}>
+      <CompanyClinicToolbarProvider filter={clinicFilter}>
       <ClientSpaceLayout>
         <div className="flex h-full min-h-0 flex-1 flex-col p-2 lg:p-5" dir={direction} style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           <Tabs
@@ -235,6 +240,8 @@ export default function ClientDetailPage() {
           </Tabs>
         </div>
       </ClientSpaceLayout>
+      </CompanyClinicToolbarProvider>
+      </ClientHistoryClinicContext.Provider>
       <UnsavedChangesDialog
         open={showUnsavedDialog}
         onConfirm={handleUnsavedConfirm}

@@ -24,7 +24,7 @@ def editable_catalog():
 
 def record(db, authority, kind, record_id):
     model = MODELS[kind]
-    query = db.query(model).filter(model.id == record_id, model.clinic_id == authority.clinic_id)
+    query = db.query(model).filter(model.id == record_id, model.company_id == (authority.company_id or authority.user.company_id))
     if hasattr(model, 'deleted_at'):
         query = query.filter(model.deleted_at.is_(None))
     row = query.with_for_update().first()
@@ -114,7 +114,7 @@ def prepare(db, authority, kind, action, fields, record_id=None):
     if kind == 'tasks':
         validate_task(db, authority, fields, row if action == 'update' else None)
     elif kind not in {'orders', 'contact_lens_orders', 'exam_measurements'}:
-        parsed = validate_fields(db, authority.user, authority.clinic_id, kind, action, fields)
+        parsed = validate_fields(db, authority.user, row.clinic_id if action == "update" else authority.clinic_id, kind, action, fields)
         fields = {key: json_value(parsed.get(key, value)) for key, value in fields.items()}
     else:
         if (authority.user.role_level or 1) < 2:

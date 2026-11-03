@@ -173,7 +173,15 @@ static int export_table(MdbHandle *mdb, const ExportPlan *plan, const char *outp
   return (int)rows;
 }
 
+int opticplus_main(int argc, char **argv);
+
 int main(int argc, char **argv) {
+  if (argc == 2 && !strcmp(argv[1], "--profiles")) {
+    puts("{\"profiles\":[\"optitech\",\"opticplus\"],\"opticplus_format_version\":2}");
+    return 0;
+  }
+  for (int i = 1; i + 1 < argc; i++)
+    if (!strcmp(argv[i], "--profile") && !strcmp(argv[i + 1], "opticplus")) return opticplus_main(argc, argv);
   (void)LOOKUP_TABLES; /* Consumed by the backend/PowerShell spec readers. */
   const char *db = NULL, *output = NULL; int limit = 0;
   for (int i = 1; i < argc; i++) {

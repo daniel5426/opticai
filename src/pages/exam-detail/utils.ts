@@ -316,12 +316,15 @@ export const computeCardMinGridCols = (
   type: CardItem["type"],
   columns = EXAM_LAYOUT_GRID_COLUMNS,
   sizeScale = 1,
+  extraFieldColumns = 0,
 ) => {
   const baseWidth = computeCardGridCols(type, columns, sizeScale);
   const overrideWidth = CARD_MIN_GRID_COL_OVERRIDES[type];
-  return overrideWidth
+  const minimum = overrideWidth
     ? Math.max(baseWidth, Math.ceil(overrideWidth * sizeScale))
     : baseWidth;
+  const extraWidth = Math.ceil(Math.max(0, extraFieldColumns) * columns / LEGACY_LAYOUT_COLUMNS * sizeScale);
+  return Math.min(columns, minimum + extraWidth);
 };
 
 const normalizeGridNumber = (value: unknown, fallback: number) => {
@@ -429,14 +432,14 @@ export const legacyRowsToGridItems = (
 };
 
 export const packCardsIntoGridItems = (
-  cards: { id: string; type: CardItem["type"]; title?: string }[],
+  cards: { id: string; type: CardItem["type"]; title?: string; extraFieldColumns?: number }[],
   columns = EXAM_LAYOUT_GRID_COLUMNS,
 ) => {
   const items = cards
-    .map((card, sourceIndex) => ({
+    .map(({ extraFieldColumns = 0, ...card }, sourceIndex) => ({
       ...card,
       sourceIndex,
-      w: computeCardMinGridCols(card.type, columns),
+      w: computeCardMinGridCols(card.type, columns, 1, extraFieldColumns),
     }))
     .sort((a, b) => b.w - a.w || a.sourceIndex - b.sourceIndex);
 
@@ -756,13 +759,14 @@ export const isVirtualFullDataTabId = (
 export type LayoutTabLike = {
   id: number | string | null | undefined;
   layout_id?: number | string | null;
+  instance_layout?: boolean;
 };
 
 export const isInternalFullDataTab = (tab: LayoutTabLike | null | undefined) =>
   !!tab && isVirtualFullDataTabId(tab.id) && tab.layout_id == null;
 
 export const isPersistableLayoutTab = (tab: LayoutTabLike | null | undefined) =>
-  !!tab && tab.layout_id != null && !isVirtualFullDataTabId(tab.id);
+  !!tab && (tab.layout_id != null || tab.instance_layout === true) && !isVirtualFullDataTabId(tab.id);
 
 export const resolveFullDataSourceInstanceId = (
   componentKey: string,

@@ -5,8 +5,6 @@ import logging
 import os
 import time
 import uuid
-from datetime import timedelta
-from sqlalchemy import or_, and_
 from sqlalchemy.exc import OperationalError, DisconnectionError, TimeoutError as DatabaseTimeout
 from pydantic import BaseModel, Field
 from database import SessionLocal
@@ -34,21 +32,12 @@ class DailyBrief(BaseModel):
     items: list[BriefItem] = Field(min_length=1, max_length=12)
 
 
-QUEUES = {'requested': ('report', 'document', 'library_document'), 'summaries': ('brief',)}
+QUEUES = {'requested': ('report', 'document', 'library_document', 'supply'), 'summaries': ('brief',)}
 
 
 def claim(db, worker, queue='requested', clinic_ids=None):
-    query = db.query(AgentJob).filter(AgentJob.kind.in_(QUEUES[queue]))
-    if clinic_ids is not None:
-        query = query.filter(AgentJob.clinic_id.in_(clinic_ids))
-    row = query.filter(or_(AgentJob.status == 'queued',
-        and_(AgentJob.status == 'running', AgentJob.lease_until < now()))).order_by(AgentJob.created_at).with_for_update(skip_locked=True).first()
-    if row:
-        row.worker, row.status, row.lease_until = worker, 'running', now() + timedelta(minutes=12)
-        row.updated_at = now()
-        db.commit()
-    return row
-
+    from services.leased_jobs import claim_job
+    return claim_job(db, worker, QUEUES[queue], clinic_ids)
 
 def run_once(worker, queue='requested', clinic_ids=None):
     with SessionLocal() as db:
@@ -108,6 +97,9 @@ def run_once(worker, queue='requested', clinic_ids=None):
                 row.definition = {key: value for key, value in row.definition.items() if key != 'prompt'}
                 row.status, row.updated_at = 'completed', now()
                 db.commit()
+            elif row.kind == 'supply':
+                from services.supply_intake import process
+                process(db, row)
             elif row.kind == 'document':
                 from agent.documents import process_document
                 process_document(db, row)
@@ -136,6 +128,9 @@ def run_worker_loop(worker, queue, clinic_ids=None):
     while True:
         require_process_owner()
         try:
+            if queue == 'requested':
+                from agent.report_completion import deliver_one
+                deliver_one(SessionLocal, clinic_ids=clinic_ids)
             worked = run_once(worker, queue, clinic_ids)
         except (OperationalError, DisconnectionError, DatabaseTimeout):
             # The failed session has closed. Resume polling durable leases;

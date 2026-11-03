@@ -1,6 +1,8 @@
+import { useNavigate } from '@tanstack/react-router';
+import { supplyComposerContract, useAgentSubmission } from '@/services/agent-submission';
 import React from 'react';
 import { AgentChatComposer, AgentChatMessage, type AgentChatComposerHandle } from '@agents24/chat-react/ui';
-import { ArrowLeft, ArrowUpRight, FileSpreadsheet, Search, ChartNoAxesCombined, HeartPulse, History, Wallet } from 'lucide-react';
+import { ArrowLeft, Maximize2, ArrowUpRight, FileSpreadsheet, Search, ChartNoAxesCombined, HeartPulse, History, Wallet } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { StickToBottom } from 'use-stick-to-bottom';
 import { usePrysmAgent } from '@/contexts/PrysmAgentContext';
@@ -15,8 +17,11 @@ import './agent-workspace.css';
 
 export function AgentChatPanel({ compact = false }: { compact?: boolean }) {
   const workspace = usePrysmAgent();
+  const navigate = useNavigate();
+  const submit = useAgentSubmission();
   const { t } = useTranslation();
   const { direction } = useAppLocale();
+  const [preparing, setPreparing] = React.useState(false);
   const composerRef = React.useRef<AgentChatComposerHandle>(null);
   const runtime = workspace?.runtime;
   if (!runtime || !workspace?.scope) return <section className={`prysm-agent agent-workspace ${compact ? 'agent-workspace--compact' : ''}`} dir={direction}>
@@ -26,7 +31,7 @@ export function AgentChatPanel({ compact = false }: { compact?: boolean }) {
   const controller = runtime.controller;
   const running = Boolean(controller.activeRunId);
   const empty = !controller.messages.length;
-  const disabled = !runtime.bootstrap || runtime.isBootstrapping || runtime.isUploading;
+  const disabled = !runtime.bootstrap || runtime.isBootstrapping || runtime.isUploading || preparing;
   const patient = Boolean(workspace.scope.patientId);
   const suggestions = patient ? [
     { key: 'patientSummary', icon: HeartPulse },
@@ -55,8 +60,9 @@ export function AgentChatPanel({ compact = false }: { compact?: boolean }) {
   return <section className={`prysm-agent agent-workspace ${compact ? 'agent-workspace--compact' : ''} ${empty ? 'agent-workspace--empty' : 'agent-workspace--conversation'}`} dir={direction}>
     {!compact && <AgentSky />}
     {compact && <div className="agent-workspace__toolbar ps-12 pe-3">
-      <Button size="icon" variant="ghost" aria-label={t('agent.returnInfo')} onClick={workspace.closePatientChat}><ArrowLeft className={`size-4 ${direction === 'rtl' ? 'rotate-180' : ''}`} /></Button>
+      <Button size="icon" variant="ghost" aria-label={t("supply.close")} onClick={workspace.closePatientChat}><ArrowLeft className={`size-4 ${direction === 'rtl' ? 'rotate-180' : ''}`} /></Button>
       <span className="min-w-0 flex-1 truncate text-sm font-medium">{t(workspace.scope.patientId ? 'agent.patientChat' : 'agent.clinicChat')}</span>
+      <Button size="icon" variant="ghost" aria-label={t("agent.expand")} onClick={() => { workspace.closePatientChat(); void navigate({ to: "/ai-assistant" }); }}><Maximize2 className="size-4" /></Button>
       <AgentChatActions compact />
     </div>}
     <div className="agent-workspace__stage">
@@ -84,12 +90,19 @@ export function AgentChatPanel({ compact = false }: { compact?: boolean }) {
         <span>{t(runtime.isBootstrapping ? 'agent.starting' : 'agent.startupUnavailable')}</span>
         {!runtime.isBootstrapping && <Button variant="ghost" size="sm" onClick={() => void runtime.retryBootstrap().catch(() => undefined)}>{t('agent.retryStartup')}</Button>}
       </div> : runtime.errorMessage && <p role="alert" className="px-4 pb-2 text-xs text-destructive">{t('agent.operationFailed')}</p>}
-      <AgentChatComposer key={composerScope} ref={composerRef} scopeKey={composerScope}
-        inputContract={runtime.inputContract} disabled={disabled}
+      <AgentChatComposer key={composerScope} recordingEnabled={false}
+        ref={composerRef} scopeKey={composerScope}
+        inputContract={supplyComposerContract(runtime.inputContract)} disabled={disabled}
         isRunning={running} isCancelling={runtime.state === 'cancelling'}
         placeholder={t('agent.placeholder')} contextWindow={runtime.contextWindow}
-        onStop={() => void controller.cancelRun()} onSubmit={message => runtime.submit({ text: message.text,
-          files: message.files.map(file => ({ name: file.filename, mediaType: file.mediaType, data: file.source || new Uint8Array() })) })} />
+        onStop={() => void controller.cancelRun()} onSubmit={async message => {
+          setPreparing(true);
+          try {
+            await submit({ text: message.text, files: [
+              ...message.files.map(file => ({ name: file.filename, mediaType: file.mediaType, data: file.source || new Uint8Array() })),
+            ] });
+          } finally { setPreparing(false); }
+        }} />
     </div>
     {empty && !compact && suggestionRows}
     </div>

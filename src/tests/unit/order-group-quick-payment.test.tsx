@@ -42,7 +42,10 @@ function wrap(child: React.ReactNode) {
 function paymentButton() { return screen.getByRole('button', { name: new RegExp(i18n.t('orderGroupPartiallyPaid')) }); }
 async function enterPayment(value = '20', date = '2026-10-18') {
   fireEvent.change(await screen.findByRole('textbox', { name: i18n.t('orderGroupAmount') }), { target: { value } });
-  fireEvent.change(screen.getByRole('textbox', { name: i18n.t('orderGroupDate') }), { target: { value: date } });
+  const dateInput = screen.getByRole('textbox', { name: i18n.t('orderGroupDate') });
+  fireEvent.change(dateInput, { target: { value: date } });
+  // DateInput commits its parsed ISO value on blur, like a real user leaving the field.
+  fireEvent.blur(dateInput);
   await waitFor(() => expect(screen.getByRole('button', { name: i18n.t('orderGroupAddPayment') })).toBeEnabled());
 }
 

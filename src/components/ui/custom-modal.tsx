@@ -34,13 +34,14 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
   const overlayRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    let focusTimer: ReturnType<typeof setTimeout> | undefined
     if (isOpen) {
       previousFocus.current = document.activeElement as HTMLElement
       // Prevent body scroll
       document.body.style.overflow = 'hidden'
 
       // Focus the modal
-      setTimeout(() => {
+      focusTimer = setTimeout(() => {
         modalRef.current?.focus()
       }, 100)
     } else {
@@ -52,13 +53,14 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
       document.body.style.pointerEvents = ''
 
       // Dispatch a click to ensure the page is responsive
-      setTimeout(() => {
+      focusTimer = setTimeout(() => {
         document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
       }, 50)
     }
 
     // Cleanup on unmount
     return () => {
+      clearTimeout(focusTimer)
       document.body.style.overflow = ''
       document.body.style.pointerEvents = ''
     }

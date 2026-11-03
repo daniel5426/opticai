@@ -9,7 +9,7 @@ from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
 from uuid import uuid4
-from .availability import platform_available
+from .availability import platform_available, local_service_readiness
 
 
 def automatic_services_enabled(env):
@@ -31,14 +31,18 @@ async def local_agent_services():
         return
     if not await platform_available():
         logging.getLogger(__name__).info('Starting without optional local agent services.')
-        yield
+        with local_service_readiness(False):
+            yield
         return
     async with AsyncExitStack() as stack:
+        ready = False
         try:
             await stack.enter_async_context(_managed_agent_services())
+            ready = True
         except (OSError, RuntimeError):
             logging.getLogger(__name__).warning('Optional local agent services could not start; continuing without AI.')
-        yield
+        with local_service_readiness(ready):
+            yield
 
 
 @asynccontextmanager

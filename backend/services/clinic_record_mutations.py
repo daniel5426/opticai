@@ -3,7 +3,7 @@ from fastapi import HTTPException
 from datetime import datetime
 from sqlalchemy import inspect
 from models import Client, Family, OpticalExam, Appointment, MedicalLog, Referral, User
-from security.scope import get_scoped_client, assert_clinic_scope, normalize_user_id
+from security.scope import get_scoped_client, assert_record_clinic, get_scoped_family, normalize_user_id, resolve_company_id
 import schemas
 from services.prism_axis_compatibility import normalize_prism_axis_exam_data
 from services.prescription_search_index import rebuild_referral_index, rebuild_exam_instance_index
@@ -32,19 +32,15 @@ def allowed_fields(kind):
 def validate_fields(db, user, clinic_id, kind, action, fields):
     if (user.role_level or 1) < 2:
         raise HTTPException(403, 'agent.editPermissionRequired')
-    assert_clinic_scope(db, user, clinic_id)
+    assert_record_clinic(db, user, clinic_id, write=True)
     if not fields or set(fields) - set(allowed_fields(kind)):
         raise HTTPException(422, 'agent.invalidFields')
     if kind != 'clients':
         target = get_scoped_client(db, user, fields.get('client_id'))
-        if target.clinic_id != clinic_id:
-            raise HTTPException(403, 'agent.scopeDenied')
     if fields.get('family_id'):
-        family = db.get(Family, fields['family_id'])
-        if not family or family.clinic_id != clinic_id:
-            raise HTTPException(403, 'agent.scopeDenied')
+        get_scoped_family(db, user, fields['family_id'])
     model, create, update = RECORD_TYPES[kind]
-    forced = {'clinic_id': clinic_id}
+    forced = {'clinic_id': clinic_id, 'company_id': resolve_company_id(db, user)}
     if kind == 'clients':
         forced['company_id'] = user.company_id
     else:
@@ -61,10 +57,15 @@ def validate_fields(db, user, clinic_id, kind, action, fields):
 
 
 def mutate_record(db, user, clinic_id, kind, action, fields, record_id=None):
-    payload = validate_fields(db, user, clinic_id, kind, action, fields)
     model = RECORD_TYPES[kind][0]
+    if action == "update":
+        existing = db.query(model).filter(model.id == record_id, model.company_id == resolve_company_id(db, user)).first()
+        if not existing:
+            raise HTTPException(404, "agent.recordNotFound")
+        clinic_id = existing.clinic_id
+    payload = validate_fields(db, user, clinic_id, kind, action, fields)
     if action == 'update':
-        row = db.query(model).filter(model.id == record_id, model.clinic_id == clinic_id).with_for_update().first()
+        row = db.query(model).filter(model.id == record_id, model.company_id == resolve_company_id(db, user)).with_for_update().first()
         if not row:
             raise HTTPException(404, 'agent.recordNotFound')
         if kind != 'clients' and row.client_id != fields['client_id']:

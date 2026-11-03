@@ -197,7 +197,7 @@ export async function createAppointment(appointment: Omit<Appointment, 'id'>): P
     }
     
     const createdAppointment = response.data;
-    if (createdAppointment) {
+    if (createdAppointment && !createdAppointment.calendar_sync_owned) {
       // Trigger automatic Google Calendar sync
       try {
         // Prefer assigned examiner's calendar; fallback to current user
@@ -205,7 +205,7 @@ export async function createAppointment(appointment: Omit<Appointment, 'id'>): P
         if (createdAppointment.user_id) {
           calendarUser = await getOwnerUserForSync(createdAppointment.user_id);
         }
-        if (!calendarUser) {
+        if (!calendarUser && !createdAppointment.user_id) {
           calendarUser = await getCurrentUserForSync();
         }
         if (calendarUser?.google_account_connected && calendarUser?.google_calendar_sync_enabled) {
@@ -257,7 +257,7 @@ export async function updateAppointment(appointment: Appointment): Promise<Appoi
     }
     
     const updatedAppointment = response.data;
-    if (updatedAppointment) {
+    if (updatedAppointment && !updatedAppointment.calendar_sync_owned) {
       // Trigger automatic Google Calendar sync
       try {
         // Determine which user's calendar to use: assigned user if present; otherwise current user
@@ -265,7 +265,7 @@ export async function updateAppointment(appointment: Appointment): Promise<Appoi
         if (updatedAppointment.user_id) {
           calendarUser = await getOwnerUserForSync(updatedAppointment.user_id);
         }
-        if (!calendarUser) {
+        if (!calendarUser && !updatedAppointment.user_id) {
           calendarUser = await getCurrentUserForSync();
         }
         if (calendarUser?.google_account_connected && calendarUser?.google_calendar_sync_enabled) {
@@ -357,7 +357,7 @@ export async function deleteAppointment(id: number): Promise<boolean> {
       try {
         // Prefer appointment owner calendar if available
         const owner = await getOwnerUserForSync(appointmentToDelete.user_id);
-        const calendarUser = owner || await getCurrentUserForSync();
+        const calendarUser = owner || (!appointmentToDelete.user_id ? await getCurrentUserForSync() : null);
         if (calendarUser?.google_account_connected && calendarUser?.google_calendar_sync_enabled && appointmentToDelete.google_calendar_event_id) {
           console.log('Auto-syncing appointment deletion to Google Calendar');
           const success = await googleCalendarSync.syncAppointmentDeleted(

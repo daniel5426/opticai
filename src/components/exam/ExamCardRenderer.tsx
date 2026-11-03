@@ -1,3 +1,7 @@
+import { OpticPlusMigrationCard } from "./OpticPlusMigrationCard";
+import { isOpticPlusCard, type OpticPlusCardType } from "@/lib/opticplus-cards";
+import { ImportedClinicalContext } from '@/lib/imported-clinical-context';
+import { useTranslation } from 'react-i18next';
 import { OptitechMigrationCard } from "./OptitechMigrationCard";
 import { OptitechGlassesCheckCard } from "./OptitechGlassesCheckCard";
 import { OptitechContactCheckCard } from "./OptitechContactCheckCard";
@@ -190,6 +194,7 @@ export interface CardItem {
     | "optitech-glasses-check"
     | "optitech-contact-check"
     | "optitech-vision-check"
+    | OpticPlusCardType
     | "old-ref"
     | "old-refraction"
     | "old-refraction-extension"
@@ -527,7 +532,7 @@ export const getColumnCount = (
   type: CardItem["type"],
   mode: "editor" | "detail",
 ): number | { fixedPx: number } => {
-  if (isOptitechCard(type)) return 8;
+  if (isOptitechCard(type) || isOpticPlusCard(type)) return 8;
   switch (type) {
     case "optitech-glasses-check":
     case "optitech-contact-check":
@@ -836,7 +841,7 @@ export const calculateCardWidth = (
   return widths;
 };
 
-export const ExamCardRenderer = React.memo<RenderCardProps>(
+const ExamCardRendererContent = React.memo<RenderCardProps>(
   ({
     item,
     rowCards,
@@ -857,6 +862,7 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
     onCopyToLeftEye,
     onTitleChange,
   }) => {
+    const { t } = useTranslation();
     // Move hooks to the very top, before any logic or early returns
     const [isEditingNotesTitle, setIsEditingNotesTitle] = useState(false);
     const [isHoveringNotesTitle, setIsHoveringNotesTitle] = useState(false);
@@ -1294,6 +1300,13 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
           <OptitechCard {...cardProps} readField={(component, field) => blockOf(component).block?.[field]} />
         )}
       </div>;
+    }
+    if (isOpticPlusCard(item.type)) {
+      return <OpticPlusMigrationCard type={item.type} data={(getExamData(item.type, item.id) || {}) as Record<string, unknown>}
+        isEditing={mode === "detail" ? detailProps!.isEditing : false}
+        onChange={(field, value) => getChangeHandler(item.type, item.id)(field, typeof value === "boolean" ? String(value) : value)}
+        readBinding={(component, field, id) => (getExamData(component as ExamComponentType, id) as Record<string, unknown> | undefined)?.[field]}
+        writeBinding={(component, field, value, id) => getChangeHandler(component as ExamComponentType, id)(field, typeof value === "boolean" ? String(value) : value)} />;
     }
 
     if (isOptitechCard(item.type)) {
@@ -2166,7 +2179,7 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
                     }
                   >
                     <h3 className="text-muted-foreground text-base font-medium">
-                      {notesTitle}
+                      {notesTitle.startsWith('opticplusCards.') ? t(notesTitle) : notesTitle}
                     </h3>
                     {isHoveringNotesTitle && mode === "editor" && (
                       <Edit3
@@ -2563,6 +2576,13 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
           prev.detailProps.formData === next.detailProps.formData &&
           prev.detailProps.exam === next.detailProps.exam;
       }
+      if (isOpticPlusCard(type)) {
+        const block = (nextData[`${type}-${id}`] || nextData[type]) as Record<string, unknown> | undefined;
+        for (const binding of Object.values((block?.bindings || {}) as Record<string, { component: string; field: string; cardInstanceId?: string }>)) {
+          const key = binding.cardInstanceId ? `${binding.component}-${binding.cardInstanceId}` : binding.component;
+          if (prevData[key] !== nextData[key] || prevData[binding.component] !== nextData[binding.component]) return false;
+        }
+      }
 
       // Check specific tab data for multi-tab components
       if (type === "old-refraction") {
@@ -2664,3 +2684,15 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
     return true;
   },
 );
+
+export function ExamCardRenderer(props: RenderCardProps) {
+  const data = props.detailProps?.examFormData || {};
+  const block = (data[`${props.item.type}-${props.item.id}`] || data[props.item.type]) as Record<string, unknown> | undefined;
+  const source = block?.opticplus_source as { literal_va?: boolean; but_only?: boolean; fields?: Record<string, string> } | undefined;
+  const presentation = React.useMemo(() => source ? {
+    literalVA: source.literal_va === true,
+    butOnly: source.but_only === true,
+    fields: Object.values(source.fields || {}),
+  } : null, [source]);
+  return <ImportedClinicalContext.Provider value={presentation}><ExamCardRendererContent {...props} /></ImportedClinicalContext.Provider>;
+}

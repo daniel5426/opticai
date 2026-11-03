@@ -102,6 +102,13 @@ class Settings:
     TERMS_VERSION: str = os.getenv("TERMS_VERSION", "2026-08-09")
     PRIVACY_VERSION: str = os.getenv("PRIVACY_VERSION", "2026-08-09")
     SUBSCRIPTION_ENFORCEMENT_MODE: str = os.getenv("SUBSCRIPTION_ENFORCEMENT_MODE", "off").strip().lower()
+    API_PUBLIC_URL: str = os.getenv("API_PUBLIC_URL", "http://127.0.0.1:8000").rstrip("/")
+    ALLPAY_API_LOGIN: str = os.getenv("ALLPAY_API_LOGIN", "")
+    ALLPAY_API_KEY: str = os.getenv("ALLPAY_API_KEY", "")
+    ALLPAY_TEST_MODE: bool = os.getenv("ALLPAY_TEST_MODE", "true").lower() == "true"
+    ALLPAY_LIVE_PAYMENTS_ENABLED: bool = os.getenv("ALLPAY_LIVE_PAYMENTS_ENABLED", "false").lower() == "true"
+    BILLING_CHARGING_ENABLED: bool = os.getenv("BILLING_CHARGING_ENABLED", "false").lower() == "true"
+    OWNER_USER_IDS: str = os.getenv("OWNER_USER_IDS", "")
     WEB_SIGNUP_REQUIRED: bool = os.getenv("WEB_SIGNUP_REQUIRED", "false").strip().lower() in {"1", "true", "yes"}
 
     # WhatsApp

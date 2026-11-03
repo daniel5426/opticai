@@ -1,5 +1,7 @@
 import re
 
+from security.scope import record_filter
+from services import legacy_order_compatibility as legacy_orders
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
@@ -15,7 +17,7 @@ from models import Clinic
 from security.scope import (
     apply_clinic_user_scope,
     assert_clinic_belongs_to_company,
-    get_allowed_clinic_ids,
+    get_record_clinic_ids,
     get_scoped_billing,
     get_scoped_client,
     get_scoped_contact_lens_order,
@@ -114,9 +116,9 @@ def get_orders_paginated(
     from sqlalchemy import literal
     from sqlalchemy import union_all, select
 
-    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
+    allowed_clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
 
-    order_filters = [Order.clinic_id.in_(allowed_clinic_ids)]
+    order_filters = [record_filter(db, current_user, Order, clinic_id)]
     order_search_condition = build_all_terms_search_condition(
         search,
         text_expressions=[
@@ -134,7 +136,7 @@ def get_orders_paginated(
             func.json_extract_path_text(Order.order_data, 'details', 'order_status') == status
         )
 
-    cl_filters = [ContactLensOrder.clinic_id.in_(allowed_clinic_ids)]
+    cl_filters = [record_filter(db, current_user, ContactLensOrder, clinic_id)]
     contact_search_condition = build_all_terms_search_condition(
         search,
         text_expressions=[
@@ -505,7 +507,7 @@ def create_order(
 
 @router.get("/{order_id}", response_model=OrderSchema)
 def get_order(order_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return get_scoped_order(db, current_user, order_id)
+    return legacy_orders.order_response(db, current_user, get_scoped_order(db, current_user, order_id))
 
 @router.get("/", response_model=List[OrderSchema])
 def get_all_orders(
@@ -513,8 +515,8 @@ def get_all_orders(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
-    query = db.query(Order).filter(Order.clinic_id.in_(allowed_clinic_ids))
+    allowed_clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
+    query = db.query(Order).filter(record_filter(db, current_user, Order, clinic_id))
     orders = query.all()
     for order in orders:
         details = ((order.order_data or {}).get("details") or {}) if isinstance(order.order_data, dict) else {}
@@ -525,13 +527,14 @@ def get_all_orders(
 @router.get("/client/{client_id}", response_model=List[OrderSchema])
 def get_orders_by_client(
     client_id: int,
+    clinic_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    get_scoped_client(db, current_user, client_id)
+    client_id = get_scoped_client(db, current_user, client_id).id
     orders = (
         db.query(Order)
-        .filter(Order.client_id == client_id)
+        .filter(Order.client_id == client_id, record_filter(db, current_user, Order, clinic_id))
         .order_by(Order.order_date.desc().nulls_last(), Order.id.desc())
         .all()
     )
@@ -549,6 +552,9 @@ def update_order(
     current_user: User = Depends(get_current_user),
 ):
     db_order = get_scoped_order(db, current_user, order_id)
+    adapted = legacy_orders.update_order(db, current_user, db_order, order.dict(exclude_unset=True))
+    if adapted is not None:
+        return adapted["order"]
     update_fields = _prepare_update_payload(db, current_user, db_order, Order, order.dict(exclude_unset=True))
     for field, value in update_fields.items():
         setattr(db_order, field, value)
@@ -577,8 +583,8 @@ def update_order(
 
 @router.delete("/{order_id}")
 def delete_order(order_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    get_scoped_order(db, current_user, order_id)
-    item = move_to_trash(db, current_user, "order", order_id)
+    order = get_scoped_order(db, current_user, order_id)
+    item = legacy_orders.delete_order(db, current_user, order) or move_to_trash(db, current_user, "order", order_id)
     return {"message": "Order deleted successfully", "trash_item_id": item.id, "expires_at": item.expires_at, "side_effects": "backend"}
 
 # Order unified data endpoints
@@ -601,6 +607,8 @@ async def save_order_data(
             raise ValueError("Body must be a JSON object")
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Invalid JSON: {str(e)}")
+    if legacy_orders.update_order(db, current_user, order, {"order_data": data}) is not None:
+        return {"success": True}
     order.order_data = data
     reconcile_order_allocations(
         db,
@@ -651,8 +659,10 @@ async def save_order_component_data(
             raise ValueError("Body must be a JSON object")
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Invalid JSON: {str(e)}")
-    data = order.order_data or {}
+    data = dict(order.order_data or {})
     data[component_type] = component_data
+    if legacy_orders.update_order(db, current_user, order, {"order_data": data}) is not None:
+        return {"success": True}
     order.order_data = data
     reconcile_order_allocations(
         db,
@@ -818,6 +828,10 @@ def upsert_order_full(
     order_id = order_data.get("id")
     if order_id:
         db_order = get_scoped_order(db, current_user, order_id)
+        adapted = legacy_orders.update_order(db, current_user, db_order, order_data,
+            billing_data=payload.get("billing"), line_items=payload.get("line_items"))
+        if adapted is not None:
+            return adapted
         for key, value in _prepare_update_payload(db, current_user, db_order, Order, order_data).items():
             if key != "id":
                 setattr(db_order, key, value)
@@ -892,7 +906,7 @@ def create_contact_lens_order(
 
 @cl_router.get("/{order_id}", response_model=ContactLensOrderSchema)
 def get_contact_lens_order(order_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return get_scoped_contact_lens_order(db, current_user, order_id)
+    return legacy_orders.order_response(db, current_user, get_scoped_contact_lens_order(db, current_user, order_id))
 
 @cl_router.get("/", response_model=List[ContactLensOrderSchema])
 def get_all_contact_lens_orders(
@@ -900,8 +914,8 @@ def get_all_contact_lens_orders(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
-    query = db.query(ContactLensOrder).filter(ContactLensOrder.clinic_id.in_(allowed_clinic_ids))
+    allowed_clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
+    query = db.query(ContactLensOrder).filter(record_filter(db, current_user, ContactLensOrder, clinic_id))
     orders = query.all()
     _attach_billing_summaries(db, orders, contact=True)
     return orders
@@ -909,13 +923,14 @@ def get_all_contact_lens_orders(
 @cl_router.get("/client/{client_id}", response_model=List[ContactLensOrderSchema])
 def get_contact_lens_orders_by_client(
     client_id: int,
+    clinic_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    get_scoped_client(db, current_user, client_id)
+    client_id = get_scoped_client(db, current_user, client_id).id
     orders = (
         db.query(ContactLensOrder)
-        .filter(ContactLensOrder.client_id == client_id)
+        .filter(ContactLensOrder.client_id == client_id, record_filter(db, current_user, ContactLensOrder, clinic_id))
         .order_by(ContactLensOrder.order_date.desc().nulls_last(), ContactLensOrder.id.desc())
         .all()
     )
@@ -930,6 +945,9 @@ def update_contact_lens_order(
     current_user: User = Depends(get_current_user),
 ):
     db_order = get_scoped_contact_lens_order(db, current_user, order_id)
+    adapted = legacy_orders.update_order(db, current_user, db_order, order.dict(exclude_unset=True))
+    if adapted is not None:
+        return adapted["order"]
     update_fields = _prepare_update_payload(db, current_user, db_order, ContactLensOrder, order.dict(exclude_unset=True))
     for field, value in update_fields.items():
         setattr(db_order, field, value)
@@ -961,8 +979,8 @@ def delete_contact_lens_order(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    get_scoped_contact_lens_order(db, current_user, order_id)
-    item = move_to_trash(db, current_user, "contact_lens_order", order_id)
+    order = get_scoped_contact_lens_order(db, current_user, order_id)
+    item = legacy_orders.delete_order(db, current_user, order) or move_to_trash(db, current_user, "contact_lens_order", order_id)
     return {"message": "Contact lens order deleted successfully", "trash_item_id": item.id, "expires_at": item.expires_at, "side_effects": "backend"}
 
 @cl_router.post("/upsert-full")
@@ -978,6 +996,10 @@ def upsert_contact_lens_order_full(
     order_id = order_data.get("id")
     if order_id:
         db_order = get_scoped_contact_lens_order(db, current_user, order_id)
+        adapted = legacy_orders.update_order(db, current_user, db_order, order_data,
+            billing_data=payload.get("billing"), line_items=payload.get("line_items"))
+        if adapted is not None:
+            return adapted
         for key, value in _prepare_update_payload(
             db, current_user, db_order, ContactLensOrder, order_data
         ).items():

@@ -24,6 +24,13 @@ class BotService:
         # Never choose a patient's clinic arbitrarily when a phone is shared.
         if len(clients) != 1:
             return
+        from security.entitlements import campaign_delivery
+        from services.subscription_service import require_module
+        try:
+            company_id = campaign_delivery(self.db, clients[0].clinic_id)
+            require_module(self.db, company_id, "ai")
+        except Exception:
+            return
         client = project_record(clients[0], 'client')
         language = locale(metadata.get('locale'))
         instructions = f'''You are Prysm's optical-clinic reception assistant. Reply in {LANGUAGES[language]}.
@@ -33,6 +40,8 @@ For scheduling, order status, or medical questions, direct the patient to clinic
         try:
             response = await get_ai_service().response('whatsapp', [{'role': 'user', 'content': message_body}], instructions)
             if response.output_text:
+                campaign_delivery(self.db, clients[0].clinic_id)
+                require_module(self.db, company_id, "ai")
                 await whatsapp_service.send_message(recipient=phone_number, content=response.output_text)
         except AIError:
             logger.warning('whatsapp_ai_failed code=ai.failed')

@@ -1,4 +1,6 @@
+import { useSupplyRevision } from '@/lib/inventory-events';
 import React, { useEffect, useState } from "react";
+import { OpticPlusImportedItems } from "@/components/migration/OpticPlusImportedItems";
 import { useAppLocale } from "@/localization/use-app-locale";
 import { useTranslation } from "react-i18next";
 import { useClientSidebar } from "@/contexts/ClientSidebarContext";
@@ -83,6 +85,7 @@ export default function ContactOrderTab({
   const { currentClient } = useClientSidebar();
   const [clipboardSourceType, setClipboardSourceType] =
     useState<ExamComponentType | null>(null);
+  const supplyRevision = useSupplyRevision();
   const [catalogVariants, setCatalogVariants] = useState<CatalogVariant[]>([]);
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
 
@@ -102,6 +105,7 @@ export default function ContactOrderTab({
     void apiClient
       .getInventoryVariants(clinicId, {
         category: "contact_lens",
+        ...(contactFormData.id ? { orderId: contactFormData.id, orderKind: "contact" as const } : {}),
       })
       .then((response) => {
         if (isMounted) setCatalogVariants(response.data?.items || []);
@@ -117,7 +121,7 @@ export default function ContactOrderTab({
     return () => {
       isMounted = false;
     };
-  }, [clinicId]);
+  }, [clinicId, contactFormData.id, supplyRevision]);
 
   const contactLensExamCard = {
     id: "contact-lens-exam-order",
@@ -351,6 +355,8 @@ export default function ContactOrderTab({
             onChange={(patch) => setContactFormData((prev: any) => ({ ...prev, ...patch }))}
           />
         )}
+
+        <OpticPlusImportedItems orderData={contactFormData.order_data} />
 
         <div className="bg-card relative" data-clinical-nav-card="true">
           <ExamToolbox {...examCardProps(contactLensExamCard)} />

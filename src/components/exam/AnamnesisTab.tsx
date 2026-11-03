@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button"
 import { IconCalendar } from "@tabler/icons-react"
 import { cn } from "@/utils/tailwind"
 import type { DateRange } from "react-day-picker"
+import { useTranslation } from 'react-i18next'
+import { ImportedClinicalContext } from '@/lib/imported-clinical-context'
 
 interface AnamnesisTabProps {
   anamnesisData: AnamnesisExam;
@@ -23,6 +25,9 @@ export const AnamnesisTab = React.memo(function AnamnesisTab({
   onAnamnesisChange,
   isEditing,
 }: AnamnesisTabProps) {
+  const { t, i18n } = useTranslation();
+  const importedFields = React.useContext(ImportedClinicalContext)?.fields;
+  const importedId = React.useId();
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [isOpen, setIsOpen] = useState(false);
 
@@ -94,6 +99,21 @@ export const AnamnesisTab = React.memo(function AnamnesisTab({
   const handleLookupChange = (field: keyof AnamnesisExam, value: string) => {
     onAnamnesisChange(field, value);
   };
+
+  if (importedFields) {
+    const rows = [
+      ['medications', 'remk9'], ['family_history', 'remk10'], ['additional_notes', 'remk11'],
+    ] as const;
+    return <Card className="examcard w-full py-3" dir={i18n.dir()}><CardContent className="space-y-3 px-4">
+      <h3 className="text-center font-medium text-muted-foreground">{t('opticplusCards.sections.anamnesis')}</h3>
+      {rows.filter(([field]) => importedFields.includes(field)).map(([field, label]) => <div key={field} className="space-y-1">
+        <label htmlFor={`${importedId}-${field}`} className="text-xs text-muted-foreground">{t(`opticplusCards.fields.${label}`)}</label>
+        <FastTextarea id={`${importedId}-${field}`} name={field}
+          aria-label={t(`opticplusCards.fields.${label}`)} value={String(anamnesisData[field] ?? '')}
+          onChange={value => onAnamnesisChange(field, value)} disabled={!isEditing} dir="auto" className="min-h-12 text-xs" />
+      </div>)}
+    </CardContent></Card>;
+  }
 
   return (
     <Card className="w-full examcard pb-4 pt-2" dir="rtl">

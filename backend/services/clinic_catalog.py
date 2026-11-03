@@ -1,6 +1,8 @@
 """Authorized, explicit record projections shared by search and reporting."""
 from datetime import date, datetime
 from sqlalchemy import func, select, case
+from models import Clinic
+from security.scope import client_clinic_condition, family_clinic_condition, get_scoped_client
 from fastapi import HTTPException
 from models import (Client, Family, Appointment, OpticalExam, Order, ContactLensOrder, Referral,
                     MedicalLog, File, BillingPayment, InventoryBalance, CatalogVariant, CatalogProduct, PrescriptionSearchIndex, Campaign)
@@ -26,13 +28,15 @@ GRAINS = {**{k: 'one ' + k for k in MODELS}, 'clients': 'one patient per currenc
 
 
 def scope_conditions(model, clinic_ids):
-    conditions = [model.clinic_id.in_(clinic_ids)]
+    companies = select(Clinic.company_id).where(Clinic.id.in_(clinic_ids))
+    conditions = ([Client.company_id.in_(companies), client_clinic_condition(clinic_ids)] if model is Client else
+                  [Family.company_id.in_(companies), family_clinic_condition(clinic_ids)] if model is Family else [model.clinic_id.in_(clinic_ids)])
     if hasattr(model, 'deleted_at'):
         conditions.append(model.deleted_at.is_(None))
     if model is Client:
         conditions.append(Client.merged_into_client_id.is_(None))
     elif hasattr(model, 'client_id'):
-        clients = select(Client.id).where(Client.clinic_id.in_(clinic_ids), Client.deleted_at.is_(None), Client.merged_into_client_id.is_(None))
+        clients = select(Client.id).where(Client.company_id.in_(companies), Client.deleted_at.is_(None), Client.merged_into_client_id.is_(None))
         conditions.append(model.client_id.in_(clients) | model.client_id.is_(None) if model is FollowupTask else model.client_id.in_(clients))
     return conditions
 
@@ -42,26 +46,34 @@ def age_at(day):
         (func.extract('month', Client.date_of_birth) * 100 + func.extract('day', Client.date_of_birth) > day.month * 100 + day.day, 1), else_=0)
 
 
-def scoped_query(db, authority, kind):
+def scoped_query(db, authority, kind, company_history=False):
     if kind not in MODELS:
         raise HTTPException(422, 'agent.unsupportedReportField')
+    patient_id = get_scoped_client(db, authority.user, authority.patient_id).id if authority.patient_id else None
     model = MODELS[kind]
-    query = db.query(model).filter(*scope_conditions(model, [authority.clinic_id]))
+    company_id = authority.company_id or authority.user.company_id
+    clinic_ids = [row[0] for row in db.query(Clinic.id).filter(Clinic.company_id == company_id)] if company_history else [authority.clinic_id]
+    if company_history and hasattr(model, 'company_id'):
+        query = db.query(model).filter(model.company_id == company_id)
+        if hasattr(model, 'deleted_at'):
+            query = query.filter(model.deleted_at.is_(None))
+    else:
+        query = db.query(model).filter(*scope_conditions(model, clinic_ids))
     if kind == 'clients':
         query = query.filter(Client.merged_into_client_id.is_(None))
-        if authority.patient_id:
-            query = query.filter(Client.id == authority.patient_id)
+        if patient_id:
+            query = query.filter(Client.id == patient_id)
     elif kind == 'families':
-        if authority.patient_id:
-            query = query.filter(Family.id == select(Client.family_id).where(Client.id == authority.patient_id).scalar_subquery())
+        if patient_id:
+            query = query.filter(Family.id == select(Client.family_id).where(Client.id == patient_id).scalar_subquery())
     elif kind == 'campaigns':
-        if authority.patient_id:
+        if patient_id:
             query = query.filter(False)
     else:
-        allowed = select(Client.id).where(Client.clinic_id == authority.clinic_id, Client.deleted_at.is_(None), Client.merged_into_client_id.is_(None))
-        if authority.patient_id:
-            allowed = allowed.where(Client.id == authority.patient_id)
-        query = query.filter(model.client_id.in_(allowed) if kind != 'tasks' or authority.patient_id
+        allowed = select(Client.id).where(Client.company_id == company_id, Client.deleted_at.is_(None), Client.merged_into_client_id.is_(None))
+        if patient_id:
+            allowed = allowed.where(Client.id == patient_id)
+        query = query.filter(model.client_id.in_(allowed) if kind != 'tasks' or patient_id
             else (model.client_id.is_(None) | model.client_id.in_(allowed)))
     return query
 

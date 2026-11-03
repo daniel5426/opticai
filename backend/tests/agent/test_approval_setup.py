@@ -69,3 +69,14 @@ def test_read_failure_does_not_expose_credentials_or_response():
         policy.verify_approval_policy(ENV, STATUS, transport=transport)
     assert 'synthetic-private-key' not in str(error.value)
     assert 'private diagnostics' not in str(error.value)
+
+
+def test_published_official_platform_still_requires_exact_ask_policy():
+    env = {**ENV, 'AGENTS24_BASE_URL': 'https://api.agents24.dev', 'AGENTS24_RUNTIME_TARGET': 'published'}
+    calls = []
+    def request(req):
+        calls.append(req.method)
+        assert req.url.host == 'api.agents24.dev'
+        return httpx.Response(200, json={'items': [tool('clinic', 'ask')], 'has_more': False})
+    assert policy.verify_approval_policy(env, STATUS, transport=httpx.MockTransport(request))['policy'] == 'ask'
+    assert calls == ['GET']

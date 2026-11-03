@@ -47,7 +47,9 @@ describe.each(['he','en','fr'] as const)('shared Orders and Exams layout in %s',
 
   test('keeps loading rows inside the same table shell with the right number of cells',async()=>{
     await i18n.changeLanguage(locale);
-    const {rerender}=render(<ExamsTable data={[]} clientId={0} loading fillHeight onExamDeleted={()=>{}} onExamDeleteFailed={()=>{}}/>);
+    const cache=new QueryClient({defaultOptions:{queries:{retry:false}}});
+    const wrapper=({children}:{children:React.ReactNode})=><QueryClientProvider client={cache}>{children}</QueryClientProvider>;
+    const {rerender}=render(<ExamsTable data={[]} clientId={0} loading fillHeight onExamDeleted={()=>{}} onExamDeleteFailed={()=>{}}/>,{wrapper});
     const table=screen.getByRole('table');
     expect(table.querySelectorAll('tbody tr')).toHaveLength(14);
     expect(table.querySelector('tbody tr')!.children).toHaveLength(6);

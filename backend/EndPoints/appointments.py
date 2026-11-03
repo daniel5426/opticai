@@ -1,7 +1,10 @@
+from zoneinfo import ZoneInfo
+from services.appointment_calendar_owner import reconcile as reconcile_calendar_owner
+from security.scope import record_filter
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import date
+from datetime import date, datetime
 from database import get_db
 from models import Appointment, Client, User, Clinic
 from schemas import AppointmentCreate, AppointmentUpdate, Appointment as AppointmentSchema
@@ -11,7 +14,7 @@ from utils.table_search import build_all_terms_search_condition, search_blob, sp
 from sqlalchemy import func
 from security.scope import (
     apply_clinic_user_scope,
-    get_allowed_clinic_ids,
+    get_record_clinic_ids,
     get_scoped_appointment,
     get_scoped_client,
     get_scoped_user,
@@ -64,6 +67,7 @@ def create_appointment(
         db.commit()
         db.refresh(db_appointment)
         print(f"Successfully created appointment with ID: {db_appointment.id}")
+        reconcile_calendar_owner(db, db_appointment, current_user)
         return db_appointment
     except HTTPException:
         raise
@@ -75,21 +79,7 @@ def create_appointment(
         print(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=422, detail=f"Error creating appointment: {str(e)}")
 
-@router.get("/paginated")
-def get_appointments_paginated(
-    clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
-    limit: int = Query(25, ge=1, le=100, description="Max items to return"),
-    offset: int = Query(0, ge=0, description="Items to skip"),
-    order: Optional[str] = Query("date_desc", description="Sort order: date_desc|date_asc|id_desc|id_asc"),
-    search: Optional[str] = Query(None, description="Search by date/time/exam_name/note or client name"),
-    date_scope: Optional[str] = Query(None, description="Filter by date scope: all|today|upcoming|past"),
-    exam_name: Optional[str] = Query(None, description="Filter by exact exam name"),
-    filters: Optional[str] = Query(None, description="JSON column filters: date|time|client|exam_name|examiner|note"),
-    include_total: bool = Query(True, description="Include the exact total count"),
-    count_only: bool = Query(False, description="Return only the exact total count"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
+def appointment_list_query(db, current_user, clinic_id, search, exam_name, date_scope, order, filters=None):
     # Build base query with joins to include client and user names
     base = (
         db.query(
@@ -100,11 +90,11 @@ def get_appointments_paginated(
         .outerjoin(Client, Client.id == Appointment.client_id)
         .outerjoin(User, User.id == Appointment.user_id)
     )
-    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
-    base = base.filter(Appointment.clinic_id.in_(allowed_clinic_ids))
+    allowed_clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
+    base = base.filter(record_filter(db, current_user, Appointment, clinic_id))
     if exam_name and exam_name != "all":
         base = base.filter(Appointment.exam_name == exam_name)
-    today = date.today()
+    today = datetime.now(ZoneInfo("Asia/Jerusalem")).date()
     if date_scope == "today":
         base = base.filter(Appointment.date == today)
     elif date_scope == "upcoming":
@@ -146,7 +136,25 @@ def get_appointments_paginated(
         base = base.order_by(order_column.asc().nulls_last(), Appointment.id.asc())
     else:
         base = base.order_by(order_column.desc().nulls_last(), Appointment.id.desc())
-    
+    return base
+
+
+@router.get("/paginated")
+def get_appointments_paginated(
+    clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
+    limit: int = Query(25, ge=1, le=100, description="Max items to return"),
+    offset: int = Query(0, ge=0, description="Items to skip"),
+    order: Optional[str] = Query("date_desc", description="Sort order: date_desc|date_asc|id_desc|id_asc"),
+    search: Optional[str] = Query(None, description="Search by date/time/exam_name/note or client name"),
+    date_scope: Optional[str] = Query(None, description="Filter by date scope: all|today|upcoming|past"),
+    exam_name: Optional[str] = Query(None, description="Filter by exact exam name"),
+    filters: Optional[str] = Query(None, description="JSON column filters: date|time|client|exam_name|examiner|note"),
+    include_total: bool = Query(True, description="Include the exact total count"),
+    count_only: bool = Query(False, description="Return only the exact total count"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    base = appointment_list_query(db, current_user, clinic_id, search, exam_name, date_scope, order, filters)
     total = base.count() if include_total or count_only else None
     if count_only:
         return {"items": [], "total": total or 0, "has_more": False}
@@ -200,8 +208,8 @@ def get_all_appointments(
         .outerjoin(Client, Client.id == Appointment.client_id)
         .outerjoin(User, User.id == Appointment.user_id)
     )
-    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
-    base = base.filter(Appointment.clinic_id.in_(allowed_clinic_ids))
+    allowed_clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
+    base = base.filter(record_filter(db, current_user, Appointment, clinic_id))
     rows = base.all()
     items = []
     for row in rows:
@@ -214,10 +222,11 @@ def get_all_appointments(
 @router.get("/client/{client_id}", response_model=List[AppointmentSchema])
 def get_appointments_by_client(
     client_id: int,
+    clinic_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    get_scoped_client(db, current_user, client_id)
+    client_id = get_scoped_client(db, current_user, client_id).id
     rows = (
         db.query(
             Appointment,
@@ -226,7 +235,7 @@ def get_appointments_by_client(
         )
         .outerjoin(Client, Client.id == Appointment.client_id)
         .outerjoin(User, User.id == Appointment.user_id)
-        .filter(Appointment.client_id == client_id)
+        .filter(Appointment.client_id == client_id, record_filter(db, current_user, Appointment, clinic_id))
         .order_by(Appointment.date.desc().nulls_last(), Appointment.id.desc())
         .all()
     )
@@ -253,7 +262,7 @@ def get_appointments_by_user(
         )
         .outerjoin(Client, Client.id == Appointment.client_id)
         .outerjoin(User, User.id == Appointment.user_id)
-        .filter(Appointment.user_id == user_id)
+        .filter(Appointment.user_id == user_id, record_filter(db, current_user, Appointment))
         .all()
     )
     items = []
@@ -272,6 +281,7 @@ def update_appointment(
     current_user: User = Depends(get_current_user),
 ):
     db_appointment = get_scoped_appointment(db, current_user, appointment_id)
+    previous_owner_id, previous_event_id = db_appointment.user_id, db_appointment.google_calendar_event_id
     update_fields = appointment.dict(exclude_unset=True)
     if update_fields:
         candidate = {
@@ -305,6 +315,7 @@ def update_appointment(
     except Exception:
         pass
     db.refresh(db_appointment)
+    reconcile_calendar_owner(db, db_appointment, current_user, previous_owner_id, previous_event_id)
     return db_appointment
 
 @router.delete("/{appointment_id}")

@@ -43,6 +43,7 @@ gcc -O2 -Wall -Wextra \
   -I"$PREFIX/include" \
   $(pkg-config --cflags glib-2.0) \
   "$HELPER_DIR/main.c" \
+  "$HELPER_DIR/opticplus.c" \
   -L"$PREFIX/lib" -lmdb $(pkg-config --libs glib-2.0) \
   -o "$OUTPUT_DIR/optitech-mdb-exporter.exe"
 

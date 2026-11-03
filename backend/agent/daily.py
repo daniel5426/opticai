@@ -17,7 +17,7 @@ def snapshot(db, authority, day):
     appointments = db.query(Appointment).filter_by(clinic_id=authority.clinic_id, date=day).filter(Appointment.deleted_at.is_(None)).order_by(Appointment.time, Appointment.id).all()
     preparations = []
     for appointment in appointments:
-        patient = db.query(Client).filter_by(id=appointment.client_id, clinic_id=authority.clinic_id).first()
+        patient = db.query(Client).filter_by(id=appointment.client_id, company_id=authority.company_id).first()
         if not patient:
             continue
         data = history(db, authority, patient.id)

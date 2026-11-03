@@ -1,6 +1,6 @@
 # Agent consumer tests
 
-Last Updated: 2026-10-22
+Last Updated: 2026-11-03
 
 ## Shared relay consumer regression — 2026-10-22
 
@@ -48,3 +48,41 @@ Compact sidebar suggestions render before the composer in DOM/keyboard order, wi
 ## Response reports and generated visual blocks — 2026-10-25
 
 **127 agent UI tests passed**. Named legacy/native report receipts deduplicate at the end of their own assistant response. Download cards use two equal-width columns and contain only the name and download control; no floating composer activity rail. Declarative stat cards, bar/line/area/pie/donut charts use snapshot data and shared palette, with an accessible data table and explicit invalid-distribution state. Alternate exports/save remain in report details. Browser inspection covers narrow Hebrew RTL/dark and English/French LTR; no horizontal page overflow. Report definitions accept optional presentation without converting older saved definitions or snapshots. After owner authorization, backend migrations 0045/0046 were applied on staging and the ordinary local API/Artifact/workers and clinic agent draft were refreshed. Health/schema/relay/Toolset checks passed; production remains unchanged.
+
+## Shared connection lifecycle adoption — 2026-11-02
+
+Four focused integration suites: **15 passed** (`prysm-ui-final.log`). Availability/navigation uses shared connection lifecycle and stays mounted through transient trouble; denial/expiry retain explicit behavior. Removed obsolete host-owned startup retry code/tests. Active locale supplies Accept-Language, and optional preview negotiation is enabled after repeated platform paired measurements; client-focused rerun **1 passed**. Agent instructions use admitted server facts and no report polling. GPT-6 Luna, authored limits, approvals and original worker fixes remain unchanged. The earlier accidental broad Vitest invocation exposed unrelated preexisting failures; these are not counted as a passing full application suite. No production resource publication.
+
+
+## Published SDK and live recovery — 2026-11-03
+
+Main checkout uses public client 0.2.22, React 0.2.27 and Chat React 0.5.41. Command: `npm exec -- vitest run src/tests/unit/agent/availability.test.tsx src/tests/unit/agent/client.test.ts src/tests/unit/agent/global-panel.test.tsx src/tests/unit/agent/page-context.test.tsx src/tests/unit/agent/submission.test.tsx` — **18 passed**, five suites, 3.14 s. `npm run build:web` passed (9.05 s; existing bundle warnings). Generated public release-input provenance check and diff whitespace check passed. Unrelated dirty main edits remain preserved.
+
+Real Hebrew browser chat used trusted date/timezone, restored the same conversation after reload during a report run, and rendered the final zero-row report and named download once. Export verified as a valid 5,634-byte XLSX. Screenshot: protected `prysm-report-reload-verified.jpg` in the integration delivery evidence directory. Callback delivery audited server-side once; earlier model/tool results were not resubmitted by the browser. Fresh native Electron, all locale permutations, fresh ingestion and sustained hosted load are not claimed by this acceptance.
+
+
+## Supply inventory acceptance — 2026-11-03
+
+Commands: `APP_ENV=test DATABASE_URL=sqlite:///:memory: PYTHONPATH=backend backend/.venv/bin/python -m pytest backend/tests/agent/test_supply_intake.py backend/tests/agent/test_supply_routes.py -q --tb=short` — **22 passed**, 3.24 s; separate inventory collection `backend/tests/test_inventory_file_import.py backend/tests/test_inventory_v1.py` with the same environment — **22 passed**, 3.06 s. `npm exec -- vitest run src/tests/unit/agent/supply-review.test.tsx src/tests/unit/agent/supply-message-results.test.ts src/tests/unit/agent/manual-inventory-import.test.tsx` — **26 passed**, 2.88 s. Existing deprecation warnings only. Scope includes extraction, quantities, approval/apply idempotency, pricing/count semantics, authorization, duplicate rows, worksheet/formula validation, locale presentation and saved receipts.
+
+Live running staging-backed web acceptance is **not passing end to end**: XLSX selection is blocked by the shared composer before Prysm's submit-time conversion. Manual XLSX preview succeeds. A separate diagnostic using parser-produced text reaches the Agent, but loses required frame fields/source coordinates and creates two invalid proposals. Manual correction revalidation fails; actual-route isolated reproduction confirms missing JSON content type returns 422 while explicit JSON returns 200. See `docs/agents24-feedback.md` for exact owners and reproduction. No shared inventory apply, model/resource change, deployment or migration. Protected test files/screenshots/diagnostics: `/tmp/prysm-supply-verification/`.
+
+
+## Excel supply repairs and full approval acceptance — 2026-11-03
+
+Fixed host spreadsheet input-contract projection only when the actual runtime permits text files; converted output still goes through the original runtime/server contract. Added the real composer -> authenticated extraction -> text submission regression. Central agentJson marks string JSON bodies, preserving multipart boundaries. Added typed Tool source/value/row schemas, flat frame specifications, mandatory source evidence, missing-frame rejection and explicit model instructions. No inventory authorization or financial owner changed.
+
+Commands: `APP_ENV=test DATABASE_URL=sqlite:///:memory: PYTHONPATH=backend backend/.venv/bin/python -m pytest backend/tests/agent/test_artifact_contract.py backend/tests/agent/test_supply_routes.py backend/tests/agent/test_supply_intake.py -q --tb=short` — **33 passed**, 3.92 s; `npm exec -- vitest run src/tests/unit/agent/composer-suggestions.test.tsx src/tests/unit/agent/client.test.ts src/tests/unit/agent/supply-review.test.tsx` — **25 passed**, 2.45 s. `npm run build:web` passed, 18.70 s, existing chunk warnings. Generated release-input check and diff whitespace check pass. The new composer test supplies jsdom's missing File.arrayBuffer with synthetic bytes; production code uses the browser API normally.
+
+Official resource apply/publish refreshed the typed Artifact manifest and assistant instructions. Local DevDesk clinic stack reached readiness. Real original XLSX upload produced one valid receipt proposal (`5fd7e9a9-fb33-48c9-b6cb-8a4c661b7a96`), preserving Delivery rows 2/3, leading-zero barcodes, SKUs, colors, eye sizes and quantities 2/3. Editing retail 100 -> 101 disabled approval until server revalidation succeeded. Reload preserved the reviewed revision and value; no variants existed before approval. Explicit UI approval created only the two synthetic variants (958/959) in the verified staging clinic 65, with stock 2/3 and reviewed prices 101/150. Production inventory was untouched. Receipt/reload evidence is under `/tmp/prysm-supply-verification/`.
+
+Migration note: No schema migration. Existing jobs, receipts and inventory remain intact; deploy the compatible consumer backend/Artifact contract and host UI together. No Prysm production application deployment or SDK publication was performed.
+
+Final post-approval reload restored the committed “2 items applied” receipt; a second read-only staging audit confirmed exactly two variants and unchanged stock 2/3 (no replay). Screenshot: `/tmp/prysm-supply-verification/excel-approved-restored.jpg`.
+
+
+## Continuous localized activity — 2026-11-03
+
+Initial thinking and provider/external waiting render in the assistant timeline, not above the composer. The last Tool group displays its trailing model-planning phase while preserving disclosure state; earlier chunks do not retain the current activity. Hidden node/Tool notes do not suppress fallback. Pending approvals remain inline and do not receive a generic waiting label. Command against the canonical packed development train in the isolated consumer: `npm exec -- vitest run src/tests/unit/agent/tool-activity.test.tsx src/tests/unit/agent/submission.test.tsx` — **49 passed**, including he/en/fr initial/planning activity, capacity wait, terminal clearing and external-work versus approval behavior. No provider limits, historical holds, backend calls or prompts changed.
+
+Public-package acceptance: installed `@agents24/react@0.2.28` and `@agents24/chat-react@0.5.42`; the same focused command passed **49 tests** (1.58 s). `npm run build:web` passed (9.61 s; existing chunk warnings); generated public release inputs were prepared and checked successfully. Local DevDesk clinic stack reached readiness after restart. Browser acceptance is blocked before chat by the initial navigation `Maximum update depth exceeded` loop; this repair does not alter authentication/routing. Production Agents24 playground smoke passed. No database migration.

@@ -1,3 +1,4 @@
+import { PatientThreadArchive } from './PatientThreadArchive';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiClient } from '@/lib/api-client';
@@ -17,6 +18,7 @@ export function LegacyChats({ onClose }: { onClose: () => void }) {
   }, [workspace?.scope?.userId, workspace?.scope?.clinicId]);
   return <CustomModal isOpen onClose={onClose} title={t('agent.archive')}>
     <p className="mb-3 text-xs text-muted-foreground">{t('agent.archiveReadOnly')}</p>
+    <PatientThreadArchive />
     <div className="flex max-h-[60vh] gap-4 overflow-auto">
       <div className="w-40 shrink-0">{chats.map(chat => <button key={chat.id} className="block w-full truncate px-2 py-2 text-start text-sm hover:bg-muted"
         onClick={() => chat.id && apiClient.getChatMessages(chat.id).then(result => setMessages(result.data || []))}>{chat.title}</button>)}</div>

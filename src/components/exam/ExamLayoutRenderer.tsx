@@ -88,6 +88,8 @@ export function ExamLayoutRenderer({
     [gridItems, cardRows, customWidths],
   );
 
+  const isImportedLayout = layoutItems.some(card => card.type.startsWith("opticplus-"));
+
   const rowRenderKey = useMemo(
     () =>
       layoutItems
@@ -230,7 +232,8 @@ export function ExamLayoutRenderer({
       style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
     >
       <ExamGridLayout
-        items={visibleItems}
+        items={isImportedLayout ? layoutItems : visibleItems}
+        compact={isImportedLayout}
         lanes={lanes.slice(0, visibleRowCount)}
         renderItem={(item, cardIndex, laneItems) => {
           const rowIndex = lanes.findIndex((lane) => lane === item.y);
@@ -238,9 +241,9 @@ export function ExamLayoutRenderer({
             <div
               data-exam-card="true"
               data-clinical-nav-card="true"
-              className={item.type === "notes" ? "h-full" : undefined}
+              className={item.type === "notes" && !layoutItems.some(card => card.type.startsWith("opticplus-")) ? "h-full" : undefined}
               style={{
-                contentVisibility: "auto",
+                contentVisibility: isImportedLayout ? "visible" : "auto",
                 containIntrinsicSize: "0 190px",
                 overflowClipMargin: "8px",
               }}
@@ -252,7 +255,7 @@ export function ExamLayoutRenderer({
                 mode="detail"
                 detailProps={detailPropsWithLayoutRows}
                 hideEyeLabels={item.showEyeLabels === false}
-                matchHeight={hasNoteCard(laneItems) && laneItems.length > 1}
+                matchHeight={hasNoteCard(laneItems) && laneItems.length > 1 && !layoutItems.some(card => card.type.startsWith("opticplus-"))}
                 currentRowIndex={rowIndex}
                 currentCardIndex={cardIndex}
                 clipboardSourceType={clipboardContentType}

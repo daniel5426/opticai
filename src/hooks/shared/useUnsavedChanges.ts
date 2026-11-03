@@ -1,3 +1,4 @@
+import { useAgentDraft } from '@/lib/agent-page-context';
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useBlocker } from '@tanstack/react-router'
 import { useNavigationGuard } from '@/contexts/NavigationGuardContext'
@@ -10,6 +11,7 @@ interface UnsavedChangesConfig {
 }
 
 export const useUnsavedChanges = ({ getSerializedState, isEditing, isNewMode, enabled = true }: UnsavedChangesConfig) => {
+  useAgentDraft('form', () => enabled && (isEditing || isNewMode) ? JSON.parse(getSerializedState()) : null);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
   const [isSaveInFlight, setIsSaveInFlight] = useState(false)
   const pendingNavigationRef = useRef<(() => void) | null>(null)

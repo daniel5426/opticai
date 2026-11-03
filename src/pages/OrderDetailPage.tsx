@@ -634,7 +634,7 @@ export function LegacyOrderDetailPage({
 
         // Independent requests start together and are awaited where they are used, so the
         // page waits for the slowest one instead of their sum. These helpers do not reject.
-        const usersRequest = getAllUsers();
+        const usersRequest = getAllUsers(undefined, true);
         const allocationsRequest = orderId
           ? apiClient.getOrderInventoryAllocations(isContactMode ? "contact" : "regular", Number(orderId))
           : null;

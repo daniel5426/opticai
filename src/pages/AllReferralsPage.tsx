@@ -1,3 +1,6 @@
+import { TableExportProvider } from "@/components/table-export/context";
+import { CompanyClinicToolbarProvider } from "@/components/CompanyClinicFilter"
+import { useCompanyClinicFilter } from "@/hooks/client/useCompanyClinicFilter"
 import React, { useState, useEffect } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
@@ -13,6 +16,7 @@ import { parseColumnFilters, serializeColumnFilters } from "@/lib/column-filters
 
 export default function AllReferralsPage() {
   const { currentClinic } = useUser()
+  const clinicFilter = useCompanyClinicFilter()
   const search = useSearch({ from: "/referrals" })
   const navigate = useNavigate()
   const [referrals, setReferrals] = useState<Referral[]>([])
@@ -95,12 +99,12 @@ export default function AllReferralsPage() {
         columnFilters: search.filters || undefined,
         includeTotal: false
       }
-      const { items, hasMore: nextHasMore } = await getPaginatedReferrals(currentClinic?.id, paginationOptions)
+      const { items, hasMore: nextHasMore } = await getPaginatedReferrals(clinicFilter.clinicId, paginationOptions)
       if (!canCommit()) return
       setReferrals(items)
       setHasMore(nextHasMore)
       deferPaginationTotal(
-        () => getPaginatedReferrals(currentClinic?.id, { ...paginationOptions, countOnly: true }),
+        () => getPaginatedReferrals(clinicFilter.clinicId, { ...paginationOptions, countOnly: true }),
         canCommit,
         setTotal
       )
@@ -120,6 +124,7 @@ export default function AllReferralsPage() {
   }, [
     activeSort,
     currentClinic,
+    clinicFilter.clinicId,
     pageSize,
     search.page,
     search.q,
@@ -146,8 +151,15 @@ export default function AllReferralsPage() {
     loadData()
   }
 
+  useEffect(() => {
+    const refresh = () => { void loadData() }
+    window.addEventListener("prysm:client-records-changed", refresh)
+    return () => window.removeEventListener("prysm:client-records-changed", refresh)
+  }, [loadData])
+
   return (
-    <>
+    <TableExportProvider value={{ table: "referrals", clinicId: clinicFilter.clinicId, sort: sortToOrder(activeSort, "date_desc") }}>
+    <CompanyClinicToolbarProvider filter={{ ...clinicFilter, setValue: value => { clinicFilter.setValue(value); void navigate({ to: "/referrals", search: buildSearchState({ page: 1 }) }) } }}>
       <SiteHeader title="הפניות" />
       <div className="flex h-full min-h-0 flex-1 flex-col p-4 lg:p-6" dir="rtl" style={{ scrollbarWidth: "none" }}>
         <ReferralTable
@@ -201,6 +213,7 @@ export default function AllReferralsPage() {
           }}
         />
       </div>
-    </>
+    </CompanyClinicToolbarProvider>
+    </TableExportProvider>
   )
 }

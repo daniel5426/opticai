@@ -1,3 +1,6 @@
+import { TableExportProvider } from "@/components/table-export/context";
+import { CompanyClinicToolbarProvider } from "@/components/CompanyClinicFilter"
+import { useCompanyClinicFilter } from "@/hooks/client/useCompanyClinicFilter"
 import React, { useEffect, useState } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
@@ -6,9 +9,8 @@ import { FamiliesTable } from "@/components/families-table"
 import { FamilyManagementModal } from "@/components/FamilyManagementModal"
 import { getPaginatedClients } from "@/lib/db/clients-db"
 import { getPaginatedFamilies } from "@/lib/db/family-db"
-import { Client, Clinic, Family } from "@/lib/db/schema-interface"
+import { Client, Family } from "@/lib/db/schema-interface"
 import { Button } from "@/components/ui/button"
-import type { TableFiltersBarSelect } from "@/components/table-filters-bar"
 import { Users, PlusIcon, GitMerge, Loader2 } from "lucide-react"
 import { useUser } from "@/contexts/UserContext"
 import { TableFiltersBar } from "@/components/table-filters-bar"
@@ -27,9 +29,9 @@ export default function ClientsPage() {
   const search = useSearch({ from: "/clients" })
   const navigate = useNavigate()
   const { currentClinic } = useUser()
-  const [clinics, setClinics] = useState<Clinic[]>([])
   const { direction } = useAppLocale()
-  const clinicId = currentClinic?.id
+  const clinicFilter = useCompanyClinicFilter()
+  const clinicId = clinicFilter.clinicId
   const [clients, setClients] = useState<Client[]>([])
   const [families, setFamilies] = useState<Family[]>([])
   const [clientsLoading, setClientsLoading] = useState(true)
@@ -52,27 +54,12 @@ export default function ClientsPage() {
   const isFamilyMode = search.mode === "families"
   const activeSort = React.useMemo(() => parseSortSearch(search.sort, { key: "id", direction: "desc" }), [search.sort])
   const columnFilters = React.useMemo(() => parseColumnFilters(search.filters), [search.filters])
-  const ALL_CLINICS = "all"
-  // The clinic filter is only offered to users who can reach more than one branch.
-  const canFilterByClinic = clinics.length > 1
-  const clinicFilterValue = search.clinic || String(clinicId ?? "")
-  const viewsAllClinics = canFilterByClinic && search.clinic === ALL_CLINICS
-  const pickedClinicId = Number(search.clinic)
-  const requestedClinicId = canFilterByClinic && Number.isInteger(pickedClinicId) && pickedClinicId > 0 ? pickedClinicId : clinicId
+  // The company clinic filter's "all" leaves clinicId unset; list rows then show their branch.
+  const viewsAllClinics = clinicId === undefined
   const clinicNames = React.useMemo(
-    () => Object.fromEntries(clinics.filter((clinic) => clinic.id).map((clinic) => [clinic.id as number, clinic.name])),
-    [clinics]
+    () => Object.fromEntries(clinicFilter.clinics.map((clinic) => [clinic.id, clinic.name])),
+    [clinicFilter.clinics]
   )
-
-  useEffect(() => {
-    let cancelled = false
-    void apiClient.getClinics().then((response) => {
-      if (!cancelled && response.data) setClinics(response.data.filter((clinic) => clinic.is_active !== false))
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   useEffect(() => {
     updateLatestSearch(search.q)
@@ -129,7 +116,7 @@ export default function ClientsPage() {
   }, [navigate, search.q, searchInput])
 
   const loadClients = async () => {
-    if (!clinicId) return
+    if (!currentClinic) return
     const canCommit = startSearchRequest(search.q)
     try {
       setClientsLoading(true)
@@ -141,15 +128,14 @@ export default function ClientsPage() {
         q: search.q || undefined,
         gender: search.gender !== ALL_FILTER_VALUE ? search.gender : undefined,
         columnFilters: search.filters || undefined,
-        allClinics: viewsAllClinics || undefined,
         includeTotal: false
       }
-      const { items, hasMore } = await getPaginatedClients(requestedClinicId, paginationOptions)
+      const { items, hasMore } = await getPaginatedClients(clinicId, paginationOptions)
       if (!canCommit()) return
       setClients(items)
       setClientsHasMore(hasMore)
       deferPaginationTotal(
-        () => getPaginatedClients(requestedClinicId, { ...paginationOptions, countOnly: true }),
+        () => getPaginatedClients(clinicId, { ...paginationOptions, countOnly: true }),
         canCommit,
         setClientsTotal
       )
@@ -161,7 +147,7 @@ export default function ClientsPage() {
   }
 
   const loadFamilies = async () => {
-    if (!clinicId) return
+    if (!currentClinic) return
     const canCommit = startSearchRequest(search.q)
     try {
       setFamiliesLoading(true)
@@ -199,7 +185,7 @@ export default function ClientsPage() {
   }
 
   useEffect(() => {
-    if (!clinicId) {
+    if (!currentClinic) {
       setClients([])
       setFamilies([])
       setClientsLoading(false)
@@ -207,7 +193,7 @@ export default function ClientsPage() {
       return
     }
     void loadData()
-  }, [activeSort, clinicId, pageSize, isFamilyMode, search.gender, requestedClinicId, viewsAllClinics, search.page, search.q, search.filters, startSearchRequest])
+  }, [activeSort, clinicFilter.companyId, currentClinic?.id, clinicId, pageSize, isFamilyMode, search.gender, search.page, search.q, search.filters, startSearchRequest])
 
   const handleClientDeleted = (clientId: number) => {
     setClients((previous) => previous.filter((client) => client.id !== clientId))
@@ -301,26 +287,6 @@ export default function ClientsPage() {
     })
   }
 
-  const clinicFilters: TableFiltersBarSelect[] = canFilterByClinic
-    ? [
-        {
-          key: "clinic",
-          value: clinicFilterValue,
-          onChange: (value) =>
-            void navigate({
-              to: "/clients",
-              search: buildSearchState({ clinic: value === String(clinicId) ? "" : value, page: 1 })
-            }),
-          placeholder: "סניף",
-          ariaLabel: "סינון לפי סניף",
-          options: [
-            { value: ALL_CLINICS, label: "כל הסניפים" },
-            ...clinics.filter((clinic) => clinic.id).map((clinic) => ({ value: String(clinic.id), label: clinic.name }))
-          ],
-          widthClassName: "w-[170px]"
-        }
-      ]
-    : []
 
   const toggleMergeMode = () => {
     setIsMergeMode((previous) => {
@@ -377,8 +343,15 @@ export default function ClientsPage() {
     }
   }
 
+  useEffect(() => {
+    const refresh = () => { void loadData() }
+    window.addEventListener("prysm:client-records-changed", refresh)
+    return () => window.removeEventListener("prysm:client-records-changed", refresh)
+  }, [loadData])
+
   return (
-    <>
+    <TableExportProvider value={isFamilyMode ? null : { table: "clients", clinicId: clinicFilter.clinicId, sort: sortToOrder(activeSort, "id_desc") }}>
+    <CompanyClinicToolbarProvider filter={{ ...clinicFilter, setValue: value => { clinicFilter.setValue(value); void navigate({ to: "/clients", search: buildSearchState({ page: 1 }) }) } }} allClients>
       <SiteHeader title="לקוחות" />
       <div className="flex h-full min-h-0 flex-1 flex-col p-4 lg:p-6" dir={direction} style={{ scrollbarWidth: "none" }}>
         <div className="@container/main flex min-h-0 flex-1 flex-col">
@@ -463,14 +436,6 @@ export default function ClientsPage() {
                 genderFilter={search.gender}
                 onGenderFilterChange={(gender) =>
                   void navigate({ to: "/clients", search: buildSearchState({ gender, page: 1 }) })
-                }
-                extraFilters={clinicFilters}
-                extraFiltersActive={canFilterByClinic && Boolean(search.clinic)}
-                onResetExtraFilters={() =>
-                  void navigate({
-                    to: "/clients",
-                    search: buildSearchState({ clinic: "", gender: ALL_FILTER_VALUE, filters: "", q: "", page: 1 })
-                  })
                 }
                 clinicNames={viewsAllClinics ? clinicNames : undefined}
                 hideNewButton
@@ -579,6 +544,7 @@ export default function ClientsPage() {
           ) : null}
         </div>
       </CustomModal>
-    </>
+    </CompanyClinicToolbarProvider>
+    </TableExportProvider>
   )
 }

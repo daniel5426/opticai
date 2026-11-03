@@ -15,7 +15,10 @@ from utils.storage import upload_base64_image
 from security.scope import (
     assert_company_scope,
     assert_clinic_scope,
-    get_allowed_clinic_ids,
+    get_record_clinic_ids,
+    client_scope_conditions,
+    assert_record_scope,
+    normalize_record_clinic,
     get_scoped_client,
     normalize_clinic_id_for_company,
     resolve_company_id,
@@ -40,21 +43,8 @@ def gender_condition(value: str):
     synonyms = GENDER_SYNONYMS.get(value.strip(), (value.strip(),))
     return func.lower(func.trim(Client.gender)).in_([synonym.lower() for synonym in synonyms])
 
-@router.get("/paginated")
-def get_clients_paginated(
-    clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
-    all_clinics: bool = Query(False, description="Every clinic the user may access, ignoring clinic_id"),
-    limit: int = Query(25, ge=1, le=100, description="Max items to return"),
-    offset: int = Query(0, ge=0, description="Items to skip"),
-    order: Optional[str] = Query("id_desc", description="Sort order: id_desc|id_asc"),
-    search: Optional[str] = Query(None, description="Search by name/phone/email"),
-    gender: Optional[str] = Query(None, description="Filter by gender"),
-    filters: Optional[str] = Query(None, description="JSON column filters: id|first_name|last_name|gender|national_id|phone_mobile|email|family_role"),
-    include_total: bool = Query(True, description="Include the exact total count"),
-    count_only: bool = Query(False, description="Return only the exact total count"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
+
+def client_list_query(db, current_user, clinic_id, search, gender, order, filters=None):
     base = db.query(
         Client.id,
         Client.clinic_id,
@@ -67,8 +57,7 @@ def get_clients_paginated(
         Client.family_id,
         Client.family_role,
     )
-    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, None if all_clinics else clinic_id)
-    base = base.filter(Client.clinic_id.in_(allowed_clinic_ids))
+    base = base.filter(*client_scope_conditions(db, current_user, clinic_id))
     base = base.filter(Client.merged_into_client_id.is_(None))
     if gender and gender != "all":
         base = base.filter(gender_condition(gender))
@@ -104,9 +93,6 @@ def get_clients_paginated(
         "family_role": ColumnFilter(Client.family_role),
     }))
 
-    total = base.count() if include_total or count_only else None
-    if count_only:
-        return {"items": [], "total": total or 0, "has_more": False}
 
     order_columns = {
         "id": Client.id,
@@ -124,12 +110,35 @@ def get_clients_paginated(
         base = base.order_by(order_column.asc().nulls_last(), Client.id.asc())
     else:
         base = base.order_by(order_column.desc().nulls_last(), Client.id.desc())
+    return base
 
+
+@router.get("/paginated")
+def get_clients_paginated(
+    clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
+    all_clinics: bool = Query(False, description="Every clinic the user may access, ignoring clinic_id"),
+    limit: int = Query(25, ge=1, le=100, description="Max items to return"),
+    offset: int = Query(0, ge=0, description="Items to skip"),
+    order: Optional[str] = Query("id_desc", description="Sort order: id_desc|id_asc"),
+    search: Optional[str] = Query(None, description="Search by name/phone/email"),
+    gender: Optional[str] = Query(None, description="Filter by gender"),
+    filters: Optional[str] = Query(None, description="JSON column filters: id|first_name|last_name|gender|national_id|phone_mobile|email|family_role"),
+    include_total: bool = Query(True, description="Include the exact total count"),
+    count_only: bool = Query(False, description="Return only the exact total count"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    base = client_list_query(db, current_user, None if all_clinics else clinic_id, search, gender, order, filters)
+    total = base.order_by(None).count() if include_total or count_only else None
+    if count_only:
+        return {"items": [], "total": total or 0, "has_more": False}
     rows = base.offset(offset).limit(limit + 1).all()
+    effective_company_id = resolve_company_id(db, current_user)
     items = [
         {
             "id": r[0],
             "clinic_id": r[1],
+            "company_id": effective_company_id,
             "first_name": r[2],
             "last_name": r[3],
             "gender": r[4],
@@ -150,11 +159,10 @@ def get_clients_last_exam_dates(
     current_user: User = Depends(get_current_user)
 ):
     """Latest exam date per client, for list views; clients outside the user's scope or without exams are omitted."""
-    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user)
     rows = (
         db.query(OpticalExam.client_id, func.max(OpticalExam.exam_date))
         .join(Client, Client.id == OpticalExam.client_id)
-        .filter(OpticalExam.client_id.in_(ids), Client.clinic_id.in_(allowed_clinic_ids))
+        .filter(OpticalExam.client_id.in_(ids), OpticalExam.deleted_at.is_(None), *client_scope_conditions(db, current_user))
         .group_by(OpticalExam.client_id)
         .all()
     )
@@ -170,7 +178,10 @@ def create_client(
     payload = client.dict()
     company_id = resolve_company_id(db, current_user)
     payload["company_id"] = company_id
-    payload["clinic_id"] = normalize_clinic_id_for_company(db, current_user, payload.get("clinic_id"))
+    payload["clinic_id"] = normalize_record_clinic(db, current_user, payload.get("clinic_id"))
+    if payload.get("family_id"):
+        from security.scope import get_scoped_family
+        get_scoped_family(db, current_user, payload["family_id"])
     if payload.get('profile_picture'):
         try:
             payload['profile_picture'] = upload_base64_image(payload['profile_picture'], f"clients/{payload.get('clinic_id') or 'no-clinic'}/{payload.get('id') or 'new'}/profile")
@@ -189,13 +200,13 @@ def get_recent_clients(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
+    allowed_clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
     if not allowed_clinic_ids:
         return []
     rows = (
         db.query(RecentClientVisit, Client)
         .join(Client, Client.id == RecentClientVisit.client_id)
-        .filter(RecentClientVisit.user_id == current_user.id)
+        .filter(RecentClientVisit.user_id == current_user.id, Client.company_id == resolve_company_id(db, current_user))
         .filter(RecentClientVisit.clinic_id.in_(allowed_clinic_ids))
         .filter(Client.merged_into_client_id.is_(None))
         .order_by(RecentClientVisit.visited_at.desc())
@@ -237,6 +248,7 @@ def merge_clients(
     clients = (
         db.query(Client)
         .filter(Client.id.in_(all_ids))
+        .order_by(Client.id)
         .with_for_update()
         .all()
     )
@@ -261,21 +273,24 @@ def merge_clients(
     # This path uses bulk SQL, so preflight protected groups explicitly rather
     # than relying on the ORM legacy-write guard.
     from models import OrderGroup, OrderGroupEntry
-    grouped = db.query(OrderGroup).outerjoin(OrderGroupEntry).outerjoin(Order, OrderGroupEntry.order_id == Order.id).outerjoin(ContactLensOrder, OrderGroupEntry.contact_lens_id == ContactLensOrder.id).filter(
-        or_(Order.client_id.in_(all_ids), ContactLensOrder.client_id.in_(all_ids), OrderGroup.payer_client_id.in_(all_ids))).distinct().with_for_update().all()
-    if any(group.legacy_write_protected for group in grouped):
-        raise HTTPException(409, {"code": "order_group_requires_update", "message": "Shared order groups cannot be reassigned by a legacy client merge."})
-    if any(group.clinic_id != canonical.clinic_id for group in grouped):
-        raise HTTPException(422, "Clients with orders must be merged within the same clinic")
+    matching_groups = db.query(OrderGroup.id).outerjoin(OrderGroupEntry).outerjoin(Order, OrderGroupEntry.order_id == Order.id).outerjoin(ContactLensOrder, OrderGroupEntry.contact_lens_id == ContactLensOrder.id).filter(
+        or_(Order.client_id.in_(all_ids), ContactLensOrder.client_id.in_(all_ids), OrderGroup.payer_client_id.in_(all_ids))).distinct()
+    grouped = db.query(OrderGroup).filter(OrderGroup.id.in_(matching_groups)).order_by(OrderGroup.id).with_for_update().all()
+    # A merge is a group-aware transaction; preserve every group and clinic.
+    from services.order_group_service import group_write
+    from agent.models import FollowupTask, DocumentIndex, InsightCache, AgentContext, PreparedChange
+    for group in grouped:
+        assert_record_scope(db, current_user, group)
     for group in grouped:
         if group.payer_client_id in duplicate_ids:
             group.payer_client_id = canonical.id
         group.revision += 1
 
     reassigned_counts = {}
-    for model in (OpticalExam, Appointment, Order, ContactLensOrder, Referral, File, MedicalLog, CampaignClientExecution, PrescriptionSearchIndex):
+    for model in (OpticalExam, Appointment, Order, ContactLensOrder, Referral, File, MedicalLog, CampaignClientExecution, PrescriptionSearchIndex, FollowupTask, DocumentIndex):
         count = (
             db.query(model)
+            .execution_options(include_deleted=True)
             .filter(model.client_id.in_(duplicate_ids))
             .update({"client_id": canonical.id}, synchronize_session=False)
         )
@@ -291,7 +306,17 @@ def merge_clients(
         duplicate.merged_by_user_id = current_user.id
         duplicate.merge_snapshot = _client_snapshot(duplicate)
 
+    # Preserve registration-clinic membership through existing merge aliases.
+    db.query(Client).execution_options(include_deleted=True).filter(Client.company_id == company_id,
+        Client.merged_into_client_id.in_(duplicate_ids)).update({"merged_into_client_id": canonical.id}, synchronize_session=False)
+    contexts = db.query(AgentContext.id).filter(AgentContext.company_id == company_id, AgentContext.patient_scope.in_(duplicate_ids))
+    db.query(PreparedChange).filter(PreparedChange.context_id.in_(contexts), PreparedChange.status == "prepared").update({"status": "expired"}, synchronize_session=False)
+    db.query(InsightCache).filter(InsightCache.client_id.in_(all_ids)).delete(synchronize_session=False)
+    for part in ("exam", "order", "referral", "contact_lens", "appointment", "file", "medical"):
+        setattr(canonical, f"ai_{part}_state", None)
     canonical.client_updated_date = func.now()
+    with group_write(db):
+        db.flush()
     db.commit()
     return {
         "canonical_client_id": canonical.id,
@@ -305,11 +330,7 @@ def get_client(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    client = db.query(Client).filter(Client.id == client_id).first()
-    if not client:
-        raise HTTPException(status_code=404, detail="Client not found")
-    assert_clinic_scope(db, current_user, client.clinic_id)
-    return client
+    return get_scoped_client(db, current_user, client_id)
 
 def _has_value(value):
     return value is not None and value != ""
@@ -368,6 +389,7 @@ def get_client_orders_context(
     current_user: User = Depends(get_current_user)
 ):
     client = get_scoped_client(db, current_user, client_id)
+    client_id = client.id
 
     latest_exam = (
         db.query(OpticalExam)
@@ -417,13 +439,14 @@ def get_all_clients(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
-    query = db.query(Client).filter(Client.clinic_id.in_(allowed_clinic_ids)).filter(Client.merged_into_client_id.is_(None))
+    allowed_clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
+    query = db.query(Client).filter(*client_scope_conditions(db, current_user, clinic_id)).filter(Client.merged_into_client_id.is_(None))
     return query.all()
 
 @router.post("/{client_id}/recent-visit")
 def mark_recent_client_visit(
     client_id: int,
+    clinic_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -431,11 +454,14 @@ def mark_recent_client_visit(
     if client.merged_into_client_id:
         raise HTTPException(status_code=422, detail="Cannot mark merged client as recent")
 
+    # Published desktops omit clinic_id, including company admins with no
+    # assigned clinic. Retain their original registration-clinic fallback.
+    visit_clinic_id = clinic_id if clinic_id is not None else (current_user.clinic_id or client.clinic_id)
     stmt = (
         pg_insert(RecentClientVisit)
         .values(
             user_id=current_user.id,
-            clinic_id=client.clinic_id,
+            clinic_id=normalize_record_clinic(db, current_user, visit_clinic_id),
             client_id=client.id,
             visited_at=func.now(),
         )
@@ -461,8 +487,10 @@ def update_client(
     
     update_fields = client.dict(exclude_unset=True)
     update_fields.pop("company_id", None)
-    if "clinic_id" in update_fields:
-        update_fields["clinic_id"] = normalize_clinic_id_for_company(db, current_user, update_fields["clinic_id"])
+    update_fields.pop("clinic_id", None)
+    if update_fields.get("family_id"):
+        from security.scope import get_scoped_family
+        get_scoped_family(db, current_user, update_fields["family_id"])
     if update_fields.get('profile_picture'):
         try:
             update_fields['profile_picture'] = upload_base64_image(update_fields['profile_picture'], f"clients/{db_client.clinic_id or 'no-clinic'}/{client_id}/profile")
@@ -481,8 +509,10 @@ def delete_client(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    get_scoped_client(db, current_user, client_id)
-    item = move_to_trash(db, current_user, "client", client_id)
+    from EndPoints.order_groups import delete_group_client
+    from models import TrashItem
+    result = delete_group_client(client_id, db, current_user)
+    item = db.get(TrashItem, result["trash_item_id"])
     return {"message": "Client deleted successfully", "trash_item_id": item.id, "expires_at": item.expires_at, "side_effects": "backend"}
 
 @router.get("/{client_id}/family-members", response_model=List[ClientSchema])
@@ -563,12 +593,9 @@ def get_all_client_data_for_ai(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    client = db.query(Client).filter(Client.id == client_id).first()
-    if not client:
-        raise HTTPException(status_code=404, detail="Client not found")
-    company_id = resolve_company_id(db, current_user)
-    assert_clinic_belongs_to_company(db, client.clinic_id, company_id)
-    
+    client = get_scoped_client(db, current_user, client_id)
+    client_id = client.id
+
     exams = db.query(OpticalExam).filter(OpticalExam.client_id == client_id).all()
     appointments = db.query(Appointment).filter(Appointment.client_id == client_id).all()
     orders = db.query(Order).filter(Order.client_id == client_id).all()

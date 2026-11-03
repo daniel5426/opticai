@@ -10,5 +10,5 @@ router = APIRouter(prefix="/plans", tags=["plans"])
 def get_plans():
     return {
         "plans": [plan.public_dict() for plan in plan_catalog().values()],
-        "pricing_notice": "Indicative launch pricing; final price confirmed at checkout.",
+        "pricing_notice": "Monthly prices include VAT. Payment starts your subscription.",
     }

@@ -489,7 +489,7 @@ export function ClientSidebar() {
     return () => { cancelled = true; clearInterval(interval) }
   }, [aiAvailable, currentClient?.id, isOpen, isAiBlockOpen, lastClientUpdateDate, currentPart, loadAiInfo])
 
-  if (!isClientSpacePage) {
+  if (!isClientSpacePage || agent?.chatOpen) {
     return <div className="w-0 overflow-hidden" />
   }
 

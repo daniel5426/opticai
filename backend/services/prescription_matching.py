@@ -4,7 +4,7 @@ from math import isfinite
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import and_, or_, select, exists
-from models import Client, PrescriptionSearchIndex, ExamLayoutInstance, OpticalExam, Order, ContactLensOrder, Referral
+from models import Clinic, Client, PrescriptionSearchIndex, ExamLayoutInstance, OpticalExam, Order, ContactLensOrder, Referral
 
 SCALES = {'sph': .25, 'cyl': .25, 'ax': 10, 'add': .25, 'pd': 1}
 FIELDS = ('sph', 'cyl', 'ax', 'add', 'pd', 'va')
@@ -83,7 +83,8 @@ def distance(requested, stored):
 def eligible_index(db, clinic_ids, patient_id=None):
     index = PrescriptionSearchIndex
     query = db.query(index).join(Client, Client.id == index.client_id).filter(
-        Client.clinic_id.in_(clinic_ids), index.clinic_id == Client.clinic_id, Client.deleted_at.is_(None),
+        index.clinic_id.in_(clinic_ids),
+        Client.company_id.in_(select(Clinic.company_id).where(Clinic.id.in_(clinic_ids))), Client.deleted_at.is_(None),
         Client.merged_into_client_id.is_(None))
     if patient_id:
         query = query.filter(index.client_id == patient_id)

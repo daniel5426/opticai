@@ -7,7 +7,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const GLASSES_TYPES = ["רחוק", "קרוב", "מולטיפוקל", "ביפוקל"];
+import { GLASSES_TYPES } from "@/components/exam/data/exam-constants";
 
 interface RefractionTabsHeaderProps {
   title: string;

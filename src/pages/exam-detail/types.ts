@@ -21,4 +21,5 @@ export interface LayoutTab {
   name: string;
   layout_data: string;
   isActive: boolean;
+  instance_layout?: boolean;
 }

@@ -6,7 +6,7 @@ from database import get_db
 from models import Client, OpticalExam, MedicalLog, Family, Referral, Appointment, Campaign, User, PrescriptionSearchIndex
 from schemas import PrescriptionSearchRequest, PrescriptionSearchResponse
 from auth import get_current_user
-from security.scope import get_allowed_clinic_ids
+from security.scope import get_record_clinic_ids, client_clinic_condition
 from services.clinic_catalog import scope_conditions
 
 router = APIRouter(prefix="/search", tags=["search"])
@@ -19,7 +19,7 @@ def prescription_search(
     current_user: User = Depends(get_current_user),
 ):
     from services.prescription_matching import legacy_search
-    allowed = get_allowed_clinic_ids(db, current_user, request.clinic_id)
+    allowed = get_record_clinic_ids(db, current_user, request.clinic_id)
     return legacy_search(db, allowed, request)
 
 
@@ -41,7 +41,7 @@ def unified_search(
     if not search_terms or all(not term.strip() for term in search_terms):
         return {"items": [], "total": 0}
 
-    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
+    allowed_clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
     if not allowed_clinic_ids:
         return {"items": [], "total": 0}
 
@@ -85,7 +85,6 @@ def unified_search(
     clients_filter = scope_conditions(Client, allowed_clinic_ids)
     if client_condition is not None:
         clients_filter.append(client_condition)
-    clients_filter.append(Client.clinic_id.in_(allowed_clinic_ids))
     clients_filter.append(Client.merged_into_client_id.is_(None))
 
     clients_q = db.query(
@@ -152,7 +151,6 @@ def unified_search(
     families_filter = scope_conditions(Family, allowed_clinic_ids)
     if family_condition is not None:
         families_filter.append(family_condition)
-    families_filter.append(Family.clinic_id.in_(allowed_clinic_ids))
 
     families_q = db.query(
         literal("family").label("type"),
@@ -288,7 +286,7 @@ def unified_search(
         )
         clients = db.query(Client.id, *(getattr(Client, field) for field in detail_fields)).filter(
             Client.id.in_(client_ids),
-            Client.clinic_id.in_(allowed_clinic_ids),
+            client_clinic_condition(allowed_clinic_ids),
             Client.merged_into_client_id.is_(None),
         ).all()
         client_details = {

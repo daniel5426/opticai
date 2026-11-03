@@ -44,6 +44,7 @@ async def test_bounded_health_check(configured, monkeypatch, outcome, expected):
 
 
 def test_discovery_uses_app_auth_and_does_not_create_agent_contexts(monkeypatch):
+    monkeypatch.setenv('AGENTS24_AGENT_ID', 'current-installation-agent')
     app = FastAPI()
     app.include_router(router, prefix='/api/v1')
     async def offline():
@@ -53,7 +54,7 @@ def test_discovery_uses_app_auth_and_does_not_create_agent_contexts(monkeypatch)
     with TestClient(app) as client:
         response = client.get('/api/v1/agent/availability')
         assert response.status_code == 200
-        assert response.json() == {'available': False}
+        assert response.json() == {'available': False, 'namespace': 'current-installation-agent'}
         def denied():
             raise HTTPException(401)
         app.dependency_overrides[get_current_user] = denied

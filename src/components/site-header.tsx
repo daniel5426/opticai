@@ -1,3 +1,4 @@
+import { AgentEntryButtons } from '@/components/agent/AgentVoice';
 import React, { useState, useEffect } from "react";
 import { useClientExamDatesQuery } from "@/hooks/client/useClientTabQueries";
 import { createPortal } from "react-dom";
@@ -410,6 +411,7 @@ export function SiteHeader({
             </Tabs>
           )}
           {actions}
+          <AgentEntryButtons />
         </div>
       </div>
     </header>

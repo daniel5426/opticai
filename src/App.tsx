@@ -105,6 +105,18 @@ export default function App() {
     });
   }, []);
 
+  useEffect(() => {
+    const invalidate = () => { void queryClient.invalidateQueries() }
+    window.addEventListener("prysm:client-records-changed", invalidate)
+    let previousCompany = authService.getSession()?.user?.company_id
+    const unsubscribe = authService.subscribe((_state, session) => {
+      const company = session?.user?.company_id
+      if (company !== previousCompany) queryClient.clear()
+      previousCompany = company
+    })
+    return () => { window.removeEventListener("prysm:client-records-changed", invalidate); unsubscribe() }
+  }, [])
+
   return (
     <ThemeProvider>
     <ErrorBoundary

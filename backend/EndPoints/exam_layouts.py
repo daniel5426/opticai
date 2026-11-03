@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from security.scope import assert_record_scope
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -472,8 +473,7 @@ def create_exam_layout_instance(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
     
-    if current_user.role_level < 4 and exam.clinic_id != current_user.clinic_id:
-        raise HTTPException(status_code=403, detail="Cannot create layout instance for exams in other clinics")
+    assert_record_scope(db, current_user, exam)
     
     instance = ExamLayoutInstance(**instance_data)
     db.add(instance)
@@ -507,8 +507,7 @@ def reorder_exam_layout_instances(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
 
-    if current_user.role_level < 4 and exam.clinic_id != current_user.clinic_id:
-        raise HTTPException(status_code=403, detail="Cannot reorder instances for exams in other clinics")
+    assert_record_scope(db, current_user, exam)
 
     instance_ids = [item.id for item in request.items]
     instances = (
@@ -546,8 +545,7 @@ def get_exam_layout_instance(
         raise HTTPException(status_code=404, detail="Exam layout instance not found")
     
     exam = db.query(OpticalExam).filter(OpticalExam.id == instance.exam_id).first()
-    if exam and current_user.role_level < 4 and exam.clinic_id != current_user.clinic_id:
-        raise HTTPException(status_code=403, detail="Access denied to this layout instance")
+    assert_record_scope(db, current_user, exam)
     
     return {
         "id": instance.id,
@@ -572,8 +570,7 @@ def get_exam_layout_instances_by_exam(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
     
-    if current_user.role_level < 4 and exam.clinic_id != current_user.clinic_id:
-        raise HTTPException(status_code=403, detail="Access denied to this exam's layout instances")
+    assert_record_scope(db, current_user, exam)
     
     instances = db.query(ExamLayoutInstance).filter(ExamLayoutInstance.exam_id == exam_id).all()
     return [
@@ -602,8 +599,7 @@ def get_active_exam_layout_instance_by_exam(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
     
-    if current_user.role_level < 4 and exam.clinic_id != current_user.clinic_id:
-        raise HTTPException(status_code=403, detail="Access denied to this exam's layout instances")
+    assert_record_scope(db, current_user, exam)
     
     instance = db.query(ExamLayoutInstance).filter(
         ExamLayoutInstance.exam_id == exam_id,
@@ -629,18 +625,28 @@ def update_exam_layout_instance(
     instance_id: int,
     instance_data: dict,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    request: Request = None,
 ):
     from models import OpticalExam
     
-    instance = db.query(ExamLayoutInstance).filter(ExamLayoutInstance.id == instance_id).first()
+    instance = db.query(ExamLayoutInstance).populate_existing().with_for_update().filter(ExamLayoutInstance.id == instance_id).first()
     if not instance:
         raise HTTPException(status_code=404, detail="Exam layout instance not found")
     
     exam = db.query(OpticalExam).filter(OpticalExam.id == instance.exam_id).first()
-    if exam and current_user.role_level < 4 and exam.clinic_id != current_user.clinic_id:
-        raise HTTPException(status_code=403, detail="Cannot update layout instance for exams in other clinics")
+    assert_record_scope(db, current_user, exam)
     
+    if instance_data.get("exam_id", instance.exam_id) != instance.exam_id:
+        raise HTTPException(422, "companyClients.instanceExam")
+    from services.legacy_exam_compatibility import preserve_unrepresented_components, preserve_unrepresented_layout
+    instance_data = dict(instance_data)
+    if "exam_data" in instance_data:
+        if not isinstance(instance_data["exam_data"], dict):
+            raise HTTPException(422, "agent.invalidFields")
+        instance_data["exam_data"] = preserve_unrepresented_components(instance.exam_data, instance_data["exam_data"], request)
+    if "layout_data" in instance_data:
+        instance_data["layout_data"] = preserve_unrepresented_layout(instance.layout_data, instance_data["layout_data"], request)
     for field, value in instance_data.items():
         if hasattr(instance, field):
             setattr(instance, field, value)
@@ -673,8 +679,7 @@ def delete_exam_layout_instance(
         raise HTTPException(status_code=404, detail="Exam layout instance not found")
     
     exam = db.query(OpticalExam).filter(OpticalExam.id == instance.exam_id).first()
-    if exam and current_user.role_level < 4 and exam.clinic_id != current_user.clinic_id:
-        raise HTTPException(status_code=403, detail="Cannot delete layout instance for exams in other clinics")
+    assert_record_scope(db, current_user, exam)
     
     db.delete(instance)
     db.commit()
@@ -693,8 +698,7 @@ def set_active_exam_layout_instance(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
     
-    if current_user.role_level < 4 and exam.clinic_id != current_user.clinic_id:
-        raise HTTPException(status_code=403, detail="Cannot set active layout instance for exams in other clinics")
+    assert_record_scope(db, current_user, exam)
     
     # Deactivate all instances for this exam
     instances = db.query(ExamLayoutInstance).filter(ExamLayoutInstance.exam_id == exam_id).all()

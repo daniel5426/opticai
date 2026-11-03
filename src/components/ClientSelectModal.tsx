@@ -1,8 +1,10 @@
+import { useCompanyClinicSelect } from "@/components/CompanyClinicFilter"
+import { useCompanyClinicFilter } from "@/hooks/client/useCompanyClinicFilter"
 import { useTranslation } from "react-i18next"
 import { useAppLocale } from "@/localization/use-app-locale"
 import React, { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { TableFiltersBar } from "@/components/table-filters-bar"
 import { getPaginatedClients } from "@/lib/db/clients-db"
 import { Client } from "@/lib/db/schema-interface"
 import { CustomModal } from "@/components/ui/custom-modal"
@@ -22,6 +24,8 @@ export function ClientSelectModal({ preferredClient, triggerText, onClientSelect
   const { t } = useTranslation()
   const { direction } = useAppLocale()
   const { currentClinic } = useUser()
+  const clinicFilter = useCompanyClinicFilter()
+  const clinicSelect = useCompanyClinicSelect({ filter: clinicFilter, allClients: true })
   const [clients, setClients] = useState<Client[]>([])
   const [total, setTotal] = useState(0)
   const [offset, setOffset] = useState(0)
@@ -31,6 +35,7 @@ export function ClientSelectModal({ preferredClient, triggerText, onClientSelect
   const [loadingMore, setLoadingMore] = useState(false)
   const listRef = React.useRef<HTMLDivElement | null>(null)
   const pageSize = 25
+  const requestSequence = React.useRef(0)
 
   const [debouncedSearch, setDebouncedSearch] = useState("")
   useEffect(() => {
@@ -43,24 +48,27 @@ export function ClientSelectModal({ preferredClient, triggerText, onClientSelect
 
   const fetchPage = async (nextOffset: number, isLoadMore: boolean = false) => {
     if (!currentClinic) return
+    const requestId = ++requestSequence.current
     try {
       if (isLoadMore) {
         setLoadingMore(true)
       } else {
         setLoading(true)
       }
-      const { items, total } = await getPaginatedClients(currentClinic.id, {
+      const { items, total } = await getPaginatedClients(clinicFilter.clinicId, {
         limit: pageSize,
         offset: nextOffset,
         order: 'id_desc',
         q: debouncedSearch || undefined,
       })
+      if (requestId !== requestSequence.current) return
       setClients(prev => (nextOffset === 0 ? items : [...prev, ...items]))
-      setTotal(total)
+      setTotal(total ?? 0)
       setOffset(nextOffset + items.length)
     } catch (error) {
       console.error('Error loading clients:', error)
     } finally {
+      if (requestId !== requestSequence.current) return
       if (isLoadMore) {
         setLoadingMore(false)
       } else {
@@ -77,8 +85,9 @@ export function ClientSelectModal({ preferredClient, triggerText, onClientSelect
       setOffset(0)
       fetchPage(0)
     }
+    return () => { requestSequence.current += 1 }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modalOpen, currentClinic, debouncedSearch])
+  }, [modalOpen, currentClinic, debouncedSearch, clinicFilter.clinicId])
 
   // Cleanup when component unmounts or modal closes
   useEffect(() => {
@@ -142,13 +151,7 @@ export function ClientSelectModal({ preferredClient, triggerText, onClientSelect
         title={t("orderGroupSelectClient")} direction={direction}
       >
         <div className="space-y-4 w-md">
-          <Input
-            placeholder="חיפוש לקוח..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            dir={direction}
-            autoFocus={false}
-          />
+          <TableFiltersBar searchValue={searchQuery} onSearchChange={setSearchQuery} filters={[clinicSelect]} compact />
           {preferredClient && (
             <button type="button" className="mb-2 w-full rounded-md border border-primary/40 bg-primary/5 p-3 text-start" onClick={() => handleClientSelect(preferredClient.id!)}>
               <span className="font-medium">{preferredClient.first_name} {preferredClient.last_name}</span>

@@ -1,3 +1,4 @@
+import { useSupplyRevision } from '@/lib/inventory-events';
 import React, { useEffect, useMemo, useState } from "react";
 import { Barcode, Boxes, Loader2, RotateCcw, Search } from "lucide-react";
 
@@ -107,6 +108,7 @@ export function CatalogVariantPicker({
   onSelect: (variant: CatalogVariant, source: FulfillmentSource) => void;
   onClear: () => void;
 }) {
+  const supplyRevision = useSupplyRevision();
   const [variants, setVariants] = useState<CatalogVariant[]>([]);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(!selected);
@@ -132,7 +134,7 @@ export function CatalogVariantPicker({
     return () => {
       active = false;
     };
-  }, [category, clinicId, expanded]);
+  }, [category, clinicId, expanded, supplyRevision]);
 
   useEffect(() => {
     if (selected) setExpanded(false);

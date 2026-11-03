@@ -1,8 +1,8 @@
 # OpticPlus automatic migration implementation plan
 
-Last Updated: 2026-10-23
+Last Updated: 2026-11-02
 
-Status: Research complete; implementation not started.
+Status: Implemented behind a production capability gate; isolated full-data rehearsal passed. Windows/ACE and source-screen release validation remain open.
 
 ## Objective and scope
 
@@ -234,4 +234,167 @@ Do these in order with focused commits. Add tests for behavior and regressions; 
 
 Core migration data can fit existing job, trace, client, exam, order-group, billing, and JSON contracts. The preferred initial design adds no new SQL table solely for a source name. Dataset binding and mapping metadata can reside in existing job/trace JSON. Any needed historical payment representation, stock semantics, or unsupported-domain product feature is a separate explicit contract decision before schema expansion. The order-group schema in the current working tree is itself a rollout prerequisite and must be verified on the intended environment.
 
-Migration note: Not needed for this planning change; only documentation and aggregate audit evidence were added. The future implementation must preserve existing migration API/storage/job contracts, require any necessary Alembic migrations to be deployed before use, and gate newly introduced exam card shapes on compatible clients.
+Migration note: No new SQL schema migration. Deploy the matching API, migration worker, desktop renderer, and rebuilt native reader together. Existing order-group, source-trace, per-instance layout, and storage schemas must already be deployed. OpticPlus uses additive source/job JSON and existing clinical cards; existing source bundles remain compatible. Keep `OPTICPLUS_MIGRATION_ENABLED=0` until the release checks below pass.
+
+
+## Implementation evidence — 2026-10-26
+
+Implemented `opticplus` as a separate libmdb reader profile and source adapter, with a packaged-reader capability handshake. The Electron path supports Windows discovery, exact installed backend links, transferred ZIPs/folders/databases, duplicate-hash candidate ranking, writer-denying snapshots, typed JSONL/CSV exports, checksums, original-source retention, patient limits, and bounded extraction. Transfer ZIPs remain offline: stale frontend links cannot redirect them to an installed database. Only exporter-owned temporary paths are cleaned.
+
+The importer validates the complete bundle before writes, binds datasets on the server, imports in batches of 250, checks worker ownership, resumes by checkpoint, and retains source baselines. Three-way updates protect edits, merges, deletions, billing/payments/line items, and changed source patient attribution. Cancellation stops after committed writes; pause/resume and a read-only recovery-scope preview are available. The preview follows inbound dependencies and retains edited/shared records; destructive rollback is deliberately not exposed.
+
+Customer and clinical records use existing target models/cards, including source notes and search indexes. Each source order has one group and billing, with one entry per substantive product kind. Zero-priced contact headers retain their contact classification. Original slots, quantities, ancillary fields and uncertain values remain available without inferred eyes, pairs, stock movements or payment dates. Verified supplier/manufacturer/model names populate lookups; full catalog definitions and unknown stock sentinel values remain archived. Supported relative document references import to private clinic storage with immutable content keys and deletion protection. Clinical extras become source-labeled history. Appointments, receipt events, attendance, quotes, supplier finance and stock movements remain archive-only until populated samples and their semantics are validated; this release does not claim operational support for those domains.
+
+The wizard includes capabilities, source preview, coverage, previous-import selection, upload/recovery, warnings, report/archive downloads, and recovery-scope review. English, Hebrew and French keys match. The migration controls and original-slot display were visually checked in Hebrew RTL and English/French LTR using synthetic data. No production application or database was changed.
+
+### Full supplied snapshot rehearsal
+
+Ran the supplied database against a newly created, isolated local SQLite target with foreign keys enabled. Original transfer SHA-256 remained `1a9b613f4f046fe15616e11309d939039a262b0ea94f60e3354f5e97e654eadd`. No configured/shared database or outbound integrations were used.
+
+| Result | Count |
+| --- | ---: |
+| Customers | 39,141 |
+| Clinical records / layout instances | 77,076 each |
+| Glasses source records | 50,762 |
+| Contact clinical source records | 26,314 |
+| Order groups / entries / billings | 14,642 each |
+| Glasses orders | 13,389 |
+| Contact orders | 1,253 |
+| Source component line items | 24,745 |
+| Source trace links | 262,139 |
+| Prescription search rows | 155,788 |
+| Manufactured receipt/payment events | 0 |
+
+Import time was approximately 234 seconds on this machine. Independent per-header comparison of all 14,642 billings found zero total/paid/outstanding mismatches within 0.01. Aggregate source final total was ILS 10,492,984 and paid was ILS 10,383,750. SQLite integrity check passed; foreign-key violations: zero. Checked 218,099 preserved date serial values against the exported date strings: zero representable-date mismatches; four source dates were outside the target datetime representation and remain preserved in the raw export.
+
+Reported exceptions: five invalid customer dates, 7,041 missing/invalid clinical dates, 2,439 unresolved prescription associations, and all 16 known source subtotal/discount discrepancies. These preserve the original record and source values. The cached Access header discrepancy (50,760 versus 50,762 enumerated glasses rows) remains explicitly reported pending independent ACE verification.
+
+Verification: migration, existing-importer, prune, source-data, helper and order-group backend checks passed (83 passed, one skipped). Twelve focused frontend tests passed; 24 passed including existing card and order-group regressions. Web production build passed. The native profile compiled and ran locally against the real source; Windows release workflows now require its capability handshake. Repository-wide TypeScript checking still fails on existing errors; no diagnostics referenced the new OpticPlus modules in the recorded check.
+
+### Remaining release gates
+
+- Build and execute the packaged Windows reader without Office/ACE/ODBC, including Unicode paths, UNC shares, concurrent writers and disconnects.
+- Independently verify counts/date serials through Windows ACE; verify customer name order and uncertain clinical/product semantics against original OpticPlus screens.
+- Verify representative clinical/order edit-save-reopen and a nonempty-clinic pilot with the matching deployed backend/worker/client and private storage.
+- Obtain populated source fixtures before enabling operational appointment, receipt, attendance or stock-movement mappings. Their current disposition is archive-only, not inferred import.
+- Enable `OPTICPLUS_MIGRATION_ENABLED=1` only after those checks pass for the intended rollout. Do not run a production import as part of this implementation task.
+
+## Mapping v2 completion — 2026-11-02
+
+Mapping version 2 accepts existing format-2/version-1 bundles. Deploy compatible card renderers before enabling the v2 worker. Production remains capability-gated; independent Windows/ACE validation and packaged Windows execution remain release prerequisites.
+
+- Added seven OpticPlus-only clinical cards, hidden from layout building. Unsupported prescription values, fitting details, measurements, ocular health, binocular tests, questionnaires and legacy profile values retain separate source identities. Fields stored but not rendered by a standard card (including final-prescription acuity and fitting height) use live bindings into that card.
+- Actual notes replace generated row dumps. Supplemental records attach to one unambiguous dated prescription, otherwise share a dated assessment. Undated rows remain separate. Existing placement is retained across reimports. Unmodified v1 technical history is soft-retired after replacement; user changes and original evidence remain protected.
+- Explicit client IDs are supported through the native reader, export UI and server selection checks. Source-link lookup uses the existing composite index; no schema change is needed.
+- Order product descriptions and supplier names are mapped independently from prescriptions. Source slots, quantities, discounts and extras remain distinct. Technical flags stay in the source dialog. Order extras have stable billing lines. Shared quantities are never copied into each eye, and missing prescription dates never select an arbitrary exam.
+- Approved reference rows are searchable and paginated within the bound clinic/dataset. Supplier/lookup reuse retains every source row. Valid frames become catalog products/variants without inventory movements or invented stock. Source-owned price updates protect manual edits. Glasses lenses remain a reference price list; no catalog category was added.
+- Every column has a coverage disposition and populated-row count. Empty domains are reported explicitly. Passwords/secrets remain excluded from structured exports and reference views.
+
+Local validation tooling:
+
+- `backend/scripts/opticplus_rehearsal.py --bundle DIR --output NEW_PRIVATE_DIR [--repeat]` creates a fresh, isolated SQLite database. It never uses the configured clinic database. It reconciles counts and finances, checks invalid exam cards and optionally verifies retry cardinality.
+- `backend/scripts/opticplus_repair_pilot.py` defaults to a read-only preview. Applying requires an exact database username, clinic/company/name, completed previous import and selected-client bundle. It saves a private recovery snapshot, preserves the dataset binding and skips clinic-wide reference/catalog imports.
+- `backend/migration/opticplus/comparison.py` produces private, field-level source/target comparisons for the selected pilot. Do not commit its patient-level output.
+
+The latest transferred snapshot enumerates 39,145 clients, 50,772 glasses records, 26,319 contact records and 14,647 orders. Isolated reconciliation confirms 10,496,776 total, 10,387,100 accumulated paid and 109,676 outstanding, with no manufactured payment events. Legacy profile assessments are explicitly identified as history, not newly dated encounters. Existing invalid dates, ambiguous prescription associations and 16 source discount inconsistencies remain reportable exceptions rather than inferred corrections.
+
+Migration note: Existing OpticPlus imports require the versioned, baseline-protected data repair. No Alembic/schema migration, production rollout or automatic full shared-clinic import is included.
+
+### Concurrent checkout prerequisite
+
+During final verification, separate company-ownership work added required `company_id` columns to client activity models (`0049_company_client_records`). These columns were absent from the named staging database at the time of the check. OpticPlus writes now supply company ownership when the mapped model requires it; the guarded repair CLI detects a model/schema mismatch before record writes. This OpticPlus pass does not authorize or apply that separate shared-database migration. Browser verification and any further repair from this checkout require its schema and configured database to agree.
+
+### Verification evidence and remaining acceptance
+
+The named clinic 65 pilot was repaired through its existing dataset binding. Its two orders retain 340 + 102, paid 0 and outstanding 442. A real assessment edit/save/reopen and reimport preserved the edit; the test edit was restored afterward. A fresh read-only source comparison accounts for all 413 populated pilot fields: 328 matched destinations, 84 technical provenance fields and one legacy number retained in source evidence. There are no missing or mismatched values. Displaying that legacy number in the profile card is implemented but awaits the final pilot repair.
+
+The current-checkout isolated full rehearsal passed with 39,145 clients, 116,237 exams/history assessments and 14,647 orders. Financial totals match the snapshot; no payment events were created. Targeted migration/source/order-group tests passed (80 passed, one skipped), and the canonical full check passed (80 CI backend tests, 76 frontend test files / 525 tests, web build). Total-only legacy billing lines preserve their stored amounts during metadata saves, ignore caller-supplied replacement totals, and do not display invented unit-price arithmetic. Signed source components remain signed when summing edited bills.
+
+Private evidence is stored outside Git in `Downloads/clinic-transfer/opticplus-v2-verification-2026-11-02`: field comparison, column coverage, full rehearsal summary/database, screenshots and an explicit verification-status report. The isolated SQLite file is not the configured application database.
+
+Personally checked the real pilot in Hebrew: client data, readable medical history, grouped assessment, contact prescription, glasses prescription before final live bindings, both order-list entries and the initial glasses order. Verified migration card fixtures in English and French in the development gallery. Final live-binding checks, both polished order details, billing/source dialogs, exam switching and complete client flows in English/French remain unaccepted because of the schema prerequisite above. No production or full shared-clinic import was performed. Independent ACE and packaged Windows verification remain rollout gates.
+
+### Deeper card-reuse and presentation audit — 2026-11-02
+
+This is a read-only follow-up audit, not a second repair. Reopened the actual pilot assessment and glasses exam in Chrome, inspected existing card renderers and field definitions, checked the original recorded OpticPlus screen, and profiled the full transferred snapshot. Source/clinic data were not changed. The first v2 pass preserves values but uses custom cards for several values that already have useful standard destinations. Its field reconciliation is not evidence that every historical value is visibly rendered or clinically classified correctly.
+
+| Source | Existing destination | Required handling |
+| --- | --- | --- |
+| `checks.ncrbadd/nclbadd`, `ncriadd/ncliadd`, `ncrmadd/nclmadd` | Addition `r/l_bif`, `r/l_int`, `r/l_mul` | Direct semantic matches. There are 4,160 source exams with at least one of these values. Three populated cells are outside the current 0–5 input range; preserve exceptions without clamping. Do not duplicate the main prescription ADD into an independently editable READ field. |
+| `checks.crnvisus/clnvisus` | Addition `r/l_j` | Near-VA text can use the existing imported-value-capable selector. Preserve literal `J/5`, `J/6` and unusual text; no scale conversion based on the column name. Addition/near-VA candidates occur on 9,472 glasses records in total. |
+| `adchecks.cnror/cnlor`, `cnrorv/cnlorv` | Over-refraction `r/l_sph`, `r/l_va` | 2,144 source records have at least one candidate. Numeric power and compatible VA can reuse this card after checking source semantics. Of 4,013 populated nominal power cells, 399 contain Snellen-like strings, so numeric shape alone is not a complete historical mapping contract. Retain nonmatching values visibly. |
+| `tb_comp.tbr/tbl` | Schirmer/BUT `r_but/l_but` | Existing bilateral BUT fields and seconds are available. Use a BUT-only presentation without implying recorded Schirmer measurements. |
+| `tb_gnrl_tests.tst54` | Ocular motor assessment `ocular_motility` | Direct text field; no need to keep a second editable copy in the binocular custom card. |
+| `tb_quest.remk9/remk10/remk11` | Anamnesis `medications/family_history/additional_notes` | Matching text sections already exist. Preserve question/option flags independently and bind any questionnaire presentation to the same underlying text. |
+| `checks.crpvisus/clpvisus` | Uncorrected VA `r_fv/l_fv` | Reuse for supported explicit VA forms. Pilot strings `6/6/9` and `6/6/12` must not be silently shortened. Bare/dotted formats need verified source notation and source-aware display support. |
+| Profile keratometry in `cust_list` | Keratometer/contact-lens keratometer | Existing H/V/average and mm/D presentations are relevant. The recorded source screen shows H/V, D and average, but exact ownership of all persisted `nrdd*`, `nldd*`, `nrop/nlop` fields still needs verification. Keep profile provenance/undated placement; do not infer a dated exam or recalculate source values. |
+
+The full source contains 27,318 bare numeric primary VA cells in glasses records and 3,626 in contact records. Common examples include `6.7` and `1.6`; their meaning cannot be taken from Prysm's SoftOptic bare-denominator normalization. Signed modifiers without a count, such as `6/7.5-`, are also present and currently remain in fallback cards. `checks.ctvisus` has 11,668 populated values, and `checks.cnvisus` frequently contains near-VA-shaped text, while the pilot `adchecks.cnvisus` contains contact remarks. Table-specific semantics and labels need verification before treating similarly named columns alike.
+
+Existing cards that look related but are not direct field matches:
+
+- Cover Test v2 requires correction mode, orientation, direction and prism; OpticPlus `tst35/tst36` supply distance/near text without those dimensions. Reuse the visual component with an explicitly unspecified source-result mode, or keep a compact imported cover-test block. Do not populate CC or horizontal by default.
+- Addition has separate right/left numeric FCC fields, whereas `tst47` is one text result. Do not copy it into both eyes. A single-result FCC presentation can share standard card primitives.
+- Fusion Range separates break/recovery by distance and base. `tst38..41` are four source text cells with no verified break/recovery split. A BO/BI × 6 m/40 cm grid can preserve these without assigning them to break fields.
+- General stereopsis is not a verified fly or circle score. MEM's single text result is not a bilateral sphere/cylinder/axis retinoscopy record. Worth 4 dot is not automatically an R/G status. These remain named imported results until the necessary test/scale details exist.
+- The existing diameters card has one pupil and one corneal diameter. It cannot represent bilateral light/dark pupil measurements and bilateral corneal diameters by choosing an eye or averaging.
+
+Confirmed visibility defect: `exam_payload` consumes valid old-contact additions into `old-contact-lenses.r/l_read_ad`, but the renderer has no such controls. Four populated values across three source records are therefore stored but not visibly rendered in either card. Fix the visible-field contract for every source category before another full import.
+
+The current custom UI is a generic two-column label/value list. Medium-severity presentation findings: bilateral fields are separate rows; a tall ocular-health card creates large empty areas beside shorter cards; questionnaire flags/remarks are separated into long lists; technical table/row identifiers dominate subtitles; single-line inputs hide long clinical text. View mode was inspected; hover/focus/edit interactions were not reverified in this research pass.
+
+Recommended custom presentation:
+
+- Ocular health: one finding per row with right/left columns, grouped into posterior and anterior sections. Keep uncertain labels literal and explained.
+- Measurements: right/left columns for light pupil, dark pupil and corneal diameter; reuse the standard BUT card for tear film values.
+- Binocular/accommodation: separate compact cover-test, vergence, accommodation and sensory-test blocks. Do not manufacture missing dimensions merely to fill a native card.
+- Contact fitting: paired right/left specifications with lens company/type/power; standard over-refraction remains separate.
+- Questionnaire: one row per question with its answer state and remark together. Keep yes/no flags independent, explicitly distinguish neither-selected from both-selected, and group multi-select options. Unselected is not an inferred negative diagnosis.
+- Real notes use normal notes/anamnesis cards; examiner/reason are readable contextual metadata. Show technical provenance behind the existing source viewer. Unknown source fields stay in a distinct explained section.
+
+Implementation follow-up must move only verified fields, carry current edits from the old custom value into the new canonical destination using the old baseline, detect destination conflicts, and retire only successfully replaced unedited displays. Standard and imported displays must never become independent editable copies. No schema change is needed for this presentation/mapping work; existing imports require a versioned repair after compatibility tests and pilot acceptance.
+
+
+### Verification follow-up — 2026-11-03
+
+- Applied the explicitly approved `0049_company_client_records` to staging; verified the Alembic revision, all nine non-null activity ownership columns and an empty ownership-issues report. No production migration was performed.
+- Repaired only source client 49822, company 28 / clinic 65 / Prysm client 10266687. Both bills remain 340 + 102, paid 0. No full shared-clinic import was run.
+- Removed clinic attribution from the exam and order breadcrumb headers; attribution in history lists remains available.
+- Personally checked the repaired glasses layout in Hebrew, including additions, original acuity notation, actual notes, and source examiner/reason. Tested native/custom editing; final browser acceptance remains incomplete.
+- Comparison now prioritizes source-bound layout instances over unrelated user-added empty copies of standard cards. Native Addition and custom height edits (through its standard prescription binding) survived reimport; both test edits were restored to their original source values.
+- The local app subsequently stopped; canonical restart is blocked by the external Agents24 clinic-tools registration being stale/not ready. Do not bypass that prerequisite or publish integration changes as part of migration verification. Contact exam, grouped assessment, orders, locale switching and complete save/reopen acceptance still need live verification after the app is restored.
+
+Migration note: OpticPlus remains transport 2 / mapping 2 with clinical repair revision 3; existing imports require the guarded versioned repair. The independently approved staging ownership schema migration is now applied. Production rollout and full-clinic import remain gated.
+
+Final database reconciliation: 329 displayed matches + 84 technical-provenance fields = 413 populated pilot fields; no missing values or mismatches after restoring test edits. Both bills remain 340 and 102, paid 0; no duplicate OpticPlus source links were found. The isolated full-data layout rehearsal previously checked 116,237 layouts without duplicate IDs, overlaps or out-of-bounds placement.
+
+
+### Live screenshot review — 2026-11-03
+
+App restored through DevDesk and inspected as the user-authorized password-protected account. Captured all four migrated exams and both order workspaces, including lower scroll positions, bill panels and assessment source viewer, under `Downloads/clinic-transfer/opticplus-ui-review-2026-11-03/index.html`. Glasses dominant eye is R; contact dominant eye is L. No order-details card appears in either prescription exam. Medical history displays only the source remark 203; raw questionnaires remain in source data. Bills show 340 + 102, paid 0.
+
+The medical tab initially crashed during loading because its missing-data fallback recreated an empty array, retriggering the records synchronization effect indefinitely. A stable empty fallback fixes it; a pending-to-loaded component regression and live retry both pass. Latest full checks: 80 backend tests, 553 frontend tests and web build passed.
+
+UI is not fully polished: prescription/history card heights leave substantial blank space; unresolved profile labels remain source identifiers; a source decimal appears as 8.199999999999999; order reference sections are long and standard controls can be empty while the source section contains product details. Retain these as follow-up findings, not evidence of missing source rows. English/French live routes are intentionally disabled by `localeRoutingEnabled = false`; do not broaden the bilingual rollout for verification. Existing scoped gallery locale checks remain separate from live client-route acceptance.
+
+Migration note: the medical loading fix changes no persisted/API shape and needs no data migration. Prior guarded OpticPlus data repair remains required for older imports. No production rollout or full shared-clinic import was performed.
+
+
+### UI polish — 2026-11-03
+
+OpticPlus order products now appear first as separate responsive cards. Specifications, shared quantities and independent eye selections stay visible; original prices/discounts, context and extras use expandable sections. No eye/pair allocation or financial calculation changed. Clinical cards use clearer section dividers and compact questionnaire rows. Source examiner/reason remain in compact context previews; other context and unverified fields expand for reading and open while editing. Legacy profile fields are grouped into context, actual history and an explicitly unverified source section. Numeric display removes binary-decimal noise while preserving raw text in editing, tooltips and source evidence. Imported exam notes no longer stretch to the tallest neighbour; ordinary exam layouts retain their prior behavior. No persisted layout was reordered.
+
+Verified on the running pilot: order product cards/price expansion, compact history/original-field expansion (8.2 displayed), assessment questionnaire and contact fitting/notes. Focused tests and web build pass. The full check ran 80 backend tests successfully but found an unrelated agent composer test failure (`apiClient.agentFetch` absent); do not claim a clean full suite. Screenshots are in `Downloads/clinic-transfer/opticplus-ui-polished-2026-11-03`.
+
+Migration note: Not needed; presentation only, with original data, bindings and persisted layouts unchanged. No remigration or schema mutation is required.
+
+Post-polish verification: 35 focused frontend tests and a separate web build passed after the final edits. Visually verified the actual Hebrew pilot and scoped synthetic English/French gallery; live LTR routes remain disabled by the existing rollout. No source/billing values were edited during this UI pass. The remaining gaps in saved lane placement were reduced through compact card disclosures rather than rewriting user layout data.
+
+
+### Dense exam packing and RTL inputs — 2026-11-03
+
+OpticPlus exam layouts now use an opt-in measured dense grid: each card reserves its own content height, shorter cards fill available column gaps, and disclosure/width changes are observed. Saved x/y/width data is not rewritten; ordinary exams retain fixed rows and explicit empty lanes. Packing renders all imported cards so lazy row placeholders cannot create gaps. Input controls use the active RTL direction for text, with right alignment in Hebrew; numeric strings keep LTR digit order and align right.
+
+Validation: 37 focused tests pass, including measured-height updates preserving edited inputs, ordinary-layout lane preservation, and alignment in all three locales. Live visual acceptance and the web build are blocked by the concurrent Agents24 integration importing `getAgentChatActivity` from a package that does not export it; the running client route is blank with that same error. Full repository validation also reports unrelated agent test failures. Do not mark screenshot acceptance complete until the integration mismatch is resolved.
+
+Migration note: Not needed; packing and input alignment are presentation-only. Persisted layouts, source values and bindings are unchanged.

@@ -1,3 +1,4 @@
+import { OPTICPLUS_CARD_TYPES } from './opticplus-cards'
 import { OPTITECH_CARD_TYPES } from './optitech-cards'
 // @ts-nocheck
 import { apiClient } from './api-client'
@@ -515,4 +516,8 @@ for (const type of OPTITECH_CARD_TYPES) {
     component: () => import('../components/exam/OptitechMigrationCard'),
     showInLayoutEditor: false,
   })
+}
+
+for (const type of OPTICPLUS_CARD_TYPES) {
+  examComponentRegistry.register(type, { name: type, component: () => import('../components/exam/OpticPlusMigrationCard'), showInLayoutEditor: false })
 }

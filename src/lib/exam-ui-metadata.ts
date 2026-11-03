@@ -4,6 +4,7 @@ import {
   normalizeNpcExamDataKey,
 } from "@/lib/npc-compatibility";
 import { normalizeMaddoxRodExamData } from "@/lib/maddox-compatibility";
+import { reshapeSoftopticPhoriaGridExamData } from "@/lib/softoptic-phoria-tabs";
 import { PrismAxisCompatibility } from "@/lib/prism-axis-compatibility";
 
 export const EXAM_DATA_UI_KEY = "__ui";
@@ -487,11 +488,12 @@ export const ensureLayoutDataForRows = (
   cardRows: CardRow[],
   layoutInstanceId: number,
 ) => {
+  const phoriaNormalized = reshapeSoftopticPhoriaGridExamData(examData);
   const hasLegacyNpcData = Object.keys(examData).some(
     (key) => normalizeNpcExamDataKey(key) !== key,
   );
   const npcMaddoxNormalized = normalizeMaddoxRodExamData(
-    normalizeNpcExamData(examData),
+    normalizeNpcExamData(phoriaNormalized.examData),
   );
   const prismNormalized =
     PrismAxisCompatibility.normalizeExamData(npcMaddoxNormalized);
@@ -510,6 +512,7 @@ export const ensureLayoutDataForRows = (
   );
   let next = recoveredOldRefractionExtension.examData;
   let changed =
+    phoriaNormalized.changed ||
     hasLegacyNpcData ||
     prismAxisChanged ||
     normalizedTabs.changed ||

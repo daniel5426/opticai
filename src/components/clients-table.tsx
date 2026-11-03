@@ -280,6 +280,7 @@ export function ClientsTable({
     <div className={fillHeight ? "flex min-h-0 flex-1 flex-col gap-2.5" : "space-y-2.5"} dir={direction} style={{ scrollbarWidth: "none" }}>
       {!hideSearch && (
         <TableFiltersBar
+          exportTable="clients"
           searchValue={searchQuery}
           onSearchChange={handleSearchChange}
           searchPlaceholder="חיפוש לקוחות…"
@@ -590,7 +591,7 @@ export function ClientsTable({
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
         title={t("trashMoveTitle")}
-        description={t("trashMoveDescription", { item: clientToDelete ? `${clientToDelete.first_name || ""} ${clientToDelete.last_name || ""}`.trim() : t("trashTypeClient") })}
+        description={t("companyClients.deleteWarning")}
         onConfirm={handleDeleteConfirm}
         confirmText={t("trashMoveConfirm")}
         className="text-center"

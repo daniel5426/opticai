@@ -21,7 +21,7 @@ from services.softoptic_migration_service import (
 from migration.optitech.src.export_spec import CLIENT_DEPENDENT_TABLES
 
 
-SUPPORTED_SOURCE_SYSTEMS = {"softoptic", "optitech"}
+SUPPORTED_SOURCE_SYSTEMS = {"softoptic", "optitech", "opticplus"}
 
 
 class OptiTechPauseRequested(RuntimeError):
@@ -385,5 +385,9 @@ def run_migration_import(
         return
     if source_system == "optitech":
         run_optitech_import(db, job=job, storage=storage, on_progress=on_progress)
+        return
+    if source_system == "opticplus":
+        from services.opticplus_migration_service import run_opticplus_import
+        run_opticplus_import(db, job=job, storage=storage, on_progress=on_progress)
         return
     update_job(db, job, status="failed", step="Failed", error=f"Unsupported source system: {source_system}")

@@ -17,13 +17,17 @@ resources:
   path: workflows/insights.yaml
 - key: main
   path: workflows/main.yaml
+- key: speech
+  path: rag/speech.yaml
+- key: supply
+  path: workflows/supply.yaml
 requires:
   models:
     primary:
       required: true
       capability: chat
       match:
-        name: GPT-6 Astra
+        name: GPT-6 Luna
     ocr:
       required: true
       capability: ocr
@@ -34,6 +38,9 @@ requires:
       capability: embedding
       match:
         canonical_key: openai/text-embedding-3-large
+    speech:
+      required: true
+      capability: speech_to_text
   secrets:
     artifact-signing:
       required: true

@@ -194,3 +194,16 @@ it('does not restore a previous clinic after a late login failure arrives follow
   expect(auth.authService.getSession()?.clinic?.id).toBe(44)
   expect(request.mock.calls).toHaveLength(1)
 })
+
+it('keeps the synthetic development gallery open without allowing arbitrary clinic routes', () => {
+  const navigate=vi.fn();
+  const service=auth.authService as any;
+  service.state=auth.AuthState.AUTHENTICATED;
+  service.session={user:worker,clinic};
+  service.router={state:{location:{pathname:'/dev/appearance'}},navigate};
+  service.navigate(true);
+  expect(navigate).not.toHaveBeenCalled();
+  service.router.state.location.pathname='/unknown-route';
+  service.navigate(true);
+  expect(navigate).toHaveBeenCalledWith(expect.objectContaining({to:'/dashboard'}));
+});

@@ -19,7 +19,7 @@ def invoice_ledger(clinic_id=None, company_id=None):
             case((total > paid, total - paid), else_=0).label('outstanding'), Billing.currency.label('currency'))\
             .select_from(Billing).join(model, join).join(Clinic, Clinic.id == model.clinic_id)\
             .join(Client, Client.id == owner).where(model.deleted_at.is_(None), Client.deleted_at.is_(None),
-                Client.merged_into_client_id.is_(None), Client.clinic_id == model.clinic_id)
+                Client.merged_into_client_id.is_(None), Client.company_id == model.company_id)
         if clinic_id is not None:
             query = query.where(model.clinic_id == clinic_id)
         if company_id is not None:

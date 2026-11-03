@@ -129,7 +129,7 @@ export function ClientDetailsTab({
     const requestId = ++familyRequestId.current
     setIsFamiliesLoading(true)
     const timeoutId = window.setTimeout(() => {
-      void getPaginatedFamilies(currentClinic.id, {
+      void getPaginatedFamilies(undefined, {
         limit: 25,
         offset: 0,
         order: 'name_asc',
@@ -596,6 +596,12 @@ export function ClientDetailsTab({
                   placeholder={showEditableFields ? "הכנס טלפון עבודה" : ""}
                 />
               </div>
+              {(showEditableFields || formData.fax) && <div className="space-y-2">
+                <ModernLabel>{t('opticplusCards.fields.fax')}</ModernLabel>
+                <Input type="tel" name="fax" aria-label={t('opticplusCards.fields.fax')} dir="ltr"
+                  value={formData.fax || ''} onChange={handleInputChange} disabled={!showEditableFields}
+                  className="h-9 text-sm disabled:cursor-default disabled:opacity-100" />
+              </div>}
               <div className="space-y-2">
                 <ModernLabel>אימייל</ModernLabel>
                 <Input

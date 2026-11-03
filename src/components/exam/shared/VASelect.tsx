@@ -4,6 +4,7 @@ import { cn } from "@/utils/tailwind"
 import { VA_METER_VALUES, VA_DECIMAL_VALUES, sortVAOptions } from "../data/exam-constants"
 import { useUser } from "@/contexts/UserContext"
 import { SettingsContext } from "@/contexts/SettingsContext"
+import { ImportedClinicalContext } from '@/lib/imported-clinical-context'
 import { useLookupData } from "@/hooks/useLookupData"
 import { inputSyncManager } from "./OptimizedInputs"
 import { flushSync } from 'react-dom'
@@ -196,6 +197,7 @@ export const VASelect = memo(function VASelect({
   className = ""
 }: VASelectProps) {
   const { currentUser } = useUser()
+  const literalVA = useContext(ImportedClinicalContext)?.literalVA === true
   const settingsContext = useContext(SettingsContext)
   const mode = (currentUser?.va_format as "meter" | "decimal") || "meter"
   const vaTestDistance = normalizeVATestDistance(settingsContext?.settings?.va_test_distance)
@@ -207,10 +209,10 @@ export const VASelect = memo(function VASelect({
   const modifierRef = useRef("")
 
   const getComponents = useCallback((val: string) => {
-    const translated = convertVA(val, mode, vaTestDistance) || ""
+    const translated = (literalVA ? val : convertVA(val, mode, vaTestDistance)) || ""
     const { base: baseStr, modifier: mod } = splitVAModifier(translated)
     return { baseStr, mod }
-  }, [mode, vaTestDistance])
+  }, [mode, vaTestDistance, literalVA])
 
   const { baseStr: currentBase, mod: currentMod } = getComponents(value)
 
@@ -247,7 +249,7 @@ export const VASelect = memo(function VASelect({
   const handleValueChange = (newBase: string) => {
     if (disabled) return
     setLocalBase(newBase) // Update UI immediately
-    const storedBase = mode === "meter"
+    const storedBase = !literalVA && mode === "meter"
       ? displayToCanonicalOption?.get(newBase) || canonicalizeMeterVAForDistance(newBase)
       : newBase
     const newVal = `${storedBase}${modifierRef.current}`
@@ -269,7 +271,7 @@ export const VASelect = memo(function VASelect({
     modifierRef.current = nextModifier
     
     if (onChange) {
-      const storedBase = mode === "meter"
+      const storedBase = !literalVA && mode === "meter"
         ? displayToCanonicalOption?.get(localBase) || canonicalizeMeterVAForDistance(localBase)
         : localBase
       onChange(`${storedBase}${nextModifier}`)

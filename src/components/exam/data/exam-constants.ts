@@ -1,3 +1,5 @@
+export const GLASSES_TYPES = ["רחוק", "קרוב", "מולטיפוקל", "ביפוקל"] as const;
+
 // Visual Acuity - Meter Method (שיטת מטר)
 export const VA_METER_VALUES = [
   '6/190',

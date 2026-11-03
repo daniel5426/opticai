@@ -6,7 +6,7 @@ from fastapi import HTTPException
 from sqlalchemy import event, inspect, or_
 from sqlalchemy.orm import Session
 from models import Billing, BillingPayment, Client, Order, ContactLensOrder, OrderGroup, OrderGroupEntry, OrderLineItem
-from security.scope import assert_clinic_scope, get_scoped_client, resolve_company_id
+from security.scope import assert_record_scope, assert_record_clinic, get_scoped_client, resolve_company_id
 from currency import normalize_currency
 
 
@@ -98,7 +98,7 @@ def get_group(db, user, group_id, lock=False):
     group = query.first()
     if not group:
         raise HTTPException(404, "Order group not found")
-    assert_clinic_scope(db, user, group.clinic_id)
+    assert_record_scope(db, user, group)
     return group
 
 
@@ -184,12 +184,11 @@ def group_dicts(db, groups):
 
 def validate_client(db, user, client_id, clinic_id):
     client = get_scoped_client(db, user, client_id)
-    if client.clinic_id != clinic_id:
-        raise HTTPException(422, "All clients must belong to the group's clinic")
+    assert_record_clinic(db, user, clinic_id)
     return client
 
 
-def save_group(db, user, payload, group_id=None, creation_key=None, *, commit=True):
+def save_group(db, user, payload, group_id=None, creation_key=None, *, commit=True, partial_entries=False):
     if (user.role_level or 1) < 2:
         raise HTTPException(403, "Editing permission is required")
     from EndPoints.orders import _prepare_model_payload, _prepare_update_payload, _default_currency_for_clinic
@@ -201,10 +200,10 @@ def save_group(db, user, payload, group_id=None, creation_key=None, *, commit=Tr
             raise HTTPException(422, "A creation idempotency key is required")
         existing = db.query(OrderGroup).filter(OrderGroup.creation_key == creation_key).first()
         if existing:
-            assert_clinic_scope(db, user, existing.clinic_id)
+            assert_record_scope(db, user, existing)
             return group_dict(db, existing)
         clinic_id = payload.get("clinic_id")
-        assert_clinic_scope(db, user, clinic_id)
+        assert_record_clinic(db, user, clinic_id, write=True)
         payer_id = payload.get("payer_client_id")
         validate_client(db, user, payer_id, clinic_id)
         group = OrderGroup(clinic_id=clinic_id, payer_client_id=payer_id, creation_key=creation_key, opened_date=date.today())
@@ -260,7 +259,8 @@ def save_group(db, user, payload, group_id=None, creation_key=None, *, commit=Tr
                 entry = OrderGroupEntry(group_id=group.id, position=index, **({"order_id": order.id} if kind == "regular" else {"contact_lens_id": order.id}))
                 db.add(entry)
                 db.flush()
-            entry.position = index
+            if not partial_entries or not entry_id:
+                entry.position = index
             if incoming.get("client_key"):
                 if incoming["client_key"] in client_keys:
                     raise HTTPException(422, "Duplicate draft key")
@@ -310,13 +310,20 @@ def save_group(db, user, payload, group_id=None, creation_key=None, *, commit=Tr
             total = Decimal("0")
             for item in payload.get("line_items", []):
                 item_id = item.get("id")
+                retained_amount = None
                 if item_id and item_id > 0:
                     if item_id not in existing_lines or item_id in sent_ids:
                         raise HTTPException(422, "Invalid or duplicate billing item")
                     line = existing_lines[item_id]
                     sent_ids.add(item_id)
-                    if any(item.get(field, getattr(line, field)) != getattr(line, field) for field in ("price", "quantity", "discount")):
+                    amounts_changed = any(item.get(field, getattr(line, field)) != getattr(line, field) for field in ("price", "quantity", "discount"))
+                    if amounts_changed:
                         financial_changed = True
+                    elif line.line_total is not None:
+                        # Existing invoices can contain imported totals or
+                        # negative discount lines. Unchanged financial inputs
+                        # retain their stored amount, never a caller's total.
+                        retained_amount = Decimal(str(line.line_total))
                 else:
                     financial_changed = True
                     line = OrderLineItem(billings_id=billing.id, currency=currency)
@@ -341,7 +348,9 @@ def save_group(db, user, payload, group_id=None, creation_key=None, *, commit=Tr
                 price, quantity, discount = (Decimal(str(getattr(line, key) or 0)) for key in ("price", "quantity", "discount"))
                 if not all(value.is_finite() for value in (price, quantity, discount)) or min(price, quantity, discount) < 0:
                     raise HTTPException(422, "Invalid billing amounts")
-                amount = max(Decimal("0"), price * quantity - discount).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                amount = retained_amount if retained_amount is not None else max(Decimal("0"), price * quantity - discount).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                if not amount.is_finite():
+                    raise HTTPException(422, "Invalid billing amounts")
                 line.line_total = float(amount)
                 total += amount
             for item_id, line in existing_lines.items():

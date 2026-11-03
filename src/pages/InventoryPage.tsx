@@ -1,3 +1,6 @@
+import { useSupplyRevision } from '@/lib/inventory-events';
+import { ManualInventoryImportDialog } from '@/components/inventory/ManualInventoryImport';
+import { useAgentDraft } from '@/lib/agent-page-context';
 import React, {
   useCallback,
   useEffect,
@@ -263,7 +266,9 @@ function CatalogDialog({
   onSelectCatalogVariant: (variant: CatalogVariant) => void;
   onSaved: () => void;
 }) {
+  const supplyRevision = useSupplyRevision();
   const [form, setForm] = useState({ ...emptyCatalogForm });
+  useAgentDraft("catalog", () => open ? form : null);
   const [legacyContactAttributes, setLegacyContactAttributes] = useState<
     Record<string, unknown>
   >({});
@@ -352,7 +357,7 @@ function CatalogDialog({
     return () => {
       active = false;
     };
-  }, [clinicId, form.category, open]);
+  }, [clinicId, form.category, open, supplyRevision]);
 
   const setField = (field: keyof typeof form, value: string) =>
     setForm((current) => ({ ...current, [field]: value }));
@@ -812,28 +817,33 @@ function CountDialog({
   clinicId: number;
   onSaved: () => void;
 }) {
+  const { t } = useTranslation();
+  const { direction } = useAppLocale();
   const [counts, setCounts] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState(false);
   useEffect(() => {
-    if (!open) return;
-    setCounts(
+    if (!open) { setCounts({}); return; }
+    setCounts(current =>
       Object.fromEntries(
         variants.map((variant) => [
           variant.id,
-          String(variant.balance?.on_hand || 0),
+          current[variant.id] ?? "",
         ]),
       ),
     );
   }, [open, variants]);
+  const entered = variants.filter(variant => counts[variant.id]?.trim());
+  const invalidCount = entered.some(variant => !Number.isSafeInteger(Number(counts[variant.id])) || Number(counts[variant.id]) < (variant.balance?.reserved || 0));
   const save = async () => {
+    if (!entered.length || invalidCount) { toast.error(t("supply.quantityRequired")); return; }
     setSaving(true);
     const response = await apiClient.submitInventoryCount({
       clinic_id: clinicId,
-      reason: "ספירת מלאי פיזית",
+      reason: t("supply.count"),
       idempotency_key: "count-" + Date.now(),
-      items: variants.map((variant) => ({
+      items: variants.filter(variant => counts[variant.id]?.trim() !== "").map((variant) => ({
         variant_id: variant.id,
-        counted_quantity: Number(counts[variant.id] || 0),
+        counted_quantity: Number(counts[variant.id]),
       })),
     });
     setSaving(false);
@@ -841,7 +851,7 @@ function CountDialog({
       toast.error(String(response.error));
       return;
     }
-    toast.success("ספירת המלאי נשמרה");
+    toast.success(t("supply.applied"));
     onOpenChange(false);
     onSaved();
   };
@@ -849,12 +859,12 @@ function CountDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="max-h-[85vh] max-w-2xl overflow-y-auto text-right"
-        dir="rtl"
+        dir={direction}
       >
         <DialogHeader>
-          <DialogTitle>ספירת מלאי פיזית</DialogTitle>
+          <DialogTitle>{t("supply.count")}</DialogTitle>
           <DialogDescription>
-            הזן את הכמות שנמצאה בפועל. כל פער נשמר כתנועה מתועדת.
+            {t("supply.countHint")}
           </DialogDescription>
         </DialogHeader>
         <div className="divide-y rounded-md border">
@@ -864,7 +874,7 @@ function CountDialog({
               className="flex items-center justify-between gap-4 p-3"
             >
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium">
+                <p className="break-words text-sm font-medium">
                   {variant.display_name}
                 </p>
                 <p className="text-muted-foreground text-xs">
@@ -873,6 +883,7 @@ function CountDialog({
               </div>
               <Input
                 className="w-24 text-center"
+                aria-label={variant.display_name}
                 type="number"
                 min={variant.balance?.reserved || 0}
                 value={counts[variant.id] || ""}
@@ -888,10 +899,10 @@ function CountDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            ביטול
+            {t("supply.close")}
           </Button>
-          <Button onClick={save} disabled={saving || variants.length === 0}>
-            שמור ספירה
+          <Button onClick={save} disabled={saving || invalidCount || !entered.length}>
+            {t("supply.apply")}
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           </Button>
         </DialogFooter>
@@ -1585,156 +1596,6 @@ function LegacyDiscoveryDialog({
   );
 }
 
-function ImportDialog({
-  open,
-  onOpenChange,
-  clinicId,
-  onFinished,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  clinicId: number;
-  onFinished: () => void;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [preview, setPreview] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [committing, setCommitting] = useState(false);
-  const choose = async (file?: File) => {
-    if (!file) return;
-    setLoading(true);
-    const response = await apiClient.previewInventoryImport(await file.text());
-    setLoading(false);
-    if (response.error) {
-      toast.error(String(response.error));
-      return;
-    }
-    setPreview(response.data);
-  };
-  const commit = async () => {
-    if (!preview) return;
-    setCommitting(true);
-    const response = await apiClient.commitInventoryImport(
-      clinicId,
-      preview.rows.filter((row: any) => row.status === "valid"),
-      "desktop-" + Date.now(),
-    );
-    setCommitting(false);
-    if (response.error) {
-      const detail = response.errorDetail as
-        | {
-            message?: string;
-            rows?: { row_number?: number; errors?: string[] }[];
-          }
-        | undefined;
-      const rowError = detail?.rows?.[0];
-      toast.error(
-        rowError
-          ? `שורה ${rowError.row_number}: ${(rowError.errors || []).join(" · ")}`
-          : detail?.message || String(response.error),
-      );
-      return;
-    }
-    if (response.data?.validation_errors?.length) {
-      const first = response.data.validation_errors[0];
-      toast.error(`שורה ${first.row_number}: ${first.errors.join(" · ")}`);
-      return;
-    }
-    toast.success((response.data?.created || 0) + " פריטים יובאו");
-    onOpenChange(false);
-    onFinished();
-  };
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl text-right" dir="rtl">
-        <DialogHeader>
-          <DialogTitle>ייבוא קטלוג ומלאי מ-CSV</DialogTitle>
-          <DialogDescription>
-            הקובץ נבדק תחילה. לא נכתב דבר עד לאישור הסיכום.
-          </DialogDescription>
-        </DialogHeader>
-        <input
-          ref={inputRef}
-          className="hidden"
-          type="file"
-          accept=".csv,text/csv"
-          onChange={(event) => void choose(event.target.files?.[0])}
-        />
-        {!preview ? (
-          <button
-            type="button"
-            className="hover:bg-muted/30 flex min-h-52 flex-col items-center justify-center gap-3 rounded-md border border-dashed"
-            onClick={() => inputRef.current?.click()}
-          >
-            {loading ? (
-              <Loader2 className="h-6 w-6 animate-spin" />
-            ) : (
-              <Upload className="text-muted-foreground h-7 w-7" />
-            )}
-            <span className="text-sm font-medium">בחר קובץ CSV</span>
-            <span className="text-muted-foreground text-xs">
-              עמודות: category, brand, model, color, eye_size ועוד
-            </span>
-          </button>
-        ) : (
-          <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <SummaryCard title="שורות" value={preview.total} />
-              <SummaryCard title="תקינות" value={preview.valid} />
-              <SummaryCard title="דורשות תיקון" value={preview.invalid} />
-            </div>
-            <div className="max-h-72 overflow-auto rounded-md border">
-              <Table elevated={false}>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>שורה</TableHead>
-                    <TableHead>מוצר</TableHead>
-                    <TableHead>מצב</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {preview.rows.slice(0, 50).map((row: any) => (
-                    <TableRow key={row.row_number}>
-                      <TableCell>{row.row_number}</TableCell>
-                      <TableCell>
-                        {[row.data?.product?.brand, row.data?.product?.model]
-                          .filter(Boolean)
-                          .join(" ")}
-                      </TableCell>
-                      <TableCell>
-                        {row.status === "valid" ? (
-                          <Badge variant="outline">תקין</Badge>
-                        ) : (
-                          <span className="text-xs text-red-600">
-                            {row.errors.join(" · ")}
-                          </span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-        )}
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            ביטול
-          </Button>
-          {preview ? (
-            <Button
-              onClick={commit}
-              disabled={committing || preview.valid === 0}
-            >
-              ייבא {preview.valid} שורות תקינות
-              {committing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            </Button>
-          ) : null}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 export default function InventoryPage() {
   const { currentClinic, currentUser } = useUser();
@@ -1781,6 +1642,7 @@ export default function InventoryPage() {
   const [countOpen, setCountOpen] = useState(false);
   const [discoveryOpen, setDiscoveryOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  useAgentDraft("inventory", () => ({ selectedSupplier, search, category, visibility }));
 
   const canWrite = isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.worker);
   const canViewCost = isRoleAtLeast(
@@ -1880,6 +1742,7 @@ export default function InventoryPage() {
   useEffect(() => {
     void load();
   }, [load]);
+  useEffect(() => { const refresh = () => void load(); window.addEventListener("supply-applied", refresh); return () => window.removeEventListener("supply-applied", refresh); }, [load]);
 
   const filteredVariants = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
@@ -2197,6 +2060,16 @@ export default function InventoryPage() {
             className="flex min-h-0 flex-1 flex-col gap-2.5"
           >
             <TableFiltersBar
+              exportConfig={displayedViewMode === "table" && (!groupByProduct || selectedProduct) ? {
+                table: "inventory", placement: "beforeNavigation", clinicId, sort: "product_asc",
+                columns: groupByProduct ? ["variant", "sku", "stock", "pricing"] : ["product", "category", "variant", "sku", "on_hand", "reserved", "available", "retail", ...(canViewCost ? ["cost"] : [])],
+                productName: groupByProduct ? [selectedProduct?.product.brand, selectedProduct?.product.model].filter(Boolean).join(" ") : undefined,
+                filters: [
+                  { key: "supplier", value: selectedSupplier?.key || "all", label: t("tableExport.supplier"), options: [{ value: "all", label: t("tableExport.all") }, ...supplierGroups.map(group => ({ value: group.key, label: group.isUnassigned ? t("tableExport.unassigned") : group.label }))] },
+                  { key: "visibility", value: visibility, label: t("tableExport.visibility"), options: ["active", "archived", "all"].map(value => ({ value, label: t(`tableExport.${value}`) })) },
+                  ...(groupByProduct && selectedProductId ? [{ key: "product_id", value: String(selectedProductId), label: t("tableExport.column.product"), options: [{ value: String(selectedProductId), label: [selectedProduct?.product.brand, selectedProduct?.product.model].filter(Boolean).join(" ") || "" }] }] : []),
+                ],
+              } : undefined}
               compact
               searchValue={search}
               onSearchChange={setSearch}
@@ -2209,6 +2082,7 @@ export default function InventoryPage() {
                       <TooltipTrigger asChild>
                         <Button
                           size="icon"
+                          variant="outline"
                           onClick={() => openCatalogForSupplier()}
                           aria-label="הוסף פריט"
                         >
@@ -2218,7 +2092,7 @@ export default function InventoryPage() {
                       <TooltipContent>הוסף פריט</TooltipContent>
                     </Tooltip>
                   ) : null}
-                  <DropdownMenu dir="rtl">
+                  <DropdownMenu dir={direction}>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <DropdownMenuTrigger asChild>
@@ -2243,7 +2117,7 @@ export default function InventoryPage() {
                             גילוי מהזמנות <ScanSearch className="h-4 w-4" />
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setImportOpen(true)}>
-                            ייבוא CSV <Upload className="h-4 w-4" />
+                            {t("supply.manual.import")} <Upload className="h-4 w-4" />
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                         </>
@@ -2901,10 +2775,9 @@ export default function InventoryPage() {
         }}
         onFinished={() => void load()}
       />
-      <ImportDialog
+      <ManualInventoryImportDialog
         open={importOpen}
         onOpenChange={setImportOpen}
-        clinicId={clinicId}
         onFinished={() => void load()}
       />
     </>
