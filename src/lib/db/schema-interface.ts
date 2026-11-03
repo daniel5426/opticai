@@ -126,6 +126,7 @@ export interface PrescriptionEyeCriteria {
 }
 
 export interface PrescriptionSearchCriteria {
+  prescription_kind?: "glasses" | "contact_lens";
   clinic_id?: number;
   right?: PrescriptionEyeCriteria;
   left?: PrescriptionEyeCriteria;

@@ -45,7 +45,7 @@ function ResultTable({ columns, rows, labels = {} }: { columns: string[]; rows: 
   return <div className="max-w-full overflow-x-auto rounded-xl border border-border/50 bg-card shadow-sm">
     <Table><TableHeader><TableRow>{columns.map(column => <TableHead key={column} className="whitespace-nowrap text-start" title={column}>{labels[column] || label(column)}</TableHead>)}</TableRow></TableHeader>
       <TableBody>{rows.length ? rows.map((row, index) => <TableRow key={index}>{columns.map(column => <TableCell key={column} className="max-w-64 text-start">
-        <bdi className="line-clamp-3">{valueText(row[column], locale)}</bdi>
+        <div className="line-clamp-3"><bdi>{valueText(row[column], locale)}</bdi></div>
       </TableCell>)}</TableRow>) : <TableRow><TableCell colSpan={Math.max(1, columns.length)} className="text-center text-muted-foreground">{t('agent.data.noResults')}</TableCell></TableRow>}</TableBody></Table>
   </div>;
 }

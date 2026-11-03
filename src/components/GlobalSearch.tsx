@@ -93,6 +93,8 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
   >(null);
   const [recentClients, setRecentClients] = useState<RecentClientVisit[]>([]);
   const [recentLoading, setRecentLoading] = useState(false);
+  const [prescriptionKind, setPrescriptionKind] = useState<"glasses" | "contact_lens">("glasses");
+  const prescriptionRequestRef = useRef(0);
   const [prescriptionResults, setPrescriptionResults] = useState<
     PrescriptionSearchResult[]
   >([]);
@@ -135,6 +137,14 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
     appointments: [],
     campaigns: [],
   });
+
+  useEffect(() => {
+    prescriptionRequestRef.current += 1;
+    setPrescriptionResults([]);
+    setPrescriptionTotal(0);
+    setPrescriptionLoading(false);
+    return () => { prescriptionRequestRef.current += 1; };
+  }, [clinicFilter.clinicId, currentClinic?.id]);
 
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -748,7 +758,13 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
     }
   };
 
-  const openPrescriptionPanel = () => {
+  const openPrescriptionPanel = (kind: "glasses" | "contact_lens") => {
+    prescriptionRequestRef.current += 1;
+    setPrescriptionKind(kind);
+    setPrescriptionResults([]);
+    setPrescriptionTotal(0);
+    setPrescriptionLoading(false);
+    setPrescriptionForm((previous) => Object.fromEntries(Object.keys(previous).map(key => [key, ""])) as typeof previous);
     setQuery("");
     setResults([]);
     setActivePanel("prescription");
@@ -766,7 +782,7 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
     { key: "ax", ...EXAM_FIELDS.AXIS },
     { key: "add", ...EXAM_FIELDS.ADD },
     { key: "va", label: "VA", type: "text" },
-    { key: "pd", ...EXAM_FIELDS.PD_COMB },
+    ...(prescriptionKind === "glasses" ? [{ key: "pd" as const, ...EXAM_FIELDS.PD_COMB }] : []),
   ];
 
   const updatePrescriptionField = (
@@ -809,7 +825,7 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
       ax: Number.isFinite(parsedAx) ? parsedAx : undefined,
       add: parseNumber(prescriptionForm[`${prefix}_add`]),
       va: prescriptionForm[`${prefix}_va`].trim() || undefined,
-      pd: parseNumber(prescriptionForm[`${prefix}_pd`]),
+      pd: prescriptionKind === "glasses" ? parseNumber(prescriptionForm[`${prefix}_pd`]) : undefined,
     };
     return Object.fromEntries(
       Object.entries(criteria).filter(([, value]) => value !== undefined),
@@ -821,25 +837,31 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
     const right = buildEyeCriteria("r");
     const left = buildEyeCriteria("l");
     if (!Object.keys(right).length && !Object.keys(left).length) {
-      toast.error("יש להזין לפחות שדה מרשם אחד");
+      toast.error(t("globalSearch.prescriptionRequired"));
       return;
     }
+    const requestId = ++prescriptionRequestRef.current;
     setPrescriptionLoading(true);
+    setPrescriptionResults([]);
+    setPrescriptionTotal(0);
     try {
       const response = await apiClient.searchPrescription({
-        clinic_id: currentClinic.id,
+        clinic_id: clinicFilter.clinicId,
+        prescription_kind: prescriptionKind,
         right: Object.keys(right).length ? right : undefined,
         left: Object.keys(left).length ? left : undefined,
         limit: 50,
         offset: 0,
       });
+      if (requestId !== prescriptionRequestRef.current) return;
+      if (response.error) throw new Error(String(response.error));
       setPrescriptionResults(response.data?.items || []);
       setPrescriptionTotal(response.data?.total || 0);
     } catch (error) {
       console.error("Prescription search error:", error);
-      toast.error("שגיאה בחיפוש מרשם");
+      if (requestId === prescriptionRequestRef.current) toast.error(t("globalSearch.prescriptionError"));
     } finally {
-      setPrescriptionLoading(false);
+      if (requestId === prescriptionRequestRef.current) setPrescriptionLoading(false);
     }
   };
 
@@ -946,7 +968,7 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
             setIsOpen(true);
           }}
           onKeyDown={handleSearchKeyDown}
-          className={`${inModal ? "h-auto w-0 flex-1 rounded-none border-0 bg-transparent py-3 ps-8 pe-20 text-base shadow-none focus-visible:ring-0" : "h-7 w-lg border-1 border-cyan-800/30 ps-10 pe-24 text-sm"} pointer-events-auto`}
+          className={`${inModal ? "h-auto w-0 flex-1 rounded-none border-0 bg-transparent py-3 ps-8 pe-28 text-base shadow-none focus-visible:ring-0" : "h-7 w-lg border-1 border-cyan-800/30 ps-10 pe-28 text-sm"} pointer-events-auto`}
           style={{ direction, pointerEvents: "auto" }}
         />
         <div
@@ -968,10 +990,17 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
             className={inModal ? "h-7 w-7" : "h-6 w-6"}
             title={t("globalSearch.prescriptionSearch")}
             aria-label={t("globalSearch.prescriptionSearch")}
-            onClick={openPrescriptionPanel}
+            onClick={() => openPrescriptionPanel("glasses")}
           >
             <Glasses className={inModal ? "h-3.5 w-3.5" : "h-3.5 w-3.5"} />
           </Button>
+          <Button
+            variant="ghost" size="icon"
+            className={inModal ? "h-7 w-7" : "h-6 w-6"}
+            title={t("globalSearch.contactPrescriptionSearch")}
+            aria-label={t("globalSearch.contactPrescriptionSearch")}
+            onClick={() => openPrescriptionPanel("contact_lens")}
+          ><Eye className="h-3.5 w-3.5" /></Button>
         </div>
       </div>
 
@@ -1067,10 +1096,10 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
                   <div className="space-y-3">
                     <div className="text-center">
                       <h3 className="text-muted-foreground text-sm font-medium">
-                        Prescription Search
+                        {t(prescriptionKind === "glasses" ? "globalSearch.prescriptionSearch" : "globalSearch.contactPrescriptionSearch")}
                       </h3>
                     </div>
-                    <div className="grid grid-cols-[20px_repeat(6,minmax(58px,1fr))] items-center gap-2">
+                    <div className="grid items-center gap-2 overflow-x-auto" style={{ gridTemplateColumns: `20px repeat(${prescriptionColumns.length}, minmax(58px, 1fr))` }}>
                       <div />
                       {prescriptionColumns.map(({ key, label }) => (
                         <div
@@ -1084,19 +1113,21 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
                       ))}
 
                       <div className="flex items-center justify-center">
-                        <span
+                        <button
+                          type="button"
                           className="hover:bg-accent cursor-pointer rounded-full px-2 text-base font-medium"
                           onMouseEnter={() => setHoveredPrescriptionEye("R")}
                           onMouseLeave={() => setHoveredPrescriptionEye(null)}
                           onClick={() => copyPrescriptionEyeRow("R")}
-                          title="Copy R eye down to L"
+                          title={t("globalSearch.copyRight")}
+                          aria-label={t("globalSearch.copyRight")}
                         >
                           {hoveredPrescriptionEye === "R" ? (
                             <ChevronDown size={16} />
                           ) : (
                             "R"
                           )}
-                        </span>
+                        </button>
                       </div>
                       {prescriptionColumns.map(
                         ({
@@ -1114,6 +1145,7 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
                           return (
                             <FastInput
                               key={formKey}
+                              aria-label={formKey.replace("_", " ").toUpperCase()}
                               value={prescriptionForm[formKey]}
                               onChange={(value) =>
                                 updatePrescriptionField(formKey, value)
@@ -1134,19 +1166,21 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
                       )}
 
                       <div className="flex items-center justify-center">
-                        <span
+                        <button
+                          type="button"
                           className="hover:bg-accent cursor-pointer rounded-full px-2 text-base font-medium"
                           onMouseEnter={() => setHoveredPrescriptionEye("L")}
                           onMouseLeave={() => setHoveredPrescriptionEye(null)}
                           onClick={() => copyPrescriptionEyeRow("L")}
-                          title="Copy L eye up to R"
+                          title={t("globalSearch.copyLeft")}
+                          aria-label={t("globalSearch.copyLeft")}
                         >
                           {hoveredPrescriptionEye === "L" ? (
                             <ChevronUp size={16} />
                           ) : (
                             "L"
                           )}
-                        </span>
+                        </button>
                       </div>
                       {prescriptionColumns.map(
                         ({
@@ -1164,6 +1198,7 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
                           return (
                             <FastInput
                               key={formKey}
+                              aria-label={formKey.replace("_", " ").toUpperCase()}
                               value={prescriptionForm[formKey]}
                               onChange={(value) =>
                                 updatePrescriptionField(formKey, value)
@@ -1187,14 +1222,14 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="text-muted-foreground text-xs">
-                    {prescriptionTotal ? `${prescriptionTotal} תוצאות` : ""}
+                    {prescriptionTotal ? t("globalSearch.prescriptionResults", { count: prescriptionTotal }) : ""}
                   </div>
                   <Button
                     size="sm"
                     onClick={runPrescriptionSearch}
                     disabled={prescriptionLoading}
                   >
-                    חפש
+                    {t("search")}
                   </Button>
                 </div>
                 <div
@@ -1217,7 +1252,7 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
                         onClick={() => handleClientClick(result.client_id)}
                       >
                         <div className="flex items-center gap-3">
-                          <Glasses className="text-muted-foreground h-4 w-4" />
+                          {prescriptionKind === "glasses" ? <Glasses className="text-muted-foreground h-4 w-4" /> : <Eye className="text-muted-foreground h-4 w-4" />}
                           <div className="min-w-0">
                             <div className="truncate text-sm font-medium">
                               {result.client_full_name}
@@ -1237,7 +1272,7 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
                     ))
                   ) : (
                     <div className="text-muted-foreground p-4 text-center text-sm">
-                      אין תוצאות מרשם
+                      {t("globalSearch.noPrescriptionResults")}
                     </div>
                   )}
                 </div>

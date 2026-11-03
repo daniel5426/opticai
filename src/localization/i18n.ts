@@ -1,3 +1,4 @@
+import barcodeTranslations from "./barcode.json";
 import tableExportTranslations from "../../backend/services/table_export_copy.json";
 import companyClientTranslations from "./company-clients.json";
 import supplyTranslations from "./supply.json";
@@ -1220,4 +1221,8 @@ for (const [language, translations] of Object.entries(companyClientTranslations)
 
 for (const [language, translations] of Object.entries(tableExportTranslations)) {
   i18n.addResourceBundle(language, "translation", translations, true, true);
+}
+
+for (const [language, translations] of Object.entries(barcodeTranslations)) {
+  i18n.addResourceBundle(language, "translation", { barcode: translations }, true, true);
 }

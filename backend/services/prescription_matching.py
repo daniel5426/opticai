@@ -173,6 +173,13 @@ def legacy_search(db, clinic_ids, request):
         return {'items': [], 'total': 0}
     index = PrescriptionSearchIndex
     query = eligible_index(db, clinic_ids)
+    # Contact prescriptions can live in exams, referrals, or either order format.
+    contact = or_(index.source_type == 'contact_lens_order', index.card_type.in_(
+        ['contact-lens-details', 'contact-lens-exam', 'old-contact-lenses', 'over-refraction']))
+    if request.prescription_kind == 'contact_lens':
+        query = query.filter(contact)
+    elif request.prescription_kind == 'glasses':
+        query = query.filter(~contact)
     primary_eye = 'R' if 'R' in eyes else 'L'
     query = query.filter(index.eye == primary_eye)
     for key, value in eyes[primary_eye].items():

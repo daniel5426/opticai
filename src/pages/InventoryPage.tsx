@@ -1,3 +1,4 @@
+import { BarcodeScanButton, ProductBarcodeScan } from "@/components/inventory/BarcodeScanButton";
 import { useSupplyRevision } from '@/lib/inventory-events';
 import { ManualInventoryImportDialog } from '@/components/inventory/ManualInventoryImport';
 import { useAgentDraft } from '@/lib/agent-page-context';
@@ -463,14 +464,16 @@ function CatalogDialog({
     className = "",
   ) => (
     <div className={`space-y-1.5 ${className}`}>
-      <Label>{label}</Label>
+      <div className="flex items-center justify-between gap-2"><Label>{label}</Label>
+        {name === "barcode" && <BarcodeScanButton disabled={saving} onScan={code => setField("barcode", code)} />}
+      </div>
       <Input
         type={type}
         className={type === "number" ? "max-w-32" : undefined}
         wrapperClassName={type === "number" ? "max-w-32" : undefined}
         value={form[name]}
         onChange={(event) => setField(name, event.target.value)}
-        dir={type === "number" ? "ltr" : "rtl"}
+        dir={type === "number" || name === "barcode" || name === "sku" ? "ltr" : "rtl"}
       />
     </div>
   );
@@ -867,6 +870,13 @@ function CountDialog({
             {t("supply.countHint")}
           </DialogDescription>
         </DialogHeader>
+        <BarcodeScanButton keepOpen disabled={saving} description={t("barcode.countHint")} onScan={code => {
+          const matches = variants.filter(variant => variant.barcode === code);
+          if (!matches.length) throw new Error(t("barcode.outsideCount"));
+          if (matches.length > 1) throw new Error(t("barcode.ambiguous"));
+          const variant = matches[0];
+          setCounts(current => ({ ...current, [variant.id]: String(Number(current[variant.id] || 0) + 1) }));
+        }} />
         <div className="divide-y rounded-md border">
           {variants.map((variant) => (
             <div
@@ -1612,6 +1622,7 @@ export default function InventoryPage() {
   const [insightsError, setInsightsError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [scannedVariantId, setScannedVariantId] = useState<number | null>(null);
   const [category, setCategory] = useState<"all" | InventoryCategory>("all");
   const [visibility, setVisibility] = useState<InventoryVisibility>("active");
   const [page, setPage] = useState(1);
@@ -1747,6 +1758,7 @@ export default function InventoryPage() {
   const filteredVariants = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
     return variants.filter((variant) => {
+      if (scannedVariantId !== null && variant.id !== scannedVariantId) return false;
       if (visibility === "active" && variant.archived_at) return false;
       if (visibility === "archived" && !variant.archived_at) return false;
       if (category !== "all" && variant.product.category !== category)
@@ -1766,7 +1778,7 @@ export default function InventoryPage() {
           .includes(query),
       );
     });
-  }, [category, search, variants, visibility]);
+  }, [category, search, scannedVariantId, variants, visibility]);
 
   const supplierGroups = useMemo(
     () => groupInventoryVariantsBySupplier(filteredVariants),
@@ -2072,11 +2084,15 @@ export default function InventoryPage() {
               } : undefined}
               compact
               searchValue={search}
-              onSearchChange={setSearch}
+              onSearchChange={value => { setScannedVariantId(null); setSearch(value); }}
               searchPlaceholder="חיפוש לפי מותג, דגם, SKU או ברקוד..."
               navigation={
                 <>
                   <div className="flex items-center gap-2">
+                  <ProductBarcodeScan clinicId={clinicId} onSelect={variant => {
+                    setScannedVariantId(variant.id); setCategory("all"); setVisibility("active"); setSelectedSupplier(null);
+                    setGroupByProduct(false); setSelectedProductId(null); setViewMode("table"); setSearch(variant.barcode || "");
+                  }} />
                   {canWrite ? (
                     <Tooltip>
                       <TooltipTrigger asChild>

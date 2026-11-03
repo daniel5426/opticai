@@ -376,6 +376,8 @@ export default function ContactOrderTab({
             inventoryCatalog={
               clinicId
                 ? {
+                    clinicId,
+                    orderId: contactFormData.id,
                     variants: catalogVariants,
                     loading: isLoadingCatalog,
                     rightValues: catalogValuesFor("right"),
