@@ -36,6 +36,12 @@ and verify the exact published relay before enabling the API. See
 [hosted agent operations](deploy/agents/README.md). No new schema migration is
 required; preserve the environment's existing migration ordering.
 
+The production web server proxies `/api/agents24` and `/api/v1/agent` to
+`AGENTS24_API_ORIGIN` (or the origin of `VITE_API_URL`) before locale routing.
+Keep the proxy streaming for chat events and uploads. Verify with
+`node --test scripts/agent-web-proxy.test.mjs`; unauthenticated bootstrap must
+reach the API and return 401 rather than a locale redirect. No schema migration.
+
 Backend release gates include shared-order and legacy desktop HTTP regressions. The migration worker checks for newer queue tables once at startup and skips unavailable queues until it is restarted after Alembic completes; it never creates schema. Keep the new app on its group workspace; existing desktop routes translate individual-order writes into locked group transactions. Billing responses carry an additive signed `compatibility_token` that v1.0.79's editor retains through its existing spread/save behavior. Full shared-invoice saves require that receipt and the current group revision; stale saves must reload rather than overwrite newer entries or payments. Delta payments lock the shared balance before updating it. Raw ORM writes, invoice reassignment, and whole-invoice deletion remain protected.
 
 For full legacy saves, the billing receipt is authoritative for the group revision. v1.0.79's regular-order form retains its previous order receipt while accepting the refreshed billing receipt after its own save. Keep repeated saves working without accepting a stale billing receipt; order-only writes continue checking the order receipt. Migration note: Not needed; this corrects validation of the existing additive receipts.
