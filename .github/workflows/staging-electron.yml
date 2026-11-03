@@ -79,7 +79,8 @@ jobs:
               return 0
             fi
 
-            for attempt in {1..30}; do
+            # Cold public-dependency installs plus image export can exceed five minutes.
+            for attempt in {1..90}; do
               deployments="$(railway deployment list \
                 --service "$service" \
                 --environment staging \
@@ -104,7 +105,7 @@ jobs:
               sleep 10
             done
 
-            echo "$service did not finish auto-deploying $EXPECTED_SHA within five minutes" >&2
+            echo "$service did not finish auto-deploying $EXPECTED_SHA within fifteen minutes" >&2
             return 1
           }
 
