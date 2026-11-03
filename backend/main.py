@@ -39,9 +39,10 @@ def seed_initial_data():
 async def lifespan(_app: FastAPI):
     from workers.table_export_worker import table_export_services
     from agent.local_startup import local_agent_services
+    from agent.hosted_services import hosted_agent_services
     from agent.runtime import close_runtime_clients
     try:
-        async with table_export_services(), local_agent_services():
+        async with table_export_services(), local_agent_services(), hosted_agent_services():
             seed_initial_data()
             yield
     finally:
