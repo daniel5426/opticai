@@ -57,3 +57,16 @@ async def test_exited_worker_is_restarted(monkeypatch):
         await hosted_services.supervise('requested')
     assert start.call_count == 2
     child.terminate.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_container_init_does_not_use_the_local_owner_guard(monkeypatch):
+    monkeypatch.setattr(os, 'getpid', lambda: 1)
+    monkeypatch.setenv('PRYSM_AGENT_SUPERVISOR_PID', '999')
+    child = Mock(pid=123, returncode=1, wait=AsyncMock(return_value=1))
+    start = AsyncMock(return_value=child)
+    monkeypatch.setattr(asyncio, 'create_subprocess_exec', start)
+    monkeypatch.setattr(asyncio, 'sleep', AsyncMock(side_effect=asyncio.CancelledError))
+    with pytest.raises(asyncio.CancelledError):
+        await hosted_services.supervise('requested')
+    assert 'PRYSM_AGENT_SUPERVISOR_PID' not in start.call_args.kwargs['env']
