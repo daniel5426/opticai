@@ -130,6 +130,7 @@ jobs:
           backend/tests/test_default_exam_layout_seeds.py
           backend/tests/test_migration_helpers.py
           backend/tests/test_softoptic_migration_service.py
+          backend/tests/test_softoptic_worker_compatibility.py
           backend/tests/test_order_groups.py
           backend/tests/test_legacy_order_compatibility.py
           backend/tests/test_legacy_referral_compatibility.py

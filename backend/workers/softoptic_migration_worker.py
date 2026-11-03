@@ -6,6 +6,8 @@ import socket
 import time
 from uuid import uuid4
 
+from sqlalchemy import inspect
+
 from database import SessionLocal
 import config
 from models import SoftOpticMigrationJob
@@ -104,11 +106,37 @@ def run_trash_once(worker_name: str) -> bool:
         db.close()
 
 
+def available_optional_queues(bind) -> set[str]:
+    tables = set(inspect(bind).get_table_names())
+    requirements = {
+        "trash": {"trash_items", "trash_members", "trash_jobs", "trash_audit_events"},
+        "catalog": {"catalog_discovery_runs", "catalog_discovery_candidates", "catalog_discovery_sources", "catalog_order_observations"},
+    }
+    available = set()
+    for queue, required in requirements.items():
+        if required <= tables:
+            available.add(queue)
+        else:
+            logger.warning("Skipping %s queue until migrations finish and worker restarts; missing tables: %s", queue, sorted(required - tables))
+    return available
+
+
+def poll_once(worker_name: str, optional_queues: set[str]) -> bool:
+    return (
+        ("trash" in optional_queues and run_trash_once(worker_name))
+        or run_prune_once(worker_name)
+        or ("catalog" in optional_queues and run_catalog_discovery_once(worker_name))
+        or run_once(worker_name)
+    )
+
+
 def main() -> None:
     name = os.environ.get("SOFTOPTIC_WORKER_ID") or worker_id()
+    with SessionLocal() as db:
+        optional_queues = available_optional_queues(db.get_bind())
     logger.info("SoftOptic migration worker started id=%s", name)
     while True:
-        did_work = run_trash_once(name) or run_prune_once(name) or run_catalog_discovery_once(name) or run_once(name)
+        did_work = poll_once(name, optional_queues)
         if not did_work:
             time.sleep(POLL_SECONDS)
 
