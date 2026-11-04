@@ -1,13 +1,13 @@
 {
   "version": 1,
   "registry": "https://registry.npmjs.org",
-  "packageJsonHash": "60daf292f08474be13fd3b4cee8aafeaa8500fe2b9b4b7c1e7dfc22fd1dae68c",
-  "publicPackageJsonHash": "60daf292f08474be13fd3b4cee8aafeaa8500fe2b9b4b7c1e7dfc22fd1dae68c",
+  "packageJsonHash": "fb4b24aa4fc9420dc05e201f7bad86623c71ae24a953bad84447524b462e7ba6",
+  "publicPackageJsonHash": "fb4b24aa4fc9420dc05e201f7bad86623c71ae24a953bad84447524b462e7ba6",
   "versionsHash": "4e0e963cef268b0681fa7e063be9a9b99632dd0df2f69c1cf38a57a0f91b3b0a",
   "versions": {
     "@agents24/chat-react": "0.5.42"
   },
-  "developmentLockHash": "30f62a55314c2fc0acb135e90c53c3bc3bf4aab35d8c338f1d9bb38f462620c7",
-  "publicLockHash": "30f62a55314c2fc0acb135e90c53c3bc3bf4aab35d8c338f1d9bb38f462620c7",
+  "developmentLockHash": "9e0f3139b1a902a7b2c15e56c4645a0b2f15791c876df67e08546d3012039812",
+  "publicLockHash": "9e0f3139b1a902a7b2c15e56c4645a0b2f15791c876df67e08546d3012039812",
   "replacements": []
 }

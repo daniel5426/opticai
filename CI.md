@@ -74,3 +74,9 @@ Manual exports add authenticated `/api/v1/table-exports` endpoints and an API-ow
 Focused verification: `DATABASE_URL=sqlite:///:memory: SECRET_KEY=isolated-check-only PYTHONPATH=backend backend/.venv/bin/python -m pytest backend/tests/test_table_exports.py backend/tests/test_table_search.py` and `npm test -- --run src/tests/unit/table-exports.test.tsx src/tests/unit/table-list-layout.test.tsx src/tests/unit/server-filtered-tables.test.tsx`, followed by the canonical fast checks. The tests use isolated data and never mutate the configured clinic database.
 
 Migration note: Not needed; manual exports reuse existing job storage with an additive job kind and leave saved report definitions and clinical data unchanged.
+
+## Release v1.0.98
+
+Payments may be recorded or removed while editing an existing order group. Immediate payment deltas preserve unsaved order and billing fields and update the group revision used by the next save. Zero-price discount lines reduce the invoice, with the invoice total clamped at zero. Backend rollout precedes frontend/desktop publication. The owner’s instruction to proceed without a published-desktop round-trip evidence bundle also applies to this requested release; retained shared-order and legacy HTTP checks, exact-SHA staging, and packaged release checks remain required.
+
+Migration note: Not needed; this release uses existing billing fields and payment endpoints without a schema or public contract change. Existing stored line amounts remain preserved when financial inputs are unchanged.

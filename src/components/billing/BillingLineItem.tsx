@@ -40,6 +40,8 @@ export function BillingLineItem({
 }: BillingLineItemProps) {
   const { t } = useTranslation();
   const id = item.id!;
+  const isDiscountLine = !Number(item.price) && Number(item.discount) > 0;
+  const showPriceSummary = item.price != null && item.quantity != null && !isDiscountLine;
   const total = (
     <span className="text-sm font-medium tabular-nums">
       {formatCurrency(item.line_total, item.currency)}
@@ -162,15 +164,15 @@ export function BillingLineItem({
         {item.description?.trim() ? (
           <p className="text-sm break-words">{item.description}</p>
         ) : null}
-        {(item.price != null && item.quantity != null || item.sku) ? <p className="text-muted-foreground text-xs">
-          {item.price != null && item.quantity != null ? (
+        {(showPriceSummary || item.sku) ? <p className="text-muted-foreground text-xs">
+          {showPriceSummary ? (
           <span className="tabular-nums">
             {item.quantity} × {formatCurrency(item.price, item.currency)}
           </span>
           ) : null}
           {item.sku ? (
             <>
-              {item.price != null && item.quantity != null ? <span className="px-1">·</span> : null}
+              {showPriceSummary ? <span className="px-1">·</span> : null}
               <span dir="ltr" className="break-all">{item.sku}</span>
             </>
           ) : null}

@@ -47,6 +47,23 @@ def test_mixed_group_single_bill_idempotency_and_discount(context):
     assert first["legacy_write_protected"]
 
 
+def test_priceless_line_discount_lowers_total_without_going_negative(context):
+    db, user, clinic, clients = context
+    first = save_group(db, user, payload(clinic, clients), creation_key="discount-line")
+    lines = first['line_items']
+    before = first['billing']['total_after_discount']
+    discount_line = {'description': 'הנחה', 'price': 0, 'quantity': 1, 'discount': 30, 'currency': 'ILS'}
+    result = save_group(db, user, {'revision': first['revision'], 'billing': first['billing'],
+        'line_items': [*lines, discount_line]}, group_id=first['id'])
+    assert next(line for line in result['line_items'] if line['description'] == 'הנחה')['line_total'] == -30
+    assert result['billing']['total_after_discount'] == before - 30
+    oversized = [{**line, 'discount': 100000} if line['description'] == 'הנחה' else line for line in result['line_items']]
+    result = save_group(db, user, {'revision': result['revision'], 'billing': result['billing'],
+        'line_items': oversized}, group_id=first['id'])
+    assert result['billing']['total_before_discount'] == 0
+    assert result['billing']['total_after_discount'] == 0
+
+
 def test_existing_discount_line_survives_metadata_and_other_price_edits(context):
     db, user, clinic, clients = context
     first = save_group(db, user, payload(clinic, clients), creation_key="legacy-discount")

@@ -297,7 +297,9 @@ def save_group(db, user, payload, group_id=None, creation_key=None, *, commit=Tr
                 price, quantity, discount = (Decimal(str(getattr(line, key) or 0)) for key in ("price", "quantity", "discount"))
                 if not all(value.is_finite() for value in (price, quantity, discount)) or min(price, quantity, discount) < 0:
                     raise HTTPException(422, "Invalid billing amounts")
-                amount = retained_amount if retained_amount is not None else max(Decimal("0"), price * quantity - discount).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                # A line without a price is a discount line: its discount lowers the deal total.
+                computed_amount = max(Decimal("0"), price * quantity - discount) if price * quantity else Decimal("0") - discount
+                amount = retained_amount if retained_amount is not None else computed_amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
                 if not amount.is_finite():
                     raise HTTPException(422, "Invalid billing amounts")
                 line.line_total = float(amount)
@@ -306,6 +308,7 @@ def save_group(db, user, payload, group_id=None, creation_key=None, *, commit=Tr
                 if item_id not in sent_ids:
                     financial_changed = True
                     db.delete(line)
+            total = max(Decimal("0"), total)
             if financial_changed:
                 billing.total_before_discount = float(total)
             discount = Decimal(str(billing.discount_amount or 0)) if billing.discount_amount else total * Decimal(str(billing.discount_percent or 0)) / 100

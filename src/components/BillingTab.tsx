@@ -16,6 +16,7 @@ import { CustomModal } from "@/components/ui/custom-modal";
 import { History, Loader2, Plus, Trash2 } from "lucide-react";
 import { Billing, BillingPayment, OrderLineItem } from "@/lib/db/schema-interface";
 import { BillingPaymentMenu } from "@/components/billing/BillingPaymentMenu";
+import { groupLineTotal } from "@/lib/order-groups";
 import { CompactBillingView } from "@/components/billing/CompactBillingView";
 import {
   createBillingPayment,
@@ -130,6 +131,9 @@ export function BillingTab({
   const [isPaymentDropdownOpen, setIsPaymentDropdownOpen] = React.useState(false);
   const paymentRefreshRequestRef = React.useRef(0);
 
+  // While a group is being edited, its workspace keeps the draft's paid amount in sync.
+  const draftOwnsPaidAmount = isEditing && Boolean(paymentAdapter);
+
   const refreshPaymentState = React.useCallback(async () => {
     const billingId = billingFormData.id;
     if (!billingId) {
@@ -148,18 +152,20 @@ export function BillingTab({
       setPaymentHistory(payments);
       const prepaymentAmount =
         latestBilling?.prepayment_amount ?? billingFormData.prepayment_amount ?? 0;
-      setBillingFormData((prev) =>
-        prev.id === billingId
-          ? { ...prev, prepayment_amount: prepaymentAmount }
-          : prev,
-      );
+      if (!draftOwnsPaidAmount) {
+        setBillingFormData((prev) =>
+          prev.id === billingId
+            ? { ...prev, prepayment_amount: prepaymentAmount }
+            : prev,
+        );
+      }
       return { payments, prepaymentAmount };
     } finally {
       if (requestId === paymentRefreshRequestRef.current) {
         setPaymentHistoryLoading(false);
       }
     }
-  }, [billingFormData.id, billingFormData.prepayment_amount, setBillingFormData]);
+  }, [billingFormData.id, billingFormData.prepayment_amount, draftOwnsPaidAmount, setBillingFormData]);
 
   const openPaymentHistory = () => {
     setIsPaymentHistoryOpen(true);
@@ -216,18 +222,20 @@ export function BillingTab({
   React.useEffect(() => {
     return onBillingPaymentsChanged((detail) => {
       if (!billingFormData.id || detail.billingId !== billingFormData.id) return;
-      setBillingFormData((prev) =>
-        prev.id === detail.billingId
-          ? { ...prev, prepayment_amount: detail.prepaymentAmount }
-          : prev,
-      );
+      if (!draftOwnsPaidAmount) {
+        setBillingFormData((prev) =>
+          prev.id === detail.billingId
+            ? { ...prev, prepayment_amount: detail.prepaymentAmount }
+            : prev,
+        );
+      }
       if (detail.payments) {
         setPaymentHistory(detail.payments);
       } else if (isPaymentHistoryOpen) {
         void refreshPaymentState();
       }
     });
-  }, [billingFormData.id, isPaymentHistoryOpen, refreshPaymentState, setBillingFormData]);
+  }, [billingFormData.id, draftOwnsPaidAmount, isPaymentHistoryOpen, refreshPaymentState, setBillingFormData]);
 
   const handleAddPayment = async () => {
     const billingId = billingFormData.id;
@@ -451,7 +459,7 @@ export function BillingTab({
             const quantity = toSafeNumber(updatedItem.quantity);
             const discount = toSafeNumber(updatedItem.discount);
             updatedItem.line_total = roundToTwoDecimals(
-              compact ? Math.max(0, price * quantity - discount) : price * quantity - discount,
+              compact ? groupLineTotal(price, quantity, discount) : price * quantity - discount,
             );
           }
 

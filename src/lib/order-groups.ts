@@ -41,3 +41,7 @@ export function applySuggestion(lines: GroupLineItem[], key: string, slot: strin
   const suggestion: GroupLineItem = { id: index >= 0 ? lines[index].id : -(Date.now() + Math.floor(Math.random()*1000)), billings_id: index >= 0 ? lines[index].billings_id : 0, source_client_key: key, source_slot: slot, manually_edited: false, sku: variant.sku || '', description: variant.display_name, price: variant.default_retail, quantity, discount: 0, line_total: Math.round(variant.default_retail * quantity * 100)/100, currency: variant.currency, supplied: false };
   return index < 0 ? [...lines, suggestion] : lines.map((item,i) => i === index ? suggestion : item);
 }
+
+// A line without a price is a discount line: its discount lowers the deal total.
+export const groupLineTotal = (price: number, quantity: number, discount: number) =>
+  price * quantity ? Math.max(0, price * quantity - discount) : 0 - discount;
