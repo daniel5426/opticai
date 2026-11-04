@@ -149,7 +149,7 @@ export function OrderGroupWorkspace(props: OrderDetailPageProps) {
 
  return <><SiteHeader title={t('clients')} backLink="/clients" clientBackLink={`/clients/${contextClientId}`} examInfo={<span>{t('orderGroupTitle')}</span>} hasUnsavedChanges={guard.hasUnsavedChanges} tabs={{activeTab:activeHeaderTab,onTabChange:setActiveHeaderTab}}/>
  <ClientSpaceLayout><div className="relative flex h-full min-h-0 flex-1" dir={direction}>
- <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-4 lg:p-5">
+ <div className="mx-auto flex min-h-0 min-w-0 w-full max-w-[1024px] flex-1 flex-col overflow-hidden p-4 lg:p-5">
  <div className="flex shrink-0 items-end gap-3">
  <OrderGroupTabs entries={tabEntries} activeKey={active} editing={editing} addDisabled={loading||!editable} direction={direction} onSelect={setActive} onReorder={reorder} onRemove={key=>setRemoving(entries.find(entry=>entry.key===key)||null)} onMetadataChange={(key,patch)=>handles.current.get(key)?.setMetadata(patch as Record<string, unknown>)} onAdd={setPendingKind}/>
  <OrderGroupToolbar direction={direction} printDisabled={!group||guard.hasUnsavedChanges||!entries.length} printing={printing} onPrint={all=>void print(all)} billingOpen={billingOpen} billingDisabled={loading} onToggleBilling={()=>{if(billingOpen)closeSidebar();else openBillingPanel()}} editing={editing} saving={guard.isSaveInFlight} editDisabled={loading||!editable} onEditOrSave={()=>{if(editing)void save();else setEditing(true)}}/>

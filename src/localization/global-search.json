@@ -1,7 +1,7 @@
 {
   "he": {
     "placeholder": "חיפוש גלובלי...",
-    "prescriptionSearch": "חיפוש לפי מרשם",
+    "prescriptionSearch": "חיפוש מרשמי משקפיים",
     "noResults": "לא נמצאו תוצאות עבור \"{{query}}\"",
     "client": "לקוח",
     "exam": "בדיקה",
@@ -18,11 +18,18 @@
     "workPhone": "טלפון עבודה",
     "additionalPhone": "טלפון נוסף",
     "email": "אימייל",
-    "address": "כתובת"
+    "address": "כתובת",
+    "contactPrescriptionSearch": "חיפוש מרשמי עדשות מגע",
+    "prescriptionRequired": "יש להזין לפחות שדה מרשם אחד",
+    "prescriptionError": "שגיאה בחיפוש מרשם",
+    "noPrescriptionResults": "אין מרשמים תואמים",
+    "prescriptionResults": "{{count}} תוצאות",
+    "copyRight": "העתקת עין ימין לשמאל",
+    "copyLeft": "העתקת עין שמאל לימין"
   },
   "en": {
     "placeholder": "Global search...",
-    "prescriptionSearch": "Search by prescription",
+    "prescriptionSearch": "Search glasses prescriptions",
     "noResults": "No results found for \"{{query}}\"",
     "client": "Client",
     "exam": "Exam",
@@ -39,11 +46,18 @@
     "workPhone": "Work phone",
     "additionalPhone": "Additional phone",
     "email": "Email",
-    "address": "Address"
+    "address": "Address",
+    "contactPrescriptionSearch": "Search contact-lens prescriptions",
+    "prescriptionRequired": "Enter at least one prescription value",
+    "prescriptionError": "Could not search prescriptions",
+    "noPrescriptionResults": "No matching prescriptions",
+    "prescriptionResults": "{{count}} results",
+    "copyRight": "Copy right eye to left",
+    "copyLeft": "Copy left eye to right"
   },
   "fr": {
     "placeholder": "Recherche globale...",
-    "prescriptionSearch": "Rechercher par ordonnance",
+    "prescriptionSearch": "Rechercher une ordonnance de lunettes",
     "noResults": "Aucun résultat pour \"{{query}}\"",
     "client": "Client",
     "exam": "Examen",
@@ -60,6 +74,13 @@
     "workPhone": "Téléphone professionnel",
     "additionalPhone": "Autre téléphone",
     "email": "E-mail",
-    "address": "Adresse"
+    "address": "Adresse",
+    "contactPrescriptionSearch": "Rechercher une ordonnance de lentilles",
+    "prescriptionRequired": "Saisissez au moins une valeur",
+    "prescriptionError": "Impossible de rechercher les ordonnances",
+    "noPrescriptionResults": "Aucune ordonnance correspondante",
+    "prescriptionResults": "{{count}} résultats",
+    "copyRight": "Copier l’œil droit vers le gauche",
+    "copyLeft": "Copier l’œil gauche vers le droit"
   }
 }

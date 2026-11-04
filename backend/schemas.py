@@ -754,6 +754,7 @@ class PrescriptionEyeCriteria(BaseModel):
     pd: Optional[float] = None
 
 class PrescriptionSearchRequest(BaseModel):
+    prescription_kind: Optional[Literal["glasses", "contact_lens"]] = None
     clinic_id: Optional[int] = None
     right: Optional[PrescriptionEyeCriteria] = None
     left: Optional[PrescriptionEyeCriteria] = None

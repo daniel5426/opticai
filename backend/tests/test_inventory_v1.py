@@ -774,3 +774,27 @@ def test_import_commit_rejects_tampered_quantities_policy_and_duplicates():
         assert db.query(CatalogVariant).count() == 1
         balance = db.query(InventoryBalance).one()
         assert (balance.on_hand, balance.reorder_point, balance.target_quantity) == (3, 1, 5)
+
+
+def test_barcode_lookup_is_exact_before_pagination_and_keeps_leading_zeros():
+    factory = _session_factory()
+    ids = _seed(factory)
+    with factory() as db:
+        product = CatalogProduct(company_id=ids["company"], category="frame", brand="Test", model="Scan", normalized_key="scan-test")
+        db.add(product); db.flush()
+        db.add_all([
+            CatalogVariant(company_id=ids["company"], product_id=product.id, barcode="10012345", sku="partial", attributes={}, normalized_fingerprint="partial"),
+            CatalogVariant(company_id=ids["company"], product_id=product.id, barcode="0012345", sku="exact", attributes={}, normalized_fingerprint="exact"),
+        ])
+        db.commit()
+    try:
+        with _client(factory, ids["worker"]) as client:
+            response = client.get("/api/v1/inventory/variants", params={"clinic_id": ids["clinic"], "barcode": "0012345", "limit": 1})
+            assert response.status_code == 200, response.text
+            result = response.json()
+            assert [item["sku"] for item in result["items"]] == ["exact"]
+            assert result["items"][0]["barcode"] == "0012345"
+            assert not result["has_more"]
+            assert client.get("/api/v1/inventory/variants", params={"clinic_id": ids["clinic"], "barcode": "012345", "limit": 1}).json()["items"] == []
+    finally:
+        app.dependency_overrides.clear()

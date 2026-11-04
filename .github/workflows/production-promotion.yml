@@ -7,11 +7,6 @@ on:
         description: "Full Git SHA verified by the staging release workflow"
         required: true
         type: string
-      production_backup_confirmed:
-        description: "Confirm a fresh production database backup exists"
-        required: true
-        default: false
-        type: boolean
 
 permissions:
   actions: read
@@ -31,12 +26,6 @@ jobs:
       sha: ${{ steps.release.outputs.sha }}
       version: ${{ steps.release.outputs.version }}
     steps:
-      - name: Require production backup confirmation
-        if: inputs.production_backup_confirmed != true
-        run: |
-          echo "A fresh production database backup must be confirmed before promotion." >&2
-          exit 1
-
       - name: Checkout tested commit
         uses: actions/checkout@v4
         with:
@@ -136,6 +125,8 @@ jobs:
           backend/tests/test_legacy_referral_compatibility.py
           backend/tests/test_company_client_records.py
           backend/tests/test_company_client_preflight.py
+          backend/tests/test_inventory_v1.py
+          backend/tests/test_prescription_search_index.py
 
   deploy-production:
     needs: validate

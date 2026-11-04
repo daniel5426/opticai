@@ -1,3 +1,6 @@
+import { useBarcodeScanner } from "@/hooks/use-barcode-scanner";
+import { ProductBarcodeScan } from "@/components/inventory/BarcodeScanButton";
+import { useTranslation } from "react-i18next";
 import React, { useState, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { LookupSelect } from "@/components/ui/lookup-select";
@@ -14,6 +17,8 @@ import {
 import { CatalogVariant, FulfillmentSource } from "@/lib/inventory";
 
 interface ContactLensInventoryCatalogProps {
+  clinicId?: number;
+  orderId?: number;
   variants: CatalogVariant[];
   loading?: boolean;
   rightValues: ContactLensCatalogValues;
@@ -49,6 +54,8 @@ export function ContactLensDetailsTab({
   needsMiddleSpacer = false,
   inventoryCatalog,
 }: ContactLensDetailsTabProps) {
+  const { t } = useTranslation();
+  const { enabled: scannerEnabled } = useBarcodeScanner();
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
   const dataRef = useRef(contactLensDetailsData);
@@ -167,6 +174,14 @@ export function ContactLensDetailsTab({
     <Card className="examcard w-full pt-3 pb-4" dir="ltr">
       <CardContent className="px-4" style={{ scrollbarWidth: "none" }}>
         <div className="space-y-3">
+          {inventoryCatalog && scannerEnabled && <div className="flex flex-wrap justify-center gap-2">
+            {(["right", "left"] as const).map(side => <ProductBarcodeScan key={side}
+              clinicId={inventoryCatalog.clinicId} category="contact_lens" orderId={inventoryCatalog.orderId} orderKind="contact"
+              label={t(side === "right" ? "barcode.scanRight" : "barcode.scanLeft")}
+              disabled={!isEditing || (side === "right" ? inventoryCatalog.rightDisabled : inventoryCatalog.leftDisabled)}
+              onSelect={variant => inventoryCatalog.onSelect(side, variant, (variant.balance?.available || 0) > 0 ? "inventory" : "supplier_ordered")}
+            />)}
+          </div>}
           <div className="text-center">
             <h3 className="text-muted-foreground font-medium">פרטי ההזמנה</h3>
           </div>

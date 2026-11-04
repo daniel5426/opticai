@@ -1,3 +1,4 @@
+import { BarcodeScannerPreferences } from "./BarcodeScannerPreferences";
 import React, { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -150,6 +151,7 @@ export function PersonalProfileTab({
 
   return (
     <div className="space-y-6" dir={direction}>
+      <BarcodeScannerPreferences />
       <Card className="">
         <CardHeader>
           <CardTitle className="text-right">פרטים אישיים</CardTitle>

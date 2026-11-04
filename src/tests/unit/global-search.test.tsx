@@ -7,12 +7,12 @@ import { GlobalSearch } from "@/components/GlobalSearch";
 
 const render = (element: React.ReactNode) => renderWithoutQueries(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{element}</QueryClientProvider>);
 
-const { search, recent, navigate } = vi.hoisted(() => ({
-  search: vi.fn(), recent: vi.fn(), navigate: vi.fn(),
+const { search, recent, navigate, prescription } = vi.hoisted(() => ({
+  search: vi.fn(), recent: vi.fn(), navigate: vi.fn(), prescription: vi.fn(),
 }));
-vi.mock("@/lib/api-client", () => ({ apiClient: { unifiedSearch: search, getRecentClients: recent } }));
+vi.mock("@/lib/api-client", () => ({ apiClient: { unifiedSearch: search, getRecentClients: recent, searchPrescription: prescription } }));
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => navigate }));
-vi.mock("@/components/exam/shared/OptimizedInputs", () => ({ FastInput: () => null }));
+vi.mock("@/components/exam/shared/OptimizedInputs", () => ({ FastInput: ({ value, onChange, "aria-label": label }: any) => <input aria-label={label} value={value} onChange={event => onChange(event.target.value)} /> }));
 
 const details = {
   national_id: "001234567", phone_mobile: "050-123-4567",
@@ -101,4 +101,19 @@ describe("client previews in general search", () => {
     await waitFor(() => expect(screen.queryByRole("button", { name: /Dana Cohen/ })).not.toBeInTheDocument());
     expect(screen.getByRole("button", { name: /David Levy/ })).toBeVisible();
   });
+});
+
+
+test.each(["he", "en", "fr"])("contact prescription search is separate and localized in %s", async locale => {
+  await i18n.changeLanguage(locale);
+  prescription.mockResolvedValue({ data: { items: [], total: 0 } });
+  render(<GlobalSearch inModal />);
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("globalSearch.contactPrescriptionSearch") }));
+  expect(screen.queryByRole("textbox", { name: "R PD" })).toBeNull();
+  fireEvent.change(screen.getByRole("textbox", { name: "R SPH" }), { target: { value: "0" } });
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("search"), exact: true }));
+  await waitFor(() => expect(prescription).toHaveBeenCalledWith(expect.objectContaining({ prescription_kind: "contact_lens", right: { sph: 0 }, left: undefined })));
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("globalSearch.prescriptionSearch") }));
+  expect(screen.getByRole("textbox", { name: "R PD" })).toBeVisible();
+  expect(screen.getByRole("textbox", { name: "R SPH" })).toHaveValue("");
 });

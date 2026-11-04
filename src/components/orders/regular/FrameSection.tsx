@@ -1,3 +1,4 @@
+import { ProductBarcodeScan } from "@/components/inventory/BarcodeScanButton";
 import { useSupplyRevision } from '@/lib/inventory-events';
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -175,7 +176,11 @@ export function FrameSection({
   return (
     <OrderSection
       title={t("orderWorkspace.frame")}
-      start={catalogBadge}
+      start={<div className="flex min-w-0 flex-wrap items-center gap-2">{catalogBadge}<ProductBarcodeScan
+        clinicId={clinicId} category="frame" orderId={orderId} orderKind="regular" stockableOnly
+        disabled={!isEditing || consumed || frame.supplied_by === SUPPLIED_BY_CUSTOMER}
+        onSelect={variant => onInventorySelect(variant, (variant.balance?.available || 0) > 0 ? "inventory" : "supplier_ordered")}
+      /></div>}
       end={
         <OrderSegmented
           dir={direction}

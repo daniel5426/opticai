@@ -141,6 +141,7 @@ def _variant_query(
     clinic_id: int,
     category: str | None = None,
     search: str | None = None,
+    barcode: str | None = None,
     include_archived: bool = False,
     stockable_only: bool = False,
 ):
@@ -160,6 +161,8 @@ def _variant_query(
         query = query.filter(CatalogProduct.archived_at.is_(None), CatalogVariant.archived_at.is_(None))
     if stockable_only:
         query = query.filter(CatalogVariant.is_stockable.is_(True))
+    if barcode is not None:
+        query = query.filter(CatalogVariant.barcode == barcode.strip())
     if search and search.strip():
         pattern = f"%{search.strip()}%"
         query = query.filter(
@@ -205,13 +208,13 @@ def list_variants(
         scoped_clinic_id = order.clinic_id
     else:
         scoped_clinic_id = normalize_clinic_id_for_company(db, current_user, clinic_id)
-    effective_search = barcode.strip() if barcode else search
     rows = _variant_rows(
         db,
         company_id=company_id,
         clinic_id=scoped_clinic_id,
         category=category,
-        search=effective_search,
+        search=search if not barcode else None,
+        barcode=barcode,
         include_archived=include_archived,
         stockable_only=stockable_only,
         limit=limit + 1,
@@ -219,8 +222,6 @@ def list_variants(
     )
     has_more = len(rows) > limit
     rows = rows[:limit]
-    if barcode:
-        rows = [row for row in rows if row[0].barcode == barcode.strip()]
     items = [
         variant_dict(
             variant,
