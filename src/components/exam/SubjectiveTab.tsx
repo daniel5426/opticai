@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next"
 import { Card, CardContent } from "@/components/ui/card"
 import { SubjectiveExam } from "@/lib/db/schema-interface"
 import { VASelect } from "./shared/VASelect"
+import { NVJSelect } from "./shared/NVJSelect"
 import { ChevronUp, ChevronDown } from "lucide-react"
 
 import { FastInput, FastSelect } from "./shared/OptimizedInputs"
@@ -24,6 +25,8 @@ interface SubjectiveTabProps {
   isEditing: boolean;
   onMultifocalClick: () => void;
   hideEyeLabels?: boolean;
+  /** Adds OpticSoft's J and P.H columns; only imported SoftOptic exams turn this on. */
+  softopticColumns?: boolean;
 }
 
 export const SubjectiveTab = React.memo(function SubjectiveTab({
@@ -31,7 +34,8 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
   onSubjectiveChange,
   isEditing,
   onMultifocalClick,
-  hideEyeLabels = false
+  hideEyeLabels = false,
+  softopticColumns = false
 }: SubjectiveTabProps) {
   const { t } = useTranslation();
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
@@ -83,8 +87,10 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
     { key: "ax", ...EXAM_FIELDS.AXIS },
     ...prismColumns,
     { key: "va", ...EXAM_FIELDS.VA },
+    ...(softopticColumns ? [{ key: "j", ...EXAM_FIELDS.J }] : []),
     { key: "pd_far", ...EXAM_FIELDS.PD_FAR },
-    { key: "pd_close", ...EXAM_FIELDS.PD_NEAR }
+    { key: "pd_close", ...EXAM_FIELDS.PD_NEAR },
+    ...(softopticColumns ? [{ key: "ph", ...EXAM_FIELDS.VA, label: "P.H" }] : []),
   ];
 
   const getFieldValue = (eye: "R" | "L" | "C", field: string) => {
@@ -213,8 +219,14 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                     triggerClassName="h-8 text-xs w-full"
                     center={(colProps as any).center}
                   />
-                ) : key === "va" ? (
+                ) : key === "va" || key === "ph" ? (
                   <VASelect
+                    value={getFieldValue("R", key)}
+                    onChange={(val) => handleChange("R", key, val)}
+                    disabled={!isEditing}
+                  />
+                ) : key === "j" ? (
+                  <NVJSelect
                     value={getFieldValue("R", key)}
                     onChange={(val) => handleChange("R", key, val)}
                     disabled={!isEditing}
@@ -325,8 +337,14 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                     triggerClassName="h-8 text-xs w-full"
                     center={(colProps as any).center}
                   />
-                ) : key === "va" ? (
+                ) : key === "va" || key === "ph" ? (
                   <VASelect
+                    value={getFieldValue("L", key)}
+                    onChange={(val) => handleChange("L", key, val)}
+                    disabled={!isEditing}
+                  />
+                ) : key === "j" ? (
+                  <NVJSelect
                     value={getFieldValue("L", key)}
                     onChange={(val) => handleChange("L", key, val)}
                     disabled={!isEditing}

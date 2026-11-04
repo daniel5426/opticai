@@ -1,4 +1,5 @@
 import React from 'react';
+import { ActiveColumnFilters } from '@/components/column-filter';
 import { TableFiltersBar } from '@/components/table-filters-bar';
 import { TablePagination } from '@/components/table-pagination';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
@@ -25,6 +26,7 @@ export function TableListLayout({ toolbar, header, children, fillHeight = false,
   const { direction } = useAppLocale();
   return <div data-slot="table-list-layout" className={fillHeight ? 'flex min-h-0 flex-1 flex-col gap-2.5' : 'space-y-2.5'} dir={direction} style={{ scrollbarWidth: 'none' }}>
     <TableFiltersBar {...toolbar} />
+    <ActiveColumnFilters />
     <div className={fillHeight ? 'flex min-h-0 flex-col' : undefined}>
       <Table
         dir={direction}

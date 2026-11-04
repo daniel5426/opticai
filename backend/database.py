@@ -1,8 +1,8 @@
-from sqlalchemy import create_engine, event, select, text
+from sqlalchemy import create_engine, event, select
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session, sessionmaker, with_loader_criteria
-from sqlalchemy.pool import NullPool, QueuePool
+from sqlalchemy.pool import QueuePool
 from fastapi import HTTPException
 from config import settings
 
@@ -24,10 +24,17 @@ if parsed_url.get_backend_name() == "sqlite":
         connect_args={"check_same_thread": False},
     )
 elif _uses_supabase_transaction_pooler():
+    # Keep client connections to the pooler open: a fresh TLS handshake per request
+    # cost several round trips. psycopg2 sends no server-side prepared statements,
+    # so reusing a connection is safe in transaction-pooling mode.
     engine = create_engine(
         database_url,
-        poolclass=NullPool,
+        poolclass=QueuePool,
+        pool_size=5,
+        max_overflow=10,
+        pool_timeout=10,
         pool_pre_ping=True,
+        pool_recycle=300,
         connect_args={
             "connect_timeout": 10,
             "options": "-c statement_timeout=30000"
@@ -88,7 +95,7 @@ def _hide_soft_deleted_rows(execute_state):
 def get_db():
     db = SessionLocal()
     try:
-        db.execute(text("SELECT 1"))
+        # No probe query here: pool_pre_ping already validates the connection on checkout.
         yield db
     except HTTPException:
         db.rollback()

@@ -9,7 +9,7 @@ export type OptitechBinding = { component: string; field: string; cardInstanceId
 export type OptitechCardData = Record<string, unknown> & {
   bindings?: Record<string, OptitechBinding>;
 };
-const metadata = new Set(['id', 'layout_instance_id', 'card_instance_id', 'bindings', 'card_id', 'source_section', 'source_table', 'source_provenance', 'source_labels']);
+const metadata = new Set(['id', 'layout_instance_id', 'card_instance_id', 'bindings', 'card_id', 'source_section', 'source_table', 'source_provenance', 'source_labels', 'source_layout_instance_id']);
 export function optitechFieldNames(data: OptitechCardData): string[] {
   return [...new Set([...Object.keys(data).filter(key => !metadata.has(key) && !key.startsWith('__') && (typeof data[key] === 'string' || typeof data[key] === 'number')), ...Object.keys(data.bindings || {})])];
 }

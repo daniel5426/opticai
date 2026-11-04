@@ -71,6 +71,7 @@ def get_home_dashboard(
                 Client.first_name,
                 Client.last_name,
                 Client.phone_mobile,
+                Client.national_id,
                 Client.file_creation_date,
             )
             .filter(Client.id.in_(client_ids))
@@ -82,6 +83,7 @@ def get_home_dashboard(
                 "first_name": r.first_name,
                 "last_name": r.last_name,
                 "phone_mobile": r.phone_mobile,
+                "national_id": r.national_id,
                 "file_creation_date": r.file_creation_date.isoformat() if r.file_creation_date else None,
             }
             for r in rows

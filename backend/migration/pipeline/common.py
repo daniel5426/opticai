@@ -1265,6 +1265,8 @@ def _build_subjective_component(row: Dict[str, Any], expanded: Optional[Dict[str
         "l_va": _get_va(expanded, row, ["sub_l_va"], ["sb_left_va"]),
         "r_ph": _get_str(expanded, row, ["sub_r_ph"], ["sb_right_ph"]),
         "l_ph": _get_str(expanded, row, ["sub_l_ph"], ["sb_left_ph"]),
+        "r_j": normalize_j_value(_get_str(expanded, row, ["sub_r_j"])),
+        "l_j": normalize_j_value(_get_str(expanded, row, ["sub_l_j"])),
         "r_pd_close": _get_float(expanded, row, ["sb_right_near_pd"], ["sb_right_near_pd"]),
         "l_pd_close": _get_float(expanded, row, ["sb_left_near_pd"], ["sb_left_near_pd"]),
         "r_pd_far": _get_float(expanded, row, ["patient_r_pd"], ["sb_right_far_pd"]),
@@ -1502,6 +1504,11 @@ def _build_keratometer_component(row: Dict[str, Any], expanded: Optional[Dict[st
         "r_k2": _compact_keratometer_k(expanded, row, "obj_k_r_mm2", "obj_k_r_dpt2"),
         "l_k1": _compact_keratometer_k(expanded, row, "obj_k_l_mm1", "obj_k_l_dpt1"),
         "l_k2": _compact_keratometer_k(expanded, row, "obj_k_l_mm2", "obj_k_l_dpt2"),
+        # SoftOptic stores both units and its diopters are not exactly 337.5/mm; keep them as entered.
+        "r_k1_d": _get_float(expanded, row, ["obj_k_r_dpt1"]),
+        "r_k2_d": _get_float(expanded, row, ["obj_k_r_dpt2"]),
+        "l_k1_d": _get_float(expanded, row, ["obj_k_l_dpt1"]),
+        "l_k2_d": _get_float(expanded, row, ["obj_k_l_dpt2"]),
         "r_axis": _get_int(expanded, row, ["obj_k_r_mer1"]),
         "l_axis": _get_int(expanded, row, ["obj_k_l_mer1"]),
     }
@@ -1644,7 +1651,11 @@ def _softoptic_grid_eye(expanded: Optional[Dict[str, Any]], key: str) -> Optiona
 
 
 def _build_softoptic_cover_test_slot(expanded: Dict[str, Any], index: int) -> Optional[Dict[str, Any]]:
-    prefix = f"old{index}_ct"
+    return _build_softoptic_cover_test_fields(expanded, f"old{index}_ct")
+
+
+def _build_softoptic_cover_test_fields(expanded: Dict[str, Any], prefix: str) -> Optional[Dict[str, Any]]:
+    """OpticSoft's cover-test grid; the Bino tab (bino_ct_*) and each old refraction (oldN_ct_*) share it."""
     data = {
         "fv_exo_phoria": _get_float(expanded, {}, [f"{prefix}_fv_exo_p"]),
         "nv_exo_phoria": _get_float(expanded, {}, [f"{prefix}_nv_exo_p"]),
@@ -1728,6 +1739,40 @@ def _build_stereo_test_component(row: Dict[str, Any], expanded: Optional[Dict[st
 
 
 def _build_rg_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    return None
+
+
+# OpticSoft's R/G radio buttons; "1" is its unselected default.
+SOFTOPTIC_RG_STATUSES = {"S": "suppression", "F": "fusion", "D": "diplopia"}
+
+
+def _build_softoptic_rg_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    selection = (_get_str(expanded, row, ["bino_rg_selection"]) or "").upper()
+    status = SOFTOPTIC_RG_STATUSES.get(selection)
+    data = {
+        "rg_status": status,
+        "suppressed_eye": normalize_maddox_wing_eye(_get_str(expanded, row, ["bino_rg_supp_eye"])) if status == "suppression" else None,
+        "pr_h": _get_float(expanded, row, ["bino_rg_prish"]),
+        "base_h": _get_str(expanded, row, ["bino_rg_baseh"]),
+        "pr_v": _get_float(expanded, row, ["bino_rg_prisv"]),
+        "base_v": _get_str(expanded, row, ["bino_rg_basev"]),
+    }
+    if any(v is not None for v in data.values()):
+        return data
+    return None
+
+
+def _build_softoptic_ocular_mot_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """OpticSoft's Bino row: Ocular Mot., ACC (R / L) and CNP (cm and eye)."""
+    data = {
+        "ocular_motility": _get_str(expanded, row, ["bino_ocular"]),
+        "acc_r": _get_float(expanded, row, ["bino_acc_r"]),
+        "acc_l": _get_float(expanded, row, ["bino_acc_l"]),
+        "cnp_cm": _get_float(expanded, row, ["bino_cnp_cm"]),
+        "cnp_eye": normalize_maddox_wing_eye(_get_str(expanded, row, ["bino_cnp_eye"])),
+    }
+    if any(v is not None for v in data.values()):
+        return data
     return None
 
 
@@ -1824,6 +1869,8 @@ def build_exam_data_from_eye_tests(row: Dict[str, Any], expanded: Optional[Dict[
         ("maddox-wing", _build_maddox_wing_component),
         ("stereo-test", _build_stereo_test_component),
         ("rg", _build_rg_component),
+        ("softoptic-rg", _build_softoptic_rg_component),
+        ("softoptic-ocular-mot", _build_softoptic_ocular_mot_component),
         ("rg-balance", _build_rg_balance_component),
         ("schirmer-test", _build_schirmer_component),
         ("contact-lens-diameters", _build_contact_lens_diameters_component),
@@ -1840,6 +1887,11 @@ def build_exam_data_from_eye_tests(row: Dict[str, Any], expanded: Optional[Dict[
         if block:
             data.update(_build_component_entry("old-refraction", block))
     _append_softoptic_grid_slots(data, expanded, "softoptic-cover-test", _build_softoptic_cover_test_slot)
+    bino_cover_test = _build_softoptic_cover_test_fields(expanded, "bino_ct") if expanded else None
+    if bino_cover_test:
+        # Keyed "bino" so it is never read as one of the old refractions' cover tests (-1..-3).
+        card_id = "softoptic-cover-test-bino"
+        data[f"softoptic-cover-test-{card_id}"] = {**bino_cover_test, "card_instance_id": card_id}
     _append_softoptic_grid_slots(data, expanded, "softoptic-maddox-grid", _build_softoptic_maddox_grid_slot)
     warnings: List[str] = []
     for component_key, block in data.items():

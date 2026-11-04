@@ -104,6 +104,7 @@ OPTIONAL_CSV_FILES = (
     "optic_tv_incoming_source_a.csv",
     "optic_tv_incoming_source_b.csv",
     "optic_tv_incoming_source_c.csv",
+    "t_discount_types.csv",
 )
 
 TRACKED_CLINIC_MODELS: Dict[str, Any] = {

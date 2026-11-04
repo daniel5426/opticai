@@ -526,6 +526,53 @@ def test_keratometer_sources_detect_mm_and_diopters():
     assert full["l_mm_k2"] == 43.27
 
 
+def test_keratometer_keeps_softoptic_mm_and_diopters_as_entered():
+    compact = migration.build_exam_data_from_eye_tests({}, {
+        "obj_k_r_dpt1": "45.61", "obj_k_r_mm1": "7.39",
+        "obj_k_l_dpt1": "44.41",
+    })["keratometer"]
+    # 337.5 / 45.61 would be 7.40; the recorded mm reading wins, and the diopters stay as entered.
+    assert compact["r_k1"] == 7.39
+    assert compact["r_k1_d"] == 45.61
+    # A diopter-only reading still gets its mm value, with the original diopters kept beside it.
+    assert compact["l_k1"] == 7.6
+    assert compact["l_k1_d"] == 44.41
+
+
+def test_softoptic_subjective_keeps_j_and_pinhole():
+    subjective = migration.build_exam_data_from_eye_tests({}, {
+        "sub_r_va": "45", "sub_r_j": "4", "sub_l_j": "5", "sub_r_ph": "99", "sub_l_ph": "99",
+    })["subjective"]
+    assert subjective["r_j"] == migration.normalize_j_value("4")
+    assert subjective["l_j"] == migration.normalize_j_value("5")
+    assert subjective["r_ph"] == "99"
+
+
+def test_softoptic_bino_tab_components():
+    data = migration.build_exam_data_from_eye_tests({}, {
+        "bino_ct_fv_exo_p": "1", "bino_ct_nv_exo_p": "2", "bino_ct_fv_hp_e": "L", "bino_ct_fv_hp_p": "5",
+        "bino_ct_nv_ht_e": "R", "bino_ct_nv_ht_p": "7",
+        "bino_ocular": "full", "bino_acc_r": "21", "bino_acc_l": "222", "bino_cnp_cm": "1", "bino_cnp_eye": "R",
+        "bino_rg_selection": "D", "bino_rg_prish": "2.00", "bino_rg_baseh": "In", "bino_rg_prisv": "3.00", "bino_rg_basev": "UPR",
+    })
+    grid = data["softoptic-cover-test-softoptic-cover-test-bino"]
+    assert grid["card_instance_id"] == "softoptic-cover-test-bino"
+    assert (grid["fv_exo_phoria"], grid["nv_exo_phoria"]) == (1.0, 2.0)
+    assert (grid["fv_hyper_phoria_eye"], grid["fv_hyper_phoria"]) == ("L", 5.0)
+    assert (grid["nv_hyper_tropia_eye"], grid["nv_hyper_tropia"]) == ("R", 7.0)
+    ocular = data["softoptic-ocular-mot"]
+    assert (ocular["ocular_motility"], ocular["acc_r"], ocular["acc_l"], ocular["cnp_cm"], ocular["cnp_eye"]) == ("full", 21.0, 222.0, 1.0, "R")
+    rg = data["softoptic-rg"]
+    assert (rg["rg_status"], rg["pr_h"], rg["base_h"], rg["pr_v"], rg["base_v"]) == ("diplopia", 2.0, "In", 3.0, "UPR")
+
+
+def test_softoptic_rg_default_selection_is_not_imported():
+    # "1" is OpticSoft's unselected default; it must not become a status.
+    assert "softoptic-rg" not in migration.build_exam_data_from_eye_tests({}, {"bino_rg_selection": "1"})
+    rg = migration.build_exam_data_from_eye_tests({}, {"bino_rg_selection": "S", "bino_rg_supp_eye": "L"})["softoptic-rg"]
+    assert (rg["rg_status"], rg["suppressed_eye"]) == ("suppression", "L")
+
+
 def test_keratometer_full_preserves_out_of_range_values():
     full = migration.build_exam_data_from_eye_tests({}, {
         "obj_k_r_mm1": "23",

@@ -8,6 +8,7 @@ from sqlalchemy import func
 from schemas import ReferralCreate, ReferralUpdate, Referral as ReferralSchema
 from auth import get_current_user
 from utils.table_search import build_all_terms_search_condition, search_blob, spaced_concat
+from utils.column_filters import ColumnFilter, build_column_filter_conditions
 from security.scope import (
     apply_clinic_user_scope,
     get_record_clinic_ids,
@@ -19,7 +20,7 @@ from services.trash_service import move_to_trash
 
 router = APIRouter(prefix="/referrals", tags=["referrals"])
 
-def referral_list_query(db, current_user, clinic_id, search, urgency_level, referral_type, order):
+def referral_list_query(db, current_user, clinic_id, search, urgency_level, referral_type, order, filters=None):
     base = (
         db.query(
             Referral,
@@ -32,7 +33,7 @@ def referral_list_query(db, current_user, clinic_id, search, urgency_level, refe
     allowed_clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
     base = base.filter(record_filter(db, current_user, Referral, clinic_id))
     if urgency_level and urgency_level != "all":
-        base = base.filter(Referral.urgency_level == urgency_level)
+        base = base.filter(func.lower(Referral.urgency_level) == urgency_level.lower())
     if referral_type and referral_type != "all":
         base = base.filter(Referral.type == referral_type)
     search_condition = build_all_terms_search_condition(
@@ -46,6 +47,13 @@ def referral_list_query(db, current_user, clinic_id, search, urgency_level, refe
     )
     if search_condition is not None:
         base = base.filter(search_condition)
+    base = base.filter(*build_column_filter_conditions(filters, {
+        "date": ColumnFilter(Referral.date, "date"),
+        "type": ColumnFilter(Referral.type),
+        "client": ColumnFilter(spaced_concat(Client.first_name, Client.last_name)),
+        "urgency": ColumnFilter(func.lower(Referral.urgency_level), "options"),
+        "recipient": ColumnFilter(Referral.recipient),
+    }))
     order_columns = {
         "date": Referral.date,
         "id": Referral.id,
@@ -72,12 +80,13 @@ def get_referrals_paginated(
     search: Optional[str] = Query(None, description="Search by type/recipient/urgency_level/client name"),
     urgency_level: Optional[str] = Query(None, description="Filter by urgency level"),
     referral_type: Optional[str] = Query(None, alias="type", description="Filter by referral type"),
+    filters: Optional[str] = Query(None, description="JSON column filters: date|type|client|urgency|recipient"),
     include_total: bool = Query(True, description="Include the exact total count"),
     count_only: bool = Query(False, description="Return only the exact total count"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    base = referral_list_query(db, current_user, clinic_id, search, urgency_level, referral_type, order)
+    base = referral_list_query(db, current_user, clinic_id, search, urgency_level, referral_type, order, filters)
     total = base.count() if include_total or count_only else None
     if count_only:
         return {"items": [], "total": total or 0, "has_more": False}

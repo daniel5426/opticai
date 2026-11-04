@@ -110,6 +110,15 @@ def add_supplemental_cards(data: dict, seed, instance_id: int, *, contact=False)
             exam_fields["IOPInstId"] = resolved
         elif str(exam_fields["IOPInstId"]).strip() in {"0", "0.0"}:
             exam_fields.pop("IOPInstId", None)
+    # OptiTech versions name the NPC result column "NPC" or "NPCR"; both are the one NPC field.
+    if "NPC" in exam_fields and "NPCR" not in exam_fields:
+        exam_fields["NPCR"] = exam_fields.pop("NPC")
+    if "IOPTime" in exam_fields:
+        # Access stores a time-only value on its 1899-12-30 epoch ("12/30/99 23:33:00",
+        # or "12/30/0/ 23:33:00" from the native exporter); keep just the clock time.
+        clock = re.search(r"(\d{1,2}):(\d{2})(?::\d{2})?\s*$", str(exam_fields["IOPTime"]))
+        if clock:
+            exam_fields["IOPTime"] = f"{int(clock[1]):02d}:{clock[2]}"
     if seed.recheck_date is not None:
         exam_fields["ReCheckDate"] = seed.recheck_date.isoformat()
     exam_bindings = {k: v for k, v in bindings.items() if k.startswith("IOP")}

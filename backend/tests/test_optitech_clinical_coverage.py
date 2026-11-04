@@ -22,7 +22,8 @@ def test_glasses_missing_values_remain_visible_and_canonical_values_are_bound():
     assert extra['PHighR'] == '6'
     assert extra['bindings']['HighR'] == {'component': 'final-prescription', 'field': 'r_high'}
     assert 'HighR' not in extra
-    assert data['optitech-examination']['NPC'] == '323'
+    assert data['optitech-examination']['NPCR'] == '323'
+    assert 'NPC' not in data['optitech-examination']
     assert data['optitech-examination']['ReCheckDate'] == '2027-09-02'
     assert seed.source_ref.raw_payload == row
 
@@ -279,3 +280,17 @@ def test_repair_does_not_restore_a_card_removed_after_import():
     old = json.dumps({'items': [{'id': 'removed', 'type': 'optitech-examination', 'x': 0, 'y': 0}]})
     current = json.dumps({'items': []})
     assert json.loads(merge_layout(current, old, old))['items'] == []
+
+
+def test_npc_column_name_variants_land_on_the_same_field():
+    for column in ('NPC', 'NPCR'):
+        seed = resolve_seed_bases(records.normalize_glasses_exam_row({'PerId': '1', 'SphR': '-1', column: '323'}), {})
+        data = phase3.build_glasses_exam_data(seed, layout_instance_id=1)
+        assert data['optitech-examination']['NPCR'] == '323'
+
+
+def test_iop_time_keeps_only_the_clock_time():
+    for raw in ('12/30/99 23:33:00', '12/30/0/ 23:33:00'):
+        seed = resolve_seed_bases(records.normalize_glasses_exam_row({'PerId': '1', 'SphR': '-1', 'IOPTime': raw}), {})
+        data = phase3.build_glasses_exam_data(seed, layout_instance_id=1)
+        assert data['optitech-examination']['IOPTime'] == '23:33'

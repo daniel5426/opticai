@@ -46,6 +46,9 @@ export type ExamComponentType =
   | 'optitech-contact-measurements'
   | 'optitech-accommodation'
   | 'optitech-binocular'
+  | 'optitech-glasses-check'
+  | 'optitech-contact-check'
+  | 'optitech-vision-check'
   | 'old-ref'
   | 'old-refraction'
   | 'old-refraction-extension'
@@ -65,6 +68,8 @@ export type ExamComponentType =
   | 'cover-test-v2'
   | 'softoptic-cover-test'
   | 'softoptic-maddox-grid'
+  | 'softoptic-ocular-mot'
+  | 'softoptic-rg'
   | 'schirmer-test'
   | 'anamnesis'
   | 'notes'
@@ -113,6 +118,8 @@ export const fullExamsList: ExamComponentType[] = [
   'cover-test-v2',
   'softoptic-cover-test',
   'softoptic-maddox-grid',
+  'softoptic-ocular-mot',
+  'softoptic-rg',
   'schirmer-test',
   'anamnesis',
   'notes',
@@ -165,8 +172,13 @@ export const examComponentTypeToExamFields: Record<ExamComponentType, ExamCompon
   'optitech-contact-measurements': [],
   'optitech-accommodation': [],
   'optitech-binocular': [],
+  'optitech-glasses-check': [],
+  'optitech-contact-check': [],
+  'optitech-vision-check': [],
   'softoptic-cover-test': [],
   'softoptic-maddox-grid': [],
+  'softoptic-ocular-mot': [],
+  'softoptic-rg': [],
   'schirmer-test': [],
   'anamnesis': [],
   'notes': [],
@@ -230,8 +242,13 @@ export class ExamFieldMapper {
     'optitech-contact-measurements': [],
     'optitech-accommodation': [],
     'optitech-binocular': [],
+    'optitech-glasses-check': [],
+    'optitech-contact-check': [],
+    'optitech-vision-check': [],
     'softoptic-cover-test': ['softoptic-cover-test'],
     'softoptic-maddox-grid': ['softoptic-maddox-grid'],
+    'softoptic-ocular-mot': ['softoptic-ocular-mot'],
+    'softoptic-rg': ['softoptic-rg'],
     'schirmer-test': [],
     'anamnesis': [],
     'notes': [],
@@ -329,6 +346,10 @@ export class ExamFieldMapper {
         return [...SOFTOPTIC_COVER_TEST_FIELDS]
       case 'softoptic-maddox-grid':
         return [...SOFTOPTIC_MADDOX_GRID_FIELDS]
+      case 'softoptic-ocular-mot':
+        return ['ocular_motility', 'acc_r', 'acc_l', 'cnp_cm', 'cnp_eye']
+      case 'softoptic-rg':
+        return ['rg_status', 'suppressed_eye', 'pr_h', 'base_h', 'pr_v', 'base_v']
       case 'schirmer-test':
         return ['r_mm', 'l_mm', 'r_but', 'l_but']
       case 'notes':

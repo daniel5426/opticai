@@ -31,6 +31,7 @@ export const clientQueryKeys = {
   exams: (clientId: number, type?: string) => [...clientPrefix(clientId), "exams", type ?? "all"] as const,
   orders: (clientId: number) => [...clientPrefix(clientId), "orders"] as const,
   ordersContext: (clientId: number) => [...clientPrefix(clientId), "orders-context"] as const,
+  examDates: (clientId: number) => [...clientPrefix(clientId), "exam-dates"] as const,
   medicalLogs: (clientId: number) => [...clientPrefix(clientId), "medical-logs"] as const,
   referrals: (clientId: number) => [...clientPrefix(clientId), "referrals"] as const,
   appointments: (clientId: number) => [...clientPrefix(clientId), "appointments"] as const,
@@ -45,6 +46,20 @@ export function useUsersQuery(clinicId?: number, enabled = true) {
     queryKey: clientQueryKeys.users(clinicId),
     queryFn: async () => { const response = await apiClient.getRecordStaff(); if (response.error) throw new Error(response.error); return response.data ?? [] },
     enabled,
+  })
+}
+
+/** First/last exam date, derived live from the client's exams; refetched on every mount. */
+export function useClientExamDatesQuery(clientId: number | undefined, enabled = true) {
+  return useQuery({
+    queryKey: clientQueryKeys.examDates(clientId ?? 0),
+    enabled: enabled && isValidClientId(clientId ?? 0),
+    staleTime: 0,
+    queryFn: async () => {
+      const response = await apiClient.getClientExamDates(clientId!)
+      if (response.error) throw new Error(response.error)
+      return response.data ?? { first_exam_date: null, last_exam_date: null }
+    },
   })
 }
 

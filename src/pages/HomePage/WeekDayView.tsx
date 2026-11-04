@@ -15,7 +15,10 @@ import { AppointmentBlock, DragPosition, ResizeData, DragData } from "./types";
 import { formatAppointmentTime, getAppointmentTimeRange } from "./utils";
 
 const STACKED_APPOINTMENT_CONTENT_MIN_HEIGHT = 36;
+// Stacked lines are 12px each; a 30-minute card (~47px) fits time, name and phone.
+const PHONE_MIN_HEIGHT = 44;
 const EXAM_NAME_MIN_HEIGHT = 54;
+const EXAM_NAME_BELOW_PHONE_MIN_HEIGHT = 62;
 
 interface AppointmentCardContentProps {
   height: number;
@@ -40,8 +43,12 @@ function AppointmentCardContent({
   const secondaryDetail = clientName || examName;
   const hasRoomForStackedContent =
     height >= STACKED_APPOINTMENT_CONTENT_MIN_HEIGHT;
+  const phone = client?.phone_mobile?.trim();
+  const showPhone = Boolean(clientName && phone && height >= PHONE_MIN_HEIGHT);
   const showExamName = Boolean(
-    clientName && examName && height >= EXAM_NAME_MIN_HEIGHT,
+    clientName &&
+      examName &&
+      height >= (showPhone ? EXAM_NAME_BELOW_PHONE_MIN_HEIGHT : EXAM_NAME_MIN_HEIGHT),
   );
 
   if (!hasRoomForStackedContent) {
@@ -70,6 +77,11 @@ function AppointmentCardContent({
       {secondaryDetail && (
         <div className="min-w-0 truncate text-white/90" dir="rtl">
           {secondaryDetail}
+        </div>
+      )}
+      {showPhone && (
+        <div className="min-w-0 truncate text-right text-white/80 tabular-nums" dir="ltr">
+          {phone}
         </div>
       )}
       {showExamName && (

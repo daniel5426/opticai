@@ -82,6 +82,17 @@ export async function getLatestOrderByClientId(clientId: number): Promise<Order 
   })[0];
 }
 
+// Computed on the server across regular and contact lens orders; "1" when unavailable,
+// matching the previous result for an empty order list.
+export async function getNextBagNumber(clinicId?: number): Promise<string> {
+  const response = await apiClient.getNextBagNumber(clinicId);
+  if (response.error || !response.data) {
+    console.error('Error getting next bag number:', response.error);
+    return "1";
+  }
+  return response.data.next_bag_number;
+}
+
 export async function getAllOrders(clinicId?: number): Promise<Order[]> {
   try {
     const [oRes, clRes] = await Promise.all([

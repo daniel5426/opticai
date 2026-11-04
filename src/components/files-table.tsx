@@ -17,6 +17,8 @@ import { TableFiltersBar } from "@/components/table-filters-bar"
 import { TablePagination } from "@/components/table-pagination"
 import { ALL_FILTER_VALUE, FILE_CATEGORY_OPTIONS, normalizeFileCategory } from "@/lib/table-filters"
 import { SortableTableHead } from "@/components/sortable-table-head"
+import { ActiveColumnFilters, ColumnFiltersProvider, useColumnFilterState } from "@/components/column-filter"
+import { matchesColumnFilters, type ColumnFilterDefinition, type ColumnFilters } from "@/lib/column-filters"
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
 import { Input } from "@/components/ui/input"
 import { DateSearchHelper } from "@/lib/date-search-helper"
@@ -45,6 +47,8 @@ interface FilesTableProps {
   onFileCategoryFilterChange?: (value: string) => void
   sort?: SortState
   onSortChange?: (sort: SortState) => void
+  columnFilters?: ColumnFilters
+  onColumnFiltersChange?: (filters: ColumnFilters) => void
   fillHeight?: boolean
 }
 
@@ -65,10 +69,13 @@ export function FilesTable({
   onFileCategoryFilterChange,
   sort,
   onSortChange,
+  columnFilters: externalColumnFilters,
+  onColumnFiltersChange,
   fillHeight = false
 }: FilesTableProps) {
   const { t } = useTranslation()
   const { currentClinic } = useUser()
+  const columnFilters = useColumnFilterState(externalColumnFilters, onColumnFiltersChange)
   const [searchQuery, setSearchQuery] = useState("")
   const [localSort, setLocalSort] = useState<SortState | undefined>()
   const searchValue = externalSearch !== undefined ? externalSearch : searchQuery
@@ -335,8 +342,29 @@ export function FilesTable({
     }
   }
 
+  const columnFilterDefinitions = React.useMemo<ColumnFilterDefinition<FileType>[]>(
+    () => [
+      { key: "file_name", label: "שם הקובץ", kind: "text", getValue: (file) => file.file_name },
+      {
+        key: "type",
+        label: "סוג",
+        kind: "options",
+        options: FILE_CATEGORY_OPTIONS.filter((option) => option.value !== ALL_FILTER_VALUE),
+        getValue: (file) => normalizeFileCategory(file.file_type),
+      },
+      { key: "upload_date", label: "תאריך העלאה", kind: "date", getValue: (file) => file.upload_date },
+      ...(clientId === 0
+        ? [{ key: "client", label: "לקוח", kind: "text" as const, getValue: (file: FileType) => getClientName(file) }]
+        : []),
+    ],
+    [clientId]
+  )
+
   const filteredData = React.useMemo(() => {
     return data.filter((file) => {
+      if (!serverFiltered && !matchesColumnFilters(file, columnFilters.filters, columnFilterDefinitions)) {
+        return false
+      }
       if (
         !serverFiltered &&
         fileCategoryFilter !== ALL_FILTER_VALUE &&
@@ -357,7 +385,7 @@ export function FilesTable({
         DateSearchHelper.matchesDate(normalizedSearch, file.upload_date)
       )
     })
-  }, [data, fileCategoryFilter, searchValue, serverFiltered])
+  }, [data, fileCategoryFilter, searchValue, serverFiltered, columnFilters.filters, columnFilterDefinitions])
 
   const sortColumns = React.useMemo<SortColumns<FileType>>(
     () => ({
@@ -375,6 +403,7 @@ export function FilesTable({
   }, [activeSort, filteredData, onSortChange, sortColumns])
 
   return (
+    <ColumnFiltersProvider filters={columnFilters.filters} definitions={columnFilterDefinitions} onChange={columnFilters.setFilters}>
     <div
       className={fillHeight ? "relative flex min-h-0 flex-1 flex-col gap-2.5" : "relative space-y-2.5"}
       style={{ scrollbarWidth: "none" }}
@@ -407,11 +436,12 @@ export function FilesTable({
             widthClassName: "w-[170px]"
           }
         ]}
-        hasActiveFilters={Boolean(searchValue.trim()) || fileCategoryFilter !== ALL_FILTER_VALUE}
+        hasActiveFilters={Boolean(searchValue.trim()) || fileCategoryFilter !== ALL_FILTER_VALUE || columnFilters.active}
         onReset={() => {
           if (onSearchChange) onSearchChange("")
           else setSearchQuery("")
           handleFileCategoryFilterChange(ALL_FILTER_VALUE)
+          columnFilters.setFilters({})
         }}
         actions={
           <Button onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
@@ -420,6 +450,7 @@ export function FilesTable({
           </Button>
         }
       />
+      <ActiveColumnFilters />
 
       <input ref={fileInputRef} type="file" className="hidden" multiple onChange={handleFileInputChange} />
 
@@ -638,5 +669,6 @@ export function FilesTable({
         />
       </CustomModal>
     </div>
+    </ColumnFiltersProvider>
   )
 }

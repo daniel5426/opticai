@@ -12,6 +12,7 @@ import { ALL_FILTER_VALUE } from "@/lib/table-filters"
 import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch, useLatestTableSearchRequest } from "@/lib/list-page-search"
 import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
 import { deferPaginationTotal } from "@/lib/deferred-pagination"
+import { parseColumnFilters, serializeColumnFilters } from "@/lib/column-filters"
 
 export default function AllReferralsPage() {
   const { currentClinic } = useUser()
@@ -29,6 +30,7 @@ export default function AllReferralsPage() {
     () => parseSortSearch(search.sort, { key: "date", direction: "desc" }),
     [search.sort]
   )
+  const columnFilters = React.useMemo(() => parseColumnFilters(search.filters), [search.filters])
 
   useEffect(() => {
     updateLatestSearch(search.q)
@@ -47,6 +49,7 @@ export default function AllReferralsPage() {
       urgency: string
       referralType: string
       sort: string
+      filters: string
     }>
   ) =>
     buildTableSearch(
@@ -56,6 +59,7 @@ export default function AllReferralsPage() {
         urgency: search.urgency,
         referralType: search.referralType,
         sort: search.sort,
+        filters: search.filters,
         ...overrides
       },
       {
@@ -63,7 +67,8 @@ export default function AllReferralsPage() {
         page: 1,
         urgency: ALL_FILTER_VALUE,
         referralType: ALL_FILTER_VALUE,
-        sort: ""
+        sort: "",
+        filters: ""
       }
     )
 
@@ -91,6 +96,7 @@ export default function AllReferralsPage() {
         q: search.q || undefined,
         urgencyLevel: search.urgency !== ALL_FILTER_VALUE ? search.urgency : undefined,
         referralType: search.referralType !== ALL_FILTER_VALUE ? search.referralType : undefined,
+        columnFilters: search.filters || undefined,
         includeTotal: false
       }
       const { items, hasMore: nextHasMore } = await getPaginatedReferrals(clinicFilter.clinicId, paginationOptions)
@@ -124,6 +130,7 @@ export default function AllReferralsPage() {
     search.q,
     search.referralType,
     search.urgency,
+    search.filters,
     startSearchRequest
   ])
 
@@ -177,6 +184,13 @@ export default function AllReferralsPage() {
             navigate({
               to: "/referrals",
               search: buildSearchState({ referralType: value, page: 1 })
+            })
+          }
+          columnFilters={columnFilters}
+          onColumnFiltersChange={(filters) =>
+            navigate({
+              to: "/referrals",
+              search: buildSearchState({ filters: serializeColumnFilters(filters), page: 1 })
             })
           }
           sort={activeSort}

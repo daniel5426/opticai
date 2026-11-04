@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import defaultdict
 import hashlib
 import json
 from dataclasses import dataclass, replace
@@ -70,6 +71,7 @@ from .records import (
     normalize_glasses_exam_row,
     normalize_medical_note_row,
     normalize_order_row,
+    attach_lens_specification,
     normalize_previous_refraction_row,
     normalize_work_shift_row,
     build_source_ref,
@@ -298,12 +300,11 @@ def resolve_lookup_value(
 
 
 def build_notes_text(parts: Sequence[Tuple[str, Optional[str]]]) -> Optional[str]:
-    lines = []
-    for label, value in parts:
-        normalized = normalize_note_value(value)
-        if normalized:
-            lines.append(f"{label}: {normalized}")
-    return "\n".join(lines) if lines else None
+    present = [(label, text) for label, value in parts if (text := normalize_note_value(value))]
+    # A single note is shown as written in OptiTech; labels only tell several apart.
+    if len(present) == 1:
+        return present[0][1]
+    return "\n".join(f"{label}: {text}" for label, text in present) if present else None
 
 
 def normalize_note_value(value: Optional[str]) -> Optional[str]:
@@ -1046,6 +1047,23 @@ def build_legacy_order_source(
     )
 
 
+# OptiTech lens roles that match the system's standard glasses types; others keep their own name.
+LENS_ROLE_GLASSES_TYPES = {
+    "מרחק": "רחוק",
+    "קריאה": "קרוב",
+    "מחשב": "קרוב",
+    "מולטיפוקל": "מולטיפוקל",
+    "ביפוקל": "ביפוקל",
+}
+
+
+def glasses_type_from_lens_role(role: Optional[str]) -> str:
+    text = (role or "").strip()
+    if not text or text == "[ללא]":
+        return "רחוק"
+    return LENS_ROLE_GLASSES_TYPES.get(text, text)
+
+
 def build_regular_order_data(
     seed: NormalizedOrderSeed,
     *,
@@ -1080,7 +1098,7 @@ def build_regular_order_data(
         source_user_id=seed.source_user_id, dependency_name="glass_material",
     )
     lens_supplier = resolve_lookup_value(
-        catalog, table_name="tblCrdBuysWorkSapaks", key=seed.supplier_id,
+        catalog, table_name="tblCrdBuysWorkSapaks", key=seed.lens.get("lens_supplier_id") or seed.supplier_id,
         unresolved_dependencies=unresolved_dependencies, domain="orders",
         raw_row_ref=seed.source_ref.raw_row_ref, source_per_id=seed.source_per_id,
         source_user_id=seed.source_user_id, dependency_name="work_supplier",
@@ -1111,6 +1129,7 @@ def build_regular_order_data(
             "left_supplier": lens_supplier,
             "right_diameter": seed.lens.get("diameter"),
             "left_diameter": seed.lens.get("diameter"),
+            "manufacturer": lens_brand,
         }
     )
     frame = strip_none(
@@ -1198,7 +1217,9 @@ def build_regular_order_data(
             "order_status": effective_status,
             "promised_date": iso_date(seed.promise_date),
             "notes": seed.comment,
-            "lens_order_notes": seed.comment,
+            "lens_order_notes": "\n".join(
+                text for text in (seed.comment, seed.lens.get("lens_comment")) if text
+            ) or None,
         }
     )
     order_data: Dict[str, Any] = {}
@@ -1208,6 +1229,16 @@ def build_regular_order_data(
         order_data["lens"] = lens
     if frame:
         order_data["frame"] = frame
+    if lens or frame:
+        # The lens use (מרחק, מולטיפוקל, …) is the order's glasses type, shown on its lens/frame tab.
+        order_data["lens_frame_tabs"] = [
+            {
+                "id": f"optitech-{seed.legacy_order_id}",
+                "type": glasses_type_from_lens_role(lens_role),
+                "lens": lens,
+                "frame": frame,
+            }
+        ]
     if details:
         order_data["details"] = details
     order_data["legacy_source"] = build_legacy_order_source(
@@ -1494,9 +1525,26 @@ def iter_contact_lens_exam_seeds() -> Iterator[NormalizedContactLensExamSeed]:
         yield normalize_contact_lens_exam_row(row)
 
 
+def load_lens_specifications() -> Tuple[Dict[int, Mapping[str, Any]], Dict[Tuple[Optional[int], Any], List[Mapping[str, Any]]]]:
+    """Glasses rows of OptiTech exams, by GlassId and by (client, exam date)."""
+    by_id: Dict[int, Mapping[str, Any]] = {}
+    by_exam: Dict[Tuple[Optional[int], Any], List[Mapping[str, Any]]] = defaultdict(list)
+    try:
+        rows = list(iter_exported_rows("tblCrdGlassChecksGlasses"))
+    except FileNotFoundError:
+        return by_id, by_exam
+    for row in rows:
+        glass_id = parse_intish(row.get("GlassId"))
+        if glass_id:
+            by_id[glass_id] = row
+        by_exam[(parse_intish(row.get("PerId")), parse_access_date(row.get("CheckDate")))].append(row)
+    return by_id, by_exam
+
+
 def iter_order_seeds() -> Iterator[NormalizedOrderSeed]:
+    lenses_by_id, lenses_by_exam = load_lens_specifications()
     for row in iter_exported_rows("tblCrdBuysWorks"):
-        yield normalize_order_row(row)
+        yield attach_lens_specification(normalize_order_row(row), lenses_by_id, lenses_by_exam)
 
 
 def iter_file_seeds() -> Iterator[NormalizedFileSeed]:

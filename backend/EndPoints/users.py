@@ -1,7 +1,7 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
-from sqlalchemy import and_, or_
-from sqlalchemy.orm import Session
+from sqlalchemy import and_, literal, or_, select
+from sqlalchemy.orm import Session, aliased
 from sqlalchemy.exc import IntegrityError
 from database import get_db
 from models import User, Clinic
@@ -9,6 +9,7 @@ from schemas import UserCreate, UserUpdate, User as UserSchema, UserPublic, User
 from auth import decrypt_secret, encrypt_secret, get_current_user, get_password_hash
 from models import User as UserModel
 from utils.storage import upload_base64_image
+from utils.column_filters import ColumnFilter, build_column_filter_conditions
 from utils.table_search import build_all_terms_search_condition, search_blob
 from services.subscription_service import enforce_limit
 from security.scope import (
@@ -187,6 +188,7 @@ def get_users_paginated(
     search: Optional[str] = Query(None, description="Search by name/email/phone/username"),
     clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
     role_level: Optional[int] = Query(None, description="Filter by role level"),
+    filters: Optional[str] = Query(None, description="JSON column filters: id|name|role|email|phone|clinic|status"),
     include_total: bool = Query(True, description="Include the exact total count"),
     count_only: bool = Query(False, description="Return only the exact total count"),
     db: Session = Depends(get_db),
@@ -213,6 +215,24 @@ def get_users_paginated(
         base = base.filter(search_condition)
     if role_level is not None:
         base = base.filter(User.role_level == role_level)
+    # Aliased so the subquery stays independent of any Clinic join in the visibility query.
+    user_clinic = aliased(Clinic)
+    clinic_name = func.coalesce(
+        select(user_clinic.name).where(user_clinic.id == User.clinic_id).correlate(User).scalar_subquery(),
+        literal("גלובלי"),
+    )
+    base = base.filter(*build_column_filter_conditions(filters, {
+        "id": ColumnFilter(User.id),
+        "name": ColumnFilter(func.coalesce(User.full_name, User.username)),
+        "role": ColumnFilter(User.role_level, "options"),
+        "email": ColumnFilter(User.email),
+        "phone": ColumnFilter(User.phone),
+        "clinic": ColumnFilter(clinic_name),
+        "status": ColumnFilter(None, "options", option_condition={
+            "active": User.is_active.is_not(False),
+            "inactive": User.is_active.is_(False),
+        }.get),
+    }))
 
     order_columns = {
         "id": User.id,

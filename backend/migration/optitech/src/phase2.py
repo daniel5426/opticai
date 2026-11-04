@@ -33,6 +33,7 @@ from .records import (
     normalize_client_row,
     normalize_family_seed,
     normalize_user_row,
+    split_street_address,
 )
 from .trace import (
     OPTITECH_SOURCE_SYSTEM,
@@ -204,6 +205,7 @@ def client_payload_from_seed(
         lookup_name(catalog, "tblRefsSub1", seed.referral_sub1_id),
         lookup_name(catalog, "tblRefsSub2", seed.referral_sub2_id),
     ]
+    address_street, address_number = split_street_address(seed.address)
     return {
         "company_id": company_id,
         "clinic_id": clinic_id,
@@ -214,8 +216,8 @@ def client_payload_from_seed(
         "date_of_birth": seed.date_of_birth,
         "health_fund": None,
         "address_city": lookup_name(catalog, "tblCitys", seed.city_id),
-        "address_street": seed.address,
-        "address_number": None,
+        "address_street": address_street,
+        "address_number": address_number,
         "postal_code": seed.postal_code,
         "phone_home": seed.phone_home,
         "phone_work": seed.phone_work,

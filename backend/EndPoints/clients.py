@@ -9,6 +9,7 @@ from models import Client, Family, Clinic, User, OpticalExam, Appointment, Order
 from schemas import ClientCreate, ClientUpdate, Client as ClientSchema, ClientOrdersContext, ClientMergeRequest, ClientMergeResult
 from sqlalchemy import and_, func, or_
 from auth import get_current_user
+from utils.column_filters import ColumnFilter, build_column_filter_conditions
 from utils.table_search import build_all_terms_search_condition, search_blob
 from utils.storage import upload_base64_image
 from security.scope import (
@@ -29,7 +30,21 @@ CEO_LEVEL = 4
 
 router = APIRouter(prefix="/clients", tags=["clients"])
 
-def client_list_query(db, current_user, clinic_id, search, gender, order):
+
+# Imports store English codes while the app writes Hebrew; match every spelling of a gender.
+GENDER_SYNONYMS = {
+    "זכר": ("זכר", "male", "m"),
+    "נקבה": ("נקבה", "female", "f"),
+    "אחר": ("אחר", "other"),
+}
+
+
+def gender_condition(value: str):
+    synonyms = GENDER_SYNONYMS.get(value.strip(), (value.strip(),))
+    return func.lower(func.trim(Client.gender)).in_([synonym.lower() for synonym in synonyms])
+
+
+def client_list_query(db, current_user, clinic_id, search, gender, order, filters=None):
     base = db.query(
         Client.id,
         Client.clinic_id,
@@ -42,11 +57,10 @@ def client_list_query(db, current_user, clinic_id, search, gender, order):
         Client.family_id,
         Client.family_role,
     )
-    allowed_clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
     base = base.filter(*client_scope_conditions(db, current_user, clinic_id))
     base = base.filter(Client.merged_into_client_id.is_(None))
     if gender and gender != "all":
-        base = base.filter(Client.gender == gender)
+        base = base.filter(gender_condition(gender))
 
     search_condition = build_all_terms_search_condition(
         search,
@@ -68,6 +82,16 @@ def client_list_query(db, current_user, clinic_id, search, gender, order):
     )
     if search_condition is not None:
         base = base.filter(search_condition)
+    base = base.filter(*build_column_filter_conditions(filters, {
+        "id": ColumnFilter(Client.id),
+        "first_name": ColumnFilter(Client.first_name),
+        "last_name": ColumnFilter(Client.last_name),
+        "gender": ColumnFilter(None, "options", option_condition=gender_condition),
+        "national_id": ColumnFilter(Client.national_id),
+        "phone_mobile": ColumnFilter(Client.phone_mobile),
+        "email": ColumnFilter(Client.email),
+        "family_role": ColumnFilter(Client.family_role),
+    }))
 
 
     order_columns = {
@@ -92,17 +116,19 @@ def client_list_query(db, current_user, clinic_id, search, gender, order):
 @router.get("/paginated")
 def get_clients_paginated(
     clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
+    all_clinics: bool = Query(False, description="Every clinic the user may access, ignoring clinic_id"),
     limit: int = Query(25, ge=1, le=100, description="Max items to return"),
     offset: int = Query(0, ge=0, description="Items to skip"),
     order: Optional[str] = Query("id_desc", description="Sort order: id_desc|id_asc"),
     search: Optional[str] = Query(None, description="Search by name/phone/email"),
     gender: Optional[str] = Query(None, description="Filter by gender"),
+    filters: Optional[str] = Query(None, description="JSON column filters: id|first_name|last_name|gender|national_id|phone_mobile|email|family_role"),
     include_total: bool = Query(True, description="Include the exact total count"),
     count_only: bool = Query(False, description="Return only the exact total count"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    base = client_list_query(db, current_user, clinic_id, search, gender, order)
+    base = client_list_query(db, current_user, None if all_clinics else clinic_id, search, gender, order, filters)
     total = base.order_by(None).count() if include_total or count_only else None
     if count_only:
         return {"items": [], "total": total or 0, "has_more": False}
@@ -125,6 +151,23 @@ def get_clients_paginated(
         for r in rows[:limit]
     ]
     return { "items": items, "total": total, "has_more": len(rows) > limit }
+
+@router.get("/last-exam-dates")
+def get_clients_last_exam_dates(
+    ids: List[int] = Query(..., max_length=100, description="Client ids, e.g. one list page"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Latest exam date per client, for list views; clients outside the user's scope or without exams are omitted."""
+    rows = (
+        db.query(OpticalExam.client_id, func.max(OpticalExam.exam_date))
+        .join(Client, Client.id == OpticalExam.client_id)
+        .filter(OpticalExam.client_id.in_(ids), OpticalExam.deleted_at.is_(None), *client_scope_conditions(db, current_user))
+        .group_by(OpticalExam.client_id)
+        .all()
+    )
+    return {str(client_id): last_exam_date for client_id, last_exam_date in rows if last_exam_date}
+
 
 @router.post("/", response_model=ClientSchema)
 def create_client(
@@ -322,6 +365,22 @@ def _collect_addition_add_sources(exam_data):
                 current["l_ad"] = l_value
             sources[add_type] = current
     return sources
+
+@router.get("/{client_id}/exam-dates")
+def get_client_exam_dates(
+    client_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """First and last exam date of a client (glasses and contact-lens exams), computed live."""
+    get_scoped_client(db, current_user, client_id)
+    first_exam_date, last_exam_date = (
+        db.query(func.min(OpticalExam.exam_date), func.max(OpticalExam.exam_date))
+        .filter(OpticalExam.client_id == client_id)
+        .one()
+    )
+    return {"first_exam_date": first_exam_date, "last_exam_date": last_exam_date}
+
 
 @router.get("/{client_id}/orders-context", response_model=ClientOrdersContext)
 def get_client_orders_context(

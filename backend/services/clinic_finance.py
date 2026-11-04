@@ -60,6 +60,18 @@ def analytics_payments(db, company_id, end_date, start_date=None, clinic_id=None
             for r in query.group_by(BillingPayment.paid_at, ledger.c.clinic_id, Clinic.name)]
 
 
+def outstanding_by_clinic(db, company_id, day, currency, clinic_id=None):
+    """Open balance per clinic as of `day`, in one pass over the ledger (instead of one pass per clinic)."""
+    ledger = invoice_ledger(clinic_id, company_id)
+    payments = select(BillingPayment.billing_id.label('id'), func.sum(payment_amount()).label('paid'))\
+        .where(BillingPayment.currency == currency, BillingPayment.paid_at > day).group_by(BillingPayment.billing_id).subquery()
+    balance = ledger.c.total - (ledger.c.paid - func.coalesce(payments.c.paid, 0))
+    rows = db.query(ledger.c.clinic_id, func.coalesce(func.sum(case((balance > 0, balance), else_=0)), 0))\
+        .select_from(ledger).outerjoin(payments, payments.c.id == ledger.c.id)\
+        .filter(ledger.c.currency == currency, ledger.c.order_date <= day).group_by(ledger.c.clinic_id).all()
+    return {row[0]: float(row[1] or 0) for row in rows}
+
+
 def outstanding_at(db, clinic_id, day, currency, company_id=None):
     ledger = invoice_ledger(clinic_id, company_id)
     payments = select(BillingPayment.billing_id.label('id'), func.sum(payment_amount()).label('paid'))\

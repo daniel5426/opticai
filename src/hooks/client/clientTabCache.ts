@@ -80,6 +80,7 @@ export function syncSavedClientExam(
   void queryClient.invalidateQueries({
     queryKey: clientQueryKeys.ordersContext(clientId),
   })
+  void queryClient.invalidateQueries({ queryKey: clientQueryKeys.examDates(clientId) })
 }
 
 export function syncSavedClientReferral(

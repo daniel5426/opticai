@@ -14,6 +14,8 @@ import { TableFiltersBar } from "@/components/table-filters-bar"
 import { TablePagination } from "@/components/table-pagination"
 import { ALL_FILTER_VALUE, REFERRAL_URGENCY_OPTIONS } from "@/lib/table-filters"
 import { SortableTableHead } from "@/components/sortable-table-head"
+import { ActiveColumnFilters, ColumnFiltersProvider, useColumnFilterState } from "@/components/column-filter"
+import { matchesColumnFilters, type ColumnFilterDefinition, type ColumnFilters } from "@/lib/column-filters"
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
 import { exportReferralToDocx, exportReferralToPdf, printReferralPdf } from "@/lib/referral-docx"
 import { DateSearchHelper } from "@/lib/date-search-helper"
@@ -42,8 +44,25 @@ interface ReferralTableProps {
   onReferralTypeFilterChange?: (value: string) => void
   sort?: SortState
   onSortChange?: (sort: SortState) => void
+  columnFilters?: ColumnFilters
+  onColumnFiltersChange?: (filters: ColumnFilters) => void
   fillHeight?: boolean
 }
+
+const REFERRAL_COLUMN_FILTERS: ColumnFilterDefinition<Referral>[] = [
+  { key: "date", label: "תאריך", kind: "date", getValue: (referral) => referral.date },
+  { key: "type", label: "סוג הפניה", kind: "text", getValue: (referral) => referral.type },
+  { key: "client", label: "לקוח", kind: "text", getValue: (referral) => referral.client_full_name },
+  {
+    key: "urgency",
+    label: "רמת דחיפות",
+    kind: "options",
+    // Imported referrals also use "Priority" and capitalized codes; matching is case-insensitive.
+    options: [...REFERRAL_URGENCY_OPTIONS.filter((option) => option.value !== ALL_FILTER_VALUE), { value: "priority", label: "Priority" }],
+    getValue: (referral) => referral.urgency_level?.toLowerCase(),
+  },
+  { key: "recipient", label: "נמען", kind: "text", getValue: (referral) => referral.recipient },
+]
 
 export function ReferralTable({
   referrals,
@@ -61,9 +80,16 @@ export function ReferralTable({
   onReferralTypeFilterChange,
   sort,
   onSortChange,
+  columnFilters: externalColumnFilters,
+  onColumnFiltersChange,
   fillHeight = false
 }: ReferralTableProps) {
   const { t } = useTranslation()
+  const columnFilters = useColumnFilterState(externalColumnFilters, onColumnFiltersChange)
+  const columnFilterDefinitions = React.useMemo(
+    () => (clientId === 0 ? REFERRAL_COLUMN_FILTERS : REFERRAL_COLUMN_FILTERS.filter((definition) => definition.key !== "client")),
+    [clientId]
+  )
   const [searchTerm, setSearchTerm] = useState("")
   const [localSort, setLocalSort] = useState<SortState | undefined>()
   const searchValue = externalSearch !== undefined ? externalSearch : searchTerm
@@ -117,10 +143,13 @@ export function ReferralTable({
 
   const filteredReferrals = React.useMemo(() => {
     return referrals.filter((referral) => {
-      if (!serverFiltered && urgencyFilter !== ALL_FILTER_VALUE && referral.urgency_level !== urgencyFilter) {
+      if (!serverFiltered && urgencyFilter !== ALL_FILTER_VALUE && referral.urgency_level?.toLowerCase() !== urgencyFilter) {
         return false
       }
       if (!serverFiltered && referralTypeFilter !== ALL_FILTER_VALUE && referral.type !== referralTypeFilter) {
+        return false
+      }
+      if (!serverFiltered && !matchesColumnFilters(referral, columnFilters.filters, columnFilterDefinitions)) {
         return false
       }
 
@@ -137,7 +166,7 @@ export function ReferralTable({
         referral.client_full_name?.toLowerCase().includes(normalizedSearch)
       )
     })
-  }, [referralTypeFilter, referrals, searchValue, urgencyFilter, serverFiltered])
+  }, [referralTypeFilter, referrals, searchValue, urgencyFilter, serverFiltered, columnFilters.filters, columnFilterDefinitions])
 
   const displayData = React.useMemo(() => {
     return onSortChange ? filteredReferrals : sortRows(filteredReferrals, activeSort, sortColumns)
@@ -243,6 +272,7 @@ export function ReferralTable({
   }
 
   return (
+    <ColumnFiltersProvider filters={columnFilters.filters} definitions={columnFilterDefinitions} onChange={columnFilters.setFilters}>
     <div className={fillHeight ? "flex min-h-0 flex-1 flex-col gap-2.5" : "space-y-2.5"} style={{ scrollbarWidth: "none" }}>
       <TableFiltersBar
           exportTable="referrals"
@@ -274,13 +304,14 @@ export function ReferralTable({
           }
         ]}
         hasActiveFilters={
-          Boolean(searchValue.trim()) || urgencyFilter !== ALL_FILTER_VALUE || referralTypeFilter !== ALL_FILTER_VALUE
+          Boolean(searchValue.trim()) || urgencyFilter !== ALL_FILTER_VALUE || referralTypeFilter !== ALL_FILTER_VALUE || columnFilters.active
         }
         onReset={() => {
           if (onSearchChange) onSearchChange("")
           else setSearchTerm("")
           handleUrgencyFilterChange(ALL_FILTER_VALUE)
           handleReferralTypeFilterChange(ALL_FILTER_VALUE)
+          columnFilters.setFilters({})
         }}
         actions={
           clientId > 0 ? (
@@ -303,6 +334,7 @@ export function ReferralTable({
           )
         }
       />
+      <ActiveColumnFilters />
 
       <div className={fillHeight ? "min-h-0 flex-1" : undefined} style={{ scrollbarWidth: "none" }}>
         <Table
@@ -528,5 +560,6 @@ export function ReferralTable({
         cancelText={t("cancel")}
       />
     </div>
+    </ColumnFiltersProvider>
   )
 }

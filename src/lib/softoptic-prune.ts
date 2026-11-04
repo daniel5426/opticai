@@ -45,6 +45,7 @@ const LOOKUP_TABLES = new Set([
   "optic_tv_wash_sol.csv",
   "optic_tv_order_type.csv",
   "account_tv_memo_type.csv",
+  "t_discount_types.csv",
 ]);
 
 const ACCOUNT_LINKED_TABLES = new Set([

@@ -18,6 +18,7 @@ import { ALL_FILTER_VALUE } from "@/lib/table-filters"
 import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch, useLatestTableSearchRequest } from "@/lib/list-page-search"
 import { GuardedRouterLink } from "@/components/GuardedRouterLink"
 import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
+import { parseColumnFilters, serializeColumnFilters } from "@/lib/column-filters"
 import { CustomModal } from "@/components/ui/custom-modal"
 import { apiClient } from "@/lib/api-client"
 import { toast } from "sonner"
@@ -52,6 +53,13 @@ export default function ClientsPage() {
   const { startSearchRequest, updateLatestSearch } = useLatestTableSearchRequest(searchInput)
   const isFamilyMode = search.mode === "families"
   const activeSort = React.useMemo(() => parseSortSearch(search.sort, { key: "id", direction: "desc" }), [search.sort])
+  const columnFilters = React.useMemo(() => parseColumnFilters(search.filters), [search.filters])
+  // The company clinic filter's "all" leaves clinicId unset; list rows then show their branch.
+  const viewsAllClinics = clinicId === undefined
+  const clinicNames = React.useMemo(
+    () => Object.fromEntries(clinicFilter.clinics.map((clinic) => [clinic.id, clinic.name])),
+    [clinicFilter.clinics]
+  )
 
   useEffect(() => {
     updateLatestSearch(search.q)
@@ -69,7 +77,9 @@ export default function ClientsPage() {
       q: string
       page: number
       gender: string
+      clinic: string
       sort: string
+      filters: string
     }>
   ) =>
     buildTableSearch(
@@ -78,7 +88,9 @@ export default function ClientsPage() {
         q: searchInput.trim(),
         page: search.page,
         gender: search.gender,
+        clinic: search.clinic,
         sort: search.sort,
+        filters: search.filters,
         ...overrides
       },
       {
@@ -86,7 +98,9 @@ export default function ClientsPage() {
         q: "",
         page: 1,
         gender: ALL_FILTER_VALUE,
-        sort: ""
+        clinic: "",
+        sort: "",
+        filters: ""
       }
     )
 
@@ -113,6 +127,7 @@ export default function ClientsPage() {
         order: sortToOrder(activeSort, "id_desc"),
         q: search.q || undefined,
         gender: search.gender !== ALL_FILTER_VALUE ? search.gender : undefined,
+        columnFilters: search.filters || undefined,
         includeTotal: false
       }
       const { items, hasMore } = await getPaginatedClients(clinicId, paginationOptions)
@@ -142,6 +157,7 @@ export default function ClientsPage() {
         offset: (search.page - 1) * pageSize,
         order: sortToOrder(activeSort, "id_desc"),
         search: search.q || undefined,
+        columnFilters: search.filters || undefined,
         includeTotal: false
       }
       const { items, hasMore } = await getPaginatedFamilies(clinicId, paginationOptions)
@@ -177,7 +193,7 @@ export default function ClientsPage() {
       return
     }
     void loadData()
-  }, [activeSort, clinicFilter.companyId, currentClinic?.id, clinicId, pageSize, isFamilyMode, search.gender, search.page, search.q, startSearchRequest])
+  }, [activeSort, clinicFilter.companyId, currentClinic?.id, clinicId, pageSize, isFamilyMode, search.gender, search.page, search.q, search.filters, startSearchRequest])
 
   const handleClientDeleted = (clientId: number) => {
     setClients((previous) => previous.filter((client) => client.id !== clientId))
@@ -264,10 +280,13 @@ export default function ClientsPage() {
         q: "",
         page: 1,
         gender: ALL_FILTER_VALUE,
-        sort: ""
+        clinic: "",
+        sort: "",
+        filters: ""
       })
     })
   }
+
 
   const toggleMergeMode = () => {
     setIsMergeMode((previous) => {
@@ -368,6 +387,10 @@ export default function ClientsPage() {
                       onSearchChange={handleSearchInputChange}
                       hideSearch
                       serverFiltered
+                      columnFilters={columnFilters}
+                      onColumnFiltersChange={(filters) =>
+                        void navigate({ to: "/clients", search: buildSearchState({ filters: serializeColumnFilters(filters), page: 1 }) })
+                      }
                       loading={familiesLoading}
                       fillHeight
                       sort={activeSort}
@@ -406,10 +429,15 @@ export default function ClientsPage() {
                 searchQuery={searchInput}
                 onSearchChange={handleSearchInputChange}
                 serverFiltered
+                columnFilters={columnFilters}
+                onColumnFiltersChange={(filters) =>
+                  void navigate({ to: "/clients", search: buildSearchState({ filters: serializeColumnFilters(filters), page: 1 }) })
+                }
                 genderFilter={search.gender}
                 onGenderFilterChange={(gender) =>
                   void navigate({ to: "/clients", search: buildSearchState({ gender, page: 1 }) })
                 }
+                clinicNames={viewsAllClinics ? clinicNames : undefined}
                 hideNewButton
                 loading={clientsLoading}
                 fillHeight

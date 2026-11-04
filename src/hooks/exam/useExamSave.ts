@@ -1,5 +1,6 @@
 import { useCallback, useRef, useLayoutEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { examPageDataQueryKey } from "@/lib/db/exams-db";
 import { toast } from "sonner";
 import { OpticalExam } from "@/lib/db/schema-interface";
 import { updateExam, createExam } from "@/lib/db/exams-db";
@@ -343,6 +344,7 @@ export function useExamSave({
               examFormDataByInstance: saveBuckets,
             });
             syncSavedClientExam(queryClient, updatedExam, config.dbType);
+            if (updatedExam.id) queryClient.removeQueries({ queryKey: examPageDataQueryKey(updatedExam.id), exact: true });
 
             toast.success(config.saveSuccessUpdate);
             setIsEditing(false);

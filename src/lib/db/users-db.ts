@@ -26,6 +26,7 @@ export async function getPaginatedUsers(
     q?: string
     roleLevel?: number
     clinic_id?: number
+    columnFilters?: string
     includeTotal?: boolean
     countOnly?: boolean
   }

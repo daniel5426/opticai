@@ -7,6 +7,9 @@ import { useAppLocale } from "@/localization/use-app-locale"
 import { FastInput, inputSyncManager } from "./shared/OptimizedInputs"
 import { convertKeratometerValue, getKeratometerRange, getKeratometerStep, KeratometerUnit } from "@/utils/keratometer-utils"
 
+const convertStored = (value: unknown, unit: KeratometerUnit) =>
+  value == null || value === "" ? "" : convertKeratometerValue(String(value), unit)
+
 interface KeratometerTabProps {
   keratometerData: KeratometerExam
   onKeratometerChange: (field: keyof KeratometerExam, value: string) => void
@@ -36,38 +39,34 @@ export function KeratometerTab({
     { key: "axis", label: "AX", labelHe: "אקסיס", step: "1", min: "0", max: "180" }
   ]
 
+  // The unit only changes the view: mm lives in r_k1, diopters in r_k1_d. A reading stored in only
+  // one unit is shown converted in the other, without rewriting the stored value.
   const handleUnitChange = (newUnit: string) => {
     const nextUnit = newUnit as KeratometerUnit
     if (nextUnit === unit) return
-
     inputSyncManager.flush()
-    const latestData = dataRef.current
-
-    // Convert current values
-    const kFields = ["k1", "k2"]
-    const eyes = ["r", "l"] as const
-
-    eyes.forEach(eye => {
-      kFields.forEach(field => {
-        const eyeField = `${eye}_${field}` as keyof KeratometerExam
-        const val = latestData[eyeField]?.toString() || ""
-        if (val) {
-          onKeratometerChange(eyeField, convertKeratometerValue(val, nextUnit))
-        }
-      })
-    })
-
     setUnit(nextUnit)
   }
 
+  const isK = (field: string) => field === "k1" || field === "k2"
+  const mmField = (eye: "R" | "L", field: string) => `${eye.toLowerCase()}_${field}` as keyof KeratometerExam
+  const dptField = (eye: "R" | "L", field: string) => `${eye.toLowerCase()}_${field}_d` as keyof KeratometerExam
+
   const getFieldValue = (eye: "R" | "L", field: string) => {
-    const eyeField = `${eye.toLowerCase()}_${field}` as keyof KeratometerExam
-    return keratometerData[eyeField]?.toString() || ""
+    const mm = keratometerData[mmField(eye, field)]?.toString() || ""
+    if (!isK(field) || unit === "mm") return mm || (isK(field) ? convertStored(keratometerData[dptField(eye, field)], "mm") : "")
+    return keratometerData[dptField(eye, field)]?.toString() || convertStored(mm, "D")
   }
 
   const handleChange = (eye: "R" | "L", field: string, value: string) => {
-    const eyeField = `${eye.toLowerCase()}_${field}` as keyof KeratometerExam
-    onKeratometerChange(eyeField, value)
+    if (!isK(field)) {
+      onKeratometerChange(mmField(eye, field), value)
+      return
+    }
+    // An edit replaces the reading in both units, so the two never disagree.
+    const [edited, other] = unit === "mm" ? [mmField(eye, field), dptField(eye, field)] : [dptField(eye, field), mmField(eye, field)]
+    onKeratometerChange(edited, value)
+    onKeratometerChange(other, value ? convertKeratometerValue(value, unit === "mm" ? "D" : "mm") : "")
   }
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
@@ -76,10 +75,11 @@ export function KeratometerTab({
 
     const toEye = fromEye === "R" ? "L" : "R"
     columns.forEach(({ key }) => {
-      const fromField = `${fromEye.toLowerCase()}_${key}` as keyof KeratometerExam
-      const toField = `${toEye.toLowerCase()}_${key}` as keyof KeratometerExam
-      const value = latestData[fromField]?.toString() || ""
-      onKeratometerChange(toField, value)
+      const fields = isK(key) ? [mmField(fromEye, key), dptField(fromEye, key)] : [mmField(fromEye, key)]
+      fields.forEach((fromField) => {
+        const toField = `${toEye.toLowerCase()}${String(fromField).slice(1)}` as keyof KeratometerExam
+        onKeratometerChange(toField, latestData[fromField]?.toString() || "")
+      })
     })
   }
 

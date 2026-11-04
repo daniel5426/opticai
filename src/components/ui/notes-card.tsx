@@ -1,5 +1,7 @@
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import { Card } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 import { FastTextarea } from '../exam/shared/OptimizedInputs'
 import { Maximize2, FileText, Lock } from 'lucide-react'
 import {
@@ -33,6 +35,7 @@ export function NotesCard({
   height = 'full',
   className,
 }: NotesCardProps) {
+  const { t } = useTranslation()
   const [isShowingHidden, setIsShowingHidden] = React.useState(false)
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [dialogIsShowingHidden, setDialogIsShowingHidden] = React.useState(false)
@@ -60,7 +63,7 @@ export function NotesCard({
     }
   }
 
-  const hasHiddenContent = hiddenValue && hiddenValue.length > 0
+  const hasHiddenContent = hiddenValue.length > 0
 
   React.useEffect(() => {
     if (dialogOpen) {
@@ -70,64 +73,76 @@ export function NotesCard({
     }
   }, [dialogOpen, isShowingHidden, value, hiddenValue])
 
+  const heading = (showingHidden: boolean) => (showingHidden ? 'הערה נסתרת' : title)
+
   return (
     <Card
-      className={`w-full px-4 ${height && height == 'full' ? 'h-full' : undefined} pt-3 pb-4 gap-2 transition-all duration-500 ease-in-out relative overflow-hidden group/card ${isShowingHidden ? 'bg-zinc-900 text-zinc-100 border-zinc-800' : ''
-        } ${className || ''
-        }`}
+      className={cn(
+        'relative w-full gap-2 px-4 pt-3 pb-4 transition-colors duration-300',
+        height === 'full' && 'h-full',
+        isShowingHidden && 'bg-primary/[0.04] ring-1 ring-primary/25',
+        className,
+      )}
       dir="rtl"
     >
-      {/* Propagation effect layer */}
-      <div
-        className={`absolute inset-0 pointer-events-none transition-opacity duration-1000 ${isShowingHidden ? 'opacity-20' : 'opacity-0'
-          }`}
-        style={{
-          background: 'radial-gradient(circle at bottom left, rgba(59, 130, 246, 0.1) 0%, transparent 60%)',
-        }}
-      />
-
-      <div className="flex items-center gap-3 relative z-10">
+      <div className="flex items-center gap-3">
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <div className={`p-2 rounded-lg cursor-pointer group/expand transition-colors ${isShowingHidden ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-muted hover:bg-accent'
-              }`}>
-              <FileText className={`h-4 w-4 group-hover/expand:hidden ${isShowingHidden ? 'text-zinc-400' : 'text-foreground'}`} />
-              <Maximize2 className={`h-4 w-4 hidden group-hover/expand:block ${isShowingHidden ? 'text-zinc-100' : 'text-foreground'}`} />
-            </div>
+            <button
+              type="button"
+              aria-label={t('notesExpand')}
+              className={cn(
+                'group/expand rounded-lg p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                isShowingHidden ? 'bg-primary/10 text-primary hover:bg-primary/15' : 'bg-muted text-foreground hover:bg-accent',
+              )}
+            >
+              {isShowingHidden
+                ? <Lock className="h-4 w-4 group-hover/expand:hidden" />
+                : <FileText className="h-4 w-4 group-hover/expand:hidden" />}
+              <Maximize2 className="hidden h-4 w-4 group-hover/expand:block" />
+            </button>
           </DialogTrigger>
-          <DialogContent className={`max-w-4xl sm:max-w-[800px] ${dialogIsShowingHidden ? 'bg-zinc-900 border-zinc-800 text-zinc-100' : ''}`}>
+          <DialogContent className="max-w-4xl sm:max-w-[800px]" dir="rtl">
             <DialogHeader>
-              <DialogTitle className={`text-right ${dialogIsShowingHidden ? 'text-zinc-100' : ''}`}>
-                {dialogIsShowingHidden ? <span className="">הערה נסתרת</span> : title}
-              </DialogTitle>
+              <div className="flex items-center justify-between gap-3 pe-8">
+                <DialogTitle className={cn('flex items-center gap-2', dialogIsShowingHidden && 'text-primary')}>
+                  {dialogIsShowingHidden && <Lock className="h-4 w-4" />}
+                  {heading(dialogIsShowingHidden)}
+                </DialogTitle>
+                {onHiddenChange && (
+                  <HiddenNoteToggle
+                    active={dialogIsShowingHidden}
+                    hasHiddenContent={dialogHiddenValue.length > 0}
+                    onToggle={() => setDialogIsShowingHidden(!dialogIsShowingHidden)}
+                  />
+                )}
+              </div>
             </DialogHeader>
-            <div className="mt-4 relative" dir="rtl">
+            <div className="mt-2" dir="rtl">
               <FastTextarea
                 disabled={disabled}
                 value={dialogDisplayValue || ''}
                 noBorder={true}
                 onChange={handleDialogChange}
-                className={`min-h-[500px] text-base p-4 ${dialogIsShowingHidden ? 'bg-transparent text-zinc-100 placeholder:text-zinc-700 focus-visible:ring-0 focus-visible:ring-offset-0 border-none resize-none' : 'focus-visible:ring-0 focus-visible:ring-offset-0 border-none resize-none'}`}
+                className="min-h-[500px] resize-none border-none p-4 text-base focus-visible:ring-0 focus-visible:ring-offset-0"
                 placeholder={disabled ? '' : placeholder}
                 showMaximize={false}
                 autoResize={false}
               />
-              {/* Secret Toggle in Modal */}
-              {onHiddenChange && (
-                <div className="absolute bottom-4 left-4 z-20">
-                  <div
-                    onClick={() => setDialogIsShowingHidden(!dialogIsShowingHidden)}
-                    className={`p-2 rounded-full cursor-pointer transition-all duration-300 ${dialogIsShowingHidden ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-muted hover:bg-accent'
-                      }`}
-                  >
-                    <Lock className={`h-4 w-4 ${dialogIsShowingHidden ? 'text-blue-400' : 'text-muted-foreground'}`} />
-                  </div>
-                </div>
-              )}
             </div>
           </DialogContent>
         </Dialog>
-        <h3 className={`text-base font-medium transition-colors ${isShowingHidden ? 'text-zinc-400' : 'text-muted-foreground'}`}>{isShowingHidden ? 'הערה נסתרת' : title}</h3>
+        <h3 className={cn('text-base font-medium transition-colors', isShowingHidden ? 'text-primary' : 'text-muted-foreground')}>
+          {heading(isShowingHidden)}
+        </h3>
+        {onHiddenChange && (
+          <HiddenNoteToggle
+            className="ms-auto"
+            active={isShowingHidden}
+            hasHiddenContent={hasHiddenContent}
+            onToggle={() => setIsShowingHidden(!isShowingHidden)}
+          />
+        )}
       </div>
 
       <FastTextarea
@@ -136,33 +151,49 @@ export function NotesCard({
         onChange={handleCurrentChange}
         isSecret={isShowingHidden}
         style={height && height !== 'full' ? { height } : undefined}
-        className={`text-sm w-full p-3 rounded-lg disabled:opacity-100 disabled:cursor-default min-h-[90px] transition-all duration-500 relative z-10 resize-none ${isShowingHidden
-          ? disabled 
-            ? 'bg-zinc-700/80 border-zinc-800 text-zinc-100 placeholder:text-zinc-600'
-            : 'bg-zinc-800/50 border-zinc-700 text-zinc-100 placeholder:text-zinc-500'
-          : ''
-          } ${height === 'full' ? 'h-full flex-1' : ''}`}
+        className={cn(
+          'min-h-[90px] w-full resize-none rounded-lg p-3 text-sm disabled:cursor-default disabled:opacity-100',
+          height === 'full' && 'h-full flex-1',
+        )}
         placeholder={disabled ? '' : placeholder}
         showMaximize={false}
         autoResize={false}
       />
-
-      {/* Secret Icon */}
-      {onHiddenChange && (
-        <div className="absolute bottom-2 left-2 z-20">
-          <div
-            onClick={() => setIsShowingHidden(!isShowingHidden)}
-            className={`p-1.5 rounded-full cursor-pointer transition-all duration-300 opacity-0 group-hover/card:opacity-100 ${isShowingHidden ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-muted hover:bg-accent'
-              }`}
-          >
-            <Lock className={`h-3 w-3 ${isShowingHidden ? 'text-blue-400' : 'text-muted-foreground'}`} />
-          </div>
-          {/* Blue dot indicator */}
-          {hasHiddenContent && !isShowingHidden && (
-            <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-blue-500 rounded-full border border-background transition-opacity duration-300 group-hover/card:opacity-0" />
-          )}
-        </div>
-      )}
     </Card>
+  )
+}
+
+function HiddenNoteToggle({
+  active,
+  hasHiddenContent,
+  onToggle,
+  className,
+}: {
+  active: boolean
+  hasHiddenContent: boolean
+  onToggle: () => void
+  className?: string
+}) {
+  const { t } = useTranslation()
+  const label = active ? t('notesShowRegular') : t('notesShowHidden')
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={active}
+      aria-label={label}
+      title={label}
+      className={cn(
+        'relative inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        active ? 'bg-primary/10 text-primary hover:bg-primary/15' : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+        className,
+      )}
+    >
+      {active ? t('notesBackToNotes') : t('notesHiddenToggle')}
+      {active ? <FileText className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+      {hasHiddenContent && !active && (
+        <span className="absolute -top-0.5 -end-0.5 h-2 w-2 rounded-full border border-background bg-primary" aria-hidden />
+      )}
+    </button>
   )
 }

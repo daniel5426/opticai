@@ -11,6 +11,7 @@ import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
 import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch, useLatestTableSearchRequest } from "@/lib/list-page-search"
 import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
+import { parseColumnFilters, serializeColumnFilters } from "@/lib/column-filters"
 import { deferPaginationTotal } from "@/lib/deferred-pagination"
 
 interface UserWithClinic extends User {
@@ -31,6 +32,7 @@ export default function AllUsersPage() {
   const [searchInput, setSearchInput] = useState(search.q)
   const { startSearchRequest, updateLatestSearch } = useLatestTableSearchRequest(searchInput)
   const activeSort = React.useMemo(() => parseSortSearch(search.sort, { key: "id", direction: "desc" }), [search.sort])
+  const columnFilters = React.useMemo(() => parseColumnFilters(search.filters), [search.filters])
 
   useEffect(() => {
     updateLatestSearch(search.q)
@@ -49,6 +51,7 @@ export default function AllUsersPage() {
       role: string
       clinicScope: string
       sort: string
+      filters: string
     }>
   ) =>
     buildTableSearch(
@@ -58,6 +61,7 @@ export default function AllUsersPage() {
         role: search.role,
         clinicScope: search.clinicScope,
         sort: search.sort,
+        filters: search.filters,
         ...overrides
       },
       {
@@ -65,7 +69,8 @@ export default function AllUsersPage() {
         page: 1,
         role: ALL_FILTER_VALUE,
         clinicScope: ALL_FILTER_VALUE,
-        sort: ""
+        sort: "",
+        filters: ""
       }
     )
 
@@ -93,6 +98,7 @@ export default function AllUsersPage() {
         q: search.q || undefined,
         roleLevel: search.role !== ALL_FILTER_VALUE ? Number(search.role) : undefined,
         clinic_id: search.clinicScope === "current" && currentClinic?.id ? currentClinic.id : undefined,
+        columnFilters: search.filters || undefined,
         includeTotal: false
       }
       const { items, hasMore: nextHasMore } = await getPaginatedUsers(paginationOptions)
@@ -123,6 +129,7 @@ export default function AllUsersPage() {
     search.page,
     search.q,
     search.role,
+    search.filters,
     startSearchRequest
   ])
 
@@ -215,6 +222,13 @@ export default function AllUsersPage() {
                 navigate({
                   to: "/users",
                   search: buildSearchState({ clinicScope: value, page: 1 })
+                })
+              }
+              columnFilters={columnFilters}
+              onColumnFiltersChange={(filters) =>
+                navigate({
+                  to: "/users",
+                  search: buildSearchState({ filters: serializeColumnFilters(filters), page: 1 }),
                 })
               }
               sort={activeSort}

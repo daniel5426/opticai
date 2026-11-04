@@ -500,7 +500,7 @@ def test_upsert_glasses_exams_rerun_updates_and_keeps_dual_trace():
     assert len(exams) == 1
     assert len(instances) == 1
     assert exams[0].dominant_eye == "L"
-    assert instances[0].exam_data["notes-notes-1"]["note"].startswith("Comments: updated")
+    assert instances[0].exam_data["notes-notes-1"]["note"].startswith("updated")
     layout = json.loads(instances[0].layout_data)
     assert layout["version"] == 2
     assert layout["grid"]["columns"] == 24
@@ -764,3 +764,59 @@ def test_work_shift_upsert_links_user_and_resumes_only_same_v2_job():
     assert shift.user_id == user.id
     assert shift.status == "completed"
     assert warnings[0]["warnings"] == ["missing_start_reconstructed_at_midnight"]
+
+
+# Current OptiTech versions keep the lens spec on the exam's glasses row (tblCrdGlassChecksGlasses)
+# and link the lab work to it by GlassId; the lens lab is the work's GlassSapakId.
+_LENS_ROW = {"PerId": "6756", "CheckDate": "10/12/26 00:00:00", "GlassId": "52278", "RoleId": "8", "MaterId": "5",
+             "BrandId": "7", "CoatId": "1", "ModelId": "2", "ColorId": "0", "Com": "שוליים דקים"}
+_WORK = {"WorkId": "45752", "WorkDate": "10/12/26 00:00:00", "PerId": "6756", "WorkTypeId": "0",
+         "CheckDate": "10/12/26 00:00:00", "FSapakId": "3", "FModel": "446", "FSize": "48-19", "GlassSapakId": "3"}
+
+
+def _lens_indexes(*rows):
+    by_id = {int(row["GlassId"]): row for row in rows}
+    by_exam = {}
+    for row in rows:
+        key = (int(row["PerId"]), records.parse_access_date(row["CheckDate"]))
+        by_exam.setdefault(key, []).append(row)
+    return by_id, by_exam
+
+
+def test_work_lenses_come_from_the_linked_exam_glasses_row():
+    seed = records.attach_lens_specification(records.normalize_order_row({**_WORK, "GlassId": "52278"}), *_lens_indexes(_LENS_ROW))
+    order_data, _ = phase3.build_regular_order_data(
+        seed, catalog=_minimal_lookup_catalog(), clinic_name="Clinic", unresolved_dependencies=[], matched_exam=None,
+    )
+    assert order_data["lens"] == {
+        "right_model": "1.6", "left_model": "1.6", "right_coating": "A/R", "left_coating": "A/R",
+        "right_material": "פלסטיק", "left_material": "פלסטיק", "right_supplier": "אופליין", "left_supplier": "אופליין",
+        "manufacturer": "Essilor",
+    }
+    assert order_data["details"]["lens_order_notes"] == "שוליים דקים"
+    tab = order_data["lens_frame_tabs"][0]
+    assert tab["type"] == "Distance"  # unknown role names stay as written
+    assert tab["lens"] == order_data["lens"] and tab["frame"] == order_data["frame"]
+    assert order_data["legacy_source"]["lens"]["lens_source"] == {"table": "tblCrdGlassChecksGlasses", "glass_id": 52278, "matched_by": "GlassId"}
+
+
+def test_bundles_without_glass_id_use_the_exams_only_lens_row():
+    single = records.attach_lens_specification(records.normalize_order_row(_WORK), *_lens_indexes(_LENS_ROW))
+    assert single.lens["lens_material_id"] == 5
+    assert single.lens["lens_source"]["matched_by"] == "exam_date"
+    # Two glasses on one exam are ambiguous: no lens is guessed.
+    second = {**_LENS_ROW, "GlassId": "52279", "RoleId": "3"}
+    ambiguous = records.attach_lens_specification(records.normalize_order_row(_WORK), *_lens_indexes(_LENS_ROW, second))
+    assert "lens_material_id" not in ambiguous.lens
+    # Lens fields already on the work (older OptiTech versions) are kept as they are.
+    legacy = records.attach_lens_specification(records.normalize_order_row({**_WORK, "MaterId": "9"}), *_lens_indexes(_LENS_ROW))
+    assert legacy.lens["lens_material_id"] == 9 and "lens_source" not in legacy.lens
+
+
+def test_lens_roles_map_to_the_order_glasses_type():
+    assert phase3.glasses_type_from_lens_role("מרחק") == "רחוק"
+    assert phase3.glasses_type_from_lens_role("קריאה") == "קרוב"
+    assert phase3.glasses_type_from_lens_role("מולטיפוקל") == "מולטיפוקל"
+    assert phase3.glasses_type_from_lens_role("משרדיות") == "משרדיות"
+    assert phase3.glasses_type_from_lens_role("[ללא]") == "רחוק"
+    assert phase3.glasses_type_from_lens_role(None) == "רחוק"

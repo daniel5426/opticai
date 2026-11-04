@@ -612,6 +612,20 @@ export default function HomePage() {
     [currentClinic?.id, isUserOnVacation],
   );
 
+  // The board only holds the clients loaded with the visible range; add the one a new or
+  // edited appointment points to so its card shows the name right away.
+  const ensureBoardClient = useCallback(
+    async (clientId?: number | null, known?: Client | null) => {
+      if (!clientId) return;
+      const client =
+        known?.id === clientId ? known : await getClientById(clientId).catch(() => null);
+      if (client) {
+        setClients((prev) => (prev.some((item) => item.id === client.id) ? prev : [...prev, client]));
+      }
+    },
+    [],
+  );
+
   const pasteAppointmentToSlot = useCallback(
     async (date: Date, time: string) => {
       if (!copiedAppointment) return;
@@ -629,6 +643,7 @@ export default function HomePage() {
       try {
         const result = await createAppointment(appointmentData);
         if (result) {
+          await ensureBoardClient(result.client_id);
           setAppointments((prev) => [...prev, result]);
           toast.success("התור הודבק בהצלחה");
         } else {
@@ -639,7 +654,7 @@ export default function HomePage() {
         toast.error("שגיאה בהדבקת התור");
       }
     },
-    [APPOINTMENT_DURATION, copiedAppointment, currentClinic?.id],
+    [APPOINTMENT_DURATION, copiedAppointment, currentClinic?.id, ensureBoardClient],
   );
 
   const prepareSlotAppointmentData = useCallback(
@@ -769,6 +784,7 @@ export default function HomePage() {
         const result = await updateAppointment(updatedAppointment);
         if (result) {
           toast.success("התור עודכן בהצלחה");
+          await ensureBoardClient(updatedAppointment.client_id, selectedClient);
           setAppointments((prev) =>
             prev.map((apt) =>
               apt.id === updatedAppointment.id ? updatedAppointment : apt,
@@ -797,6 +813,7 @@ export default function HomePage() {
         const result = await createAppointment(appointmentData);
         if (result) {
           toast.success("התור נוצר בהצלחה");
+          await ensureBoardClient(result.client_id ?? formData.client_id, selectedClient);
           setAppointments((prev) => [...prev, result]);
           closeAllDialogs();
         } else {
@@ -815,6 +832,8 @@ export default function HomePage() {
     editingAppointment,
     closeAllDialogs,
     currentClinic?.id,
+    ensureBoardClient,
+    selectedClient,
   ]);
 
   const handleDeleteAppointment = useCallback(async (appointmentId: number) => {

@@ -23,6 +23,10 @@ import {
   VIRTUAL_FULL_DATA_TAB_ID,
   isVirtualFullDataTabId,
 } from "@/pages/exam-detail/utils";
+import { applyOptitechGlassesCheckView } from "@/lib/optitech-glasses-check";
+import { applyOptitechContactCheckView } from "@/lib/optitech-contact-check";
+import { applyOptitechVisionCheckView } from "@/lib/optitech-vision-check";
+import { IMPORTED_COPY_FLAG } from "@/lib/imported-exam-seed";
 
 interface UseLayoutTabsParams {
   exam: { id?: number } | null;
@@ -163,7 +167,8 @@ export function useLayoutTabs({
 
         keys.forEach((key) => {
           const val = bucket[key];
-          if (!val || typeof val !== "object" || (val as any)?.__deleted)
+          // Copies of the imported data shown in layout tabs would duplicate the imported cards.
+          if (!val || typeof val !== "object" || (val as any)?.__deleted || (val as any)?.[IMPORTED_COPY_FLAG])
             return;
 
           const instanceId = (val as any)?.card_instance_id;
@@ -256,7 +261,14 @@ export function useLayoutTabs({
     });
 
     if (cardDefs.length === 0) return null;
-    return serializeGridLayoutData(packCardsIntoGridItems(cardDefs));
+    return serializeGridLayoutData(
+      packCardsIntoGridItems(
+        applyOptitechVisionCheckView(
+          applyOptitechContactCheckView(applyOptitechGlassesCheckView(cardDefs, aggregated), aggregated),
+          aggregated,
+        ),
+      ),
+    );
   }, [aggregateAllData, getContributingInstanceIds]);
 
   // Build full data bucket for an instance

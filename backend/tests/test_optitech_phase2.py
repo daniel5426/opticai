@@ -79,8 +79,8 @@ def test_client_payload_resolves_city_and_complete_referrer_hierarchy():
     )
 
     assert payload["address_city"] == "Haifa"
-    assert payload["address_street"] == "Main 12"
-    assert payload["address_number"] is None
+    assert payload["address_street"] == "Main"
+    assert payload["address_number"] == "12"
     assert payload["referring_party"] == "Doctor / Clinic / Campaign"
     assert payload["status"] is None
 

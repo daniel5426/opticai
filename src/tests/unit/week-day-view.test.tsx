@@ -9,6 +9,7 @@ const client = {
   id: 7,
   first_name: "דנה",
   last_name: "כהן",
+  phone_mobile: "050-1234567",
 } as Client
 
 function renderCalendar(blockHeight: number) {
@@ -62,6 +63,16 @@ describe("WeekDayView appointment cards", () => {
     const card = screen.getByTitle("10:30 - 10:45 • דנה כהן")
     expect(within(card).getByText("10:30 - 10:45")).toBeInTheDocument()
     expect(within(card).getByText("דנה כהן")).toBeInTheDocument()
+    expect(within(card).getByText("050-1234567")).toBeInTheDocument()
+    expect(within(card).queryByText("בדיקת ראייה")).not.toBeInTheDocument()
+  })
+
+  test("shows the exam name below the phone only on taller cards", () => {
+    renderCalendar(72)
+
+    const card = screen.getByTitle("10:30 - 10:45 • דנה כהן")
+    expect(within(card).getByText("050-1234567")).toBeInTheDocument()
+    expect(within(card).getByText("בדיקת ראייה")).toBeInTheDocument()
   })
 
   test("keeps the client name visible with only the start time in compact cards", () => {
@@ -71,5 +82,6 @@ describe("WeekDayView appointment cards", () => {
     expect(within(card).getByText("10:30")).toBeInTheDocument()
     expect(within(card).queryByText("10:30 - 10:45")).not.toBeInTheDocument()
     expect(within(card).getByText("דנה כהן")).toBeInTheDocument()
+    expect(within(card).queryByText("050-1234567")).not.toBeInTheDocument()
   })
 })

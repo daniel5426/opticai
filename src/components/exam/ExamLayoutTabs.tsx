@@ -22,6 +22,8 @@ interface ExamLayoutTabsProps {
   onRemoveTab: (tabId: number) => void;
   actions?: React.ReactNode;
   addLayoutAction?: React.ReactNode;
+  /** Replaces the layout tabs (and the all-data toggle), e.g. with an imported exam's source tabs. */
+  tabsSlot?: React.ReactNode;
 }
 
 export function ExamLayoutTabs({
@@ -36,6 +38,7 @@ export function ExamLayoutTabs({
   onRemoveTab,
   actions,
   addLayoutAction,
+  tabsSlot,
 }: ExamLayoutTabsProps) {
   const { direction } = useAppLocale();
   const { t } = useTranslation();
@@ -103,7 +106,7 @@ export function ExamLayoutTabs({
               style={{ scrollbarWidth: "none" }}
             >
             <div dir={direction} className="me-auto flex shrink-0 items-end gap-2 ps-3 pe-3 pt-3 pb-2">
-              {visibleTabs.length > 0 ? (
+              {tabsSlot ? tabsSlot : visibleTabs.length > 0 ? (
                 <Tabs
                   dir="ltr"
                   activeKey={
@@ -159,7 +162,7 @@ export function ExamLayoutTabs({
             {addLayoutAction ? <div className="shrink-0">{addLayoutAction}</div> : null}
           </div>
           <div className="ms-auto flex max-w-full shrink-0 flex-wrap items-end gap-x-2 gap-y-2" dir={direction}>
-            <button
+            {!tabsSlot && <button
               type="button"
               onClick={handleFullDataClick}
               className={isFullDataActive ? activeTabShadow : undefined}
@@ -182,7 +185,7 @@ export function ExamLayoutTabs({
                   color: "hsl(var(--primary))",
                 }}
               />
-            </button>
+            </button>}
             {actions ? (
               <div className="flex flex-wrap items-center gap-2 pb-1.5">
                 {actions}

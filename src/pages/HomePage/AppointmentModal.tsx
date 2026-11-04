@@ -1,8 +1,9 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { AppointmentFormFields } from "@/components/appointments/appointment-form-fields";
 import { Button } from "@/components/ui/button";
 import { CustomModal } from "@/components/ui/custom-modal";
-import { Trash2, Loader2, Play } from "lucide-react";
+import { Trash2, Loader2, Play, IdCard, Phone, type LucideIcon } from "lucide-react";
 import {
   Appointment,
   Client,
@@ -35,6 +36,19 @@ interface AppointmentModalProps {
   onStartExam: () => void;
 }
 
+function ClientInfoChip({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value?: string | null }) {
+  if (!value?.trim()) return null;
+  return (
+    <span className="border-border/60 bg-background inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs">
+      <Icon className="text-muted-foreground h-3.5 w-3.5" aria-hidden />
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-foreground font-medium tabular-nums select-all" dir="ltr">
+        {value.trim()}
+      </span>
+    </span>
+  );
+}
+
 export function AppointmentModal({
   isOpen,
   onClose,
@@ -49,6 +63,7 @@ export function AppointmentModal({
   onDelete,
   onStartExam,
 }: AppointmentModalProps) {
+  const { t } = useTranslation();
   return (
     <CustomModal
       isOpen={isOpen}
@@ -64,24 +79,27 @@ export function AppointmentModal({
     >
       <div className="grid gap-4">
         {selectedClient && (
-          <div className="rounded-md bg-gray-50 p-3 dark:bg-gray-800">
-            <div className="text-sm font-medium">פרטי לקוח:</div>
-            <div className="text-muted-foreground text-sm">
+          <div className="border-border/60 bg-muted/40 rounded-lg border p-3">
+            <div className="text-muted-foreground text-xs font-medium">פרטי לקוח:</div>
+            <div className="mt-1 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
               {selectedClient.id ? (
                 <GuardedRouterLink
                   to="/clients/$clientId"
                   params={{ clientId: String(selectedClient.id) }}
                   search={{ tab: "details" }}
-                  className="text-blue-600 hover:underline"
+                  className="text-primary text-base font-semibold hover:underline"
                 >
                   {selectedClient.first_name} {selectedClient.last_name}
                 </GuardedRouterLink>
               ) : (
-                <>
+                <span className="text-base font-semibold">
                   {selectedClient.first_name} {selectedClient.last_name}
-                </>
-              )}{" "}
-              • {selectedClient.phone_mobile}
+                </span>
+              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <ClientInfoChip icon={IdCard} label={t("appointmentClientId")} value={selectedClient.national_id} />
+                <ClientInfoChip icon={Phone} label={t("appointmentClientPhone")} value={selectedClient.phone_mobile} />
+              </div>
             </div>
           </div>
         )}

@@ -272,6 +272,37 @@ def test_joined_client_names_match_paginated_tables():
             assert response.json()["total"] == 1, path
 
 
+def test_exams_search_matches_client_examiner_and_exam_fields_per_term():
+    SessionLocal = _session_factory()
+    with SessionLocal() as db:
+        ids = _seed(db)
+        sarah = db.query(Client).filter(Client.first_name == "Sarah").one()
+        ghost = Client(company_id=sarah.company_id, clinic_id=ids["clinic_id"], first_name="Ghost", last_name="Person", deleted_at=datetime(2026, 1, 1))
+        db.add(ghost)
+        db.flush()
+        db.add_all([
+            OpticalExam(client_id=sarah.id, clinic_id=ids["clinic_id"], user_id=ids["current_user_id"], exam_date=date(2026, 6, 1), test_name="Contact lens", type="exam"),
+            OpticalExam(client_id=ghost.id, clinic_id=ids["clinic_id"], user_id=ids["current_user_id"], exam_date=date(2026, 6, 2), test_name="Check", type="exam"),
+        ])
+        db.commit()
+
+    expected = {
+        "Smith": 1,            # client name
+        "Alice": 1,            # examiner name
+        "Routine": 1,          # exam test name
+        "Smith Alice": 1,      # terms matched by different fields of the same exam
+        "Admin Cohen": 1,
+        "Smith Admin": 0,      # each term matches, but on different exams
+        "Ghost": 0,            # a deleted client never matches
+        "06/05/2026": 1,       # exam date
+    }
+    with _client(SessionLocal, ids["current_user_id"]) as client:
+        for query, total in expected.items():
+            response = client.get("/api/v1/exams/enriched", params={"clinic_id": ids["clinic_id"], "search": query})
+            assert response.status_code == 200, query
+            assert response.json()["total"] == total, query
+
+
 def test_users_paginated_matches_all_terms():
     SessionLocal = _session_factory()
     with SessionLocal() as db:

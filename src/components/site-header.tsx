@@ -1,5 +1,6 @@
 import { AgentEntryButtons } from '@/components/agent/AgentVoice';
 import React, { useState, useEffect } from "react";
+import { useClientExamDatesQuery } from "@/hooks/client/useClientTabQueries";
 import { createPortal } from "react-dom";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
@@ -21,6 +22,7 @@ import { useClientSidebar } from "@/contexts/ClientSidebarContext";
 import { useNavigationGuard } from "@/contexts/NavigationGuardContext";
 import { useAppLocale } from "@/localization/use-app-locale";
 import { useTranslation } from "react-i18next";
+import { formatIsoDate } from "@/lib/iso-date";
 
 interface SiteHeaderProps {
   title: string;
@@ -113,6 +115,7 @@ function UnsavedHeaderDot() {
   );
 }
 
+
 export function SiteHeader({
   title,
   backLink,
@@ -142,6 +145,7 @@ export function SiteHeader({
   const displayName = currentClient
     ? `${currentClient.first_name} ${currentClient.last_name}`.trim()
     : "";
+  const lastExamDate = useClientExamDatesQuery(currentClient?.id, Boolean(currentClient)).data?.last_exam_date;
   const [isHovering, setIsHovering] = useState(false);
   const [headerContainer, setHeaderContainer] = useState<HTMLElement | null>(
     null,
@@ -339,6 +343,15 @@ export function SiteHeader({
                       >
                         {displayName}
                       </div>
+                      {lastExamDate && (
+                        <span
+                          className="bg-muted text-muted-foreground hidden items-center gap-1 rounded-full px-2 py-0.5 text-xs whitespace-nowrap sm:inline-flex"
+                          title={t("clientLastExam")}
+                        >
+                          {t("clientLastExam")}:
+                          <span className="text-foreground font-medium" dir="ltr">{formatIsoDate(lastExamDate)}</span>
+                        </span>
+                      )}
                     </div>
                   ) : clientBackLink ? (
                     <Link
