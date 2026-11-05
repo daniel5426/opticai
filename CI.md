@@ -116,7 +116,7 @@ Migration note: No Alembic migration is needed. The selection is an additive fie
 
 ## Windows-only release selection
 
-Set the current package version, then run `node scripts/release-targets.mjs --windows-only` to exclude macOS for that version in `config/release-targets.json`. Both candidate build and publication read this exact-SHA policy. Future versions include Apple Silicon by default; skipping Mac is never inferred from a missing artifact. Windows receipts, native-reader resources, updater integrity, CI and promotion remain required. v1.0.99 is explicitly Windows-only.
+Set the current package version, then run `node scripts/release-targets.mjs --windows-only` to exclude macOS for that version in `config/release-targets.json`. Both candidate build and publication read this exact-SHA policy. Future versions include Apple Silicon by default; skipping Mac is never inferred from a missing artifact. Windows receipts, native-reader resources, updater integrity, CI and promotion remain required. v1.0.99 was initially Windows-only. The owner explicitly requested its Apple Silicon follow-up on 2026-11-05. Use `release-macos.yml` with `tag=v1.0.99`: it checks out the immutable tag, reuses its successful production promotion, builds and launches the package, and adds only the Mac ZIP/updater files without replacing any existing assets. This explicit manual request overrides the tagged Windows-only selection; never move the tag or rebuild Windows for the follow-up. The workflow caches the reviewed npm dependencies. Migration note: Not needed; the follow-up ships the already-promoted application source and adds no data/API changes.
 
 ## PR 72 combined rollout
 

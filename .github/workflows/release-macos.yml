@@ -1,0 +1,166 @@
+name: Add macOS to Published Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published version tag to build for Apple Silicon (explicitly overrides its Windows-only selection)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: desktop-release-refs/tags/${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  release-macos:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: Validate published tag and prior production promotion
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          sha="$(git rev-parse HEAD)"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_TAG" --jq .sha)" = "$sha"
+          version="${RELEASE_TAG#v}"
+          VERSION="$version" node -e 'const p=require("./package.json"),l=require("./package-lock.json"); if(p.version!==process.env.VERSION || l.version!==p.version)process.exit(1)'
+          node scripts/devdesk-check.mjs --release --lock-only
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > "$RUNNER_TEMP/release-before.json"
+          jq -e '.draft == false and .prerelease == false' "$RUNNER_TEMP/release-before.json"
+          promotion="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow production-promotion.yml --commit "$sha" --event workflow_dispatch --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+          test -n "$promotion"
+          echo "Reusing production promotion $promotion for $sha"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: config/devdesk-release/package-lock.json
+
+      - name: Apply reviewed public release dependencies
+        env:
+          DEVDESK_RELEASE_BUILD: '1'
+        run: node scripts/devdesk-release-inputs.mjs apply
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate production environment file
+        env:
+          API_URL: ${{ secrets.VITE_API_URL }}
+          DOWNLOAD_URL: ${{ secrets.DOWNLOAD_PAGE_URL }}
+          DESKTOP_CLIENT_ID: ${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
+          DESKTOP_CLIENT_SECRET: ${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          fs.writeFileSync('.env.production', [
+            ['VITE_API_URL', process.env.API_URL],
+            ['DOWNLOAD_PAGE_URL', process.env.DOWNLOAD_URL],
+            ['GOOGLE_DESKTOP_CLIENT_ID', process.env.DESKTOP_CLIENT_ID],
+            ['GOOGLE_DESKTOP_CLIENT_SECRET', process.env.DESKTOP_CLIENT_SECRET],
+          ].map(([key, value]) => `${key}=${JSON.stringify(value || '')}`).join('\n') + '\n');
+          JS
+
+      - name: Build macOS Apple Silicon from the published source
+        env:
+          NODE_ENV: production
+          NODE_OPTIONS: --max-old-space-size=4096
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: |
+          npx vite build
+          node scripts/prepare-desktop-app.mjs
+          npx electron-builder --mac --arm64 --publish never
+
+      - name: Launch packaged app and verify native runtime
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { _electron } from 'playwright';
+          const app = await _electron.launch({ executablePath: 'release/mac-arm64/Prysm.app/Contents/MacOS/Prysm', timeout: 60000 });
+          try {
+            const window = await app.firstWindow({ timeout: 30000 });
+            await window.locator('#root > *').first().waitFor({ timeout: 30000 });
+            const version = await app.evaluate(async ({ app }) => {
+              const { createRequire } = await import('node:module');
+              const require = createRequire(`${app.getAppPath()}/package.json`);
+              for (const name of ['cors', 'express', 'googleapis']) require(name);
+              const Database = require('better-sqlite3');
+              const db = new Database(':memory:');
+              db.prepare('SELECT 1').get();
+              db.close();
+              return app.getVersion();
+            });
+            assert.equal(version, process.env.RELEASE_VERSION);
+            await window.screenshot({ path: 'release/mac-smoke.png' });
+            console.log(`Packaged macOS ${version}: renderer, external modules and native SQLite passed`);
+          } finally {
+            await app.close();
+          }
+          JS
+
+      - name: Verify updater and record exact-tag provenance
+        env:
+          GITHUB_SHA: ${{ steps.release.outputs.sha }}
+        run: node scripts/record-desktop-candidate.mjs mac
+
+      - name: Retain verified macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-release-${{ steps.release.outputs.version }}
+          compression-level: 0
+          if-no-files-found: error
+          path: |
+            release/Prysm-mac-arm64-${{ steps.release.outputs.version }}.zip
+            release/latest-mac.yml
+            release/candidate.json
+            release/mac-smoke.png
+
+      - name: Add macOS assets without replacing existing assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_SHA: ${{ steps.release.outputs.sha }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_TAG" --jq .sha)" = "$RELEASE_SHA"
+          gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            "release/Prysm-mac-arm64-$RELEASE_VERSION.zip" release/latest-mac.yml
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > "$RUNNER_TEMP/release-after.json"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          before = json.loads((Path(os.environ['RUNNER_TEMP']) / 'release-before.json').read_text())
+          after = json.loads((Path(os.environ['RUNNER_TEMP']) / 'release-after.json').read_text())
+          receipt = json.loads(Path('release/candidate.json').read_text())
+          assert receipt['sha'] == os.environ['RELEASE_SHA']
+          assert receipt['version'] == os.environ['RELEASE_VERSION']
+          assets = {a['name']: a for a in after['assets']}
+          for asset in before['assets']:
+              assert assets[asset['name']]['id'] == asset['id']
+              assert assets[asset['name']]['digest'] == asset['digest']
+          for name, evidence in receipt['files'].items():
+              assert assets[name]['size'] == evidence['size']
+              assert assets[name]['digest'] == 'sha256:' + evidence['sha256']
+          notes = (before['body'] or '') + '\n\nmacOS Apple Silicon is also available for this release. Intel users retain their previous compatible release.\n'
+          (Path(os.environ['RUNNER_TEMP']) / 'release-notes.md').write_text(notes)
+          print('Published Mac digests match; all pre-existing release assets are unchanged')
+          PY
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --notes-file "$RUNNER_TEMP/release-notes.md"
