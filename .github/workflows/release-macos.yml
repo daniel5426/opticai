@@ -7,6 +7,11 @@ on:
         description: Published version tag to build for Apple Silicon (explicitly overrides its Windows-only selection)
         required: true
         type: string
+      verify_existing:
+        description: Verify the already-published Mac package without rebuilding or replacing it
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -61,6 +66,7 @@ jobs:
         run: npm ci
 
       - name: Generate production environment file
+        if: ${{ !inputs.verify_existing }}
         env:
           API_URL: ${{ secrets.VITE_API_URL }}
           DOWNLOAD_URL: ${{ secrets.DOWNLOAD_PAGE_URL }}
@@ -78,6 +84,7 @@ jobs:
           JS
 
       - name: Build macOS Apple Silicon from the published source
+        if: ${{ !inputs.verify_existing }}
         env:
           NODE_ENV: production
           NODE_OPTIONS: --max-old-space-size=4096
@@ -86,6 +93,18 @@ jobs:
           npx vite build
           node scripts/prepare-desktop-app.mjs
           npx electron-builder --mac --arm64 --publish never
+
+      - name: Download published package for verification
+        if: inputs.verify_existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          mkdir -p release/mac-arm64
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir release \
+            --pattern "Prysm-mac-arm64-$RELEASE_VERSION.zip" --pattern latest-mac.yml
+          unzip -q "release/Prysm-mac-arm64-$RELEASE_VERSION.zip" -d release/mac-arm64
 
       - name: Launch packaged app and verify native runtime
         timeout-minutes: 2
@@ -128,8 +147,14 @@ jobs:
 
       - name: Verify updater and record exact-tag provenance
         env:
-          GITHUB_SHA: ${{ steps.release.outputs.sha }}
-        run: node scripts/record-desktop-candidate.mjs mac
+          RELEASE_SHA: ${{ steps.release.outputs.sha }}
+        run: |
+          GITHUB_SHA="$RELEASE_SHA" node scripts/record-desktop-candidate.mjs mac
+          python3 - <<'PYTHON'
+          import json, os
+          from pathlib import Path
+          assert json.loads(Path('release/candidate.json').read_text())['sha'] == os.environ['RELEASE_SHA']
+          PYTHON
 
       - name: Retain verified macOS artifacts
         uses: actions/upload-artifact@v4
@@ -149,10 +174,13 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag }}
           RELEASE_SHA: ${{ steps.release.outputs.sha }}
           RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          VERIFY_EXISTING: ${{ inputs.verify_existing }}
         run: |
           test "$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_TAG" --jq .sha)" = "$RELEASE_SHA"
-          gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
-            "release/Prysm-mac-arm64-$RELEASE_VERSION.zip" release/latest-mac.yml
+          if [[ "$VERIFY_EXISTING" != true ]]; then
+            gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+              "release/Prysm-mac-arm64-$RELEASE_VERSION.zip" release/latest-mac.yml
+          fi
           gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > "$RUNNER_TEMP/release-after.json"
           python3 - <<'PY'
           import json, os
@@ -169,7 +197,9 @@ jobs:
           for name, evidence in receipt['files'].items():
               assert assets[name]['size'] == evidence['size']
               assert assets[name]['digest'] == 'sha256:' + evidence['sha256']
-          notes = (before['body'] or '') + '\n\nmacOS Apple Silicon is also available for this release. Intel users retain their previous compatible release.\n'
+          notes = before['body'] or ''
+          if 'macOS Apple Silicon is also available for this release.' not in notes:
+              notes += '\n\nmacOS Apple Silicon is also available for this release. Intel users retain their previous compatible release.\n'
           (Path(os.environ['RUNNER_TEMP']) / 'release-notes.md').write_text(notes)
           print('Published Mac digests match; all pre-existing release assets are unchanged')
           PY
