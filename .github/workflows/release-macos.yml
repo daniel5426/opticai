@@ -102,7 +102,7 @@ jobs:
             await window.locator('#app > *').first().waitFor({ timeout: 30000 });
             console.log('Packaged renderer mounted');
             const version = await Promise.race([app.evaluate(async ({ app }) => {
-              const { createRequire } = await import('node:module');
+              const { createRequire } = process.getBuiltinModule('node:module');
               const require = createRequire(`${app.getAppPath()}/package.json`);
               for (const name of ['cors', 'express', 'googleapis']) require(name);
               const Database = require('better-sqlite3');
