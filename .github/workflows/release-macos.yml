@@ -88,6 +88,7 @@ jobs:
           npx electron-builder --mac --arm64 --publish never
 
       - name: Launch packaged app and verify native runtime
+        timeout-minutes: 2
         env:
           RELEASE_VERSION: ${{ steps.release.outputs.version }}
         run: |
@@ -97,8 +98,10 @@ jobs:
           const app = await _electron.launch({ executablePath: 'release/mac-arm64/Prysm.app/Contents/MacOS/Prysm', timeout: 60000 });
           try {
             const window = await app.firstWindow({ timeout: 30000 });
+            console.log('Packaged main window opened');
             await window.locator('#root > *').first().waitFor({ timeout: 30000 });
-            const version = await app.evaluate(async ({ app }) => {
+            console.log('Packaged renderer mounted');
+            const version = await Promise.race([app.evaluate(async ({ app }) => {
               const { createRequire } = await import('node:module');
               const require = createRequire(`${app.getAppPath()}/package.json`);
               for (const name of ['cors', 'express', 'googleapis']) require(name);
@@ -107,12 +110,19 @@ jobs:
               db.prepare('SELECT 1').get();
               db.close();
               return app.getVersion();
-            });
+            }), new Promise((_, reject) => {
+              const timer = setTimeout(() => reject(new Error('Packaged runtime evaluation timed out')), 30000);
+              timer.unref();
+            })]);
             assert.equal(version, process.env.RELEASE_VERSION);
             await window.screenshot({ path: 'release/mac-smoke.png' });
             console.log(`Packaged macOS ${version}: renderer, external modules and native SQLite passed`);
+          } catch (error) {
+            console.error(error);
+            throw error;
           } finally {
-            await app.close();
+            // This fresh CI profile has no user session; bypass interactive quit/logout guards.
+            app.process().kill('SIGKILL');
           }
           JS
 
