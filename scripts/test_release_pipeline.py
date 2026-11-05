@@ -1,6 +1,7 @@
 import hashlib
 import importlib.util
 import json
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -14,6 +15,18 @@ spec.loader.exec_module(candidate)
 finder_spec = importlib.util.spec_from_file_location('finder', Path(__file__).with_name('find-desktop-candidate.py'))
 finder = importlib.util.module_from_spec(finder_spec)
 finder_spec.loader.exec_module(finder)
+
+
+class ReleaseCheckoutBytes(unittest.TestCase):
+    def test_receipt_inputs_keep_identical_bytes_on_windows(self):
+        paths = ['package.json', 'package-lock.json', 'config/devdesk-release/package.json',
+                 'config/devdesk-release/package-lock.json', 'config/devdesk-release/versions.json',
+                 'config/desktop-runtime/package.json', 'config/desktop-runtime/package-lock.json',
+                 'scripts/desktop-runtime.mjs']
+        attributes = subprocess.check_output(['git', 'check-attr', 'eol', '--', *paths], text=True)
+        self.assertEqual(len(attributes.splitlines()), len(paths))
+        for line in attributes.splitlines():
+            self.assertTrue(line.endswith(': eol: lf'), line)
 
 
 class IndependentCandidates(unittest.TestCase):

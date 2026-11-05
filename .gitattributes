@@ -2,3 +2,5 @@
 /package.json text eol=lf
 /package-lock.json text eol=lf
 /config/devdesk-release/*.json text eol=lf
+/config/desktop-runtime/*.json text eol=lf
+/scripts/desktop-runtime.mjs text eol=lf
