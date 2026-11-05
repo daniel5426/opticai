@@ -99,7 +99,7 @@ jobs:
           try {
             const window = await app.firstWindow({ timeout: 30000 });
             console.log('Packaged main window opened');
-            await window.locator('#root > *').first().waitFor({ timeout: 30000 });
+            await window.locator('#app > *').first().waitFor({ timeout: 30000 });
             console.log('Packaged renderer mounted');
             const version = await Promise.race([app.evaluate(async ({ app }) => {
               const { createRequire } = await import('node:module');
