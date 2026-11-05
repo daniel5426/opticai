@@ -1,3 +1,4 @@
+import { OrderPrescriptionTitle } from "./shared/OrderPrescriptionTitle";
 import React, { useState, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { ContactLensExam } from "@/lib/db/schema-interface";
@@ -105,9 +106,7 @@ export function ContactLensExamTab({
       <CardContent className="px-4" style={{ scrollbarWidth: "none" }}>
         <div className="space-y-3">
           <div className="text-center">
-            <h3 className="text-muted-foreground font-medium">
-              מרשם עדשות מגע
-            </h3>
+            <OrderPrescriptionTitle contact />
           </div>
 
           <div

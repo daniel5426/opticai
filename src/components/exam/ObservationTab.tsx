@@ -30,7 +30,7 @@ export function ObservationTab({ data, onChange, isEditing }: ObservationTabProp
     <Card className="w-full examcard pb-8 pt-3" dir="rtl">
       <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
         <div className="text-center mb-4">
-          <h3 className="font-semibold text-base text-primary/80">Observation</h3>
+          <h3 className="font-semibold text-base text-muted-foreground">Observation</h3>
         </div>
         <div className="grid grid-cols-[50px_1fr_1fr] gap-x-6 gap-y-2 items-center" style={{ scrollbarWidth: 'none' }}>
           <div></div>

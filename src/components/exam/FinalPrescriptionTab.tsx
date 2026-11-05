@@ -1,3 +1,4 @@
+import { OrderPrescriptionTitle } from "./shared/OrderPrescriptionTitle";
 import React, { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { FinalPrescriptionExam } from "@/lib/db/schema-interface"
@@ -210,7 +211,7 @@ export function FinalPrescriptionTab({
       <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
         <div className="space-y-3">
           <div className="text-center">
-            <h3 className="font-medium text-muted-foreground">מרשם סופי</h3>
+            <OrderPrescriptionTitle />
           </div>
 
           <div className="grid gap-2 items-center" style={{ gridTemplateColumns: getExamInputGridTemplate(columns, hideEyeLabels) }}>

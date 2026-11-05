@@ -8,7 +8,10 @@ import React, {
   useState,
 } from "react";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { Edit, Eye, EyeOff, Plus, Trash2 } from "lucide-react";
+import { Edit, Eye, EyeOff, Info, Plus, Trash2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { useAppLocale } from "@/localization/use-app-locale";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
@@ -85,12 +88,14 @@ interface AddComponentDrawerProps {
   onSelectComponent: (componentType: CardItem["type"]) => void;
 }
 
-function AddComponentDrawer({
+export function AddComponentDrawer({
   selectedType,
   open,
   onOpenChange,
   onSelectComponent,
 }: AddComponentDrawerProps) {
+  const { t } = useTranslation();
+  const { direction } = useAppLocale();
   const registeredComponents = examComponentRegistry
     .getLayoutEditorTypes()
     .map((type) => {
@@ -128,23 +133,34 @@ function AddComponentDrawer({
           className="grid grid-cols-2 gap-4 overflow-y-auto p-4 md:grid-cols-3 lg:grid-cols-4"
           style={{ scrollbarWidth: "none" }}
         >
-          {registeredComponents.map((component) => (
+          {registeredComponents.map((component) => {
+            const prescriptionSource = component.id === "final-prescription" || component.id === "contact-lens-exam";
+            const selected = selectedType === component.id;
+            const button = (
             <Button
               key={component.id}
-              variant={selectedType === component.id ? "default" : "outline"}
+              variant={selected ? "default" : "outline"}
               className="h-auto flex-col items-center justify-center p-4 text-center"
               onClick={() => {
                 onSelectComponent(component.id as CardItem["type"]);
               }}
             >
-              <span className="mb-1 text-lg font-semibold">
-                {component.description}
+              <span dir={direction} className={cn("mb-1 inline-flex items-center gap-1.5 text-lg font-semibold", prescriptionSource && (selected ? "text-primary-foreground" : "text-primary"))}>
+                {prescriptionSource ? t(component.id === "final-prescription" ? "orderPrescriptionFinalTitle" : "orderPrescriptionContactTitle") : component.description}
+                {prescriptionSource && <Info className="size-3.5 shrink-0" aria-hidden="true" />}
               </span>
               <span className="text-muted-foreground text-sm">
                 {component.label}
               </span>
             </Button>
-          ))}
+            );
+            return prescriptionSource ? <Tooltip key={component.id}>
+              <TooltipTrigger asChild>{button}</TooltipTrigger>
+              <TooltipContent dir={direction} className="max-w-64 text-center" sideOffset={6}>
+                {t("orderPrescriptionSourceHint")}
+              </TooltipContent>
+            </Tooltip> : button;
+          })}
         </div>
       </DrawerContent>
     </Drawer>

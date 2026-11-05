@@ -44,6 +44,29 @@ test("reload recovers an upload whose background import already completed", asyn
 });
 
 describe.each(["en", "he", "fr"] as const)("OpticPlus %s", locale => {
+  test('source values align with labels and each product can collapse independently', async () => {
+    await i18n.changeLanguage(locale);
+    render(<OpticPlusImportedItems orderData={{opticplus_source:{slots:[
+      {slot:'1',values:{ob_comp:'Plus',ob_type:'NA11',amount:2,ar:false}},
+      {slot:'2',values:{ob_comp:'Second product',amount:0}},
+    ]}}} />);
+    for (const value of ['Plus','NA11','2']) {
+      const field=screen.getByText(value);
+      expect(field.getAttribute('dir')).toBe('auto');
+      expect(field.style.textAlign).toBe(locale === 'he' ? 'right' : 'left');
+    }
+    const first=screen.getByRole('button',{name:i18n.t('opticplus.slot',{slot:'1'}),exact:true});
+    const second=screen.getByRole('button',{name:i18n.t('opticplus.slot',{slot:'2'}),exact:true});
+    expect(first.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(first);
+    expect(first.getAttribute('aria-expanded')).toBe('false');
+    expect(document.getElementById(first.getAttribute('aria-controls')!)?.hidden).toBe(true);
+    expect(second.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(first);
+    expect(document.getElementById(first.getAttribute('aria-controls')!)?.hidden).toBe(false);
+    expect(screen.getByText('NA11')).toBeTruthy();
+    expect(screen.getByText('0')).toBeTruthy();
+  });
   test("source selection and imported slots follow the active direction", async () => {
     await i18n.changeLanguage(locale);
     const view = render(<MigrationTab clinicId={1} />);

@@ -165,3 +165,9 @@ Migration note: No database migration. Publish the additive agent workflow befor
 Normal entry to the main agent page starts a new conversation. Expanding a visible sidebar deliberately preserves its conversation and draft. Recorded audio reuses a currently visible agent conversation; with both agent surfaces closed, Send selects a new SDK conversation before submitting. Startup no longer automatically restores the last device-saved thread; existing conversations remain available through history.
 
 Migration note: Not needed; existing server conversations and local storage are preserved. This changes frontend selection defaults without a schema or API change.
+
+## Release v1.0.100
+
+Order creation can start empty or import only the latest order/exam prescription. Imported item sections use the order sheet layout, and prescription source hints are localized. Both Windows x64 and Mac Apple Silicon build concurrently and publish independently; tag as soon as exact-SHA promotion succeeds instead of waiting for both installers. Candidate jobs cache the reviewed npm dependency inputs, and Mac candidates pass the previously verified packaged launch/native SQLite check before upload.
+
+Migration note: Not needed; these UI changes use existing order, exam and import contracts and introduce no persisted shape or API changes.

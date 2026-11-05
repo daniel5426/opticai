@@ -121,7 +121,7 @@ export const AnamnesisTab = React.memo(function AnamnesisTab({
     <Card className="w-full examcard pb-4 pt-2" dir="rtl">
       <CardContent className="px-4 pt-1" style={{ scrollbarWidth: 'none' }}>
         <div className="text-center mb-4">
-          <h3 className="font-semibold text-base text-primary/80">היסטוריה רפואית ואופטית (אנמנזה)</h3>
+          <h3 className="font-semibold text-base text-muted-foreground">היסטוריה רפואית ואופטית (אנמנזה)</h3>
         </div>
 
         <div className="grid grid-cols-2 gap-x-6 gap-y-3" style={{ scrollbarWidth: 'none' }}>

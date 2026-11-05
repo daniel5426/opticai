@@ -881,7 +881,8 @@ export function LegacyOrderDetailPage({
                 }
               }
             }
-          } else if (importSourceType === "order") {
+          } else if (importSourceType === "order" || importSourceType === "order-prescription") {
+            const prescriptionOnly = importSourceType === "order-prescription";
             let sourceOrder: any = null;
             if (isContactMode) {
               sourceOrder = await getContactLensOrderById(
@@ -891,9 +892,13 @@ export function LegacyOrderDetailPage({
               sourceOrder = await getOrderById(Number(importSourceId));
             }
 
+            if (prescriptionOnly && !sourceOrder) {
+              throw new Error(t("orderGroupSourceLoadError"));
+            }
+
             if (sourceOrder) {
               // Set base fields
-              if (sourceOrder.type) {
+              if (!prescriptionOnly && sourceOrder.type) {
                 if (isContactMode) {
                   setContactFormData((prev: any) => ({
                     ...prev,
@@ -906,7 +911,7 @@ export function LegacyOrderDetailPage({
                   }));
                 }
               }
-              if (sourceOrder.dominant_eye) {
+              if (!prescriptionOnly && sourceOrder.dominant_eye) {
                 if (isContactMode) {
                   setContactFormData((prev: any) => ({
                     ...prev,
@@ -919,7 +924,7 @@ export function LegacyOrderDetailPage({
                   }));
                 }
               }
-              if (sourceOrder.user_id) {
+              if (!prescriptionOnly && sourceOrder.user_id) {
                 if (!isContactMode) {
                   setFormData((prev) => ({
                     ...prev,
@@ -936,7 +941,7 @@ export function LegacyOrderDetailPage({
               if (isContactMode) {
                 if (od["contact-lens-exam"])
                   setContactLensExamData({ ...od["contact-lens-exam"] });
-                if (od["contact-lens-details"])
+                if (!prescriptionOnly && od["contact-lens-details"])
                   setContactLensDetailsData({ ...od["contact-lens-details"] });
                 if (od["keratometer-contact-lens"])
                   setKeratoCLData({ ...od["keratometer-contact-lens"] });
@@ -947,7 +952,7 @@ export function LegacyOrderDetailPage({
               } else {
                 if (od["final-prescription"])
                   setFinalPrescriptionFormData({ ...od["final-prescription"] });
-                if (od.details) {
+                if (!prescriptionOnly && od.details) {
                   setOrderDetailsFormData((prev) =>
                     normalizeOrderDetails(
                       {
@@ -960,6 +965,7 @@ export function LegacyOrderDetailPage({
                 }
 
                 if (
+                  !prescriptionOnly &&
                   Array.isArray(od.lens_frame_tabs) &&
                   od.lens_frame_tabs.length > 0
                 ) {

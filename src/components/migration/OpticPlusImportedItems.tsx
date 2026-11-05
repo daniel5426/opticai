@@ -1,5 +1,6 @@
 import { opticPlusLabel, opticPlusDisplayValue } from "@/lib/opticplus-cards";
 import { useTranslation } from "react-i18next";
+import { OrderSection } from "@/components/orders/layout/OrderSheet";
 
 const specs = ['color', 'qpart', 'ob_comp', 'ob_type', 'ob_size', 'ocolor', 'ocomp', 'og_type',
   'oheight', 'aheight', 'adds', 'cover', 'frame_supplier_name', 'lens_supplier_name'];
@@ -16,7 +17,7 @@ export function OpticPlusImportedItems({ orderData }: { orderData: unknown }) {
   const fields = (values: Record<string, unknown>, names: string[], compact = false) => <dl className={`grid gap-x-4 gap-y-3 ${compact ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2 xl:grid-cols-3'}`}>
     {names.filter(field => populated(values[field])).map(field => <div key={field} className="min-w-0 space-y-1">
       <dt className="text-xs text-muted-foreground">{opticPlusLabel(t, field)}</dt>
-      <dd dir="auto" className="m-0 whitespace-pre-wrap break-words text-sm leading-snug tabular-nums">{opticPlusDisplayValue(t, values[field], i18n.language)}</dd>
+      <dd dir="auto" style={{textAlign: i18n.dir() === 'rtl' ? 'right' : 'left'}} className="m-0 whitespace-pre-wrap break-words text-sm leading-snug tabular-nums">{opticPlusDisplayValue(t, values[field], i18n.language)}</dd>
     </div>)}
   </dl>;
   const details = (section: string, values: Record<string, unknown>, names: string[]) => names.some(field => populated(values[field])) ? <details className="group border-t border-border/50 pt-3">
@@ -27,14 +28,15 @@ export function OpticPlusImportedItems({ orderData }: { orderData: unknown }) {
     <header className="space-y-1"><h3 className="text-sm font-semibold">{t('opticplus.items')}</h3>
       <p className="text-xs leading-relaxed text-muted-foreground">{t('opticplus.sourceLabel')}</p></header>
     <div className={`grid items-start gap-4 ${source.slots.length > 1 ? 'xl:grid-cols-2' : ''}`}>
-      {source.slots.map((slot: any) => <article key={String(slot.slot)} className="min-w-0 space-y-4 rounded-lg bg-card p-4 shadow-sm">
-        <h4 className="border-b border-border/50 pb-3 text-sm font-medium">{t('opticplus.slot', {slot:slot.slot})}</h4>
+      {source.slots.map((slot: any) => <article key={String(slot.slot)} className="min-w-0 overflow-hidden rounded-lg bg-card shadow-sm">
+        <OrderSection collapsible defaultOpen title={t('opticplus.slot', {slot:slot.slot})} bodyClassName="space-y-4">
         {fields(slot.values || {}, specs)}
         <section className="space-y-3 border-t border-border/50 pt-3" aria-label={t('opticplus.itemSections.quantities')}>
           <h5 className="text-xs font-medium text-muted-foreground">{t('opticplus.itemSections.quantities')}</h5>
           {fields(slot.values || {}, quantities, true)}
         </section>
         {details('prices',slot.values || {},prices)}
+        </OrderSection>
       </article>)}
     </div>
     {details('context',source.context || {},contextFields)}

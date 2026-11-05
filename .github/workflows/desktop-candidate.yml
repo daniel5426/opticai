@@ -51,7 +51,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: config/devdesk-release/package-lock.json
           
       - name: Apply public release dependency lock
         env:
@@ -80,6 +82,10 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=4096
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
+      - name: Launch packaged macOS and verify native runtime
+        timeout-minutes: 2
+        run: node scripts/check-packaged-macos.mjs
+
       - name: Verify updater and record candidate
         run: node scripts/record-desktop-candidate.mjs mac
 
@@ -106,7 +112,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: config/devdesk-release/package-lock.json
           
       - name: Apply public release dependency lock
         env:

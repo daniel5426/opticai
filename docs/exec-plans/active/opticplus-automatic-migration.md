@@ -425,3 +425,10 @@ The client details toolbar now has a compact click-to-open Imported history text
 Validation: 74 focused backend tests passed; 30 frontend tests passed, including Hebrew/English/French popover semantics, client details regressions and migration labels. The initial API-client-related check passed 614 tests and found two outdated client-details mocks; updating those mocks and rerunning the affected files passed. Web build passed (10.05 s). Personally verified the existing Hebrew pilot popover and exactly three remaining exam rows (assessment, contact and glasses). Screenshots: `Downloads/clinic-transfer/opticplus-profile-history-2026-11-05`. No production data was changed by this fix.
 
 Migration note: No schema migration, repair script or remigration is needed. Deploy backend and frontend together (backend first); existing source/history records automatically appear through the new client reference view. No clinical records are deleted.
+
+
+### Imported order-item alignment and collapse — 2026-11-05
+
+Imported product values now explicitly align right in Hebrew and left in English/French, while retaining automatic text direction for numbers and model codes. Each source slot uses the existing collapsible OrderSection, matching fulfillment/delivery controls and retaining its values while closed. Cards start expanded and collapse independently. Scoped checks passed 38 tests, including locale alignment and collapse/reopen behavior with zero and false source values. Live browser visual verification was unavailable in this session.
+
+Migration note: Not needed; presentation only, with unchanged migration data and no remigration required.

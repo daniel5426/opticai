@@ -1,5 +1,13 @@
 {
   "en": {
+    "orderPrescriptionFinalTitle": "Final prescription",
+    "orderPrescriptionContactTitle": "Contact lens prescription",
+    "orderPrescriptionSourceHint": "The prescription from this card is imported into orders.",
+    "orderGroupLastOrder": "Last order",
+    "orderGroupLastExam": "Last exam",
+    "orderGroupNoLastOrder": "This client has no previous order of this type.",
+    "orderGroupNoLastExam": "This client has no previous exam.",
+    "orderGroupSourceLoadError": "Could not load the prescription source. Please try again.",
     "orderGroupTitle": "Order group",
     "orderGroupOrders": "Orders",
     "orderGroupGlasses": "Glasses order",
@@ -114,6 +122,14 @@
     "orderGroupPaymentHistoryError": "Could not load payment history."
   },
   "he": {
+    "orderPrescriptionFinalTitle": "מרשם סופי",
+    "orderPrescriptionContactTitle": "מרשם עדשות מגע",
+    "orderPrescriptionSourceHint": "המרשם מכרטיס זה מיובא להזמנות.",
+    "orderGroupLastOrder": "הזמנה אחרונה",
+    "orderGroupLastExam": "בדיקה אחרונה",
+    "orderGroupNoLastOrder": "ללקוח זה אין הזמנה קודמת מסוג זה.",
+    "orderGroupNoLastExam": "ללקוח זה אין בדיקה קודמת.",
+    "orderGroupSourceLoadError": "לא ניתן לטעון את מקור המרשם. נסו שוב.",
     "orderGroupTitle": "קבוצת הזמנות",
     "orderGroupOrders": "הזמנות",
     "orderGroupGlasses": "הזמנת משקפיים",
@@ -228,6 +244,14 @@
     "orderGroupPaymentHistoryError": "לא ניתן לטעון את היסטוריית התשלומים."
   },
   "fr": {
+    "orderPrescriptionFinalTitle": "Prescription finale",
+    "orderPrescriptionContactTitle": "Prescription de lentilles",
+    "orderPrescriptionSourceHint": "La prescription de cette fiche est importée dans les commandes.",
+    "orderGroupLastOrder": "Dernière commande",
+    "orderGroupLastExam": "Dernier examen",
+    "orderGroupNoLastOrder": "Ce client n’a aucune commande précédente de ce type.",
+    "orderGroupNoLastExam": "Ce client n’a aucun examen précédent.",
+    "orderGroupSourceLoadError": "Impossible de charger la source de la prescription. Veuillez réessayer.",
     "orderGroupTitle": "Groupe de commandes",
     "orderGroupOrders": "Commandes",
     "orderGroupGlasses": "Commande de lunettes",
