@@ -8,7 +8,7 @@ from sqlalchemy import func
 from schemas import ReferralCreate, ReferralUpdate, Referral as ReferralSchema
 from auth import get_current_user
 from utils.table_search import build_all_terms_search_condition, search_blob, spaced_concat
-from utils.column_filters import ColumnFilter, build_column_filter_conditions
+from utils.column_filters import lookup_filter, ColumnFilter, build_column_filter_conditions
 from security.scope import (
     apply_clinic_user_scope,
     get_record_clinic_ids,
@@ -48,8 +48,9 @@ def referral_list_query(db, current_user, clinic_id, search, urgency_level, refe
     if search_condition is not None:
         base = base.filter(search_condition)
     base = base.filter(*build_column_filter_conditions(filters, {
+        "clinic": lookup_filter(Referral.clinic_id),
         "date": ColumnFilter(Referral.date, "date"),
-        "type": ColumnFilter(Referral.type),
+        "type": ColumnFilter(Referral.type, "lookup"),
         "client": ColumnFilter(spaced_concat(Client.first_name, Client.last_name)),
         "urgency": ColumnFilter(func.lower(Referral.urgency_level), "options"),
         "recipient": ColumnFilter(Referral.recipient),

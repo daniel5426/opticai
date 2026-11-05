@@ -7,7 +7,7 @@ import { useUser } from '@/contexts/UserContext';
 import { useClientSidebar } from '@/contexts/ClientSidebarContext';
 import { capturePageContext, setAgentPageContext } from '@/lib/agent-page-context';
 
-type Workspace = { available: boolean; pending: boolean; runtime: AgentChatRuntime | null; scope: AgentScope | null; chatOpen: boolean;
+type Workspace = { available: boolean; pending: boolean; runtime: AgentChatRuntime | null; scope: AgentScope | null; chatOpen: boolean; chatVisible: boolean; expandChat: () => void;
   fullPageHost: HTMLDivElement | null; setFullPageHost: (host: HTMLDivElement | null) => void;
   jobActivityKey: number; resetJobActivity: () => void;
   openPatientChat: (patientId: number) => void; closePatientChat: () => void; openClinicChat: () => void; openChat: () => void; captureContext: typeof capturePageContext };
@@ -21,24 +21,9 @@ export const usePrysmAgent = () => useContext(Context);
 type SessionProps = { client: ReturnType<typeof createAgentClient>; scopeKey: string;
   publish: (key: string, runtime: AgentChatRuntime) => void };
 function Controller({ client, scopeKey, publish }: SessionProps) {
-  const storageKeyRef = useRef<string | null>(null);
   const [threadId, setThreadId] = useState<string | null>(null);
   const runtime = useAgentChatRuntime({ client, activeThreadId: threadId, agent: { name: 'Prysm' },
-    onActiveThreadIdChange: ({ threadId }) => {
-      setThreadId(threadId);
-      if (storageKeyRef.current) {
-        if (threadId) localStorage.setItem(storageKeyRef.current, threadId);
-        else localStorage.removeItem(storageKeyRef.current);
-      }
-    } });
-  const namespace = runtime.bootstrap?.deployment.agent_id;
-  useEffect(() => {
-    if (!namespace) return;
-    const key = `prysm-agent-thread:${scopeKey}:${namespace}`;
-    if (storageKeyRef.current === key) return;
-    storageKeyRef.current = key;
-    setThreadId(localStorage.getItem(key));
-  }, [scopeKey, namespace]);
+    onActiveThreadIdChange: ({ threadId }) => setThreadId(threadId) });
   useEffect(() => { publish(scopeKey, runtime); }, [runtime, scopeKey, publish]);
   return null;
 }
@@ -72,7 +57,17 @@ export function PrysmAgentProvider({ children }: { children: React.ReactNode }) 
   const runtime = published?.key === scopeKey ? published.runtime : null;
   const available = !!scope && !['denied', 'expired'].includes(runtime?.state || '');
   const pending = !!scope && (!runtime || runtime.isBootstrapping);
-  const value: Workspace = { available, pending, scope, runtime, chatOpen: available && chatOpen, fullPageHost, setFullPageHost, jobActivityKey, resetJobActivity,
+  const pageEntry = useRef<string | null>(null);
+  const preservePageChat = useRef(false);
+  useEffect(() => {
+    if (pathname !== '/ai-assistant') { pageEntry.current = null; return; }
+    if (!runtime || runtime.isBootstrapping || pageEntry.current === scopeKey) return;
+    pageEntry.current = scopeKey;
+    if (preservePageChat.current) preservePageChat.current = false;
+    else { runtime.newThread(); resetJobActivity(); }
+  }, [pathname, scopeKey, runtime, resetJobActivity]);
+  const value: Workspace = { available, pending, scope, runtime, chatOpen: available && chatOpen, chatVisible: available && (chatOpen || pathname === '/ai-assistant'),
+    expandChat: () => { preservePageChat.current = true; setChatOpen(false); }, fullPageHost, setFullPageHost, jobActivityKey, resetJobActivity,
     captureContext: capturePageContext, openChat: () => setChatOpen(true),
     openPatientChat: _id => { resetPanelMode(); setChatOpen(true); }, closePatientChat: () => setChatOpen(false),
     openClinicChat: () => { setChatOpen(true); } };

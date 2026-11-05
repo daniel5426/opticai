@@ -20,6 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      platforms: ${{ steps.version.outputs.platforms }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -41,6 +42,7 @@ jobs:
             exit 1
           fi
 
+          node -e 'const {execFileSync}=require("node:child_process"); const targets=JSON.parse(execFileSync(process.execPath,["scripts/release-targets.mjs"])); console.log("platforms="+JSON.stringify(targets.macos?["windows","macos"]:["windows"]))' >> "$GITHUB_OUTPUT"
           echo "version=$tag_version" >> "$GITHUB_OUTPUT"
 
       - name: Require successful production promotion
@@ -63,180 +65,68 @@ jobs:
           fi
           echo "Using production promotion run $production_run_id"
 
-  build-macos:
+      - name: Prepare shared release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_PLATFORMS: ${{ steps.version.outputs.platforms }}
+        run: |
+          tag="v$RELEASE_VERSION"
+          if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --verify-tag \
+              --title "Release $tag" --draft --generate-notes \
+              --notes "Desktop installers and automatic updater files publish independently as each selected platform finishes. Platforms: $RELEASE_PLATFORMS. Existing downloads remain available until replaced."
+          fi
+
+  publish-platform:
     needs: validate-release
-    runs-on: macos-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          
-      - name: Apply public release dependency lock
-        env:
-          DEVDESK_RELEASE_BUILD: "1"
-        run: node scripts/devdesk-release-inputs.mjs apply
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Generate production environment file
-        run: |
-          cat > .env.production <<'EOF'
-          VITE_API_URL=${{ secrets.VITE_API_URL }}
-          DOWNLOAD_PAGE_URL=${{ secrets.DOWNLOAD_PAGE_URL }}
-          GOOGLE_DESKTOP_CLIENT_ID=${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
-          GOOGLE_DESKTOP_CLIENT_SECRET=${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
-          EOF
-
-      - name: Build for macOS Intel and Apple Silicon
-        run: |
-          npx vite build
-          npx electron-builder --mac --x64 --arm64 --publish never
-        env:
-          NODE_ENV: production
-          NODE_OPTIONS: --max-old-space-size=4096
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-
-      - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-release
-          path: |
-            release/*.zip
-            release/latest-mac.yml
-          if-no-files-found: error
-
-  build-windows:
-    needs: validate-release
-    runs-on: windows-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          
-      - name: Apply public release dependency lock
-        env:
-          DEVDESK_RELEASE_BUILD: "1"
-        run: node scripts/devdesk-release-inputs.mjs apply
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Set up native OptiTech reader toolchain
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          update: true
-          install: >-
-            base-devel autoconf automake libtool bison flex pkgconf gawk
-            mingw-w64-x86_64-toolchain mingw-w64-x86_64-glib2 mingw-w64-x86_64-libiconv
-
-      - name: Build native OptiTech reader
-        shell: msys2 {0}
-        run: bash scripts/build-optitech-reader.sh
-
-      - name: Generate Windows production environment file
-        shell: pwsh
-        run: |
-          @"
-          VITE_API_URL=${{ secrets.VITE_API_URL }}
-          DOWNLOAD_PAGE_URL=${{ secrets.DOWNLOAD_PAGE_URL }}
-          GOOGLE_DESKTOP_CLIENT_ID=${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
-          GOOGLE_DESKTOP_CLIENT_SECRET=${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
-          "@ | Set-Content -Path .env.production -NoNewline
-
-          Copy-Item -Path .env.production -Destination .env.windows.production
-
-      - name: Build for Windows
-        run: |
-          npx vite build
-          npx electron-builder --win --publish never
-        env:
-          NODE_ENV: production
-          NODE_OPTIONS: --max-old-space-size=4096
-
-      - name: Verify packaged native OptiTech reader
-        shell: pwsh
-        run: |
-          $unpacked = Get-ChildItem release -Filter "win-unpacked" -Directory -Recurse | Select-Object -First 1
-          if (-not $unpacked) { throw "Windows unpacked application was not created" }
-          $reader = Join-Path $unpacked.FullName "resources\optitech_reader\optitech-mdb-exporter.exe"
-          $profiles = & $reader --profiles | ConvertFrom-Json
-          if ($LASTEXITCODE -ne 0 -or $profiles.opticplus_format_version -ne 2 -or $profiles.profiles -notcontains "opticplus") { throw "Packaged OpticPlus reader capability check failed" }
-          $notice = Join-Path $unpacked.FullName "resources\optitech_reader\THIRD_PARTY_NOTICES.md"
-          $license = Join-Path $unpacked.FullName "resources\optitech_reader\COPYING.LIB"
-          $source = Join-Path $unpacked.FullName "resources\optitech_reader\SOURCE_AND_BUILD.md"
-          if (-not (Test-Path $reader) -or -not (Test-Path $notice) -or -not (Test-Path $license) -or -not (Test-Path $source)) { throw "Native OptiTech reader resources are missing" }
-
-      - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-release
-          path: |
-            release/Prysm-Setup-${{ needs.validate-release.outputs.version }}.exe
-            release/Prysm-Setup-${{ needs.validate-release.outputs.version }}.exe.blockmap
-            release/latest.yml
-          if-no-files-found: error
-
-  publish-release:
-    needs: [validate-release, build-macos, build-windows]
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ${{ fromJSON(needs.validate-release.outputs.platforms) }}
     permissions:
       contents: write
+      actions: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download release artifacts
+      - name: Wait for this platform's exact-SHA candidate
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/find-desktop-candidate.py "${{ matrix.platform }}"
+
+      - name: Download platform artifacts
         uses: actions/download-artifact@v4
         with:
-          path: release-artifacts
+          name: ${{ matrix.platform }}-release
+          path: release-artifacts/${{ matrix.platform }}-release
+          run-id: ${{ steps.candidate.outputs.run }}
+          github-token: ${{ github.token }}
 
-      - name: Publish GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ needs.validate-release.outputs.version }}
-          name: Release v${{ needs.validate-release.outputs.version }}
-          draft: false
-          prerelease: false
-          make_latest: true
-          generate_release_notes: true
-          body: |
-            ## Release v${{ needs.validate-release.outputs.version }}
-
-            ### Downloads
-            - **macOS Apple Silicon**: `Prysm-mac-arm64-${{ needs.validate-release.outputs.version }}.zip`
-            - **macOS Intel**: `Prysm-mac-x64-${{ needs.validate-release.outputs.version }}.zip`
-            - **Windows**: `Prysm-Setup-${{ needs.validate-release.outputs.version }}.exe`
-
-            ### Auto-Update Support
-            This release includes update support. Windows builds can download and install updates in-app after the first manual install.
-
-            ### Installation
-
-            #### macOS
-            1. Download the appropriate ZIP for your Mac.
-            2. Extract the ZIP file.
-            3. Move Prysm.app to your Applications folder.
-            4. First time opening: right-click Prysm.app, then choose Open.
-
-            #### Windows
-            1. Download `Prysm-Setup-${{ needs.validate-release.outputs.version }}.exe`.
-            2. Run the installer.
-            3. Future updates can be downloaded and installed from inside the app.
-          files: |
-            release-artifacts/macos-release/*.zip
-            release-artifacts/macos-release/latest-mac.yml
-            release-artifacts/windows-release/Prysm-Setup-${{ needs.validate-release.outputs.version }}.exe
-            release-artifacts/windows-release/Prysm-Setup-${{ needs.validate-release.outputs.version }}.exe.blockmap
-            release-artifacts/windows-release/latest.yml
+      - name: Verify exact candidate artifacts before publishing
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_VERSION: ${{ needs.validate-release.outputs.version }}
+        run: python3 scripts/verify-desktop-candidate.py release-artifacts "${{ matrix.platform }}"
+
+      - name: Publish platform assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.validate-release.outputs.version }}
+        run: |
+          tag="v$RELEASE_VERSION"
+          case "${{ matrix.platform }}" in
+            windows)
+              files=("release-artifacts/windows-release/Prysm-Setup-$RELEASE_VERSION.exe"
+                     "release-artifacts/windows-release/Prysm-Setup-$RELEASE_VERSION.exe.blockmap"
+                     "release-artifacts/windows-release/latest.yml") ;;
+            macos)
+              files=("release-artifacts/macos-release/Prysm-mac-arm64-$RELEASE_VERSION.zip"
+                     "release-artifacts/macos-release/latest-mac.yml") ;;
+            *) exit 1 ;;
+          esac
+          gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --latest

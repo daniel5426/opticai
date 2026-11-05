@@ -1,0 +1,15 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+const root = process.cwd();
+const check = spawnSync(process.execPath, ['scripts/devdesk-release-inputs.mjs', 'check'], { stdio: 'inherit' });
+if (check.status !== 0) process.exit(check.status || 1);
+const imports = spawnSync(process.execPath, ['scripts/check-desktop-runtime.mjs'], { stdio: 'inherit' });
+if (imports.status !== 0) process.exit(imports.status || 1);
+const app = path.join(root, 'release/desktop-app');
+fs.rmSync(app, { recursive: true, force: true });
+fs.mkdirSync(app, { recursive: true });
+for (const name of ['package.json', 'package-lock.json']) fs.copyFileSync(`config/desktop-runtime/${name}`, path.join(app, name));
+for (const name of ['dist', 'dist-electron', 'app-update.yml']) fs.cpSync(path.join(root, name), path.join(app, name), { recursive: true });
+const install = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['ci', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund', '--registry=https://registry.npmjs.org'], { cwd: app, stdio: 'inherit', shell: process.platform === 'win32' });
+if (install.status !== 0) process.exit(install.status || 1);

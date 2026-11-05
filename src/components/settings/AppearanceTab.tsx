@@ -1,9 +1,10 @@
 import React, { useEffect, useId } from "react";
-import { Check } from "lucide-react";
+import { Check, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "@/components/theme-provider";
 import { CanvasGradientEditor } from "@/components/canvas-gradient-editor";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -16,13 +17,18 @@ export function AppearanceTab({ persistMode = true }: { persistMode?: boolean })
   const { t } = useTranslation();
   const { direction } = useAppLocale();
   const id = useId();
-  const { style, mode, palette, canvasElevation, setTheme: setLocalMode, setStyle, setPalette, setCanvasElevation, previewPalette } = useTheme();
+  const { resetToDefaults, style, mode, palette, canvasElevation, setTheme: setLocalMode, setStyle, setPalette, setCanvasElevation, previewPalette } = useTheme();
   useEffect(() => () => previewPalette(null), [previewPalette]);
 
   return <div className="space-y-6 text-start" dir={direction} data-testid="appearance-settings">
-    <div className="space-y-1">
-      <h2 className="text-lg font-semibold">{t("appearanceMenu")}</h2>
-      <p className="text-sm text-muted-foreground">{t("appearanceSettingsDescription")}</p>
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="space-y-1">
+        <h2 className="text-lg font-semibold">{t("appearanceMenu")}</h2>
+        <p className="text-sm text-muted-foreground">{t("appearanceSettingsDescription")}</p>
+      </div>
+      <Button variant="outline" onClick={() => { resetToDefaults(); if (persistMode) void setTheme("light"); }}>
+        {t("appearanceResetDefaults")}<RotateCcw className="size-4" aria-hidden="true" />
+      </Button>
     </div>
     <Card>
       <CardHeader><CardTitle>{t("appearanceStyle")}</CardTitle></CardHeader>

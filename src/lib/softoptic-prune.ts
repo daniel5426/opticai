@@ -11,6 +11,7 @@ type CsvRow = Record<string, string>;
 export type SoftOpticPruneResult = {
   limited: boolean;
   clientImportLimit?: number | null;
+  clientAccountCode?: string | null;
   outputDir?: string;
   sourceOutputDir?: string;
   selectedClientCount: number;
@@ -23,6 +24,7 @@ export type PruneSoftOpticExportOptions = {
   outputDir: string;
   targetDir?: string;
   clientImportLimit?: number | null;
+  clientAccountCode?: string | null;
   includeDocuments?: boolean;
   documentRoot?: string;
 };
@@ -169,7 +171,7 @@ async function listTopLevelCsvFiles(outputDir: string): Promise<string[]> {
     .sort();
 }
 
-async function collectSelectedAccountCodes(accountPath: string, limit: number): Promise<Set<string>> {
+async function collectSelectedAccountCodes(accountPath: string, limit: number, requestedCode?: string | null): Promise<Set<string>> {
   const selected = new Set<string>();
   const input = fs.createReadStream(accountPath, { encoding: "utf8" });
   const parser = input.pipe(parse({
@@ -184,6 +186,7 @@ async function collectSelectedAccountCodes(accountPath: string, limit: number): 
       if (!isClientAccount(row)) continue;
       const accountCode = getField(row, "account_code");
       if (!accountCode || selected.has(accountCode)) continue;
+      if (requestedCode && accountCode !== requestedCode) continue;
       selected.add(accountCode);
       if (selected.size >= limit) break;
     }
@@ -259,7 +262,10 @@ async function copyMatchedDocuments(
 
 async function updateManifest(sourceDir: string, targetDir: string, result: SoftOpticPruneResult): Promise<void> {
   const sourceManifestPath = path.join(sourceDir, "manifest.json");
-  if (!fs.existsSync(sourceManifestPath)) return;
+  if (!fs.existsSync(sourceManifestPath)) {
+    if (result.clientAccountCode) throw new Error("softoptic.selectionMismatch");
+    return;
+  }
   try {
     const raw = await fs.promises.readFile(sourceManifestPath, "utf8");
     const manifest = raw ? JSON.parse(raw.replace(/^\uFEFF/, "")) : {};
@@ -272,6 +278,7 @@ async function updateManifest(sourceDir: string, targetDir: string, result: Soft
       }
       return table;
     });
+    manifest.client_account_code = result.clientAccountCode ?? null;
     manifest.client_import_limit = result.clientImportLimit ?? null;
     manifest.pruned_export = {
       selected_client_count: result.selectedClientCount,
@@ -280,13 +287,16 @@ async function updateManifest(sourceDir: string, targetDir: string, result: Soft
     };
     await fs.promises.writeFile(path.join(targetDir, "manifest.json"), JSON.stringify(manifest, null, 2), "utf8");
   } catch {
-    // Manifest is informational; pruning should not fail because it is malformed.
+    if (result.clientAccountCode) throw new Error("softoptic.selectionMismatch");
+    // Older limited exports treat the manifest as informational.
   }
 }
 
 export async function pruneSoftOpticExport(options: PruneSoftOpticExportOptions): Promise<SoftOpticPruneResult> {
   const limit = options.clientImportLimit ?? null;
-  if (!limit || limit < 1) {
+  const accountCode = options.clientAccountCode?.trim() || null;
+  if (accountCode && !/^\d+$/.test(accountCode)) throw new Error("softoptic.invalidClientNumber");
+  if (!accountCode && (!limit || limit < 1)) {
     return {
       limited: false,
       clientImportLimit: null,
@@ -314,7 +324,8 @@ export async function pruneSoftOpticExport(options: PruneSoftOpticExportOptions)
   await fs.promises.rm(targetDir, { recursive: true, force: true });
   await fs.promises.mkdir(targetDir, { recursive: true });
 
-  const selectedAccountCodes = await collectSelectedAccountCodes(accountPath, limit);
+  const selectedAccountCodes = await collectSelectedAccountCodes(accountPath, accountCode ? 1 : limit!, accountCode);
+  if (accountCode && selectedAccountCodes.size !== 1) throw new Error("softoptic.clientNotFound");
   const referencedPrescCodes = new Set<string>();
   const referencedFileCodes = new Set<string>();
   const keptFileRows: CsvRow[] = [];
@@ -325,7 +336,7 @@ export async function pruneSoftOpticExport(options: PruneSoftOpticExportOptions)
   rowCounts["account.csv"] = await filterCsvFile(
     accountPath,
     path.join(targetDir, "account.csv"),
-    row => selectedAccountCodes.has(getField(row, "account_code")),
+    row => isClientAccount(row) && selectedAccountCodes.has(getField(row, "account_code")),
   );
   processed.add("account.csv");
 
@@ -396,7 +407,8 @@ export async function pruneSoftOpticExport(options: PruneSoftOpticExportOptions)
 
   const result: SoftOpticPruneResult = {
     limited: true,
-    clientImportLimit: limit,
+    clientImportLimit: accountCode ? null : limit,
+    clientAccountCode: accountCode,
     outputDir: targetDir,
     sourceOutputDir: outputDir,
     selectedClientCount: selectedAccountCodes.size,

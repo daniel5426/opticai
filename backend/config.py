@@ -88,6 +88,7 @@ class Settings:
     GOOGLE_DESKTOP_CLIENT_ID: str = os.getenv("GOOGLE_DESKTOP_CLIENT_ID", "")
     GOOGLE_DESKTOP_CLIENT_SECRET: str = os.getenv("GOOGLE_DESKTOP_CLIENT_SECRET", "")
     GOOGLE_WEB_CLIENT_ID: str = os.getenv("GOOGLE_WEB_CLIENT_ID", "")
+    GOOGLE_WEB_CLIENT_SECRET: str = os.getenv("GOOGLE_WEB_CLIENT_SECRET", "")
 
     # Website signup, billing, and transactional email
     SITE_URL: str = os.getenv("SITE_URL", "https://prysm.co.il").rstrip("/")

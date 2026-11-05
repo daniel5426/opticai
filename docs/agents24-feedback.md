@@ -307,3 +307,10 @@ Requested improvement: support an authored per-tool approval requirement, apply 
 installation before tools become usable, and fail publication/readiness if it cannot be enforced.
 Preserve stricter organization overrides such as Deny. This would make organization moves
 reproducible without silently inheriting always_allow.
+# Native attachment-node validation warning — 2026-11-05
+
+Verification question: with Python SDK 0.7.25 and CLI 0.3.35, `agents.validate` returns `valid: true` but warns that native `speech_to_text`, `document_extract` and `ocr` nodes require `context` with no producer. The nodes bind optional `workflow_input.audio/files/images` explicitly. An audio-only draft run (`36a228c7-c340-4f7f-b1d3-05a6809fd536`) completed Speech to Text and the assistant successfully; the published browser turn also completed and restored. Review whether this is a legacy port-type warning that should defer to the declared input bindings. No workaround or provider substitution was added.
+
+# Sent user attachments align opposite RTL bubbles — 2026-11-05
+
+Confirmed with `@agents24/chat-react` 0.5.42: render `AgentChatMessage` with `dir="rtl"`, user text and a file/audio attachment. The bubble uses logical flex-end (physical left), but `.a24-chat-attachments[dir="rtl"]` changes the attachment row to flex-start (physical right). This splits one user's message across opposite edges. Prysm scopes a logical flex-end override to sent user attachment rows; composer previews and assistant attachments are untouched. Browser measurements confirm matching left edges in Hebrew and matching right edges in English/French. Upstream should align sent attachments with their bubble and add an RTL layout regression; remove the host override once the published component provides that behavior.

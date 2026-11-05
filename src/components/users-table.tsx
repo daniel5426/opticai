@@ -1,3 +1,4 @@
+import { tableLoadingRowCount } from "@/lib/table-loading";
 import * as React from "react"
 import { User } from "@/lib/db/schema-interface"
 import { Button } from "@/components/ui/button"
@@ -68,7 +69,7 @@ const USER_COLUMN_FILTERS: ColumnFilterDefinition<UserWithClinic>[] = [
   },
   { key: "email", label: "אימייל", kind: "text", getValue: (user) => user.email },
   { key: "phone", label: "טלפון", kind: "text", getValue: (user) => user.phone },
-  { key: "clinic", label: "מרפאה", kind: "text", getValue: (user) => user.clinic_name || "גלובלי" },
+  { key: "clinic", label: "מרפאה", kind: "text", getValue: (user) => String(user.clinic_id ?? "__none__") },
   {
     key: "status",
     label: "סטטוס",
@@ -129,7 +130,7 @@ export function UsersTable({
       role: { getValue: (user) => user.role_level, type: "number" },
       email: { getValue: (user) => user.email },
       phone: { getValue: (user) => user.phone },
-      clinic: { getValue: (user) => user.clinic_name || "גלובלי" },
+      clinic: { getValue: (user) => String(user.clinic_id ?? "__none__") },
       status: { getValue: (user) => user.is_active, type: "boolean" }
     }),
     []
@@ -362,7 +363,7 @@ export function UsersTable({
           </TableHeader>
           <TableBody>
             {loading ? (
-              Array.from({ length: 14 }).map((_, i) => (
+              Array.from({ length: tableLoadingRowCount(pagination) }).map((_, i) => (
                 <TableRow key={i}>
                   <TableCell>
                     <Skeleton className="my-2 h-4 w-[70%]" />

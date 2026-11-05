@@ -1,5 +1,6 @@
+import { tableLoadingRowCount } from "@/lib/table-loading";
 import { useUser } from "@/contexts/UserContext"
-import { RecordClinicLabel } from "@/components/RecordClinicLabel"
+import { ClinicTableHead, ClinicTableCell } from "@/components/RecordClinicColumn"
 import React from "react"
 import { useState, useRef, useCallback } from "react"
 import { useNavigate } from "@tanstack/react-router"
@@ -353,6 +354,7 @@ export function FilesTable({
         getValue: (file) => normalizeFileCategory(file.file_type),
       },
       { key: "upload_date", label: "תאריך העלאה", kind: "date", getValue: (file) => file.upload_date },
+      { key: "clinic", label: "companyClients.clinic", kind: "options", getValue: (file) => String(file.clinic_id ?? "__none__") },
       ...(clientId === 0
         ? [{ key: "client", label: "לקוח", kind: "text" as const, getValue: (file: FileType) => getClientName(file) }]
         : []),
@@ -473,6 +475,7 @@ export function FilesTable({
               >
                 שם הקובץ
               </SortableTableHead>
+              <ClinicTableHead />
               <SortableTableHead
                 sortKey="type"
                 sort={activeSort}
@@ -512,8 +515,8 @@ export function FilesTable({
           </TableHeader>
           <TableBody>
             {loading ? (
-              Array.from({ length: 14 }).map((_, i) => (
-                <TableRow key={i}>
+              Array.from({ length: tableLoadingRowCount(pagination) }).map((_, i) => (
+                <TableRow key={i}><TableCell><Skeleton className="h-4 w-24" /></TableCell>
                   <TableCell>
                     <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
@@ -543,7 +546,8 @@ export function FilesTable({
               displayData.map((file) => (
                 <TableRow key={file.id}>
                   <TableCell>{getFileIcon(file.file_type)}</TableCell>
-                  <TableCell className="font-medium">{file.file_name}<RecordClinicLabel clinicId={file.clinic_id} /></TableCell>
+                  <TableCell className="font-medium">{file.file_name}</TableCell>
+      <ClinicTableCell clinicId={file.clinic_id} />
                   <TableCell>{getSimpleFileType(file.file_type)}</TableCell>
                   <TableCell>{formatFileSize(file.file_size)}</TableCell>
                   <TableCell>

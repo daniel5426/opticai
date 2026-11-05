@@ -1,6 +1,6 @@
 # Release Checklist
 
-Last Updated: 2026-04-30
+Last Updated: 2026-11-04
 
 ## Windows-First Launch Checklist
 - Verify backend base URL and required desktop env values
@@ -19,3 +19,9 @@ Last Updated: 2026-04-30
 - Screenshots or notes from packaged app smoke tests
 - Blockers found
 - Final launch scope reductions
+
+## Release targets and artifacts
+- Publish Windows x64 and macOS Apple Silicon only. Retain historical Intel assets.
+- Verify exact-SHA candidate provenance, version, package sizes and updater SHA-512 before publication.
+- Verify the slim desktop runtime includes required native modules and main-process externals, without duplicate renderer libraries.
+- Keep web/API health and exact-SHA Backend/Web CI as promotion gates; optional staging installers do not delay web promotion.

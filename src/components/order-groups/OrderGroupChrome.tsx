@@ -2,7 +2,7 @@ import React, { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Edit, Eye, Glasses, Loader2, MoreVertical, Plus, Printer, Receipt, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { OrderSheetSkeleton } from "@/components/orders/OrderSheetSkeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -278,13 +278,5 @@ export function OrderGroupToolbar({
 }
 
 export function OrderGroupPanelSkeleton() {
-  return (
-    <div className="space-y-4 p-4" aria-hidden="true">
-      <Skeleton className="h-36" />
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Skeleton className="h-40" />
-        <Skeleton className="h-40" />
-      </div>
-    </div>
-  );
+  return <OrderSheetSkeleton />;
 }

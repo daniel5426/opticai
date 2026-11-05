@@ -1,3 +1,4 @@
+import { findExamComponentData } from "@/lib/exam-component-data";
 import { OrderGroupGate } from "@/components/order-groups/OrderGroupWorkspace";
 import { serializeEntry, type EntryWorkspace } from "@/lib/order-groups";
 import React, { useState, useRef, useEffect, useCallback } from "react";
@@ -123,6 +124,7 @@ import {
 import { ClientSpaceLayout } from "@/layouts/ClientSpaceLayout";
 import { useClientSidebar } from "@/contexts/ClientSidebarContext";
 import { Skeleton } from "@/components/ui/skeleton";
+import { OrderSheetSkeleton } from "@/components/orders/OrderSheetSkeleton";
 import RegularOrderTab from "@/components/orders/RegularOrderTab";
 import ContactOrderTab from "@/components/orders/ContactOrderTab";
 import { exportOrderToDocx, exportOrderToPdf, printOrderPdf } from "@/lib/order-docx";
@@ -838,28 +840,20 @@ export function LegacyOrderDetailPage({
                 }));
               }
 
-              // Extract card data
-              const allExamData: any = {};
-              (pageData.instances || []).forEach((inst: any) => {
-                if (inst.exam_data) {
-                  Object.assign(allExamData, inst.exam_data);
-                }
-              });
-
               if (isContactMode) {
-                const clExam = allExamData["contact-lens-exam"];
+                const clExam = findExamComponentData(pageData, "contact-lens-exam");
                 if (clExam) setContactLensExamData({ ...clExam });
 
-                const kerato = allExamData["keratometer-contact-lens"];
+                const kerato = findExamComponentData(pageData, "keratometer-contact-lens");
                 if (kerato) setKeratoCLData({ ...kerato });
 
-                const schirmer = allExamData["schirmer-test"];
+                const schirmer = findExamComponentData(pageData, "schirmer-test");
                 if (schirmer) setSchirmerData({ ...schirmer });
 
-                const diam = allExamData["contact-lens-diameters"];
+                const diam = findExamComponentData(pageData, "contact-lens-diameters");
                 if (diam) setDiametersData({ ...diam });
               } else {
-                const fp = allExamData["final-prescription"];
+                const fp = findExamComponentData(pageData, "final-prescription");
                 const additionSources =
                   extractAdditionAddSourcesFromExamPageData(pageData);
                 const selectedAdditionSource = selectedAdditionAddType
@@ -1415,7 +1409,7 @@ export function LegacyOrderDetailPage({
           : isIncompleteSignedNumber(rawValue)
             ? rawValue
             : isNaN(val)
-              ? undefined
+              ? (field === "r_sph" || field === "l_sph" ? rawValue : undefined)
               : val;
     } else if (integerFields.includes(field)) {
       const val = parseInt(rawValue, 10);
@@ -2088,17 +2082,7 @@ export function LegacyOrderDetailPage({
   if (workspace) {
     if (workspace.active === false) return null;
     if (workspaceLoadFailed) return <div className="p-5 text-sm text-destructive">{t("orderGroupLoadError")}</div>;
-    if (loading) {
-      return (
-        <div className="space-y-4 p-4" aria-hidden="true">
-          <Skeleton className="h-36" />
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Skeleton className="h-40" />
-            <Skeleton className="h-40" />
-          </div>
-        </div>
-      );
-    }
+    if (loading) return <OrderSheetSkeleton />;
     return isContactMode ? (
                 <ContactOrderTab hideMetadata
                   formRef={formRef}

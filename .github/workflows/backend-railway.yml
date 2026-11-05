@@ -22,6 +22,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Select affected component
+        id: changes
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          selected='["backend","web"]'
+          if [[ "$BASE" =~ ^[a-f0-9]{40}$ ]] && git cat-file -e "$BASE" 2>/dev/null; then
+            selected="$(node scripts/devdesk-check.mjs --selection --base "$BASE")"
+          fi
+          SELECTED="$selected" node -e 'console.log("run="+JSON.parse(process.env.SELECTED).includes("backend"))' >> "$GITHUB_OUTPUT"
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -29,19 +41,20 @@ jobs:
           python-version: "3.12.8"
           cache: pip
           cache-dependency-path: backend/requirements.txt
+        if: steps.changes.outputs.run == 'true'
 
       - name: Install backend dependencies
         working-directory: backend
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt pytest
+        if: steps.changes.outputs.run == 'true'
 
       - name: Run backend release-gate tests
         env:
           PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/backend
         run: >
-          python -m pytest
-          backend/tests/test_ai_responses.py
+          python -m pytest backend/tests/test_ai_responses.py
           backend/tests/test_production_hardening.py
           backend/tests/test_files_api.py
           backend/tests/test_default_exam_layout_seeds.py
@@ -55,3 +68,17 @@ jobs:
           backend/tests/test_company_client_preflight.py
           backend/tests/test_inventory_v1.py
           backend/tests/test_prescription_search_index.py
+          backend/tests/test_review_compatibility.py
+          backend/tests/test_next_bag_number.py
+          backend/tests/test_column_filters.py
+          backend/tests/test_column_filter_endpoints.py
+          backend/tests/test_table_exports.py
+          backend/tests/test_google_oauth.py
+          backend/tests/test_backend_owned_auth.py
+          backend/tests/test_web_email_verification.py
+          backend/tests/test_optitech_phase2.py
+          backend/tests/test_optitech_phase3.py
+          backend/tests/test_optitech_clinical_coverage.py
+          backend/tests/test_optitech_address_split.py
+          backend/tests/test_table_search.py
+        if: steps.changes.outputs.run == 'true'

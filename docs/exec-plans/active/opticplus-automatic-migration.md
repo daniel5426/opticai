@@ -398,3 +398,30 @@ OpticPlus exam layouts now use an opt-in measured dense grid: each card reserves
 Validation: 37 focused tests pass, including measured-height updates preserving edited inputs, ordinary-layout lane preservation, and alignment in all three locales. Live visual acceptance and the web build are blocked by the concurrent Agents24 integration importing `getAgentChatActivity` from a package that does not export it; the running client route is blank with that same error. Full repository validation also reports unrelated agent test failures. Do not mark screenshot acceptance complete until the integration mismatch is resolved.
 
 Migration note: Not needed; packing and input alignment are presentation-only. Persisted layouts, source values and bindings are unchanged.
+
+
+### Deliberate OpticPlus card rows — 2026-11-05
+
+Replaced the OpticPlus-only dense packing with coherent display rows: prescription/additions together, fitting/over-refraction together, compact assessment measurements/history above the three clinical panels, and actual notes together at the bottom. All card instances, including repeated and unfamiliar cards, remain present; saved layouts and clinical values are not rewritten. Custom cards use a bounded label column, shorter controls, tighter section spacing, compact questionnaire options, and inline examiner/reason summaries. Imported anamnesis uses three fields across; BUT imports omit the native between-eye spacer. Text inputs follow Hebrew RTL or English/French LTR while numeric notation remains LTR.
+
+Validation: canonical scoped fast checks passed 115 tests across 15 files, including arrangement/duplicate-instance preservation, all three input directions, and existing migration/native-card regressions. The web build passed (14.87 s). Verified the live Hebrew assessment and imported glasses/contact layouts; English/French synthetic gallery checks also retained an edited field across locale changes. Final recapture/history inspection is blocked after an independent DevDesk restart: authenticated client reads raise `UndefinedColumn: clients.send_notifications does not exist`. The separate pending ownership/notification work was left unchanged; no shared schema mutation was performed for this UI task. Evidence: `Downloads/clinic-transfer/opticplus-layout-polish-2026-11-05`.
+
+Migration note: Not needed; presentation only. No source values, saved layouts or schema changed, and no remigration is required.
+
+
+### Sidebar-aware exam reflow — 2026-11-05
+
+OpticPlus display rows now use the measured content width of the exam pane. A ResizeObserver responds to client-panel resizing, main navigation collapse, and window resizing; assessment panels reduce from three columns to two or one, native prescription rows stack sooner, and measurements/notes reflow without squeezing bilateral fields. Wide layouts restore on expansion. Card IDs and saved geometry remain unchanged; resized cards retain unsaved input. Ordinary layouts retain their saved coordinates.
+
+Validation: 8 scoped tests pass, including pane-only ResizeObserver updates preserving an unsaved field, repeated source instances, narrow/wide packing and restored geometry. Web build passed (9.17 s); diff whitespace check passed. Personally verified the actual Hebrew pilot with the client panel open/closed, keyboard panel resizing, main navigation collapse/expansion, and a temporary 1360 px viewport: clinical panels remained readable in three, two and one columns. Restored the default viewport and navigation. Screenshots: `Downloads/clinic-transfer/opticplus-responsive-2026-11-05`. No clinical fields were edited.
+
+Migration note: Not needed; responsive presentation only, with no schema, persisted layout or source-data changes.
+
+
+### Imported profile history is client reference data — 2026-11-05
+
+The client details toolbar now has a compact click-to-open Imported history text popover beside Source Data and Edit Details. The scoped API derives OpticPlus profile values from retained client source rows and overlays existing saved legacy-history card values, preserving edits, zero/false values and unresolved original labels. Ordinary clients have no button. History backing records remain intact for recovery; reserved `opticplus.exam.history` entries are excluded from global/client exam lists, exam exports using the shared list query, first/last exam dates and latest-exam selection. Real glasses/contact exams and grouped clinical assessments remain visible. The ongoing import can continue producing backing records; the same projection handles them after deployment without reimporting or cleanup.
+
+Validation: 74 focused backend tests passed; 30 frontend tests passed, including Hebrew/English/French popover semantics, client details regressions and migration labels. The initial API-client-related check passed 614 tests and found two outdated client-details mocks; updating those mocks and rerunning the affected files passed. Web build passed (10.05 s). Personally verified the existing Hebrew pilot popover and exactly three remaining exam rows (assessment, contact and glasses). Screenshots: `Downloads/clinic-transfer/opticplus-profile-history-2026-11-05`. No production data was changed by this fix.
+
+Migration note: No schema migration, repair script or remigration is needed. Deploy backend and frontend together (backend first); existing source/history records automatically appear through the new client reference view. No clinical records are deleted.

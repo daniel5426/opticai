@@ -1,7 +1,7 @@
 import { TableFiltersBar } from "@/components/table-filters-bar"
 import { RecordClinicLabel } from "@/components/RecordClinicLabel"
 import { ImportedSourceDataDialog } from "@/components/migration/ImportedSourceDataDialog";
-import React, { useState, ChangeEvent, useEffect } from "react";
+import React, { useState, ChangeEvent, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -78,7 +78,13 @@ export const ClientMedicalRecordTab = ({
   const [tempIdCounter, setTempIdCounter] = useState(-1);
   const [recordToDelete, setRecordToDelete] = useState<MedicalRecord | null>(null);
 
+  const recordsClientRef = useRef(clientIdNum);
+  const savingRecords = useRef(new Set<number>());
+  const [savingRecordIds, setSavingRecordIds] = useState<number[]>([]);
+
   useEffect(() => {
+    const sameClient = recordsClientRef.current === clientIdNum;
+    recordsClientRef.current = clientIdNum;
     const sortedLogs = [...medicalLogs].sort((a, b) => {
       const dateA = new Date(a.log_date || "").getTime();
       const dateB = new Date(b.log_date || "").getTime();
@@ -88,14 +94,14 @@ export const ClientMedicalRecordTab = ({
       return (b.id || 0) - (a.id || 0);
     });
     setRecords((prev) => {
-      const tempRecords = prev.filter((r) => (r.id || 0) < 0);
-      const normalizedSaved = sortedLogs.map((log) => ({
-        ...log,
-        isEditing: false,
-      }));
-      return [...tempRecords, ...normalizedSaved];
+      const drafts = sameClient ? prev.filter(record => record.isEditing) : [];
+      const draftById = new Map(drafts.map(record => [record.id, record]));
+      const savedIds = new Set(sortedLogs.map(log => log.id));
+      const retainedDrafts = drafts.filter(record => !savedIds.has(record.id));
+      const normalizedSaved = sortedLogs.map(log => draftById.get(log.id) || { ...log, isEditing: false });
+      return [...retainedDrafts, ...normalizedSaved];
     });
-  }, [medicalLogs]);
+  }, [medicalLogs, clientIdNum]);
 
   const addNewRecord = () => {
     const newTempId = tempIdCounter - 1;
@@ -124,13 +130,12 @@ export const ClientMedicalRecordTab = ({
 
   const saveRecord = async (id: number) => {
     const record = records.find((r) => r.id === id);
-    if (!record) return;
+    if (!record || savingRecords.current.has(id)) return;
+    savingRecords.current.add(id);
+    setSavingRecordIds([...savingRecords.current]);
 
     try {
       if (id < 0) {
-        setRecords((prev) =>
-          prev.map((r) => (r.id === id ? { ...r, isEditing: false } : r)),
-        );
         const newLog = await createMedicalLogApi({
           client_id: Number(clientId),
           clinic_id: currentClinic?.id,
@@ -167,9 +172,6 @@ export const ClientMedicalRecordTab = ({
           toast.error("שגיאה בשמירת הרשומה");
         }
       } else {
-        setRecords((prev) =>
-          prev.map((r) => (r.id === id ? { ...r, isEditing: false } : r)),
-        );
         const updatedLog = await updateMedicalLogApi({
           id: record.id,
           client_id: record.client_id,
@@ -211,6 +213,9 @@ export const ClientMedicalRecordTab = ({
         prev.map((r) => (r.id === id ? { ...r, isEditing: true } : r)),
       );
       toast.error("שגיאה בשמירת הרשומה");
+    } finally {
+      savingRecords.current.delete(id);
+      setSavingRecordIds([...savingRecords.current]);
     }
   };
 
@@ -309,6 +314,7 @@ export const ClientMedicalRecordTab = ({
                     <div className="ms-3">
                       {record.isEditing && record.id !== undefined ? (
                         <DateInput
+                          disabled={savingRecordIds.includes(record.id!)}
                           name={`medical-log-date-${record.id}`}
                           value={record.log_date || ""}
                           onChange={(e) => handleDateInputChange(record.id!, e)}
@@ -335,6 +341,7 @@ export const ClientMedicalRecordTab = ({
                         <Button
                           size="sm"
                           variant="ghost"
+                          disabled={savingRecordIds.includes(record.id!)}
                           onClick={() =>
                             record.id !== undefined && saveRecord(record.id)
                           }
@@ -357,6 +364,7 @@ export const ClientMedicalRecordTab = ({
                       <Button
                         size="sm"
                         variant="ghost"
+                        disabled={savingRecordIds.includes(record.id!)}
                         onClick={() => setRecordToDelete(record)}
                         aria-label={t("trashMoveConfirm")}
                         className="text-destructive hover:text-destructive h-8 w-8 p-0"
@@ -372,6 +380,7 @@ export const ClientMedicalRecordTab = ({
                     {record.isEditing ? (
                       <Textarea
                         value={record.log || ""}
+                        disabled={savingRecordIds.includes(record.id!)}
                         onChange={(e) =>
                           record.id !== undefined &&
                           handleContentChange(record.id, e.target.value)

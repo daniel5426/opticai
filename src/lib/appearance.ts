@@ -21,7 +21,7 @@ export const COLOR_THEMES = {
 export type ColorTheme = keyof typeof COLOR_THEMES;
 export type CanvasElevation = "flat" | "lift";
 
-export const APPEARANCE_DEFAULTS_VERSION = "bloom-2026-11";
+export const APPEARANCE_DEFAULTS_VERSION = "bloom-2026-11-05";
 export const getAppearanceDefaultsKey = (id?: number) => id === undefined
   ? "appearance_defaults_version" : `user_appearance_defaults_version_${id}`;
 export const DEFAULT_APP_CANVAS: CanvasGradient = {
@@ -114,19 +114,20 @@ function hexToHsl(hex: string): string {
 /** The only owner of document appearance. React and legacy helpers share this store. */
 export function createAppearanceStore(environment: AppearanceEnvironment) {
   const { storage, root, media } = environment;
+  const persistDefaults = (userId?: number) => {
+    const defaults = { mode: "light" as const, style: "classic" as const, palette: "bloom" as const, canvasGradient: { ...DEFAULT_APP_CANVAS }, canvasElevation: "flat" as const };
+    writeValue(storage, userId === undefined ? "theme" : getUserThemeKey(userId), defaults.mode);
+    if (userId === undefined) writeValue(storage, "vite-ui-theme", defaults.mode);
+    writeValue(storage, getStyleKey(userId), defaults.style);
+    writeValue(storage, userId === undefined ? "color_theme" : getColorThemeKey(userId), defaults.palette);
+    writeValue(storage, getCanvasGradientKey(userId), JSON.stringify(defaults.canvasGradient));
+    writeValue(storage, getCanvasElevationKey(userId), defaults.canvasElevation);
+    writeValue(storage, getAppearanceDefaultsKey(userId), APPEARANCE_DEFAULTS_VERSION);
+    return defaults;
+  };
   const loadPreferences = (userId?: number, savedMode?: unknown) => {
-    if (readAppearanceValue(storage, getAppearanceDefaultsKey(userId)) !== APPEARANCE_DEFAULTS_VERSION) {
-      // Apply this rollout once per account/device, then retain subsequent choices.
-      const defaults = { mode: "light" as const, style: "classic" as const, palette: "bloom" as const, canvasGradient: { ...DEFAULT_APP_CANVAS }, canvasElevation: "flat" as const };
-      writeValue(storage, userId === undefined ? "theme" : getUserThemeKey(userId), defaults.mode);
-      if (userId === undefined) writeValue(storage, "vite-ui-theme", defaults.mode);
-      writeValue(storage, getStyleKey(userId), defaults.style);
-      writeValue(storage, userId === undefined ? "color_theme" : getColorThemeKey(userId), defaults.palette);
-      writeValue(storage, getCanvasGradientKey(userId), JSON.stringify(defaults.canvasGradient));
-      writeValue(storage, getCanvasElevationKey(userId), defaults.canvasElevation);
-      writeValue(storage, getAppearanceDefaultsKey(userId), APPEARANCE_DEFAULTS_VERSION);
-      return defaults;
-    }
+    // Apply this rollout once per account/device, then retain subsequent choices.
+    if (readAppearanceValue(storage, getAppearanceDefaultsKey(userId)) !== APPEARANCE_DEFAULTS_VERSION) return persistDefaults(userId);
     return { ...resolveAppearance(storage, userId, savedMode), canvasGradient: readCanvasGradient(storage, userId), canvasElevation: readCanvasElevation(storage, userId) };
   };
   const resolveMode = (mode: ThemeMode) => mode === "system" ? (media.matches ? "dark" : "light") : mode;
@@ -206,6 +207,11 @@ export function createAppearanceStore(environment: AppearanceEnvironment) {
       writeValue(storage, getCanvasGradientKey(), JSON.stringify(preferences.canvasGradient));
       writeValue(storage, getCanvasElevationKey(), preferences.canvasElevation);
       update({ ...preferences, userId, previewPalette: null, previewCanvasGradient: undefined });
+    },
+    resetToDefaults: () => {
+      const defaults = persistDefaults();
+      if (state.userId !== undefined) persistDefaults(state.userId);
+      update({ ...defaults, previewPalette: null, previewCanvasGradient: undefined });
     },
     setMode: (mode: ThemeMode, userId = state.userId) => {
       if (!isThemeMode(mode)) return;

@@ -870,6 +870,8 @@ class BillingUpdate(BillingBase):
     line_items: Optional[List[OrderLineItemUpdate]] = None
 
 class Billing(BillingBase):
+    line_subtotal_offset: Optional[float] = None
+    line_total_offset: Optional[float] = None
     compatibility_token: Optional[str] = None
     id: int
     
@@ -1080,4 +1082,21 @@ class OrderGroupSave(BaseModel):
     entries: List[GroupEntrySave] = Field(default_factory=list, max_length=100)
     removed_entry_ids: List[int] = Field(default_factory=list, max_length=100)
     billing: Optional[GroupBillingSave] = None
+    line_items: List[GroupLineSave] = Field(default_factory=list, max_length=1000)
+
+
+class GroupBillingPatch(BaseModel):
+    model_config = {"extra": "forbid"}
+    discount_amount: float = Field(default=0, ge=0, allow_inf_nan=False)
+    discount_percent: float = Field(default=0, ge=0, le=100, allow_inf_nan=False)
+    prepayment_amount: float = Field(default=0, ge=0, allow_inf_nan=False)
+    installment_count: int = Field(default=1, ge=0)
+    notes: Optional[str] = None
+
+
+class OrderGroupBillingPatch(BaseModel):
+    model_config = {"extra": "forbid"}
+    revision: int = Field(ge=1)
+    payer_client_id: int = Field(default=1, gt=0)
+    billing: GroupBillingPatch = Field(default_factory=GroupBillingPatch)
     line_items: List[GroupLineSave] = Field(default_factory=list, max_length=1000)

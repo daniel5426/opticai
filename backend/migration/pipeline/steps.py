@@ -253,6 +253,7 @@ def migrate_clients_and_families(
     target_clinic_id: Optional[int] = None,
     max_clients: Optional[int] = None,
     trace_context: Optional[Dict[str, Any]] = None,
+    on_batch_progress=None,
 ) -> Tuple[Dict[str, int], Dict[str, int]]:
     # Returns: account_code -> client_id, head_of_family -> family_id
     t0 = time.time()
@@ -260,6 +261,25 @@ def migrate_clients_and_families(
     head_to_family: Dict[str, int] = {}
     row_count = 0
     allowed_account_codes = collect_limited_client_account_codes(csv_dir, max_clients)
+
+    if trace_context:
+        links = db.query(MigrationSourceLink, Client).join(
+            Client, Client.id == MigrationSourceLink.target_id,
+        ).filter(
+            MigrationSourceLink.source_system == trace_context["source_system"],
+            MigrationSourceLink.migration_job_id == trace_context["migration_job_id"],
+            MigrationSourceLink.company_id == company.id,
+            MigrationSourceLink.clinic_id == target_clinic_id,
+            MigrationSourceLink.target_model == "Client",
+            MigrationSourceLink.source_table == "account.csv",
+        ).all()
+        for link, client in links:
+            code = str((link.raw_payload or {}).get("account_code") or "").strip()
+            if code and client and client.company_id == company.id and client.clinic_id == target_clinic_id:
+                account_to_client[code] = client.id
+                head = str((link.raw_payload or {}).get("head_of_family") or "").strip()
+                if head and client.family_id:
+                    head_to_family[head] = client.family_id
 
     if return_only:
         print("[accounts] return_only mode enabled — mapping existing clients", flush=True)
@@ -276,12 +296,14 @@ def migrate_clients_and_families(
             account_code = str(acc).strip()
             if not account_code:
                 continue
+            if account_code in account_to_client:
+                continue
             try:
                 target_id = create_composite_client_id(target_clinic_id, account_code)
             except ValueError:
                 continue
             client = db.get(Client, target_id)
-            if client is None or client.clinic_id != target_clinic_id:
+            if client is None or client.clinic_id != target_clinic_id or client.company_id != company.id:
                 continue
             account_to_client[account_code] = client.id
 
@@ -354,6 +376,7 @@ def migrate_clients_and_families(
     family_count = 0
     pending = 0
     batch_families: List[Tuple[Family, str]] = []
+    pending_heads = set()
     family_batch_size = int(os.environ.get("MIGRATION_FAMILY_BATCH_SIZE", "1000"))
     rows_iter = read_csv_streaming(csv_dir, "account.csv")
     for r in rows_iter:
@@ -364,7 +387,7 @@ def migrate_clients_and_families(
         head = r.get("head_of_family")
         if head:
             head = str(head).strip()
-        if head and head not in head_to_family:
+        if head and head not in head_to_family and head not in pending_heads:
             clinic_id = resolve_migration_clinic_id(branch_to_clinic, r.get("branch_code"))
             # Use preferred last name for family name
             family_last = None
@@ -381,6 +404,7 @@ def migrate_clients_and_families(
                 notes="Migrated family",
             )
             batch_families.append((fam, head))
+            pending_heads.add(head)
             pending += 1
             if pending % family_batch_size == 0:
                 families_only = [f[0] for f in batch_families]
@@ -390,6 +414,8 @@ def migrate_clients_and_families(
                 for fam_obj, head_val in batch_families:
                     head_to_family[head_val] = fam_obj.id
                 batch_families.clear()
+                if on_batch_progress:
+                    on_batch_progress()
                 pending = 0
             family_count += 1
             if family_count % 1000 == 0:
@@ -404,7 +430,6 @@ def migrate_clients_and_families(
     db.flush()
 
     incoming_referrers = _load_incoming_source_referrers(csv_dir)
-    # account.discount_type points at the client's price list ("PriceList 1", "מחיר שנתי", ...).
     price_lists = {
         clean_legacy_text(row.get("discount_code")): clean_legacy_text(row.get("discount_name"))
         for row in read_csv_streaming(csv_dir, "t_discount_types.csv")
@@ -414,137 +439,112 @@ def migrate_clients_and_families(
     # Second pass: create clients
     client_count = 0
     pending = 0
-    batch_clients: List[Tuple[Dict[str, Any], str, int, Dict[str, Any], Optional[int]]] = []
+    batch_clients: list = []
     rows_iter = read_csv_streaming(csv_dir, "account.csv")
     batch_size = int(os.environ.get("MIGRATION_CLIENT_BATCH_SIZE", "1000"))
-    try:
-        for row_number, r in enumerate(rows_iter, start=2):
-            if not is_client_account(r):
-                continue
-            if not account_allowed(r, allowed_account_codes):
-                continue
-            bc = r.get("branch_code")
-            clinic_id = resolve_migration_clinic_id(branch_to_clinic, bc)
+    seen_accounts = set(account_to_client)
 
-            gender = None
-            sx = (r.get("sex") or "").strip()
-            if sx == "1":
-                gender = "male"
-            elif sx == "2":
-                gender = "female"
+    def flush_clients():
+        clients = [Client(**item[0]) for item in batch_clients]
+        if db.bind.dialect.name == "postgresql":
+            # Reserve from the real sequence, skipping IDs inserted by historical
+            # composite-ID imports without ever moving the sequence backwards.
+            reserved = []
+            while len(reserved) < len(clients):
+                candidates = list(db.execute(text(
+                    "SELECT nextval(pg_get_serial_sequence('clients', 'id')) "
+                    "FROM generate_series(1, :count)"
+                ), {"count": len(clients) - len(reserved)}).scalars())
+                occupied = set(db.execute(select(Client.id).where(Client.id.in_(candidates)).execution_options(include_deleted=True)).scalars())
+                reserved.extend(value for value in candidates if value not in occupied)
+            for client, identifier in zip(clients, reserved):
+                client.id = identifier
+        validate_records(db, clients)
+        db.bulk_save_objects(clients, return_defaults=db.bind.dialect.name != "postgresql")
+        for client, (_, code, row, number) in zip(clients, batch_clients):
+            account_to_client[code] = client.id
+            record_raw_source_link(
+                db, trace_context, target_model="Client", target_id=client.id,
+                clinic_id=client.clinic_id, source_table="account.csv",
+                source_row=row, identifier_fields=("account_code",), row_number=number,
+            )
+        db.flush()
+        if on_batch_progress:
+            on_batch_progress()
 
-            house_num = clean_legacy_text(r.get("house_num"))
-            apt = clean_legacy_text(r.get("apartment_num"))
-            address_number = f"{house_num}/{apt}" if house_num and apt else house_num or apt
+    for row_number, r in enumerate(rows_iter, start=2):
+        if not is_client_account(r):
+            continue
+        if not account_allowed(r, allowed_account_codes):
+            continue
+        bc = r.get("branch_code")
+        clinic_id = resolve_migration_clinic_id(branch_to_clinic, bc)
 
-            raw_account_code = r.get("account_code")
-            if raw_account_code is None:
-                continue
-            account_code = str(raw_account_code).strip()
-            if not account_code:
-                continue
-            
-            try:
-                composite_id = create_composite_client_id(clinic_id, account_code)
-            except ValueError as e:
-                print(f"[accounts] Skipping account_code '{account_code}': {e}", flush=True)
-                continue
-            
-            client_dict = {
-                "id": composite_id,
-                "company_id": company.id,
-                "clinic_id": clinic_id,
-                "first_name": r.get("first_name") or None,
-                "last_name": r.get("last_name") or None,
-                "gender": gender,
-                "national_id": r.get("id_number") or None,
-                "date_of_birth": parse_date(r.get("birth_date")),
-                "address_city": r.get("city") or None,
-                "address_street": r.get("street") or None,
-                "address_number": address_number,
-                "postal_code": r.get("zip_code") or None,
-                "phone_home": r.get("phone1") or None,
-                "phone_work": r.get("phone2") or None,
-                "phone_mobile": r.get("mobile_phone") or None,
-                "additional_phone": r.get("phone3") or None,
-                "email": r.get("e_mail") or None,
-                "price_list": price_lists.get(clean_legacy_text(r.get("discount_type"))),
-                "discount_percent": parse_int(r.get("discount_precent")) or 0,
-                "blocked_checks": parse_bool_flag(r.get("check_blocked")),
-                "blocked_credit": parse_bool_flag(r.get("credit_blocked")),
-                "send_notifications": parse_bool_flag(r.get("send_sms_email")) is True,
-                "sorting_group": r.get("acc_sort_group") or None,
-                "referring_party": clean_legacy_text(r.get("turn_name")) or incoming_referrers.get(account_code),
-                "file_creation_date": parse_date(r.get("open_date")),
-                "occupation": r.get("occupation") or None,
-                "status": None,
-                "notes": r.get("remarks") or None,
-                "file_location": r.get("file_location") or None,
-                "family_id": head_to_family.get(str(r.get("head_of_family")).strip() if r.get("head_of_family") else None),
-            }
-            batch_clients.append((client_dict, account_code, composite_id, r, row_number))
-            pending += 1
-            if pending % batch_size == 0:
-                print(f"[accounts] flushing batch of {len(batch_clients)} clients", flush=True)
-                clients_dicts = [c[0] for c in batch_clients]
-                db.bulk_insert_mappings(Client, clients_dicts)
-                db.flush()
-                
-                for client_dict, acc_code, comp_id, source_row, source_row_number in batch_clients:
-                    account_to_client[acc_code] = comp_id
-                    record_raw_source_link(
-                        db,
-                        trace_context,
-                        target_model="Client",
-                        target_id=comp_id,
-                        clinic_id=client_dict.get("clinic_id"),
-                        source_table="account.csv",
-                        source_row=source_row,
-                        identifier_fields=("account_code",),
-                        row_number=source_row_number,
-                    )
-                
-                batch_clients.clear()
-                pending = 0
-            client_count += 1
-            if client_count % 1000 == 0:
-                print(f"[accounts] clients created: {client_count}", flush=True)
-    finally:
-        if batch_clients:
-            print(f"[accounts] flushing final batch of {len(batch_clients)} clients", flush=True)
-            clients_dicts = [c[0] for c in batch_clients]
-            db.bulk_insert_mappings(Client, clients_dicts)
-            db.flush()
-            print(f"[accounts] mapping {len(batch_clients)} client IDs", flush=True)
-            
-            for client_dict, acc_code, comp_id, source_row, source_row_number in batch_clients:
-                account_to_client[acc_code] = comp_id
-                record_raw_source_link(
-                    db,
-                    trace_context,
-                    target_model="Client",
-                    target_id=comp_id,
-                    clinic_id=client_dict.get("clinic_id"),
-                    source_table="account.csv",
-                    source_row=source_row,
-                    identifier_fields=("account_code",),
-                    row_number=source_row_number,
-                )
-            
-            print(f"[accounts] committing final batch", flush=True)
-        db.commit()
-        print(f"[accounts] commit completed", flush=True)
-        
-        try:
-            max_id_result = db.execute(text("SELECT MAX(id) FROM clients")).scalar()
-            max_id = max_id_result if max_id_result else 0
-            if max_id > 0:
-                db.execute(text(f"SELECT setval('clients_id_seq', {max_id})"))
-                db.commit()
-                print(f"[accounts] Updated clients_id_seq to {max_id}", flush=True)
-        except Exception as e:
-            print(f"[accounts] Warning: Could not update sequence: {e}", flush=True)
+        gender = None
+        sx = (r.get("sex") or "").strip()
+        if sx == "1":
+            gender = "male"
+        elif sx == "2":
+            gender = "female"
 
+        house_num = clean_legacy_text(r.get("house_num"))
+        apt = clean_legacy_text(r.get("apartment_num"))
+        address_number = f"{house_num}/{apt}" if house_num and apt else house_num or apt
+
+        raw_account_code = r.get("account_code")
+        if raw_account_code is None:
+            continue
+        account_code = str(raw_account_code).strip()
+        if not account_code:
+            continue
+
+        if account_code in seen_accounts:
+            continue
+        seen_accounts.add(account_code)
+        client_dict = {
+            "company_id": company.id,
+            "clinic_id": clinic_id,
+            "first_name": r.get("first_name") or None,
+            "last_name": r.get("last_name") or None,
+            "gender": gender,
+            "national_id": r.get("id_number") or None,
+            "date_of_birth": parse_date(r.get("birth_date")),
+            "address_city": r.get("city") or None,
+            "address_street": r.get("street") or None,
+            "address_number": address_number,
+            "postal_code": r.get("zip_code") or None,
+            "phone_home": r.get("phone1") or None,
+            "phone_work": r.get("phone2") or None,
+            "phone_mobile": r.get("mobile_phone") or None,
+            "additional_phone": r.get("phone3") or None,
+            "email": r.get("e_mail") or None,
+            "price_list": price_lists.get(clean_legacy_text(r.get("discount_type"))),
+            "discount_percent": parse_int(r.get("discount_precent")) or 0,
+            "blocked_checks": parse_bool_flag(r.get("check_blocked")),
+            "blocked_credit": parse_bool_flag(r.get("credit_blocked")),
+            "send_notifications": parse_bool_flag(r.get("send_sms_email")) is True,
+            "sorting_group": r.get("acc_sort_group") or None,
+            "referring_party": clean_legacy_text(r.get("turn_name")) or incoming_referrers.get(account_code),
+            "file_creation_date": parse_date(r.get("open_date")),
+            "occupation": r.get("occupation") or None,
+            "status": None,
+            "notes": r.get("remarks") or None,
+            "file_location": r.get("file_location") or None,
+            "family_id": head_to_family.get(str(r.get("head_of_family")).strip() if r.get("head_of_family") else None),
+        }
+        batch_clients.append((client_dict, account_code, r, row_number))
+        pending += 1
+        if pending % batch_size == 0:
+            print(f"[accounts] flushing batch of {len(batch_clients)} clients", flush=True)
+            flush_clients()
+            batch_clients.clear()
+            pending = 0
+        client_count += 1
+        if client_count % 1000 == 0:
+            print(f"[accounts] clients created: {client_count}", flush=True)
+    if batch_clients:
+        flush_clients()
+    db.commit()
     print(f"[accounts] families: {family_count}, clients: {client_count}, took {time.time()-t0:.2f}s", flush=True)
     return account_to_client, head_to_family
 

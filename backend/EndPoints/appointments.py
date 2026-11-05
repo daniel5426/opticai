@@ -9,7 +9,7 @@ from database import get_db
 from models import Appointment, Client, User, Clinic
 from schemas import AppointmentCreate, AppointmentUpdate, Appointment as AppointmentSchema
 from auth import get_current_user
-from utils.column_filters import ColumnFilter, build_column_filter_conditions
+from utils.column_filters import lookup_filter, ColumnFilter, build_column_filter_conditions
 from utils.table_search import build_all_terms_search_condition, search_blob, spaced_concat
 from sqlalchemy import func
 from security.scope import (
@@ -113,11 +113,12 @@ def appointment_list_query(db, current_user, clinic_id, search, exam_name, date_
     if search_condition is not None:
         base = base.filter(search_condition)
     base = base.filter(*build_column_filter_conditions(filters, {
+        "clinic": lookup_filter(Appointment.clinic_id),
         "date": ColumnFilter(Appointment.date, "date"),
         "time": ColumnFilter(Appointment.time),
         "client": ColumnFilter(spaced_concat(Client.first_name, Client.last_name)),
         "exam_name": ColumnFilter(Appointment.exam_name, "options"),
-        "examiner": ColumnFilter(func.coalesce(User.full_name, User.username), "options"),
+        "examiner": lookup_filter(Appointment.user_id, func.coalesce(User.full_name, User.username)),
         "note": ColumnFilter(Appointment.note),
     }))
     

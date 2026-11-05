@@ -8,9 +8,10 @@ from services.agent_transport import ClinicGZipMiddleware
 import logging
 from fastapi.middleware.cors import CORSMiddleware
 import config
-from EndPoints import order_groups, auth, companies, clinics, users, clients, families, appointments, medical_logs, orders, referrals, files, settings, work_shifts, lookups, campaigns, billing, chats, email_logs, exam_layouts, exams, unified_exam_data, ai, ai_sidebar, control_center, dashboard, search, whatsapp_webhook, whatsapp, softoptic_migration, migration, migration_source_data, clinic_data_prune, clinic_holidays, inventory, plans, subscriptions, trash, web_auth
+from EndPoints import discounts, order_groups, auth, companies, clinics, users, clients, families, appointments, medical_logs, orders, referrals, files, settings, work_shifts, lookups, campaigns, billing, chats, email_logs, exam_layouts, exams, unified_exam_data, ai, ai_sidebar, control_center, dashboard, search, whatsapp_webhook, whatsapp, softoptic_migration, migration, migration_source_data, clinic_data_prune, clinic_holidays, inventory, plans, subscriptions, trash, web_auth
 from EndPoints import agent as prysm_agent
 from EndPoints import table_exports
+from EndPoints import google_oauth
 from agent.config import enabled as agents24_enabled
 import httpx
 import json
@@ -100,6 +101,7 @@ from EndPoints import admin
 app.include_router(admin.router, prefix=config.settings.API_V1_STR)
 
 app.include_router(auth.router, prefix=config.settings.API_V1_STR)
+app.include_router(google_oauth.router, prefix=config.settings.API_V1_STR)
 app.include_router(companies.router, prefix=config.settings.API_V1_STR)
 app.include_router(clinics.router, prefix=config.settings.API_V1_STR)
 app.include_router(users.router, prefix=config.settings.API_V1_STR)
@@ -115,6 +117,7 @@ app.include_router(files.router, prefix=config.settings.API_V1_STR)
 app.include_router(settings.router, prefix=config.settings.API_V1_STR)
 app.include_router(work_shifts.router, prefix=config.settings.API_V1_STR)
 app.include_router(lookups.router, prefix=config.settings.API_V1_STR)
+app.include_router(discounts.router, prefix=config.settings.API_V1_STR)
 app.include_router(campaigns.router, prefix=config.settings.API_V1_STR)
 app.include_router(billing.router, prefix=config.settings.API_V1_STR)
 app.include_router(billing.ol_router, prefix=config.settings.API_V1_STR)

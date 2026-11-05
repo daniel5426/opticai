@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 from backend.migration.optitech.src import phase3, records
 from backend.migration.optitech.src.exam_layouts import ensure_phase3_exam_layouts
 from backend.migration.optitech.src.trace import load_trace_links
-from models import Appointment, Base, Clinic, Company, ExamLayoutInstance, OpticalExam, Order, User, WorkShift
+from models import Appointment, Base, Client, Clinic, Company, ExamLayoutInstance, OpticalExam, Order, User, WorkShift
 
 
 def _build_session():
@@ -28,6 +28,9 @@ def _create_company_and_clinic(db):
     db.flush()
     clinic = Clinic(company_id=company.id, name="Clinic", unique_id="clinic-test", is_active=True)
     db.add(clinic)
+    db.flush()
+    # Phase-2 mappings used by these fixtures must reference real, company-owned clients.
+    db.add_all([Client(id=value, company_id=company.id, clinic_id=clinic.id, first_name="Imported fixture") for value in (100, 8001, 9001)])
     db.flush()
     return company, clinic
 

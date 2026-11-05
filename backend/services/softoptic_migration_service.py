@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 import os
 import shutil
 import tempfile
@@ -945,7 +946,8 @@ def run_softoptic_import(
     storage: Optional[FileStorageService],
     on_progress: Callable[..., None],
 ) -> None:
-    temp_dir = Path(tempfile.mkdtemp(prefix=f"softoptic_{job.id}_"))
+    job_id = job.id
+    temp_dir = Path(tempfile.mkdtemp(prefix=f"softoptic_{job_id}_"))
     old_order_batch_size = os.environ.get("MIGRATION_ORDER_COMMIT_BATCH_SIZE")
     try:
         os.environ["MIGRATION_ORDER_COMMIT_BATCH_SIZE"] = "0"
@@ -977,6 +979,27 @@ def run_softoptic_import(
         if not clinic or not clinic.is_active:
             raise RuntimeError("Target clinic is missing or inactive")
 
+        selected_code = (job.source_metadata or {}).get("client_account_code")
+        manifest_code = (validation.get("manifest") or {}).get("client_account_code")
+        if manifest_code != selected_code and (selected_code or manifest_code):
+            raise RuntimeError("softoptic.selectionMismatch")
+        if selected_code:
+            from migration.pipeline.common import read_csv_streaming, is_client_account
+            accounts = {str(row.get("account_code") or "").strip()
+                        for row in read_csv_streaming(validation["csv_root"], "account.csv")
+                        if is_client_account(row)}
+            if accounts != {selected_code}:
+                raise RuntimeError("softoptic.selectionMismatch")
+            previous_links = db.query(MigrationSourceLink).filter(
+                MigrationSourceLink.source_system == SOFTOPTIC_SOURCE_SYSTEM,
+                MigrationSourceLink.clinic_id == job.clinic_id,
+                MigrationSourceLink.company_id == job.company_id,
+                MigrationSourceLink.target_model == "Client",
+                or_(MigrationSourceLink.migration_job_id.is_(None), MigrationSourceLink.migration_job_id != job.id),
+            ).all()
+            if any(str((link.raw_payload or {}).get("account_code") or "").strip() == selected_code
+                   for link in previous_links):
+                raise RuntimeError("softoptic.clientAlreadyImported")
         import_summary = dict(job.import_summary or {})
         deleted = import_summary.get("deleted_previous", {})
         if not phase_completed(job, "cleanup"):
@@ -984,7 +1007,7 @@ def run_softoptic_import(
             assert_safe_to_import(db, job.clinic_id)
             deleted = (
                 cleanup_previous_softoptic_import(db, job.clinic_id, storage)
-                if _existing_softoptic_links(db, job.clinic_id)
+                if not selected_code and _existing_softoptic_links(db, job.clinic_id)
                 else {}
             )
             import_summary["deleted_previous"] = deleted
@@ -1021,6 +1044,7 @@ def run_softoptic_import(
                 target_clinic_id=job.clinic_id,
                 max_clients=job.client_import_limit,
                 trace_context=trace_context,
+                on_batch_progress=lambda: on_progress(heartbeat=True),
             )
             tracked = _track_new_rows(
                 db,
@@ -1045,6 +1069,7 @@ def run_softoptic_import(
                 return_only=True,
                 target_clinic_id=job.clinic_id,
                 max_clients=job.client_import_limit,
+                trace_context=trace_context,
             )
 
         presc_code_to_order_id = {}
@@ -1126,13 +1151,19 @@ def run_softoptic_import(
             import_summary=import_summary,
         )
     except Exception as exc:
+        # SQLAlchemy exceptions can include the entire patient batch. Keep only
+        # the driver's primary message; never log SQL parameters or raw rows.
+        original = getattr(exc, "orig", None)
+        diagnostic = getattr(original, "diag", None)
+        message = getattr(diagnostic, "message_primary", None) or (str(original) if original else str(exc))
         db.rollback()
+        logging.getLogger(__name__).error("SoftOptic job %s failed: %s", job_id, message)
         on_progress(
             status="failed",
             step="שגיאה",
             progress=job.progress,
-            errors=[str(exc)],
-            error=str(exc),
+            errors=[message],
+            error=message,
             checkpoint={"failed_at": utcnow().isoformat()},
         )
     finally:

@@ -1,0 +1,39 @@
+name: Verified Windows OptiTech reader
+description: Reuse the complete reader, DLLs and license notices when source/toolchain inputs match.
+runs:
+  using: composite
+  steps:
+    - name: Restore native reader
+      id: reader
+      uses: actions/cache/restore@v4
+      with:
+        path: native/optitech-mdb-exporter/dist/win-x64
+        key: optitech-reader-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('native/optitech-mdb-exporter/**', 'scripts/build-optitech-reader.sh', '.github/actions/optitech-reader/action.yml') }}
+    - name: Set up native reader toolchain on cache miss
+      if: steps.reader.outputs.cache-hit != 'true'
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: true
+        install: >-
+          base-devel autoconf automake libtool bison flex pkgconf gawk
+          mingw-w64-x86_64-toolchain mingw-w64-x86_64-glib2 mingw-w64-x86_64-libiconv
+    - name: Build native reader on cache miss
+      if: steps.reader.outputs.cache-hit != 'true'
+      shell: msys2 {0}
+      run: bash scripts/build-optitech-reader.sh
+    - name: Verify cached or newly built reader
+      shell: pwsh
+      run: |
+        $root = "native/optitech-mdb-exporter/dist/win-x64"
+        $profiles = & "$root/optitech-mdb-exporter.exe" --profiles | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or $profiles.opticplus_format_version -ne 2 -or $profiles.profiles -notcontains "opticplus") { throw "Reader capability check failed" }
+        foreach ($file in @("THIRD_PARTY_NOTICES.md", "COPYING.LIB", "SOURCE_AND_BUILD.md")) {
+          if (-not (Test-Path "$root/$file")) { throw "Missing reader resource: $file" }
+        }
+    - name: Save verified reader
+      if: steps.reader.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: native/optitech-mdb-exporter/dist/win-x64
+        key: ${{ steps.reader.outputs.cache-primary-key }}

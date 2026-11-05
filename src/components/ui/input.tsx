@@ -482,7 +482,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
               ) {
                 const input = e.currentTarget;
                 window.setTimeout(() => {
-                  focusClinicalNavSibling(input, "next");
+                  if (document.activeElement === input) focusClinicalNavSibling(input, "next");
                 }, 0);
               }
             }
@@ -563,8 +563,10 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
                     )?.set;
                     nativeValueSetter?.call(el, finalValue);
                     // Trigger events so React sees the change
+                    suppressClinicalAutoAdvanceRef.current = true;
                     el.dispatchEvent(new Event("input", { bubbles: true }));
                     el.dispatchEvent(new Event("change", { bubbles: true }));
+                    suppressClinicalAutoAdvanceRef.current = false;
                   }
                 }
               }

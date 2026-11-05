@@ -431,6 +431,12 @@ export class ExamFieldMapper {
       }
     })
 
+    // Compact cards store distance PD as *_pd; full cards use *_pd_far.
+    for (const eye of ['r', 'l', 'comb']) {
+      const compact = `${eye}_pd`, distance = `${eye}_pd_far`;
+      if (sourceFields.includes(compact) && targetFields.includes(distance)) mapping[compact] = distance;
+      if (sourceFields.includes(distance) && targetFields.includes(compact)) mapping[distance] = compact;
+    }
     return mapping
   }
 
@@ -441,7 +447,7 @@ export class ExamFieldMapper {
     }
 
     const defaultMapList = this.defaultMaps[sourceType] || []
-    if (defaultMapList.includes(targetType)) {
+    if (sourceType === targetType || defaultMapList.includes(targetType)) {
       return this.generateDefaultMapping(sourceType, targetType)
     }
 

@@ -368,7 +368,7 @@ export function useLayoutTabs({
 
       const selectedTab = layoutTabs.find((tab) => tab.id === tabId);
       if (!selectedTab) return;
-      if (selectedTab.layout_id == null) {
+      if (!isPersistableLayoutTab(selectedTab)) {
         activateFullDataTab();
         return;
       }
@@ -394,7 +394,7 @@ export function useLayoutTabs({
           }
         });
 
-        if (exam && exam.id && !isNewMode && selectedTab.layout_id != null) {
+        if (exam && exam.id && !isNewMode && isPersistableLayoutTab(selectedTab)) {
           setActiveExamLayoutInstance(exam.id, tabId).catch((error) => {
             console.error("Error saving active layout tab:", error);
           });

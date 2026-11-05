@@ -7,8 +7,8 @@ from auth import get_current_user
 from models import User, OrderGroup, OrderGroupEntry, Order, ContactLensOrder, Billing, Client
 from security.scope import record_filter, get_record_clinic_ids, get_scoped_order, get_scoped_contact_lens_order, get_scoped_client
 from services.order_group_service import get_group, group_dict, group_dicts, save_group, group_for_order, ensure_standalone_group, check_revision, group_write, row_dict, order_groups_available
-from schemas import BillingPaymentCreate, OrderGroupSave
-from utils.column_filters import ColumnFilter, build_column_filter_conditions, parse_column_filters
+from schemas import BillingPaymentCreate, OrderGroupSave, OrderGroupBillingPatch
+from utils.column_filters import lookup_filter, ColumnFilter, build_column_filter_conditions, parse_column_filters
 from utils.table_search import spaced_concat
 
 router = APIRouter(prefix="/order-groups", tags=["order-groups"])
@@ -77,7 +77,7 @@ def order_list_candidates(db, user, client_id, clinic_id, q, kind, status, filte
         query = query.filter(OrderGroup.id.in_(named_entries))
     if named_payers is not None:
         query = query.filter(OrderGroup.payer_client_id.in_(named_payers))
-    query = query.filter(*build_column_filter_conditions(filters, {"date": ColumnFilter(OrderGroup.opened_date, "date")}))
+    query = query.filter(*build_column_filter_conditions(filters, {"date": ColumnFilter(OrderGroup.opened_date, "date"), "clinic": lookup_filter(OrderGroup.clinic_id)}))
     if kinds != {"regular", "contact"} or statuses is not None:
         regular = db.query(OrderGroupEntry.group_id).join(Order, OrderGroupEntry.order_id == Order.id)
         contact = db.query(OrderGroupEntry.group_id).join(ContactLensOrder, OrderGroupEntry.contact_lens_id == ContactLensOrder.id)
@@ -107,7 +107,7 @@ def order_list_candidates(db, user, client_id, clinic_id, q, kind, status, filte
         for named in (named_clients, named_payers):
             if named is not None:
                 legacy = legacy.where(model.client_id.in_(named))
-        legacy = legacy.where(*build_column_filter_conditions(filters, {"date": ColumnFilter(model.order_date, "date")}))
+        legacy = legacy.where(*build_column_filter_conditions(filters, {"date": ColumnFilter(model.order_date, "date"), "clinic": lookup_filter(model.clinic_id)}))
         candidates.append(legacy)
     combined = union_all(*candidates).subquery()
     return combined
@@ -283,3 +283,13 @@ def remove_payment(group_id: int, payment_id: int, revision: int, db: Session = 
         group.revision += 1
         delete_billing_payment(billing.id, payment_id, db, user)
     return group_dict(db, group)
+
+
+@router.patch("/{group_id}/billing")
+def update_group_billing(group_id: int, payload: OrderGroupBillingPatch, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from services.order_group_service import patch_group_billing
+    try:
+        return patch_group_billing(db, user, group_id, payload.model_dump(exclude_unset=True))
+    except Exception:
+        db.rollback()
+        raise

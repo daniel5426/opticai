@@ -41,7 +41,7 @@ vi.mock("@/components/migration/ImportedSourceDataDialog", () => ({
 }))
 
 vi.mock("@/lib/api-client", () => ({
-  apiClient: { getClientExamDates: vi.fn(() => Promise.resolve({ data: { first_exam_date: null, last_exam_date: null } })) },
+  apiClient: { getImportedProfileHistory: vi.fn().mockResolvedValue({data:{available:false,values:{}}}), getClientExamDates: vi.fn(() => Promise.resolve({ data: { first_exam_date: null, last_exam_date: null } })) },
 }))
 
 // The tab reads exam dates through React Query, which the app provides at its root.
@@ -221,3 +221,27 @@ describe("ClientDetailsTab select display", () => {
     expect(onFieldChange).toHaveBeenCalledWith("family_role", "אחר")
   })
 })
+
+for (const locale of ['he', 'en', 'fr']) {
+  test(`home/work tabs retain independent edits and align telephone and fax values in ${locale}`, async () => {
+    const {default:i18n} = await import('@/localization/i18n');
+    await i18n.changeLanguage(locale);
+    function ContactHarness() {
+      const [draft, setDraft] = React.useState({id:1,phone_home:'02-1111111',phone_work:'02-2222222',fax:'02-3333333'} as Client);
+      return <ClientDetailsTab draft={draft} isEditing formRef={{current:null}}
+        onFieldChange={(field,value)=>setDraft(previous=>({...previous,[field]:value}))} />;
+    }
+    const {container} = render(<ContactHarness />);
+    const home = await screen.findByRole('textbox',{name:i18n.t('clientContact.homePhone')});
+    await userEvent.clear(home); await userEvent.type(home,'02-4444444');
+    await userEvent.click(screen.getByRole('tab',{name:i18n.t('clientContact.work'),exact:true}));
+    const work=screen.getByRole('textbox',{name:i18n.t('clientContact.workPhone')});
+    expect(work).toHaveValue('02-2222222');
+    await userEvent.clear(work); await userEvent.type(work,'02-5555555');
+    await userEvent.click(screen.getByRole('tab',{name:i18n.t('clientContact.home'),exact:true}));
+    expect(screen.getByRole('textbox',{name:i18n.t('clientContact.homePhone')})).toHaveValue('02-4444444');
+    expect(container.querySelector('input[name="fax"]')).toHaveValue('02-3333333');
+    expect(container.querySelector('input[name="fax"]')).toHaveAttribute('dir','ltr');
+    expect(container.querySelector('input[name="fax"]')).toHaveClass(locale==='he'?'text-right':'text-left');
+  });
+}

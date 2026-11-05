@@ -57,12 +57,13 @@
 .agent-workspace:has(.agent-results) .agent-workspace__message-content { padding-bottom: 76px; }
 .agent-workspace .a24-chat-message-content--user, .agent-workspace .a24-message-response { font-size: 15px; line-height: 1.65; }
 .agent-workspace .a24-chat-message-content--user { box-shadow: var(--shadow-sm); }
+.agent-workspace .a24-chat-message--user .a24-chat-attachments { justify-content: safe flex-end; }
 .agent-workspace:not(.agent-workspace--compact) .a24-chat-message-content--user { background: var(--agent-composer-background); }
+.agent-workspace .a24-composer, .agent-voice-capture { --a24-accent: #303b48; --a24-accent-text: #fff; }
 .agent-workspace .a24-composer {
+  --a24-composer-single-row-radius: 999px;
   --a24-text: var(--agent-ink);
   --a24-muted: var(--agent-muted);
-  --a24-accent: #303b48;
-  --a24-accent-text: #fff;
   --a24-background: var(--agent-composer-background);
   --a24-border: var(--agent-glass-border);
   font-family: inherit;
@@ -70,11 +71,12 @@
 .agent-workspace .a24-composer__surface {
   padding: 7px 8px;
   border: 1px solid var(--agent-glass-border);
-  border-radius: 999px;
+  border-radius: var(--radius-xl);
   background: var(--agent-composer-background);
   box-shadow: var(--shadow-sm);
 }
-.agent-workspace .a24-composer__surface[data-expanded] { padding: 12px; border-radius: var(--agent-panel-radius); }
+.agent-workspace .a24-composer__surface:not([data-expanded]):not([data-attachments]):not(:has([data-testid="agent-chat-composer-attachments"])) { border-radius: 999px; }
+.agent-workspace .a24-composer__surface[data-expanded] { padding: 12px; border-radius: var(--radius-xl); }
 .agent-workspace .a24-composer__surface:focus-within {
   border-color: color-mix(in srgb, var(--agent-ink) 24%, transparent);
   box-shadow: var(--shadow-sm);
@@ -147,7 +149,7 @@
 }
 .dark .agent-sky__image { filter: brightness(.53) saturate(.72); }
 .dark .agent-sky__veil { background: linear-gradient(180deg, rgb(20 26 46 / 15%) 8%, rgb(27 34 48 / 38%) 34%, var(--agent-ground) 94%); }
-.dark .agent-workspace .a24-composer { --a24-accent: #dce5f4; --a24-accent-text: #253044; }
+.dark .agent-workspace .a24-composer, .dark .agent-voice-capture { --a24-accent: #dce5f4; --a24-accent-text: #253044; }
 .dark .agent-workspace__welcome h1 { color: var(--agent-ink); }
 
 .agent-workspace.agent-workspace--compact {

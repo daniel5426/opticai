@@ -1,4 +1,8 @@
 #!/bin/sh
 set -eu
+# The agent may reuse a preflight whose checked inputs are unchanged. Other chained hooks still run.
+if [ "${CI_PREFLIGHT_DONE:-}" = "1" ]; then exit 0; fi
 cd "$(git rev-parse --show-toplevel)"
+timing="${CODEX_HOME:-$HOME/.codex}/skills/ship-and-watch-production/scripts/timing.py"
+if [ -f "$timing" ]; then exec python3 "$timing" pre-push -- node scripts/devdesk-check.mjs --fast --release --pre-push; fi
 exec node scripts/devdesk-check.mjs --fast --release --pre-push

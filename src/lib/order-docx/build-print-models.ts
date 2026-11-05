@@ -1,3 +1,5 @@
+import i18n from "@/localization/i18n";
+import { isDiscountLine } from "@/lib/discounts";
 import type { ContactLensOrderEntity, OrderLineItem } from "@/lib/db/schema-interface";
 import { getBillingPaymentStatus } from "@/lib/billing-payment-status";
 import {
@@ -73,7 +75,7 @@ function getLineItemsBlock(
   const lines = lineItems.map((item, index) => {
     const parts = [
       `${index + 1}.`,
-      item.description || "",
+      isDiscountLine(item) ? `${i18n.t("discounts.rowLabel")}: ${item.description || ""}` : item.description || "",
       item.sku ? `(מק"ט: ${item.sku})` : "",
       item.quantity ? `כמות: ${formatPlainNumber(item.quantity)}` : "",
       item.price ? `מחיר: ${formatCurrency(item.price, item.currency || billingCurrency)}` : "",
@@ -103,10 +105,10 @@ function getLineItemRows(
 
   return lineItems.map((item, index) => ({
     line_index: toDisplayString(index + 1),
-    line_description: toDisplayString(item.description),
+    line_description: isDiscountLine(item) ? `${i18n.t("discounts.rowLabel")}: ${item.description || ""}` : toDisplayString(item.description),
     line_sku: toDisplayString(item.sku),
-    line_quantity: formatPlainNumber(item.quantity),
-    line_price: formatCurrency(item.price, item.currency || billingCurrency),
+    line_quantity: isDiscountLine(item) ? "" : formatPlainNumber(item.quantity),
+    line_price: isDiscountLine(item) ? "" : formatCurrency(item.price, item.currency || billingCurrency),
     line_total: formatCurrency(item.line_total, item.currency || billingCurrency),
   }));
 }
@@ -324,6 +326,7 @@ export function buildContactOrderPrintModel(
     cleaning_solution: toDisplayString(order.cleaning_solution),
     disinfection_solution: toDisplayString(order.disinfection_solution),
     rinsing_solution: toDisplayString(order.rinsing_solution),
+    line_items_rows: getLineItemRows(context.lineItems, context.billing?.currency || "ILS"),
     total_price: money.total,
     amount_paid: money.paid,
     balance_due: money.balance,

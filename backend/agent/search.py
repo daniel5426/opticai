@@ -66,7 +66,9 @@ def search(db, authority, raw):
         columns = list(safe)
         score = sum((case((or_(*[cast(column, String).ilike(pattern, escape='\\') for pattern in patterns]), 1), else_=0)
             for column in safe.values()), literal(0)) if patterns else literal(0)
-        query = query.with_entities(*[safe[key].label(key) for key in columns], score.label('_search_score')).distinct()
+        # Order by the projected label: PostgreSQL treats bare ORDER BY 0 as a column position.
+        score = score.label('_search_score')
+        query = query.with_entities(*[safe[key].label(key) for key in columns], score).distinct()
         count = query.count()
         total += count
         for row in query.order_by(score.desc(), fields['id'].asc()).limit(request.offset + request.limit):

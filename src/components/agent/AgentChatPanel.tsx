@@ -2,7 +2,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { supplyComposerContract, useAgentSubmission } from '@/services/agent-submission';
 import React from 'react';
 import { AgentChatComposer, AgentChatMessage, type AgentChatComposerHandle } from '@agents24/chat-react/ui';
-import { ArrowLeft, Maximize2, ArrowUpRight, FileSpreadsheet, Search, ChartNoAxesCombined, HeartPulse, History, Wallet } from 'lucide-react';
+import { Maximize2, ArrowUpRight, FileSpreadsheet, Search, ChartNoAxesCombined, HeartPulse, History, Wallet } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { StickToBottom } from 'use-stick-to-bottom';
 import { usePrysmAgent } from '@/contexts/PrysmAgentContext';
@@ -60,9 +60,8 @@ export function AgentChatPanel({ compact = false }: { compact?: boolean }) {
   return <section className={`prysm-agent agent-workspace ${compact ? 'agent-workspace--compact' : ''} ${empty ? 'agent-workspace--empty' : 'agent-workspace--conversation'}`} dir={direction}>
     {!compact && <AgentSky />}
     {compact && <div className="agent-workspace__toolbar ps-12 pe-3">
-      <Button size="icon" variant="ghost" aria-label={t("supply.close")} onClick={workspace.closePatientChat}><ArrowLeft className={`size-4 ${direction === 'rtl' ? 'rotate-180' : ''}`} /></Button>
       <span className="min-w-0 flex-1 truncate text-sm font-medium">{t(workspace.scope.patientId ? 'agent.patientChat' : 'agent.clinicChat')}</span>
-      <Button size="icon" variant="ghost" aria-label={t("agent.expand")} onClick={() => { workspace.closePatientChat(); void navigate({ to: "/ai-assistant" }); }}><Maximize2 className="size-4" /></Button>
+      <Button size="icon" variant="ghost" aria-label={t("agent.expand")} onClick={() => { workspace.expandChat(); void navigate({ to: "/ai-assistant" }); }}><Maximize2 className="size-4" /></Button>
       <AgentChatActions compact />
     </div>}
     <div className="agent-workspace__stage">

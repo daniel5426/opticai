@@ -1,4 +1,5 @@
-import { RecordClinicLabel } from "@/components/RecordClinicLabel"
+import { tableLoadingRowCount } from "@/lib/table-loading";
+import { ClinicTableHead, ClinicTableCell } from "@/components/RecordClinicColumn"
 import React, { useState, useEffect } from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
 import { FileDown, FileText, Loader2, Plus, Printer, Trash2 } from "lucide-react"
@@ -51,6 +52,7 @@ interface ReferralTableProps {
 
 const REFERRAL_COLUMN_FILTERS: ColumnFilterDefinition<Referral>[] = [
   { key: "date", label: "תאריך", kind: "date", getValue: (referral) => referral.date },
+      { key: "clinic", label: "companyClients.clinic", kind: "options", getValue: (referral) => String(referral.clinic_id ?? "__none__") },
   { key: "type", label: "סוג הפניה", kind: "text", getValue: (referral) => referral.type },
   { key: "client", label: "לקוח", kind: "text", getValue: (referral) => referral.client_full_name },
   {
@@ -362,6 +364,7 @@ export function ReferralTable({
               >
                 סוג הפניה
               </SortableTableHead>
+              <ClinicTableHead />
               {clientId === 0 && (
                 <SortableTableHead
                   sortKey="client"
@@ -393,8 +396,8 @@ export function ReferralTable({
           </TableHeader>
           <TableBody>
             {loading ? (
-              Array.from({ length: 14 }).map((_, i) => (
-                <TableRow key={i}>
+              Array.from({ length: tableLoadingRowCount(pagination) }).map((_, i) => (
+                <TableRow key={i}><TableCell><Skeleton className="h-4 w-24" /></TableCell>
                   <TableCell>
                     <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
@@ -427,7 +430,8 @@ export function ReferralTable({
                     <TableCell className="text-right">
                       {referral.date ? new Date(referral.date).toLocaleDateString("he-IL") : "-"}
                     </TableCell>
-                    <TableCell className="text-right">{referral.type || "-"}<RecordClinicLabel clinicId={referral.clinic_id} /></TableCell>
+                    <TableCell className="text-right">{referral.type || "-"}</TableCell>
+      <ClinicTableCell clinicId={referral.clinic_id} />
                     {clientId === 0 && (
                       <TableCell className="text-right">
                         <button

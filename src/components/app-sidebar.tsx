@@ -111,6 +111,11 @@ const getNavData = (
       icon: IconSettings,
     },
     {
+      title: t("examPreview.layouts"),
+      url: "/exam-layouts",
+      icon: IconLayoutGrid,
+    },
+    {
       title: t("help"),
       url: "https://prysm.co.il/contact",
       icon: IconHelp,

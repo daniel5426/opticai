@@ -176,3 +176,20 @@ describe("pruneSoftOpticExport", () => {
     expect(fs.readFileSync(path.join(outputDir, "account.csv"), "utf8")).toBe(before);
   });
 });
+
+test("selects an exact legacy client number and its dependent records", async () => {
+  const outputDir = makeTempDir();
+  writeCsv(outputDir, "account.csv", [["account_code", "account_type"], ["1", "CUST"], ["23470", "CUST"], ["23471", "CUST"]]);
+  writeCsv(outputDir, "optic_glasses_presc.csv", [["code", "account_code"], ["p1", "1"], ["p2", "23470"]]);
+  writeCsv(outputDir, "optic_presc_prices.csv", [["presc_code", "item_name"], ["p1", "Other"], ["p2", "Selected"]]);
+  writeCsv(outputDir, "account_memos.csv", [["account_code", "memo"], ["1", "Other"], ["23470", "Selected"]]);
+  fs.writeFileSync(path.join(outputDir, "manifest.json"), JSON.stringify({tables: []}));
+  const result = await pruneSoftOpticExport({outputDir, targetDir: makeTempDir(), clientAccountCode: "23470", clientImportLimit: 10});
+  expect(result.selectedClientCount).toBe(1);
+  expect(readRows(result.outputDir!, "account.csv").map(row => row.account_code)).toEqual(["23470"]);
+  expect(readRows(result.outputDir!, "optic_presc_prices.csv").map(row => row.presc_code)).toEqual(["p2"]);
+  expect(readRows(result.outputDir!, "account_memos.csv").map(row => row.account_code)).toEqual(["23470"]);
+  expect(JSON.parse(fs.readFileSync(path.join(result.outputDir!, "manifest.json"), "utf8")).client_account_code).toBe("23470");
+  await expect(pruneSoftOpticExport({outputDir, targetDir: makeTempDir(), clientAccountCode: "2347"})).rejects.toThrow("softoptic.clientNotFound");
+  expect(readRows(outputDir, "account.csv")).toHaveLength(3);
+});

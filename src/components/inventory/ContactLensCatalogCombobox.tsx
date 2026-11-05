@@ -121,7 +121,7 @@ export function ContactLensCatalogCombobox({
   loadingCatalog,
   disabled,
   className = "",
-  inputClassName = "h-8 bg-white text-xs",
+  inputClassName = "h-8 text-xs",
   center = true,
   portalContainer,
   onChange,

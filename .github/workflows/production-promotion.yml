@@ -83,50 +83,27 @@ jobs:
           fi
           echo "Using staging verification run $staging_run_id"
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Apply public release dependency lock
-        run: DEVDESK_RELEASE_BUILD=1 node scripts/devdesk-release-inputs.mjs apply
-
-      - name: Install frontend dependencies
-        run: npm ci
-
-      - name: Build web
-        run: npm run build:web
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12.8"
-
-      - name: Install backend dependencies
-        working-directory: backend
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt pytest
-
-      - name: Run backend release-gate tests
+      - name: Require successful exact-SHA backend and web CI
         env:
-          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/backend
-        run: >
-          python -m pytest
-          backend/tests/test_ai_responses.py
-          backend/tests/test_production_hardening.py
-          backend/tests/test_files_api.py
-          backend/tests/test_default_exam_layout_seeds.py
-          backend/tests/test_migration_helpers.py
-          backend/tests/test_softoptic_migration_service.py
-          backend/tests/test_softoptic_worker_compatibility.py
-          backend/tests/test_order_groups.py
-          backend/tests/test_legacy_order_compatibility.py
-          backend/tests/test_legacy_referral_compatibility.py
-          backend/tests/test_company_client_records.py
-          backend/tests/test_company_client_preflight.py
-          backend/tests/test_inventory_v1.py
-          backend/tests/test_prescription_search_index.py
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          for workflow in backend-railway.yml web-railway.yml; do
+            passed=false
+            for attempt in {1..90}; do
+              run="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow "$workflow" --commit "${{ inputs.sha }}" --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+              if [[ -n "$run" ]]; then
+                echo "Using $workflow verification $run"
+                passed=true
+                break
+              fi
+              sleep 10
+            done
+            if [[ "$passed" != true ]]; then
+              echo "No successful $workflow for ${{ inputs.sha }}" >&2
+              exit 1
+            fi
+          done
 
   deploy-production:
     needs: validate

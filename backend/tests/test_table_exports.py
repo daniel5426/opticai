@@ -294,3 +294,13 @@ def test_order_export_reuses_legacy_list_adapter_on_older_installations(context,
     assert exports.count(db, user, req) == 1
     rows = list(exports.export_rows(db, user, req))
     assert len(rows) == 1 and rows[0]['balance'] == 80 and rows[0]['kind'] == 'Glasses order'
+
+
+def test_column_filters_apply_to_export_count_and_rows(context):
+    db, user, clinic, second, patient, sessions = context
+    req = request(clinic_id=clinic.id, column_filters=json.dumps({'first_name': 'not-present'}))
+    assert exports.count(db, user, req) == 0
+    assert list(exports.export_rows(db, user, req)) == []
+    req = request(clinic_id=clinic.id, column_filters=json.dumps({'first_name': 'lodie'}))
+    assert exports.count(db, user, req) == 1
+    assert len(list(exports.export_rows(db, user, req))) == 1

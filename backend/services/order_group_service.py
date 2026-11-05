@@ -3,7 +3,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from contextlib import contextmanager
 from fastapi import HTTPException
-from sqlalchemy import event, inspect, or_
+from sqlalchemy import event, inspect, or_, func
 from sqlalchemy.orm import Session
 from models import Billing, BillingPayment, Client, Order, ContactLensOrder, OrderGroup, OrderGroupEntry, OrderLineItem
 from security.scope import assert_record_scope, assert_record_clinic, get_scoped_client, resolve_company_id
@@ -188,6 +188,124 @@ def validate_client(db, user, client_id, clinic_id):
     return client
 
 
+def recalculate_group_totals(billing, total, prior_subtotal, prior_final, prior_header_discount, prior_sum):
+    # Capture header/line differences once, on an intentional financial edit.
+    # This preserves imported deductions and source discrepancies, even
+    # after an invoice is discounted below zero and later restored.
+    if billing.line_subtotal_offset is None:
+        billing.line_subtotal_offset = float(Decimal(str(prior_subtotal)) - prior_sum) if prior_subtotal is not None else 0
+    if billing.line_total_offset is None:
+        billing.line_total_offset = float(Decimal(str(prior_final)) + prior_header_discount - prior_sum) if prior_final is not None else billing.line_subtotal_offset
+    subtotal = max(Decimal("0"), total + Decimal(str(billing.line_subtotal_offset or 0)))
+    billing.total_before_discount = float(subtotal)
+    discount = Decimal(str(billing.discount_amount or 0)) if billing.discount_amount else subtotal * Decimal(str(billing.discount_percent or 0)) / 100
+    if not discount.is_finite() or discount < 0:
+        raise HTTPException(422, "Invalid billing discount")
+    billing.total_after_discount = float(max(Decimal("0"), total + Decimal(str(billing.line_total_offset or 0)) - discount).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+
+def write_group_billing(db, group, billing_data, line_items, client_keys=None, removed=None):
+    """Shared invoice validation/calculation, without loading clinical orders."""
+    from EndPoints.orders import _default_currency_for_clinic
+    client_keys = client_keys or {}
+    removed = removed or set()
+    billing = db.query(Billing).filter(Billing.order_group_id == group.id).first()
+    if not isinstance(billing_data, dict):
+        raise HTTPException(422, "Invalid billing")
+    if billing_data.get("id") not in (None, billing.id if billing else None):
+        raise HTTPException(422, "Billing does not belong to this group")
+    currency = normalize_currency(billing_data.get("currency"), default=None) or (billing.currency if billing else _default_currency_for_clinic(db, group.clinic_id))
+    if billing and currency != billing.currency:
+        raise HTTPException(409, "Billing currency is immutable")
+    if line_items is None:
+        raise HTTPException(422, "A complete billing item list is required when saving billing")
+    new_billing = not billing
+    prior_discount = (billing.discount_amount, billing.discount_percent) if billing else (None, None)
+    prior_subtotal = billing.total_before_discount if billing else None
+    prior_final = billing.total_after_discount if billing else None
+    if not billing:
+        billing = Billing(order_group_id=group.id, currency=currency)
+        db.add(billing)
+        db.flush()
+    for field in ("discount_amount", "discount_percent", "installment_count", "notes"):
+        if field in billing_data:
+            setattr(billing, field, billing_data[field])
+    existing_lines = {row.id: row for row in db.query(OrderLineItem).filter(OrderLineItem.billings_id == billing.id).all()}
+    def prior_line_amount(row):
+        if row.line_total is not None:
+            return Decimal(str(row.line_total))
+        price, quantity, discount = (Decimal(str(getattr(row, key) or 0)) for key in ("price", "quantity", "discount"))
+        amount = max(Decimal("0"), price * quantity - discount) if price * quantity else -discount
+        return amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    prior_sum = sum((prior_line_amount(row) for row in existing_lines.values()), Decimal("0"))
+    prior_header_discount = Decimal(str(prior_discount[0] or 0)) if prior_discount[0] else Decimal(str(prior_subtotal or 0)) * Decimal(str(prior_discount[1] or 0)) / 100
+    sent_ids = set()
+    financial_changed = new_billing or prior_discount != (billing.discount_amount, billing.discount_percent)
+    total = Decimal("0")
+    for item in line_items:
+        item_id = item.get("id")
+        retained_amount = None
+        if item_id and item_id > 0:
+            if item_id not in existing_lines or item_id in sent_ids:
+                raise HTTPException(422, "Invalid or duplicate billing item")
+            line = existing_lines[item_id]
+            sent_ids.add(item_id)
+            amounts_changed = any(item.get(field, getattr(line, field)) != getattr(line, field) for field in ("price", "quantity", "discount"))
+            if amounts_changed:
+                financial_changed = True
+            elif line.line_total is not None:
+                # Existing invoices can contain imported totals or
+                # negative discount lines. Unchanged financial inputs
+                # retain their stored amount, never a caller's total.
+                retained_amount = Decimal(str(line.line_total))
+        else:
+            financial_changed = True
+            line = OrderLineItem(billings_id=billing.id, currency=currency)
+            db.add(line)
+        source = client_keys.get(item.get("source_client_key"), item.get("source_entry_id"))
+        if source in removed:
+            source = None
+        if source:
+            source_entry = db.query(OrderGroupEntry).filter(OrderGroupEntry.id == source, OrderGroupEntry.group_id == group.id).first()
+            if not source_entry or not entry_order(db, source_entry):
+                raise HTTPException(422, "Invalid suggestion source")
+        for field in ("sku", "description", "supplied_by", "supplied", "price", "quantity", "discount", "source_slot", "manually_edited"):
+            if field in item:
+                setattr(line, field, item[field])
+        line.source_entry_id = source
+        if not source and (item.get("source_entry_id") or item.get("source_client_key")):
+            line.source_slot = None
+            line.manually_edited = True
+        if item.get("currency") and normalize_currency(item["currency"], default=None) != currency:
+            raise HTTPException(422, "Cannot mix billing currencies")
+        line.currency = currency
+        price, quantity, discount = (Decimal(str(getattr(line, key) or 0)) for key in ("price", "quantity", "discount"))
+        if not all(value.is_finite() for value in (price, quantity, discount)) or min(price, quantity, discount) < 0:
+            raise HTTPException(422, "Invalid billing amounts")
+        # A line without a price is a discount line: its discount lowers the deal total.
+        computed_amount = max(Decimal("0"), price * quantity - discount) if price * quantity else Decimal("0") - discount
+        amount = retained_amount if retained_amount is not None else computed_amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        if not amount.is_finite():
+            raise HTTPException(422, "Invalid billing amounts")
+        line.line_total = float(amount)
+        total += amount
+    for item_id, line in existing_lines.items():
+        if item_id not in sent_ids:
+            financial_changed = True
+            db.delete(line)
+    if financial_changed:
+        recalculate_group_totals(billing, total, prior_subtotal, prior_final, prior_header_discount, prior_sum)
+    if "prepayment_amount" in billing_data:
+        paid = Decimal(str(billing_data.get("prepayment_amount") or 0))
+        if not paid.is_finite() or paid < 0:
+            raise HTTPException(422, "Invalid paid amount")
+        delta = paid - Decimal(str(billing.prepayment_amount or 0))
+        if delta:
+            db.add(BillingPayment(billing_id=billing.id, amount=float(delta), kind="adjustment", paid_at=date.today(), currency=currency))
+            billing.prepayment_amount = float(paid)
+    return billing
+
+
 def save_group(db, user, payload, group_id=None, creation_key=None, *, commit=True, partial_entries=False):
     if (user.role_level or 1) < 2:
         raise HTTPException(403, "Editing permission is required")
@@ -283,98 +401,9 @@ def save_group(db, user, payload, group_id=None, creation_key=None, *, commit=Tr
         live_entries = [entry for entry in db.query(OrderGroupEntry).filter(OrderGroupEntry.group_id == group.id).all() if entry_order(db, entry)]
         if len(live_entries) > 1:
             protect_group(db, group)
-        billing = db.query(Billing).filter(Billing.order_group_id == group.id).first()
         billing_data = payload.get("billing")
         if billing_data is not None:
-            if not isinstance(billing_data, dict):
-                raise HTTPException(422, "Invalid billing")
-            if billing_data.get("id") not in (None, billing.id if billing else None):
-                raise HTTPException(422, "Billing does not belong to this group")
-            currency = normalize_currency(billing_data.get("currency"), default=None) or (billing.currency if billing else _default_currency_for_clinic(db, group.clinic_id))
-            if billing and currency != billing.currency:
-                raise HTTPException(409, "Billing currency is immutable")
-            if "line_items" not in payload:
-                raise HTTPException(422, "A complete billing item list is required when saving billing")
-            new_billing = not billing
-            prior_discount = (billing.discount_amount, billing.discount_percent) if billing else (None, None)
-            if not billing:
-                billing = Billing(order_group_id=group.id, currency=currency)
-                db.add(billing)
-                db.flush()
-            for field in ("discount_amount", "discount_percent", "installment_count", "notes"):
-                if field in billing_data:
-                    setattr(billing, field, billing_data[field])
-            existing_lines = {row.id: row for row in db.query(OrderLineItem).filter(OrderLineItem.billings_id == billing.id).all()}
-            sent_ids = set()
-            financial_changed = new_billing or prior_discount != (billing.discount_amount, billing.discount_percent)
-            total = Decimal("0")
-            for item in payload.get("line_items", []):
-                item_id = item.get("id")
-                retained_amount = None
-                if item_id and item_id > 0:
-                    if item_id not in existing_lines or item_id in sent_ids:
-                        raise HTTPException(422, "Invalid or duplicate billing item")
-                    line = existing_lines[item_id]
-                    sent_ids.add(item_id)
-                    amounts_changed = any(item.get(field, getattr(line, field)) != getattr(line, field) for field in ("price", "quantity", "discount"))
-                    if amounts_changed:
-                        financial_changed = True
-                    elif line.line_total is not None:
-                        # Existing invoices can contain imported totals or
-                        # negative discount lines. Unchanged financial inputs
-                        # retain their stored amount, never a caller's total.
-                        retained_amount = Decimal(str(line.line_total))
-                else:
-                    financial_changed = True
-                    line = OrderLineItem(billings_id=billing.id, currency=currency)
-                    db.add(line)
-                source = client_keys.get(item.get("source_client_key"), item.get("source_entry_id"))
-                if source in removed:
-                    source = None
-                if source:
-                    source_entry = db.query(OrderGroupEntry).filter(OrderGroupEntry.id == source, OrderGroupEntry.group_id == group.id).first()
-                    if not source_entry or not entry_order(db, source_entry):
-                        raise HTTPException(422, "Invalid suggestion source")
-                for field in ("sku", "description", "supplied_by", "supplied", "price", "quantity", "discount", "source_slot", "manually_edited"):
-                    if field in item:
-                        setattr(line, field, item[field])
-                line.source_entry_id = source
-                if not source and (item.get("source_entry_id") or item.get("source_client_key")):
-                    line.source_slot = None
-                    line.manually_edited = True
-                if item.get("currency") and normalize_currency(item["currency"], default=None) != currency:
-                    raise HTTPException(422, "Cannot mix billing currencies")
-                line.currency = currency
-                price, quantity, discount = (Decimal(str(getattr(line, key) or 0)) for key in ("price", "quantity", "discount"))
-                if not all(value.is_finite() for value in (price, quantity, discount)) or min(price, quantity, discount) < 0:
-                    raise HTTPException(422, "Invalid billing amounts")
-                # A line without a price is a discount line: its discount lowers the deal total.
-                computed_amount = max(Decimal("0"), price * quantity - discount) if price * quantity else Decimal("0") - discount
-                amount = retained_amount if retained_amount is not None else computed_amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                if not amount.is_finite():
-                    raise HTTPException(422, "Invalid billing amounts")
-                line.line_total = float(amount)
-                total += amount
-            for item_id, line in existing_lines.items():
-                if item_id not in sent_ids:
-                    financial_changed = True
-                    db.delete(line)
-            total = max(Decimal("0"), total)
-            if financial_changed:
-                billing.total_before_discount = float(total)
-            discount = Decimal(str(billing.discount_amount or 0)) if billing.discount_amount else total * Decimal(str(billing.discount_percent or 0)) / 100
-            if not discount.is_finite() or discount < 0:
-                raise HTTPException(422, "Invalid billing discount")
-            if financial_changed:
-                billing.total_after_discount = float(max(Decimal("0"), total - discount).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
-            if "prepayment_amount" in billing_data:
-                paid = Decimal(str(billing_data.get("prepayment_amount") or 0))
-                if not paid.is_finite() or paid < 0:
-                    raise HTTPException(422, "Invalid paid amount")
-                delta = paid - Decimal(str(billing.prepayment_amount or 0))
-                if delta:
-                    db.add(BillingPayment(billing_id=billing.id, amount=float(delta), kind="adjustment", paid_at=date.today(), currency=currency))
-                    billing.prepayment_amount = float(paid)
+            billing = write_group_billing(db, group, billing_data, payload.get("line_items"), client_keys, removed)
             if not group.legacy_write_protected and len(live_entries) == 1:
                 billing.order_id = live_entries[0].order_id
                 billing.contact_lens_id = live_entries[0].contact_lens_id
@@ -454,3 +483,59 @@ def link_legacy_creations(db, _context):
         group = OrderGroup(clinic_id=order.clinic_id, payer_client_id=order.client_id, opened_date=order.order_date,
                            deleted_at=order.deleted_at, deleted_by_user_id=order.deleted_by_user_id, trash_item_id=order.trash_item_id)
         db.add(OrderGroupEntry(group=group, position=0, **({"contact_lens_id": order.id} if isinstance(order, ContactLensOrder) else {"order_id": order.id})))
+
+
+def patch_group_billing(db, user, group_id, payload):
+    """Save an invoice delta without serializing or updating any clinical entry."""
+    if (user.role_level or 1) < 2:
+        raise HTTPException(403, "Editing permission is required")
+    group = get_group(db, user, group_id, lock=True)
+    check_revision(group, payload["revision"])
+    with group_write(db):
+        payer = payload.get("payer_client_id", group.payer_client_id)
+        if payer != group.payer_client_id:
+            validate_client(db, user, payer, group.clinic_id)
+            protect_group(db, group)
+            group.payer_client_id = payer
+        changes = payload.get("billing", {})
+        billing = db.query(Billing).filter(Billing.order_group_id == group.id).first()
+        include_lines = "line_items" in payload
+        if include_lines or not billing:
+            lines = payload.get("line_items")
+            if lines is None:
+                lines = [row_dict(row) for row in db.query(OrderLineItem).filter(OrderLineItem.billings_id == billing.id).all()] if billing else []
+            creating = billing is None
+            billing = write_group_billing(db, group, changes, lines)
+            if creating and not group.legacy_write_protected:
+                entries = db.query(OrderGroupEntry).filter(OrderGroupEntry.group_id == group.id).limit(2).all()
+                if len(entries) == 1:
+                    billing.order_id = entries[0].order_id
+                    billing.contact_lens_id = entries[0].contact_lens_id
+        else:
+            if {"discount_amount", "discount_percent"}.intersection(changes):
+                total = Decimal(str(db.query(func.coalesce(func.sum(OrderLineItem.line_total), 0)).filter(OrderLineItem.billings_id == billing.id).scalar()))
+                prior_subtotal, prior_final = billing.total_before_discount, billing.total_after_discount
+                prior_discount = Decimal(str(billing.discount_amount or 0)) if billing.discount_amount else Decimal(str(prior_subtotal or 0)) * Decimal(str(billing.discount_percent or 0)) / 100
+                for field in ("discount_amount", "discount_percent"):
+                    if field in changes:
+                        setattr(billing, field, changes[field])
+                recalculate_group_totals(billing, total, prior_subtotal, prior_final, prior_discount, total)
+            for field in ("installment_count", "notes"):
+                if field in changes:
+                    setattr(billing, field, changes[field])
+            if "prepayment_amount" in changes:
+                paid = Decimal(str(changes["prepayment_amount"] or 0))
+                if not paid.is_finite() or paid < 0:
+                    raise HTTPException(422, "Invalid paid amount")
+                delta = paid - Decimal(str(billing.prepayment_amount or 0))
+                if delta:
+                    db.add(BillingPayment(billing_id=billing.id, amount=float(delta), kind="adjustment", paid_at=date.today(), currency=billing.currency))
+                    billing.prepayment_amount = float(paid)
+        group.revision += 1
+        # Serialize before commit expires ORM objects; no post-commit read round trips.
+        db.flush()
+        result = {"id": group.id, "revision": group.revision, "payer_client_id": group.payer_client_id, "billing": row_dict(billing)}
+        if include_lines:
+            result["line_items"] = [row_dict(row) for row in db.query(OrderLineItem).filter(OrderLineItem.billings_id == billing.id).order_by(OrderLineItem.id).all()]
+        db.commit()
+        return result

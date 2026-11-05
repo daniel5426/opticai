@@ -9,7 +9,7 @@ from schemas import UserCreate, UserUpdate, User as UserSchema, UserPublic, User
 from auth import decrypt_secret, encrypt_secret, get_current_user, get_password_hash
 from models import User as UserModel
 from utils.storage import upload_base64_image
-from utils.column_filters import ColumnFilter, build_column_filter_conditions
+from utils.column_filters import lookup_filter, ColumnFilter, build_column_filter_conditions
 from utils.table_search import build_all_terms_search_condition, search_blob
 from services.subscription_service import enforce_limit
 from security.scope import (
@@ -227,7 +227,7 @@ def get_users_paginated(
         "role": ColumnFilter(User.role_level, "options"),
         "email": ColumnFilter(User.email),
         "phone": ColumnFilter(User.phone),
-        "clinic": ColumnFilter(clinic_name),
+        "clinic": lookup_filter(User.clinic_id, clinic_name),
         "status": ColumnFilter(None, "options", option_condition={
             "active": User.is_active.is_not(False),
             "inactive": User.is_active.is_(False),

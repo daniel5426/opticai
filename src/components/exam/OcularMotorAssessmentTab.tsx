@@ -24,11 +24,11 @@ export const OcularMotorAssessmentTab: React.FC<OcularMotorAssessmentTabProps> =
   const { t, i18n } = useTranslation();
   const importedFields = React.useContext(ImportedClinicalContext)?.fields;
   if (importedFields?.length === 1 && importedFields[0] === 'ocular_motility') {
-    return <Card className="examcard w-full space-y-2 p-4 pt-3" dir={i18n.dir()}>
-      <h3 className="text-center font-medium text-muted-foreground">{t('opticplusCards.fields.tst54')}</h3>
+    return <Card className="examcard w-full space-y-2 px-3 py-2" dir={i18n.dir()}>
+      <h3 className="text-center text-sm font-medium text-muted-foreground">{t('opticplusCards.fields.tst54')}</h3>
       <FastInput aria-label={t('opticplusCards.fields.tst54')} name="ocular_motility" type="text"
         value={String(ocularMotorAssessmentData.ocular_motility ?? '')} disabled={!isEditing}
-        onChange={value => onOcularMotorAssessmentChange('ocular_motility', value)} dir="auto" className="h-8 text-xs" />
+        onChange={value => onOcularMotorAssessmentChange('ocular_motility', value)} dir={i18n.dir()} className="h-7 text-start text-xs" />
     </Card>;
   }
   return (

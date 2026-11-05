@@ -108,12 +108,12 @@ it('keeps a connected chat available when a turn fails so the user can see and r
   await screen.findByText('Agent conversation');
 });
 
-it('restores only the current installation thread after an organization switch', async () => {
+it('starts fresh instead of restoring saved threads from any organization', async () => {
   localStorage.setItem('prysm-agent-thread:1:1:0', 'legacy-organization-thread');
   localStorage.setItem('prysm-agent-thread:1:1:0:new-agent', 'current-organization-thread');
   mock.runtime={...mock.runtime,bootstrap:{deployment:{agent_id:'new-agent'}}};
   mount();
   await screen.findByRole('link', { name: i18n.t('smartAssistant') });
-  expect(mock.sdk).toHaveBeenCalledWith(expect.objectContaining({ activeThreadId: 'current-organization-thread' }));
-  expect(mock.sdk.mock.calls.every(([options]) => options.activeThreadId !== 'legacy-organization-thread')).toBe(true);
+  expect(mock.sdk).toHaveBeenCalledWith(expect.objectContaining({ activeThreadId: null }));
+  expect(mock.sdk.mock.calls.every(([options]) => options.activeThreadId === null)).toBe(true);
 });

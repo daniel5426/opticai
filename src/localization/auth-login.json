@@ -8,7 +8,23 @@
     "invalidClinicPin": "Incorrect clinic PIN. Please try again.",
     "clinicVerificationFailed": "Could not verify clinic access. Please try again.",
     "cancel": "Cancel",
-    "continue": "Continue"
+    "continue": "Continue",
+    "google": {
+      "failed": "Google sign-in failed. Please try again.",
+      "google_not_configured": "Google sign-in is not configured. Contact your administrator.",
+      "google_unavailable": "Google is unavailable. Please try again.",
+      "google_token_exchange_failed": "Google sign-in expired or failed. Please try again.",
+      "popupBlocked": "Allow pop-ups to sign in with Google.",
+      "timeout": "Google sign-in timed out. Please try again.",
+      "cancelled": "Google sign-in was cancelled.",
+      "processing": "Connecting to Google…",
+      "processingDescription": "Please wait while we connect your Google account.",
+      "callbackSuccess": "Google authorization received",
+      "callbackSuccessDescription": "Return to the app to finish connecting your account. This window will close automatically.",
+      "callbackError": "Could not connect to Google",
+      "close": "Close window",
+      "back": "Return to the app"
+    }
   },
   "he": {
     "invalidPassword": "שגיאה בהתחברות - בדוק את הסיסמה",
@@ -19,7 +35,23 @@
     "invalidClinicPin": "קוד המרפאה שגוי. נסה שוב.",
     "clinicVerificationFailed": "לא ניתן לאמת את הגישה למרפאה. נסה שוב.",
     "cancel": "ביטול",
-    "continue": "המשך"
+    "continue": "המשך",
+    "google": {
+      "failed": "ההתחברות ל-Google נכשלה. נסה שוב.",
+      "google_not_configured": "ההתחברות ל-Google אינה מוגדרת. פנה למנהל המערכת.",
+      "google_unavailable": "Google אינו זמין. נסה שוב.",
+      "google_token_exchange_failed": "ההתחברות ל-Google נכשלה או פג תוקפה. נסה שוב.",
+      "popupBlocked": "אפשר חלונות קופצים כדי להתחבר ל-Google.",
+      "timeout": "תם הזמן המוקצב להתחברות ל-Google. נסה שוב.",
+      "cancelled": "ההתחברות ל-Google בוטלה.",
+      "processing": "מתחבר ל-Google…",
+      "processingDescription": "המתן בזמן שאנו מחברים את חשבון Google שלך.",
+      "callbackSuccess": "האישור מ-Google התקבל",
+      "callbackSuccessDescription": "חזור לאפליקציה כדי להשלים את חיבור החשבון. החלון ייסגר אוטומטית.",
+      "callbackError": "לא ניתן להתחבר ל-Google",
+      "close": "סגור חלון",
+      "back": "חזור לאפליקציה"
+    }
   },
   "fr": {
     "invalidPassword": "Connexion impossible. Vérifiez votre mot de passe.",
@@ -30,6 +62,22 @@
     "invalidClinicPin": "Code PIN de la clinique incorrect. Veuillez réessayer.",
     "clinicVerificationFailed": "Impossible de vérifier l’accès à la clinique. Veuillez réessayer.",
     "cancel": "Annuler",
-    "continue": "Continuer"
+    "continue": "Continuer",
+    "google": {
+      "failed": "La connexion Google a échoué. Veuillez réessayer.",
+      "google_not_configured": "La connexion Google n’est pas configurée. Contactez votre administrateur.",
+      "google_unavailable": "Google est indisponible. Veuillez réessayer.",
+      "google_token_exchange_failed": "La connexion Google a expiré ou échoué. Veuillez réessayer.",
+      "popupBlocked": "Autorisez les fenêtres contextuelles pour vous connecter avec Google.",
+      "timeout": "Le délai de connexion Google a expiré. Veuillez réessayer.",
+      "cancelled": "La connexion Google a été annulée.",
+      "processing": "Connexion à Google…",
+      "processingDescription": "Veuillez patienter pendant la connexion de votre compte Google.",
+      "callbackSuccess": "Autorisation Google reçue",
+      "callbackSuccessDescription": "Revenez dans l’application pour terminer la connexion de votre compte. Cette fenêtre se fermera automatiquement.",
+      "callbackError": "Connexion à Google impossible",
+      "close": "Fermer la fenêtre",
+      "back": "Revenir à l’application"
+    }
   }
 }

@@ -201,7 +201,7 @@ export function InventoryCatalogCombobox({
             disabled={disabled}
             autoComplete="off"
             dir={direction}
-            className={`bg-card disabled:bg-accent/50 pe-8 disabled:cursor-default disabled:opacity-100 ${center ? "text-center" : "text-start"} ${inputClassName}`}
+            className={`pe-8 disabled:cursor-default disabled:opacity-100 ${center ? "text-center" : "text-start"} ${inputClassName}`}
           />
           <Button
             type="button"

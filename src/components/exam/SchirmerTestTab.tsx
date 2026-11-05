@@ -80,11 +80,11 @@ export function SchirmerTestTab({
 
 
   return (
-    <Card className="w-full examcard pb-4 pt-3">
-      <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
-        <div className="space-y-3">
+    <Card className={butOnly ? "w-full examcard py-2" : "w-full examcard pb-4 pt-3"}>
+      <CardContent className={butOnly ? "px-3" : "px-4"} style={{ scrollbarWidth: 'none' }}>
+        <div className={butOnly ? "space-y-2" : "space-y-3"}>
           <div className="text-center">
-            <h3 className="font-medium text-muted-foreground">{butOnly ? t('opticplusCards.sections.tearFilm') : 'Schirmer Test'}</h3>
+            <h3 className={`${butOnly ? "text-sm " : ""}font-medium text-muted-foreground`}>{butOnly ? t('opticplusCards.sections.tearFilm') : 'Schirmer Test'}</h3>
           </div>
 
           <div className="grid gap-2 items-center" style={{gridTemplateColumns: `${hideEyeLabels ? '' : '20px '}repeat(${columns.length},minmax(0,1fr))`}}>
@@ -109,7 +109,7 @@ export function SchirmerTestTab({
             )}
             {columns.map(col => <React.Fragment key={`r-${col.key}`}>{renderInput("R", col)}</React.Fragment>)}
 
-            {needsMiddleSpacer && (
+            {needsMiddleSpacer && !butOnly && (
               <>
                 {!hideEyeLabels && <div className="h-8" />}
                 {columns.map(({ key }) => (

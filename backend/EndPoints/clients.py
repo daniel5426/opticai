@@ -1,3 +1,4 @@
+from services.imported_client_history import clinical_exam_filter
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
@@ -9,7 +10,7 @@ from models import Client, Family, Clinic, User, OpticalExam, Appointment, Order
 from schemas import ClientCreate, ClientUpdate, Client as ClientSchema, ClientOrdersContext, ClientMergeRequest, ClientMergeResult
 from sqlalchemy import and_, func, or_
 from auth import get_current_user
-from utils.column_filters import ColumnFilter, build_column_filter_conditions
+from utils.column_filters import lookup_filter, ColumnFilter, build_column_filter_conditions
 from utils.table_search import build_all_terms_search_condition, search_blob
 from utils.storage import upload_base64_image
 from security.scope import (
@@ -83,6 +84,7 @@ def client_list_query(db, current_user, clinic_id, search, gender, order, filter
     if search_condition is not None:
         base = base.filter(search_condition)
     base = base.filter(*build_column_filter_conditions(filters, {
+        "clinic": lookup_filter(Client.clinic_id),
         "id": ColumnFilter(Client.id),
         "first_name": ColumnFilter(Client.first_name),
         "last_name": ColumnFilter(Client.last_name),
@@ -123,12 +125,25 @@ def get_clients_paginated(
     search: Optional[str] = Query(None, description="Search by name/phone/email"),
     gender: Optional[str] = Query(None, description="Filter by gender"),
     filters: Optional[str] = Query(None, description="JSON column filters: id|first_name|last_name|gender|national_id|phone_mobile|email|family_role"),
+    national_id_exact: Optional[str] = Query(None, max_length=100),
+    exclude_client_id: Optional[int] = Query(None, gt=0),
     include_total: bool = Query(True, description="Include the exact total count"),
     count_only: bool = Query(False, description="Return only the exact total count"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     base = client_list_query(db, current_user, None if all_clinics else clinic_id, search, gender, order, filters)
+    if national_id_exact is not None:
+        import re
+        normalize = lambda value: re.sub(r"[^0-9]", "", value or "").lstrip("0")
+        if db.get_bind().dialect.name == "sqlite":
+            db.connection().connection.driver_connection.create_function("prysm_national_id", 1, normalize, deterministic=True)
+            normalized = func.prysm_national_id(Client.national_id)
+        else:
+            normalized = func.ltrim(func.regexp_replace(func.coalesce(Client.national_id, ""), "[^0-9]", "", "g"), "0")
+        base = base.filter(normalized == normalize(national_id_exact))
+    if exclude_client_id is not None:
+        base = base.filter(Client.id != exclude_client_id)
     total = base.order_by(None).count() if include_total or count_only else None
     if count_only:
         return {"items": [], "total": total or 0, "has_more": False}
@@ -162,7 +177,7 @@ def get_clients_last_exam_dates(
     rows = (
         db.query(OpticalExam.client_id, func.max(OpticalExam.exam_date))
         .join(Client, Client.id == OpticalExam.client_id)
-        .filter(OpticalExam.client_id.in_(ids), OpticalExam.deleted_at.is_(None), *client_scope_conditions(db, current_user))
+        .filter(clinical_exam_filter(), OpticalExam.client_id.in_(ids), OpticalExam.deleted_at.is_(None), *client_scope_conditions(db, current_user))
         .group_by(OpticalExam.client_id)
         .all()
     )
@@ -376,7 +391,7 @@ def get_client_exam_dates(
     get_scoped_client(db, current_user, client_id)
     first_exam_date, last_exam_date = (
         db.query(func.min(OpticalExam.exam_date), func.max(OpticalExam.exam_date))
-        .filter(OpticalExam.client_id == client_id)
+        .filter(clinical_exam_filter(), OpticalExam.client_id == client_id)
         .one()
     )
     return {"first_exam_date": first_exam_date, "last_exam_date": last_exam_date}
@@ -393,7 +408,7 @@ def get_client_orders_context(
 
     latest_exam = (
         db.query(OpticalExam)
-        .filter(OpticalExam.client_id == client_id)
+        .filter(clinical_exam_filter(), OpticalExam.client_id == client_id)
         .order_by(OpticalExam.exam_date.desc().nulls_last(), OpticalExam.id.desc())
         .first()
     )

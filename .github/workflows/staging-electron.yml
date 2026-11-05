@@ -1,4 +1,4 @@
-name: Verify Staging and Build Windows
+name: Verify Staging
 
 on:
   workflow_dispatch:
@@ -9,7 +9,7 @@ on:
         type: string
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: staging-release
@@ -128,7 +128,7 @@ jobs:
           wait_for_service opticai backend
           wait_for_service softoptic-migration-worker backend
           wait_for_service prysm-web-staging \
-            src public index.html package.json package-lock.json vite.renderer.config.mts railway.json railpack.json config/devdesk-release scripts/devdesk-release-inputs.mjs scripts/serve-web.mjs
+            src public index.html package.json package-lock.json vite.renderer.config.mts railway.json railpack.json config/devdesk-release config/desktop-runtime scripts/desktop-runtime.mjs scripts/devdesk-release-inputs.mjs scripts/serve-web.mjs
 
       - name: Verify staging health
         shell: bash
@@ -149,116 +149,3 @@ jobs:
           retry_health https://staging-api.prysm.co.il/health
           retry_health https://staging-api.prysm.co.il/health/database
           retry_health https://prysm-web-staging-staging.up.railway.app/health
-
-  build-windows-staging:
-    needs: verify-staging
-    runs-on: windows-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.sha }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Apply public release dependency lock
-        env:
-          DEVDESK_RELEASE_BUILD: "1"
-        run: node scripts/devdesk-release-inputs.mjs apply
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Set up native OptiTech reader toolchain
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          update: true
-          install: >-
-            base-devel autoconf automake libtool bison flex pkgconf gawk
-            mingw-w64-x86_64-toolchain mingw-w64-x86_64-glib2 mingw-w64-x86_64-libiconv
-
-      - name: Build native OptiTech reader
-        shell: msys2 {0}
-        run: bash scripts/build-optitech-reader.sh
-
-      - name: Generate staging environment files
-        shell: pwsh
-        run: |
-          @"
-          VITE_API_URL=${{ env.VITE_API_URL }}
-          APP_ENVIRONMENT=${{ env.APP_ENVIRONMENT }}
-          APP_PROFILE_NAME=${{ env.APP_PROFILE_NAME }}
-          AUTH_PROTOCOL=${{ env.AUTH_PROTOCOL }}
-          GOOGLE_DESKTOP_CLIENT_ID=${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
-          GOOGLE_DESKTOP_CLIENT_SECRET=${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
-          "@ | Set-Content -Path .env.production -NoNewline
-
-          @"
-          VITE_API_URL=${{ env.VITE_API_URL }}
-          APP_ENVIRONMENT=${{ env.APP_ENVIRONMENT }}
-          APP_PROFILE_NAME=${{ env.APP_PROFILE_NAME }}
-          AUTH_PROTOCOL=${{ env.AUTH_PROTOCOL }}
-          GOOGLE_DESKTOP_CLIENT_ID=${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
-          GOOGLE_DESKTOP_CLIENT_SECRET=${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
-          "@ | Set-Content -Path .env.windows.production -NoNewline
-
-      - name: Build Windows staging app
-        run: |
-          npx vite build
-          npx electron-builder --win nsis --x64 --publish never --config.productName="Prysm Staging" --config.appId="com.prysm.app.staging" '--config.nsis.artifactName=Prysm-Staging-Setup-${version}.${ext}'
-        env:
-          NODE_ENV: production
-          NODE_OPTIONS: --max-old-space-size=4096
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-
-      - name: Verify packaged native OptiTech reader
-        shell: pwsh
-        run: |
-          $unpacked = Get-ChildItem release -Filter "win-unpacked" -Directory -Recurse | Select-Object -First 1
-          if (-not $unpacked) { throw "Windows unpacked application was not created" }
-          $reader = Join-Path $unpacked.FullName "resources\optitech_reader\optitech-mdb-exporter.exe"
-          $profiles = & $reader --profiles | ConvertFrom-Json
-          if ($LASTEXITCODE -ne 0 -or $profiles.opticplus_format_version -ne 2 -or $profiles.profiles -notcontains "opticplus") { throw "Packaged OpticPlus reader capability check failed" }
-          $notice = Join-Path $unpacked.FullName "resources\optitech_reader\THIRD_PARTY_NOTICES.md"
-          $license = Join-Path $unpacked.FullName "resources\optitech_reader\COPYING.LIB"
-          $source = Join-Path $unpacked.FullName "resources\optitech_reader\SOURCE_AND_BUILD.md"
-          if (-not (Test-Path $reader) -or -not (Test-Path $notice) -or -not (Test-Path $license) -or -not (Test-Path $source)) { throw "Native OptiTech reader resources are missing" }
-
-      - name: Upload Windows staging artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: prysm-staging-windows-x64-${{ needs.verify-staging.outputs.sha }}
-          path: release/Prysm-Staging-Setup-*.exe
-          if-no-files-found: error
-          retention-days: 14
-
-  publish-public-staging-download:
-    needs: [verify-staging, build-windows-staging]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download staging artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: staging-artifacts
-
-      - name: Publish public staging prerelease
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: staging-${{ github.run_number }}
-          name: Staging Build ${{ github.run_number }}
-          draft: false
-          prerelease: true
-          make_latest: false
-          generate_release_notes: false
-          body: |
-            Public staging build for testing.
-
-            This is not a production release. The app installs as "Prysm Staging", uses the staging API, and has auto-update disabled.
-
-            Verified commit: `${{ needs.verify-staging.outputs.sha }}`
-          files: |
-            staging-artifacts/prysm-staging-windows-x64-${{ needs.verify-staging.outputs.sha }}/Prysm-Staging-Setup-*.exe

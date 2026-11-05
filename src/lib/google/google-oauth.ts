@@ -23,6 +23,9 @@ export class GoogleOAuthService {
   private static pendingAuth: { resolve: Function; reject: Function } | null = null
 
   constructor() {
+    if (!GOOGLE_CONFIG.clientId || !GOOGLE_CONFIG.clientSecret) {
+      throw new Error('Google login is not configured')
+    }
     // Import google dynamically to avoid loading Node.js dependencies in renderer
     const { google } = require('googleapis')
     this.oauth2Client = new google.auth.OAuth2(

@@ -1,3 +1,5 @@
+import { tableLoadingRowCount } from "@/lib/table-loading";
+import { ClinicTableHead, ClinicTableCell } from "@/components/RecordClinicColumn"
 import * as React from "react"
 import { Family } from "@/lib/db/schema-interface"
 import { Button } from "@/components/ui/button"
@@ -44,6 +46,7 @@ interface FamiliesTableProps {
 }
 
 const FAMILY_COLUMN_FILTERS: ColumnFilterDefinition<Family>[] = [
+  { key: "clinic", label: "companyClients.clinic", kind: "options", getValue: family => String(family.clinic_id ?? "__none__") },
   { key: "name", label: "שם המשפחה", kind: "text", getValue: (family) => family.name },
   { key: "created_date", label: "נוצר בתאריך", kind: "date", getValue: (family) => family.created_date },
 ]
@@ -220,7 +223,7 @@ export function FamiliesTable({
                 className="text-right"
               >
                 שם המשפחה
-              </SortableTableHead>
+              </SortableTableHead><ClinicTableHead />
               <SortableTableHead
                 sortKey="member_count"
                 sort={activeSort}
@@ -242,8 +245,11 @@ export function FamiliesTable({
           </TableHeader>
           <TableBody>
             {loading ? (
-              Array.from({ length: 14 }).map((_, i) => (
+              Array.from({ length: tableLoadingRowCount(pagination) }).map((_, i) => (
                 <TableRow key={i}>
+                  <TableCell>
+                    <Skeleton className="my-2 h-4 w-[70%]" />
+                  </TableCell>
                   <TableCell>
                     <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
@@ -269,7 +275,7 @@ export function FamiliesTable({
                   }`}
                   onClick={() => handleRowClick(family)}
                 >
-                  <TableCell className="font-medium">{family.name}</TableCell>
+                  <TableCell className="font-medium">{family.name}</TableCell><ClinicTableCell clinicId={family.clinic_id} />
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <span className="bg-primary/10 text-primary inline-flex h-6 w-6 items-center justify-center rounded-full text-sm font-medium">

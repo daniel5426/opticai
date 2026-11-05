@@ -142,3 +142,30 @@ def test_existing_trace_link_without_raw_snapshot_is_not_viewable():
     with _client(SessionLocal, ids["user_a"]) as client:
         assert client.get(f"/api/v1/migration-source-data/client/{legacy_id}/summary").json()["available"] is False
         assert client.get(f"/api/v1/migration-source-data/client/{legacy_id}").status_code == 404
+
+
+def test_opticplus_profile_history_reuses_saved_values_without_exposing_it_as_an_exam():
+    from models import ExamLayoutInstance
+    from services.imported_client_history import clinical_exam_filter
+    SessionLocal = _session_factory()
+    ids = _seed(SessionLocal)
+    with SessionLocal() as db:
+        person = db.get(Client, ids['client_a'])
+        history = OpticalExam(client_id=person.id, company_id=person.company_id, clinic_id=person.clinic_id,
+            test_name='opticplus.exam.history', exam_date=date(2090, 1, 1))
+        db.add(history); db.flush()
+        db.add(ExamLayoutInstance(exam_id=history.id, exam_data={'opticplus-legacy-history':{
+            'card_instance_id':'history', 'colv':'edited source value', 'flag':False, 'zero':0}}, layout_data='{}'))
+        db.add(MigrationSourceLink(source_system='opticplus', source_table='cust_list', raw_row_ref='opticplus:profile',
+            source_primary_key_parts=[], target_model='Client', target_id=person.id, clinic_id=person.clinic_id,
+            company_id=person.company_id, payload={}, raw_payload={'colv':'original', 'moadon':'club'}))
+        db.commit()
+        assert db.query(OpticalExam).filter(clinical_exam_filter(), OpticalExam.client_id==person.id).count() == 1
+        assert db.query(OpticalExam).filter(OpticalExam.client_id==person.id).count() == 2
+    with _client(SessionLocal, ids['user_a']) as client:
+        result = client.get(f"/api/v1/migration-source-data/client/{ids['client_a']}/profile-history")
+        assert result.status_code == 200
+        assert result.json()['values'] == {'colv':'edited source value', 'moadon':'club', 'flag':False, 'zero':0}
+        assert client.get(f"/api/v1/clients/{ids['client_a']}/exam-dates").json()['last_exam_date'] is None
+    with _client(SessionLocal, ids['user_b']) as client:
+        assert client.get(f"/api/v1/migration-source-data/client/{ids['client_a']}/profile-history").status_code in (403,404)

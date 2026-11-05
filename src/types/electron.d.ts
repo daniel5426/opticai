@@ -123,6 +123,7 @@ export interface ElectronAPI {
     sqlAnywhereBin?: string;
     includeDocuments?: boolean;
     clientImportLimit?: number | null;
+    clientAccountCode?: string | null;
   }) => Promise<{
     success: boolean;
     outputDir?: string;
@@ -136,6 +137,7 @@ export interface ElectronAPI {
     sqlAnywhereBin?: string;
     includeDocuments?: boolean;
     clientImportLimit?: number | null;
+    clientAccountCode?: string | null;
   }) => Promise<{
     success: boolean;
     jobId?: string;
@@ -166,6 +168,7 @@ export interface ElectronAPI {
     sqlAnywhereBin?: string;
     includeDocuments?: boolean;
     clientImportLimit?: number | null;
+    clientAccountCode?: string | null;
     selectedClientIds?: number[];
   }) => Promise<any>;
   migrationExportStatus: (payload: { jobId: string }) => Promise<Record<string, any> | null>;

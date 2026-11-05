@@ -1,3 +1,6 @@
+import clientContactTranslations from "./client-contact.json";
+import examPreviewTranslations from "./exam-preview.json";
+import discountTranslations from "./discounts.json";
 import barcodeTranslations from "./barcode.json";
 import tableExportTranslations from "../../backend/services/table_export_copy.json";
 import companyClientTranslations from "./company-clients.json";
@@ -1325,4 +1328,16 @@ for (const [language, translations] of Object.entries(tableExportTranslations)) 
 
 for (const [language, translations] of Object.entries(barcodeTranslations)) {
   i18n.addResourceBundle(language, "translation", { barcode: translations }, true, true);
+}
+
+for (const [language, translations] of Object.entries(discountTranslations)) {
+  i18n.addResourceBundle(language, "translation", { discounts: translations }, true, true);
+}
+
+for (const [language, translations] of Object.entries(examPreviewTranslations)) {
+  i18n.addResourceBundle(language, "translation", { examPreview: translations }, true, true);
+}
+
+for (const [language, translations] of Object.entries(clientContactTranslations)) {
+  i18n.addResourceBundle(language, "translation", { clientContact: translations }, true, true);
 }

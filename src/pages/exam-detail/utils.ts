@@ -20,7 +20,15 @@ export interface GridLayoutItem extends CardItem {
   w: number;
 }
 
+export const normalizeLayoutSideInset = (value: unknown): number =>
+  typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.min(2000, Math.round(value))) : 0;
+
+export const normalizeLayoutWidth = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.max(320, Math.min(10000, Math.round(value))) : undefined;
+
 export interface GridLayoutData {
+  layoutWidthPx?: number;
+  sideInsetPx?: number;
   version: typeof EXAM_LAYOUT_VERSION;
   grid: {
     columns: number;
@@ -333,6 +341,8 @@ const normalizeGridNumber = (value: unknown, fallback: number) => {
 };
 
 type GridItemNormalizeOptions = {
+  layoutWidthPx?: number;
+  sideInsetPx?: number;
   enforceMinWidth?: boolean;
   sizeScale?: number;
 };
@@ -492,6 +502,8 @@ export const createGridLayoutData = (
   options: GridItemNormalizeOptions = {},
 ): GridLayoutData => ({
   version: EXAM_LAYOUT_VERSION,
+  ...(normalizeLayoutWidth(options.layoutWidthPx) ? { layoutWidthPx: normalizeLayoutWidth(options.layoutWidthPx) } : {}),
+  ...(options.sideInsetPx ? { sideInsetPx: normalizeLayoutSideInset(options.sideInsetPx) } : {}),
   grid: { columns },
   items: sortGridItems(
     items.map((item) =>
@@ -660,6 +672,8 @@ export interface ParsedLayoutData {
   grid: GridLayoutData;
   items: GridLayoutItem[];
   isLegacy: boolean;
+  layoutWidthPx?: number;
+  sideInsetPx?: number;
 }
 
 export const parseLayoutData = (layoutData?: string): ParsedLayoutData => {
@@ -695,6 +709,8 @@ export const parseLayoutData = (layoutData?: string): ParsedLayoutData => {
         ),
       );
       return {
+        layoutWidthPx: normalizeLayoutWidth(parsed.layoutWidthPx),
+        sideInsetPx: normalizeLayoutSideInset(parsed.sideInsetPx),
         rows: gridItemsToRowsForMetadata(items),
         customWidths: {},
         grid: createGridLayoutData(items, columns, { enforceMinWidth: false }),

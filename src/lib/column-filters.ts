@@ -111,7 +111,7 @@ export function matchesColumnFilters<Row>(
 
     if (definition.kind === "text" && typeof filter === "string") {
       if (!String(value ?? "").toLowerCase().includes(filter.trim().toLowerCase())) return false
-    } else if (definition.kind === "options" && Array.isArray(filter)) {
+    } else if (Array.isArray(filter)) {
       if (!filter.includes(String(value ?? ""))) return false
     } else if (definition.kind === "date" && filter && typeof filter === "object" && !Array.isArray(filter)) {
       const day = toIsoDate(value)

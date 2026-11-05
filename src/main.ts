@@ -32,8 +32,6 @@ import { GoogleCalendarService } from './lib/google/google-calendar';
 import { pruneSoftOpticExport } from "./lib/softoptic-prune";
 import { discoverOpticPlus, prepareOpticPlusInput, exportOpticPlus, type OpticPlusCandidate } from "./lib/opticplus-export";
 import registerListeners from "./helpers/ipc/listeners-register";
-// "electron-squirrel-startup" seems broken when packaging with vite
-//import started from "electron-squirrel-startup";
 import {
   installExtension,
   REACT_DEVELOPER_TOOLS,
@@ -453,6 +451,7 @@ type SoftOpticExportStatus = {
   sqlAnywhereBin?: string;
   includeDocuments: boolean;
   clientImportLimit?: number | null;
+  clientAccountCode?: string | null;
   startedAt: string;
   updatedAt: string;
   outputDir?: string;
@@ -1057,6 +1056,7 @@ async function exportSoftOpticCandidate(
   sqlAnywhereBin?: string,
   includeDocuments = false,
   clientImportLimit?: number | null,
+  clientAccountCode?: string | null,
 ) {
   if (process.platform !== "win32") {
     return { success: false, error: "SoftOptic import is available only on Windows" };
@@ -1096,18 +1096,19 @@ async function exportSoftOpticCandidate(
 
   try {
     await runProcess("powershell.exe", args, { cwd: outputDir });
-    const pruneSummary = normalizedLimit
+    const pruneSummary = normalizedLimit || clientAccountCode
       ? await pruneSoftOpticExport({
           outputDir,
           targetDir: `${outputDir}_pruned`,
           clientImportLimit: normalizedLimit,
+          clientAccountCode,
           includeDocuments,
           documentRoot: candidate.documentPath,
         })
       : null;
     const bundleDir = pruneSummary?.outputDir || outputDir;
 
-    if (!normalizedLimit && includeDocuments && candidate.documentPath && fs.existsSync(candidate.documentPath)) {
+    if (!pruneSummary && includeDocuments && candidate.documentPath && fs.existsSync(candidate.documentPath)) {
       const targetDocuments = path.join(bundleDir, "documents");
       await fs.promises.cp(candidate.documentPath, targetDocuments, { recursive: true, force: true });
     }
@@ -1136,7 +1137,8 @@ async function exportSoftOpticCandidate(
         ? (pruneSummary ? pruneSummary.copiedExternalDocuments : await countFiles(candidate.documentPath))
         : 0,
       includeDocuments,
-      clientImportLimit: normalizedLimit,
+      clientImportLimit: clientAccountCode ? null : normalizedLimit,
+      clientAccountCode: clientAccountCode || null,
       prunedExport: pruneSummary,
       manifest,
       exportedAt: new Date().toISOString(),
@@ -1168,6 +1170,7 @@ async function startSoftOpticExportJob(payload: {
   sqlAnywhereBin?: string;
   includeDocuments?: boolean;
   clientImportLimit?: number | null;
+  clientAccountCode?: string | null;
 }) {
   let clientImportLimit: number | null = null;
   try {
@@ -1188,6 +1191,7 @@ async function startSoftOpticExportJob(payload: {
     sqlAnywhereBin: payload.sqlAnywhereBin,
     includeDocuments: Boolean(payload.includeDocuments),
     clientImportLimit,
+    clientAccountCode: payload.clientAccountCode,
     startedAt: now,
     updatedAt: now,
   };
@@ -1201,6 +1205,7 @@ async function startSoftOpticExportJob(payload: {
         payload.sqlAnywhereBin,
         Boolean(payload.includeDocuments),
         clientImportLimit,
+        payload.clientAccountCode,
       );
       if (!result.success || !result.zipPath) {
         await saveSoftOpticExportStatus({
@@ -1248,6 +1253,7 @@ async function startMigrationExportJob(payload: {
   sqlAnywhereBin?: string;
   includeDocuments?: boolean;
   clientImportLimit?: number | null;
+  clientAccountCode?: string | null;
   selectedClientIds?: number[];
 }) {
   if (payload.sourceSystem === "softoptic") return startSoftOpticExportJob(payload);
@@ -1538,11 +1544,11 @@ function setupIpcHandlers() {
     return scanSoftOpticCandidates();
   });
 
-  ipcMain.handle('softoptic-export', async (_event, payload: { candidate: SoftOpticCandidate; sqlAnywhereBin?: string; includeDocuments?: boolean; clientImportLimit?: number | null }) => {
-    return exportSoftOpticCandidate(payload.candidate, payload.sqlAnywhereBin, Boolean(payload.includeDocuments), payload.clientImportLimit);
+  ipcMain.handle('softoptic-export', async (_event, payload: { candidate: SoftOpticCandidate; sqlAnywhereBin?: string; includeDocuments?: boolean; clientImportLimit?: number | null; clientAccountCode?: string | null }) => {
+    return exportSoftOpticCandidate(payload.candidate, payload.sqlAnywhereBin, Boolean(payload.includeDocuments), payload.clientImportLimit, payload.clientAccountCode);
   });
 
-  ipcMain.handle('softoptic-start-export', async (_event, payload: { clinicId?: number; candidate: SoftOpticCandidate; sqlAnywhereBin?: string; includeDocuments?: boolean; clientImportLimit?: number | null }) => {
+  ipcMain.handle('softoptic-start-export', async (_event, payload: { clinicId?: number; candidate: SoftOpticCandidate; sqlAnywhereBin?: string; includeDocuments?: boolean; clientImportLimit?: number | null; clientAccountCode?: string | null }) => {
     return startSoftOpticExportJob(payload);
   });
 
@@ -1608,6 +1614,7 @@ function setupIpcHandlers() {
     sqlAnywhereBin?: string;
     includeDocuments?: boolean;
     clientImportLimit?: number | null;
+    clientAccountCode?: string | null;
   }) => startMigrationExportJob(payload));
 
   ipcMain.handle('migration-export-status', async (_event, payload: { jobId: string }) => {

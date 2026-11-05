@@ -199,26 +199,41 @@ def _store_google_tokens(user: User, access_token: str, refresh_token: Optional[
 
 
 def _verify_google_user(access_token: str, id_token: Optional[str] = None) -> dict[str, Any]:
-    if not settings.GOOGLE_DESKTOP_CLIENT_ID or not settings.GOOGLE_DESKTOP_CLIENT_SECRET:
+    client_ids = {value for value in (settings.GOOGLE_DESKTOP_CLIENT_ID, settings.GOOGLE_WEB_CLIENT_ID) if value}
+    if not client_ids:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Google login is not configured",
         )
-    tokeninfo_email = None
+    if not access_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Google token")
+    try:
+        token_resp = requests.get(
+            "https://oauth2.googleapis.com/tokeninfo",
+            params={"access_token": access_token},
+            timeout=8,
+        )
+        token_resp.raise_for_status()
+        token_data = token_resp.json()
+        if token_data.get("aud") not in client_ids:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Google audience")
+        tokeninfo_email = (token_data.get("email") or "").strip().lower()
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Google token")
+
     if id_token:
         try:
-            token_resp = requests.get(
-                "https://oauth2.googleapis.com/tokeninfo",
-                params={"id_token": id_token},
-                timeout=8,
+            identity_resp = requests.get(
+                "https://oauth2.googleapis.com/tokeninfo", params={"id_token": id_token}, timeout=8,
             )
-            token_resp.raise_for_status()
-            token_data = token_resp.json()
-            if settings.GOOGLE_DESKTOP_CLIENT_ID and token_data.get("aud") != settings.GOOGLE_DESKTOP_CLIENT_ID:
-                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Google audience")
-            tokeninfo_email = (token_data.get("email") or "").strip().lower()
-        except HTTPException:
-            raise
+            identity_resp.raise_for_status()
+            identity = identity_resp.json()
+            if identity.get("aud") != token_data.get("aud") or identity.get("email_verified") not in {True, "true"}:
+                raise ValueError("Invalid identity")
+            if (identity.get("email") or "").strip().lower() != tokeninfo_email:
+                raise ValueError("Google token email mismatch")
         except Exception:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Google ID token")
 
@@ -235,6 +250,8 @@ def _verify_google_user(access_token: str, id_token: Optional[str] = None) -> di
     email = (data.get("email") or "").strip().lower()
     if not email:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Google email is required")
+    if data.get("verified_email") is not True:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Google email is not verified")
     if tokeninfo_email and tokeninfo_email != email:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Google token email mismatch")
     return data

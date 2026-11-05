@@ -32,6 +32,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { UsersTab } from "@/components/settings/UsersTab";
 import { FieldDataTab } from "@/components/settings/FieldDataTab";
 import { PersonalProfileTab } from "@/components/settings/PersonalProfileTab";
+import { DiscountsTab } from "@/components/settings/DiscountsTab";
 import { AppearanceTab } from "@/components/settings/AppearanceTab";
 import { AboutTab } from "@/components/settings/AboutTab";
 import { MigrationTab } from "@/components/settings/MigrationTab";
@@ -1214,6 +1215,8 @@ export default function SettingsPage() {
                     />
                   </TabsContent>
 
+                  <TabsContent value="discounts" className="mt-0 space-y-6"><DiscountsTab /></TabsContent>
+
                   <TabsContent value="appearance" className="mt-0 space-y-6">
                     <AppearanceTab />
                   </TabsContent>
@@ -1259,6 +1262,7 @@ export default function SettingsPage() {
                     >
                       {t("personalProfile")}
                     </TabsTrigger>
+                    <TabsTrigger value="discounts" className="w-full justify-start text-start">{t("discounts.title")}</TabsTrigger>
                     <TabsTrigger
                       value="appearance"
                       className="w-full justify-start text-start"

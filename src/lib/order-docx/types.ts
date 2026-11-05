@@ -152,6 +152,7 @@ export interface ContactOrderPrintModel {
   cleaning_solution: string;
   disinfection_solution: string;
   rinsing_solution: string;
+  line_items_rows?: RegularOrderPrintLineItem[];
   total_price: string;
   amount_paid: string;
   balance_due: string;

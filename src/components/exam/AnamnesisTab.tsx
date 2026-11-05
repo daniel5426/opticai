@@ -104,14 +104,16 @@ export const AnamnesisTab = React.memo(function AnamnesisTab({
     const rows = [
       ['medications', 'remk9'], ['family_history', 'remk10'], ['additional_notes', 'remk11'],
     ] as const;
-    return <Card className="examcard w-full py-3" dir={i18n.dir()}><CardContent className="space-y-3 px-4">
-      <h3 className="text-center font-medium text-muted-foreground">{t('opticplusCards.sections.anamnesis')}</h3>
+    return <Card className="examcard w-full py-2" dir={i18n.dir()}><CardContent className="space-y-2 px-3">
+      <h3 className="text-center text-sm font-medium text-muted-foreground">{t('opticplusCards.sections.anamnesis')}</h3>
+      <div className="grid gap-2 sm:grid-cols-3">
       {rows.filter(([field]) => importedFields.includes(field)).map(([field, label]) => <div key={field} className="space-y-1">
         <label htmlFor={`${importedId}-${field}`} className="text-xs text-muted-foreground">{t(`opticplusCards.fields.${label}`)}</label>
         <FastTextarea id={`${importedId}-${field}`} name={field}
           aria-label={t(`opticplusCards.fields.${label}`)} value={String(anamnesisData[field] ?? '')}
-          onChange={value => onAnamnesisChange(field, value)} disabled={!isEditing} dir="auto" className="min-h-12 text-xs" />
+          onChange={value => onAnamnesisChange(field, value)} disabled={!isEditing} dir={i18n.dir()} className="min-h-12 text-start text-xs" />
       </div>)}
+      </div>
     </CardContent></Card>;
   }
 

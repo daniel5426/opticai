@@ -26,14 +26,15 @@ export function useDuplicateNationalId(
   }, [normalized])
 
   const { data } = useQuery({
-    queryKey: ["clients", "national-id", clinicId, debounced],
-    // The list filter matches by substring; the exact comparison happens below.
+    queryKey: ["clients", "national-id", clinicId, debounced, excludeClientId],
+    // Normalize and match on the server before pagination.
     queryFn: () =>
       getPaginatedClients(clinicId, {
-        limit: 10,
+        limit: 1,
         offset: 0,
         order: "id_desc",
-        columnFilters: JSON.stringify({ national_id: debounced }),
+        nationalIdExact: debounced,
+        excludeClientId,
         includeTotal: false,
       }),
     enabled: enabled && Boolean(clinicId) && debounced.length >= MIN_DIGITS,

@@ -15,7 +15,9 @@
       "scripts/agent-web-proxy.mjs",
       "railpack.json",
       "config/devdesk-release/**",
-      "scripts/devdesk-release-inputs.mjs"
+      "scripts/devdesk-release-inputs.mjs",
+      "config/desktop-runtime/**",
+      "scripts/desktop-runtime.mjs"
     ]
   },
   "deploy": {

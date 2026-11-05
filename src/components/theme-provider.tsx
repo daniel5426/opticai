@@ -8,6 +8,7 @@ function useAppearanceState() {
     ...state,
     theme: state.mode,
     setTheme: store.setMode,
+    resetToDefaults: store.resetToDefaults,
     setStyle: store.setStyle,
     setPalette: store.setPalette,
     previewPalette: store.previewPalette,

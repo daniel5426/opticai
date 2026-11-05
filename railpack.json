@@ -23,6 +23,14 @@
           "src": "scripts/devdesk-release-inputs.mjs",
           "dest": "scripts/devdesk-release-inputs.mjs"
         },
+        {
+          "src": "scripts/desktop-runtime.mjs",
+          "dest": "scripts/desktop-runtime.mjs"
+        },
+        {
+          "src": "config/desktop-runtime",
+          "dest": "config/desktop-runtime"
+        },
         "DEVDESK_RELEASE_BUILD=1 node scripts/devdesk-release-inputs.mjs apply",
         "ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci"
       ]

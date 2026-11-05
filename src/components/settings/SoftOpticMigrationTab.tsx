@@ -63,7 +63,7 @@ interface SoftOpticMigrationTabProps {
 }
 
 export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: SoftOpticMigrationTabProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [phase, setPhase] = useState<WizardPhase>("idle")
   const [progress, setProgress] = useState(0)
   const [stepText, setStepText] = useState("מוכן להתחלה")
@@ -75,6 +75,7 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
   const [zipPath, setZipPath] = useState<string | null>(null)
   const [includeDocuments, setIncludeDocuments] = useState<boolean | null>(null)
   const [importUsers, setImportUsers] = useState(false)
+  const [clientAccountCode, setClientAccountCode] = useState("")
   const [clientImportLimit, setClientImportLimit] = useState("")
   const [exportJobId, setExportJobId] = useState<string | null>(null)
   const [job, setJob] = useState<any>(null)
@@ -105,6 +106,7 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
   }, [candidates, manualDbPath, selectedId])
 
   const parseClientImportLimit = () => {
+    if (sourceSystem === "softoptic" && clientAccountCode.trim()) return null
     const trimmedLimit = clientImportLimit.trim()
     const parsedLimit = trimmedLimit ? Number.parseInt(trimmedLimit, 10) : null
     if (trimmedLimit && (!Number.isFinite(parsedLimit) || !parsedLimit || parsedLimit < 1)) {
@@ -123,9 +125,11 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
       setRetainedSourceJobs(imports.filter(importJob => Boolean(
         importJob.bundle_uploaded && importJob.validation_summary?.manifest?.source_archive?.complete,
       )))
-      const activeJob = imports.find(importJob => ["awaiting_upload", "queued", "running", "paused"].includes(importJob.status))
+      const activeJob = imports.find(importJob => ["awaiting_upload", "queued", "running", "paused", "failed"].includes(importJob.status))
       if (!activeJob) return
       setJob(activeJob)
+      setClientAccountCode(activeJob.source_metadata?.client_account_code || "")
+      setClientImportLimit(activeJob.client_import_limit == null ? "" : String(activeJob.client_import_limit))
       setProgress(activeJob.progress || 0)
       setStepText(activeJob.step || "ממתין לעובד ייבוא")
       if (activeJob.status === "paused") {
@@ -165,6 +169,7 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
       if (typeof status.includeDocuments === "boolean") {
         setIncludeDocuments(status.includeDocuments)
       }
+      setClientAccountCode(status.clientAccountCode || "")
       if (status.clientImportLimit != null) {
         setClientImportLimit(String(status.clientImportLimit))
       }
@@ -360,6 +365,7 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
             sqlAnywhereBin: sqlAnywhereBin.trim() || undefined,
             includeDocuments,
             clientImportLimit: parsedLimit,
+            clientAccountCode: sourceSystem === "softoptic" ? clientAccountCode.trim() || null : null,
           })
         : await window.electronAPI.softOpticStartExport!({
         clinicId,
@@ -367,6 +373,7 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
         sqlAnywhereBin: sqlAnywhereBin.trim() || undefined,
         includeDocuments,
         clientImportLimit: parsedLimit,
+        clientAccountCode: sourceSystem === "softoptic" ? clientAccountCode.trim() || null : null,
       })
       if (!started.success || !started.jobId) {
         setError(started.error || "הייצוא נכשל")
@@ -382,6 +389,7 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
       sqlAnywhereBin: sqlAnywhereBin.trim() || undefined,
       includeDocuments,
       clientImportLimit: parsedLimit,
+      clientAccountCode: sourceSystem === "softoptic" ? clientAccountCode.trim() || null : null,
     })
     if (!result.success || !result.zipPath) {
       setError(result.error || "הייצוא נכשל")
@@ -438,6 +446,7 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
           includeDocuments,
           importUsers,
           clientImportLimit: effectiveLimit,
+          clientAccountCode: exportSummary?.clientAccountCode || null,
           bundleFormatVersion: Number(exportSummary?.manifest?.format_version || 0) || null,
           sourceFingerprint: exportSummary?.sourceFingerprint || exportSummary?.manifest?.source_fingerprint || null,
         })
@@ -513,6 +522,7 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
     setIncludeDocuments(null)
     setImportUsers(false)
     setClientImportLimit("")
+    setClientAccountCode("")
     setExportJobId(null)
     setJob(null)
     setUploadStatus(null)
@@ -558,7 +568,7 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
   )
 
   return (
-    <div className="space-y-5" dir="rtl">
+    <div className="space-y-5" dir={i18n.dir()}>
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between gap-3">
@@ -588,7 +598,7 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
           {error && (
             <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{error}</span>
+              <span>{t(error)}</span>
             </div>
           )}
 
@@ -746,6 +756,14 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
             </button>
           </div>
 
+          {sourceSystem === "softoptic" && <div className="space-y-2 rounded-md border p-3">
+            <Label htmlFor="softoptic-client-number" className="block text-start">{t("softoptic.clientNumber")}</Label>
+            <Input id="softoptic-client-number" value={clientAccountCode}
+              onChange={event => setClientAccountCode(event.target.value.replace(/[^\d]/g, ""))}
+              placeholder={t("softoptic.clientNumberPlaceholder")} maxLength={30} inputMode="numeric" dir="ltr" disabled={limitLocked}
+              aria-describedby="softoptic-client-number-hint" />
+            <p id="softoptic-client-number-hint" className="text-xs text-muted-foreground text-start">{t("softoptic.clientNumberHint")}</p>
+          </div>}
           <div className="space-y-2 rounded-md border p-3">
             <Label className="block text-right">מגבלת לקוחות לייצוא ולייבוא</Label>
             <Input
@@ -753,7 +771,7 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
               onChange={event => setClientImportLimit(event.target.value.replace(/[^\d]/g, ""))}
               placeholder="ללא מגבלה"
               inputMode="numeric"
-              disabled={limitLocked}
+              disabled={limitLocked || (sourceSystem === "softoptic" && Boolean(clientAccountCode))}
               dir="ltr"
             />
           </div>

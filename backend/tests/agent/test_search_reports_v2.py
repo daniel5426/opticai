@@ -73,6 +73,45 @@ def test_search_all_records_and_private_fields(clinic):
     assert search.search(db, auth, {'text': 'Foreign'})['total'] == 0
 
 
+@pytest.mark.parametrize('dataset', ['clients', 'billing', 'measurements'])
+@pytest.mark.parametrize('text', ['', ' \t ', 'Patient'])
+def test_search_orders_by_projected_score_on_postgres(clinic, dataset, text):
+    from sqlalchemy import event
+    from sqlalchemy.dialects import postgresql
+
+    db, auth, patients, _ = clinic
+    exam(db, patients[0], {'final-prescription': {'r_sph': -1., 'l_sph': -2.}})
+    exam(db, patients[1], {'final-prescription': {'r_sph': -3., 'l_sph': -4.}})
+    statements = []
+
+    def capture(execution):
+        statement = execution.statement
+        if execution.is_select and getattr(statement, '_order_by_clauses', ()):
+            statements.append(str(statement.compile(dialect=postgresql.dialect(),
+                compile_kwargs={'literal_binds': True})))
+
+    request = {'datasets': [dataset], 'text': text, 'limit': 1,
+        'where': {'conditions': [{'field': 'id', 'operator': 'gt', 'value': 0}]}}
+    event.listen(db, 'do_orm_execute', capture)
+    try:
+        first = search.search(db, auth, request)
+        second = search.search(db, auth, {**request, 'offset': 1})
+    finally:
+        event.remove(db, 'do_orm_execute', capture)
+
+    assert first['total'] == {'clients': 2, 'billing': 1, 'measurements': 4}[dataset]
+    assert len(first['items']) == 1
+    if dataset == 'billing':
+        assert first['next_offset'] is None and second['items'] == []
+    else:
+        assert first['next_offset'] == 1
+        assert first['items'][0]['values']['id'] < second['items'][0]['values']['id']
+    if not text.strip():
+        assert first['items'][0]['matched_fields'] == {}
+    assert len(statements) == 2
+    assert all(sql.rsplit(' ORDER BY ', 1)[-1].startswith('_search_score DESC, ') for sql in statements)
+
+
 def test_nested_relationship_report_preserves_patient_grain(clinic):
     db, auth, patients, _ = clinic
     exam(db, patients[0], {'final-prescription': {'r_sph': -1.}})

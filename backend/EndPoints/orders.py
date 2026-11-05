@@ -469,7 +469,7 @@ def get_next_bag_number(
     current_user: User = Depends(get_current_user),
 ):
     """Next bag number across regular and contact lens orders, without loading the orders."""
-    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
+    allowed_clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
     max_bag_number = 0
     for model in (Order, ContactLensOrder):
         bag_number = model.order_data["details"]["bag_number"].as_string()

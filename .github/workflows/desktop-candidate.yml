@@ -1,0 +1,170 @@
+name: Build Desktop Candidate
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Exact commit to build; dispatch using its matching ref
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-candidate-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  validate-candidate:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.candidate.outputs.sha }}
+      version: ${{ steps.candidate.outputs.version }}
+      macos: ${{ steps.candidate.outputs.macos }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate immutable candidate
+        id: candidate
+        env:
+          REQUESTED_SHA: ${{ inputs.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$REQUESTED_SHA"
+          node scripts/devdesk-check.mjs --release --lock-only
+          node -e 'const p=require("./package.json"),l=require("./package-lock.json"); if(p.version!==l.version)process.exit(1)'
+          echo "macos=$(node scripts/release-targets.mjs | node -p 'JSON.parse(require("fs").readFileSync(0,"utf8")).macos')" >> "$GITHUB_OUTPUT"
+          echo "sha=$REQUESTED_SHA" >> "$GITHUB_OUTPUT"
+          echo "version=$(node -p 'require("./package.json").version')" >> "$GITHUB_OUTPUT"
+
+  build-macos:
+    if: needs.validate-candidate.outputs.macos == 'true'
+    needs: validate-candidate
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate-candidate.outputs.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Apply public release dependency lock
+        env:
+          DEVDESK_RELEASE_BUILD: "1"
+        run: node scripts/devdesk-release-inputs.mjs apply
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate production environment file
+        run: |
+          cat > .env.production <<'EOF'
+          VITE_API_URL=${{ secrets.VITE_API_URL }}
+          DOWNLOAD_PAGE_URL=${{ secrets.DOWNLOAD_PAGE_URL }}
+          GOOGLE_DESKTOP_CLIENT_ID=${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
+          GOOGLE_DESKTOP_CLIENT_SECRET=${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
+          EOF
+
+      - name: Build for macOS Apple Silicon
+        run: |
+          npx vite build
+          node scripts/prepare-desktop-app.mjs
+          npx electron-builder --mac --arm64 --publish never
+        env:
+          NODE_ENV: production
+          NODE_OPTIONS: --max-old-space-size=4096
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Verify updater and record candidate
+        run: node scripts/record-desktop-candidate.mjs mac
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-release
+          compression-level: 0
+          path: |
+            release/Prysm-mac-arm64-*.zip
+            release/latest-mac.yml
+            release/candidate.json
+          if-no-files-found: error
+
+  build-windows:
+    needs: validate-candidate
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate-candidate.outputs.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Apply public release dependency lock
+        env:
+          DEVDESK_RELEASE_BUILD: "1"
+        run: node scripts/devdesk-release-inputs.mjs apply
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Restore or build verified native reader
+        uses: ./.github/actions/optitech-reader
+
+      - name: Generate Windows production environment file
+        shell: pwsh
+        run: |
+          @"
+          VITE_API_URL=${{ secrets.VITE_API_URL }}
+          DOWNLOAD_PAGE_URL=${{ secrets.DOWNLOAD_PAGE_URL }}
+          GOOGLE_DESKTOP_CLIENT_ID=${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
+          GOOGLE_DESKTOP_CLIENT_SECRET=${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
+          "@ | Set-Content -Path .env.production -NoNewline
+
+          Copy-Item -Path .env.production -Destination .env.windows.production
+
+      - name: Build for Windows
+        run: |
+          npx vite build
+          node scripts/prepare-desktop-app.mjs
+          npx electron-builder --win --publish never
+        env:
+          NODE_ENV: production
+          NODE_OPTIONS: --max-old-space-size=4096
+
+      - name: Verify packaged native OptiTech reader
+        shell: pwsh
+        run: |
+          $unpacked = Get-ChildItem release -Filter "win-unpacked" -Directory -Recurse | Select-Object -First 1
+          if (-not $unpacked) { throw "Windows unpacked application was not created" }
+          $reader = Join-Path $unpacked.FullName "resources\optitech_reader\optitech-mdb-exporter.exe"
+          $profiles = & $reader --profiles | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $profiles.opticplus_format_version -ne 2 -or $profiles.profiles -notcontains "opticplus") { throw "Packaged OpticPlus reader capability check failed" }
+          $notice = Join-Path $unpacked.FullName "resources\optitech_reader\THIRD_PARTY_NOTICES.md"
+          $license = Join-Path $unpacked.FullName "resources\optitech_reader\COPYING.LIB"
+          $source = Join-Path $unpacked.FullName "resources\optitech_reader\SOURCE_AND_BUILD.md"
+          if (-not (Test-Path $reader) -or -not (Test-Path $notice) -or -not (Test-Path $license) -or -not (Test-Path $source)) { throw "Native OptiTech reader resources are missing" }
+
+      - name: Verify updater and record candidate
+        run: node scripts/record-desktop-candidate.mjs win
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          compression-level: 0
+          path: |
+            release/Prysm-Setup-${{ needs.validate-candidate.outputs.version }}.exe
+            release/Prysm-Setup-${{ needs.validate-candidate.outputs.version }}.exe.blockmap
+            release/latest.yml
+            release/candidate.json
+          if-no-files-found: error
+

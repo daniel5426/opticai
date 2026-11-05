@@ -29,7 +29,11 @@ export default defineConfig(({ mode }) => {
             ? ({ startup }) => startup([path.resolve(configDir, electronOutDir, 'main.js')])
             : undefined,
           vite: {
-            define: { '__PRYSM_AGENT_API_URL__': JSON.stringify(apiBaseUrl) },
+            define: {
+              '__PRYSM_AGENT_API_URL__': JSON.stringify(apiBaseUrl),
+              '__PRYSM_GOOGLE_DESKTOP_CLIENT_ID__': JSON.stringify(env.GOOGLE_DESKTOP_CLIENT_ID || ''),
+              '__PRYSM_GOOGLE_DESKTOP_CLIENT_SECRET__': JSON.stringify(env.GOOGLE_DESKTOP_CLIENT_SECRET || ''),
+            },
             resolve: {
               alias: {
                 '@': path.resolve(configDir, './src'),
@@ -86,8 +90,6 @@ export default defineConfig(({ mode }) => {
     ],
     define: {
       'process.env.NODE_ENV': mode === 'production' ? '"production"' : '"development"',
-      'process.env.GOOGLE_DESKTOP_CLIENT_ID': JSON.stringify(env.GOOGLE_DESKTOP_CLIENT_ID || ''),
-      'process.env.GOOGLE_DESKTOP_CLIENT_SECRET': JSON.stringify(env.GOOGLE_DESKTOP_CLIENT_SECRET || ''),
     },
     resolve: {
       preserveSymlinks: true,

@@ -100,8 +100,9 @@ it('accepts host-converted Excel through the real composer and submits only extr
   const file = new File(['synthetic workbook bytes'], 'supplier.xlsx', {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
   Object.defineProperty(file, 'arrayBuffer', {value: async () => new TextEncoder().encode('synthetic workbook bytes').buffer});
   fireEvent.change(view.container.querySelector('.a24-composer input[type=file]')!, {target:{files:[file]}});
-  fireEvent.change(screen.getByRole('textbox'), {target:{value:'Prepare receipt'}});
-  fireEvent.click(screen.getByRole('button',{name:/Send supplier.xlsx/}));
+  // jsdom cannot evaluate the composer's :has() styles against slash-containing attachment classes.
+  fireEvent.change(view.container.querySelector('textarea')!, {target:{value:'Prepare receipt'}});
+  fireEvent.click(view.container.querySelector('button[aria-label="Send supplier.xlsx"]')!);
   await waitFor(() => expect(mock.submit).toHaveBeenCalledTimes(1));
   expect(transport.mock.calls[0][0]).toBe('/api/v1/agent/supply/extract');
   expect(transport.mock.calls[0][1]?.body).toBeInstanceOf(FormData);

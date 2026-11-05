@@ -13,9 +13,9 @@ export const exportColumns = {
 } as const;
 export type ExportTable = keyof typeof exportColumns;
 export type ExportFilter = { key: string; value: string; label: string; options: { value: string; label: string }[] };
-export type ExportConfig = { table: ExportTable; clinicId?: number; sort: string; columns?: string[]; filters?: ExportFilter[]; productName?: string; placement?: 'beforeNavigation' };
+export type ExportConfig = { table: ExportTable; clinicId?: number; sort: string; columns?: string[]; filters?: ExportFilter[]; columnFilters?: string; productName?: string; placement?: 'beforeNavigation' };
 export type ExportSnapshot = ExportConfig & { search: string; filters: ExportFilter[]; clinicName: string };
-export type ExportRequest = { table: ExportTable; clinic_id: number | null; search: string; filters: Record<string, string>; columns: string[]; sort: string; locale: 'he' | 'en' | 'fr'; format: 'xlsx' | 'csv'; start_date: string | null; end_date: string | null; request_key: string };
+export type ExportRequest = { table: ExportTable; clinic_id: number | null; search: string; filters: Record<string, string>; column_filters?: string; columns: string[]; sort: string; locale: 'he' | 'en' | 'fr'; format: 'xlsx' | 'csv'; start_date: string | null; end_date: string | null; request_key: string };
 export type ExportJob = { id: string; status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'; expired: boolean; format: 'xlsx' | 'csv'; rows: number | null; error?: string | null };
 export type ExportTask = { request: ExportRequest; snapshot: ExportSnapshot; job: ExportJob; pollError?: boolean };
 

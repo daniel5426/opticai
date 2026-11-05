@@ -21,7 +21,7 @@ from security.scope import (
 )
 from services.file_storage_service import FileStorageService, get_file_storage_service
 from services.trash_service import move_to_trash
-from utils.column_filters import ColumnFilter, build_column_filter_conditions
+from utils.column_filters import lookup_filter, ColumnFilter, build_column_filter_conditions
 from utils.table_search import build_all_terms_search_condition, search_blob, spaced_concat
 
 router = APIRouter(prefix="/files", tags=["files"])
@@ -330,6 +330,7 @@ def file_list_query(db, current_user, clinic_id, search, file_category, order, f
             .filter(search_condition)
         )
     base = base.filter(*build_column_filter_conditions(filters, {
+        "clinic": lookup_filter(FileModel.clinic_id),
         "file_name": ColumnFilter(FileModel.file_name),
         "type": ColumnFilter(None, "options", option_condition=build_file_category_filter),
         "upload_date": ColumnFilter(FileModel.upload_date, "date"),

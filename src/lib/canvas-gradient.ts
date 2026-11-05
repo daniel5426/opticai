@@ -8,7 +8,7 @@ export interface CanvasGradient {
 }
 
 export const DEFAULT_CANVAS_GRADIENT: CanvasGradient = {
-  colorOne: "#2389dc", colorTwo: "#ffffff", angle: 45, strength: 50, grain: 35,
+  colorOne: "#F2F7FD", colorTwo: "#ffffff", angle: 45, strength: 50, grain: 0,
 };
 export const getCanvasGradientKey = (userId?: number) => userId === undefined
   ? "appearance_canvas_gradient" : `user_canvas_gradient_${userId}`;

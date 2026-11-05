@@ -14,6 +14,8 @@ import { cn } from "@/utils/tailwind";
 import { flushSync } from 'react-dom';
 import { UI_CONFIG } from '@/config/ui-config';
 import { useUser } from "@/contexts/UserContext";
+import { inputSyncManager } from "@/lib/input-sync-manager";
+export { inputSyncManager } from "@/lib/input-sync-manager";
 import {
     focusClinicalNavSibling,
     isClinicalPrintableKey,
@@ -92,33 +94,6 @@ export const StretchSelect = memo(function StretchSelect({
         </div>
     );
 });
-
-/**
- * Simple manager to track and flush pending updates from optimized components.
- */
-class SyncManager {
-    private pendingSyncs = new Set<() => void>();
-
-    register(syncFn: () => void) {
-        this.pendingSyncs.add(syncFn);
-    }
-
-    unregister(syncFn: () => void) {
-        this.pendingSyncs.delete(syncFn);
-    }
-
-    /**
-     * Executes all pending sync operations immediately.
-     */
-    flush() {
-        this.pendingSyncs.forEach(sync => {
-            try { sync(); } catch (e) { console.error("Sync error:", e); }
-        });
-        this.pendingSyncs.clear();
-    }
-}
-
-export const inputSyncManager = new SyncManager();
 
 export function useOptimizedInput<T extends HTMLInputElement | HTMLTextAreaElement>(
     value: string,
@@ -229,15 +204,19 @@ export function useOptimizedInput<T extends HTMLInputElement | HTMLTextAreaEleme
                 onInputRef.current(val);
             }
 
-            inputSyncManager.register(handleSync);
+            inputSyncManager.register(handleSync, () => {
+                const current = inputRef.current?.value ?? localValueRef.current;
+                const previous = lastSentValueRef.current;
+                if (current === previous) return false;
+                if (inputRef.current?.dataset.clinicalNavKind === 'number' && current !== '' && previous !== '' &&
+                    Number.isFinite(Number(current)) && Number(current) === Number(previous)) return false;
+                return true;
+            });
             if (timer) clearTimeout(timer);
             timer = setTimeout(handleSync, debounceMs);
         };
 
-        const element = inputRef.current;
-        if (element) {
-            element.addEventListener('input', onInputInternal);
-            element.addEventListener('blur', () => {
+        const onBlurInternal = () => {
                 const target = inputRef.current;
                 if (!target) return;
 
@@ -246,18 +225,24 @@ export function useOptimizedInput<T extends HTMLInputElement | HTMLTextAreaEleme
                 localValueRef.current = val;
                 handleSync();
                 if (onBlurOverrideRef.current) onBlurOverrideRef.current();
-            });
+        };
+        const element = inputRef.current;
+        if (element) {
+            element.addEventListener('input', onInputInternal);
+            element.addEventListener('blur', onBlurInternal);
         }
 
         return () => {
             if (element) {
                 element.removeEventListener('input', onInputInternal);
+                element.removeEventListener('blur', onBlurInternal);
             }
             if (timer) clearTimeout(timer);
             // Only call handleSync on unmount if we have a pending update
             if (localValueRef.current !== lastSentValueRef.current) {
                 handleSync();
             }
+            inputSyncManager.unregister(handleSync);
         };
     }, [debounceMs, currentUser?.clinical_auto_advance_enabled]);
 

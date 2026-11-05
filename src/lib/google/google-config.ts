@@ -1,3 +1,6 @@
+declare const __PRYSM_GOOGLE_DESKTOP_CLIENT_ID__: string
+declare const __PRYSM_GOOGLE_DESKTOP_CLIENT_SECRET__: string
+
 export interface GoogleConfig {
   readonly clientId: string
   readonly clientSecret: string
@@ -8,13 +11,13 @@ export interface GoogleConfig {
 export const GOOGLE_CONFIG: GoogleConfig = {
   // Desktop OAuth credentials for Google Calendar API access
   get clientId() {
-    return process.env.GOOGLE_DESKTOP_CLIENT_ID || 'your-desktop-client-id.apps.googleusercontent.com';
+    return process.env.GOOGLE_DESKTOP_CLIENT_ID?.trim() || (typeof __PRYSM_GOOGLE_DESKTOP_CLIENT_ID__ === 'string' ? __PRYSM_GOOGLE_DESKTOP_CLIENT_ID__ : '');
   },
   get clientSecret() {
-    return process.env.GOOGLE_DESKTOP_CLIENT_SECRET || 'your-desktop-client-secret';
+    return process.env.GOOGLE_DESKTOP_CLIENT_SECRET?.trim() || (typeof __PRYSM_GOOGLE_DESKTOP_CLIENT_SECRET__ === 'string' ? __PRYSM_GOOGLE_DESKTOP_CLIENT_SECRET__ : '');
   },
-  // Use Vite development port or production URL
-  redirectUri: 'http://localhost:5173/oauth/callback',
+  // authenticate() replaces this with a dynamically allocated loopback callback.
+  redirectUri: 'http://127.0.0.1/oauth/callback',
   scopes: [
     'openid',
     'email',

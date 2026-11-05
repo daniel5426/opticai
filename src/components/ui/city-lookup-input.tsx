@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Input } from './input'
 import { Button } from './button'
@@ -20,8 +21,10 @@ export function CityLookupInput({
   placeholder = 'בחר או הקלד...',
   className = '',
   disabled = false,
-  dir = 'rtl'
+  dir: suppliedDir
 }: CityLookupInputProps) {
+  const { i18n } = useTranslation()
+  const dir = suppliedDir ?? i18n.dir()
   const [isOpen, setIsOpen] = useState(false)
   const [inputValue, setInputValue] = useState(value)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -133,7 +136,7 @@ export function CityLookupInput({
   }
 
   return (
-    <div ref={containerRef} className={`relative ${className} dark:bg-card`}>
+    <div ref={containerRef} className={`relative ${className}`} dir={dir}>
       <div className="relative">
         <Input
           value={inputValue}
@@ -141,13 +144,14 @@ export function CityLookupInput({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}
-          className={`text-right pl-10 ${!disabled ? 'bg-card' : 'bg-accent/50 dark:bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+          dir={dir}
+          className="text-start pe-10 disabled:opacity-100 disabled:cursor-default"
         />
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          className="absolute left-0 top-0 h-full px-3 hover:bg-transparent"
+          className="absolute end-0 top-0 h-full px-3 hover:bg-transparent"
           onClick={() => setIsOpen(!isOpen)}
           disabled={disabled}
         >
@@ -168,10 +172,10 @@ export function CityLookupInput({
                   className={`flex gap-1 items-center px-2 py-1 cursor-pointer rounded-sm ${idx === highlightedIndex ? 'bg-accent' : 'hover:bg-accent'}`}
                   onClick={() => handleOptionSelect(option.name)}
                 >
-                  <span className="text-right text-sm flex-1">{option.name}</span>
+                  <span className="text-start text-sm flex-1">{option.name}</span>
                   <div className="flex items-center">
                     {(option.name === inputValue || idx === highlightedIndex) && (
-                      <IconCheck className="h-4 w-4 text-primary ml-1" />
+                      <IconCheck className="h-4 w-4 text-primary ms-1" />
                     )}
                   </div>
 

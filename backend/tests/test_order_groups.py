@@ -11,7 +11,7 @@ from services.order_group_service import save_group, get_group, group_dict, ensu
 
 @pytest.fixture
 def context():
-    engine = create_engine("sqlite:///:memory:", poolclass=StaticPool)
+    engine = create_engine("sqlite:///:memory:", poolclass=StaticPool, connect_args={"check_same_thread": False})
     @event.listens_for(engine, "connect")
     def foreign_keys(connection, _record):
         connection.execute("PRAGMA foreign_keys=ON")
@@ -559,6 +559,8 @@ def test_history_column_filters_cover_groups_and_unlinked_orders(context):
     total = lambda filters, **extra: list_history(db, user, clinic, filters=json.dumps(filters), **extra)['total']
 
     assert total({}) == 2
+    assert total({'clinic': [str(clinic.id)]}) == 2
+    assert total({'clinic': [str(clinic.id + 100000)]}) == 0
     assert total({'clients': 'two'}) == 2          # Two is in the group and owns the unlinked order
     assert total({'clients': 'one'}) == 1
     assert total({'payer': 'one'}) == 1            # group payer
@@ -572,3 +574,91 @@ def test_history_column_filters_cover_groups_and_unlinked_orders(context):
     assert total({'kinds': ['contact']}, kind='regular') == 0  # toolbar and column filter must both match
     assert total({'clients': 'two', 'kinds': ['regular'], 'date': {'to': '2024-12-31'}}) == 1
     assert group['id'] in [row['id'] for row in list_history(db, user, clinic, filters=json.dumps({'payer': 'one'}))['items']]
+
+
+def test_billing_patch_is_small_and_skips_clinical_and_line_queries(context):
+    from services.order_group_service import patch_group_billing
+    db, user, clinic, clients = context
+    first = save_group(db, user, payload(clinic, clients), creation_key='patch-performance')
+    statements = []
+    def record(_conn, _cursor, statement, _params, _context, _many):
+        statements.append(statement.lower())
+    event.listen(db.bind, 'before_cursor_execute', record)
+    try:
+        old = save_group(db, user, {'revision': first['revision'], 'billing': {**first['billing'], 'installment_count': 2}, 'line_items': first['line_items']}, group_id=first['id'])
+        old_count = len(statements)
+        statements.clear()
+        result = patch_group_billing(db, user, first['id'], {'revision': old['revision'], 'billing': {'installment_count': 3}})
+        new_count = len(statements)
+    finally:
+        event.remove(db.bind, 'before_cursor_execute', record)
+    assert result['billing']['installment_count'] == 3
+    assert result['billing']['total_after_discount'] == first['billing']['total_after_discount']
+    assert set(result) == {'id', 'revision', 'payer_client_id', 'billing'}
+    assert not any('from orders' in sql or 'from order_group_entries' in sql or 'order_line_item' in sql or 'contact_lens_orders' in sql for sql in statements)
+    assert new_count < old_count
+    print(f'Invoice metadata queries: {old_count} -> {new_count}')
+    with pytest.raises(HTTPException) as error:
+        patch_group_billing(db, user, first['id'], {'revision': old['revision'], 'billing': {'installment_count': 4}})
+    assert error.value.status_code == 409
+    db.rollback()
+
+
+def test_billing_patch_http_validation_payments_and_scope(context):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from EndPoints.order_groups import router
+    from auth import get_current_user
+    from database import get_db
+    db, user, clinic, clients = context
+    first = save_group(db, user, payload(clinic, clients), creation_key='patch-http')
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: user
+    with TestClient(app) as client:
+        url = f"/order-groups/{first['id']}/billing"
+        for invalid in ({'entries': []}, {'billing': {'prepayment_amount': -1}}, {'billing': {'installment_count': 1.5}}, {'billing': {'currency': 'USD'}}):
+            assert client.patch(url, json={'revision': 1, **invalid}).status_code == 422
+        paid = client.patch(url, json={'revision': 1, 'billing': {'prepayment_amount': 20}})
+        assert paid.status_code == 200, paid.text
+        assert paid.json()['billing']['prepayment_amount'] == 20
+        assert db.query(BillingPayment).filter(BillingPayment.billing_id == first['billing']['id']).one().amount == 20
+        discounted = client.patch(url, json={'revision': 2, 'billing': {'discount_amount': 30, 'discount_percent': 30}})
+        assert discounted.status_code == 200, discounted.text
+        assert discounted.json()['billing']['total_after_discount'] == 70
+        changed_lines = [{**first['line_items'][0], 'price': 120}]
+        edited = client.patch(url, json={'revision': 3, 'line_items': changed_lines})
+        assert edited.status_code == 200, edited.text
+        assert edited.json()['line_items'][0]['line_total'] == 120
+        assert edited.json()['billing']['total_after_discount'] == 90
+        user.role_level = 1
+        assert client.patch(url, json={'revision': 4, 'billing': {'installment_count': 5}}).status_code == 403
+        user.role_level = 2
+        other_company = Company(name='Other', owner_full_name='Other')
+        db.add(other_company); db.flush()
+        user.company_id = other_company.id
+        user.clinic_id = None
+        db.commit()
+        assert client.patch(url, json={'revision': 4, 'billing': {'installment_count': 5}}).status_code == 403
+
+
+def test_discount_patch_matches_full_save_for_imported_totals(context):
+    from services.order_group_service import patch_group_billing
+    db, user, clinic, clients = context
+    groups = [save_group(db, user, payload(clinic, clients), creation_key=f'header-{index}') for index in range(2)]
+    with group_write(db):
+        for group in groups:
+            billing = db.get(Billing, group['billing']['id'])
+            billing.total_before_discount = 70
+            billing.total_after_discount = 55
+            billing.line_subtotal_offset = None
+            billing.line_total_offset = None
+        db.commit()
+    for discount in (30, 0, 120, 0):
+        current = [group_dict(db, db.get(OrderGroup, group['id'])) for group in groups]
+        changes = {'discount_amount': discount, 'discount_percent': 0}
+        full = save_group(db, user, {'revision': current[0]['revision'], 'billing': changes, 'line_items': current[0]['line_items']}, group_id=groups[0]['id'])
+        patch = patch_group_billing(db, user, groups[1]['id'], {'revision': current[1]['revision'], 'billing': changes})
+        for field in ('total_before_discount', 'total_after_discount', 'line_subtotal_offset', 'line_total_offset'):
+            assert patch['billing'][field] == full['billing'][field]

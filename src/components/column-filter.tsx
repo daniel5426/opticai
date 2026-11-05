@@ -1,4 +1,6 @@
 import * as React from "react"
+import { useTableFilterLookups } from "@/hooks/useTableFilterLookups"
+import { TableExportContext } from "@/components/table-export/context"
 import { Check, Filter, X } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
@@ -7,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
+  serializeColumnFilters,
   describeColumnFilter,
   hasColumnFilters,
   isActiveColumnFilter,
@@ -36,8 +39,11 @@ export function ColumnFiltersProvider({
   onChange,
   children,
 }: ColumnFiltersContextValue & { children: React.ReactNode }) {
-  const value = React.useMemo(() => ({ filters, definitions, onChange }), [filters, definitions, onChange])
-  return <ColumnFiltersContext.Provider value={value}>{children}</ColumnFiltersContext.Provider>
+  const { t } = useTranslation()
+  const value = React.useMemo(() => ({ filters, definitions: definitions.map(definition => definition.key === 'clinic' ? {...definition, label: t('companyClients.clinic')} : definition), onChange }), [filters, definitions, onChange, t])
+  const exportConfig = React.useContext(TableExportContext)
+  const filteredExport = React.useMemo(() => exportConfig ? { ...exportConfig, columnFilters: serializeColumnFilters(filters) } : null, [exportConfig, filters])
+  return <TableExportContext.Provider value={filteredExport}><ColumnFiltersContext.Provider value={value}>{children}</ColumnFiltersContext.Provider></TableExportContext.Provider>
 }
 
 /** Column filters for a table: controlled by the page (URL/server) when provided, otherwise local. */
@@ -52,6 +58,18 @@ export function useColumnFilterState(
     [onControlledChange],
   )
   return { filters, setFilters, active: hasColumnFilters(filters) }
+}
+
+function isLookupFilter(definition: ColumnFilterDefinition<any>) {
+  return definition.key === 'clinic' || definition.key === 'examiner' || (definition.key === 'type' && definition.kind === 'text')
+}
+function LookupFilterEditor({ definition, value, onChange }: { definition: ColumnFilterDefinition<any>; value: ColumnFilterValue | undefined; onChange: (value: ColumnFilterValue | undefined) => void }) {
+  const [lookup] = useTableFilterLookups([definition])
+  return <OptionsFilterEditor options={lookup.options ?? []} value={Array.isArray(value) ? value : []} onChange={onChange} />
+}
+function LookupFilterSummary({ definition, value }: { definition: ColumnFilterDefinition<any>; value: ColumnFilterValue }) {
+  const [lookup] = useTableFilterLookups([definition])
+  return <>{describeColumnFilter(lookup, value)}</>
 }
 
 function useColumnFilter(filterKey: string | undefined) {
@@ -122,7 +140,7 @@ export function ColumnFilterControl({ filterKey }: { filterKey?: string }) {
       <PopoverContent
         align="start"
         dir={direction}
-        className="w-64 p-0"
+        className={definition.kind === "date" ? "w-[min(360px,calc(100vw-2rem))] p-0" : "w-64 p-0"}
         onOpenAutoFocus={(event) => {
           // Let the text field take focus itself; other kinds keep the popover's default focus.
           if (definition.kind === "text") event.preventDefault()
@@ -141,10 +159,11 @@ export function ColumnFilterControl({ filterKey }: { filterKey?: string }) {
           )}
         </div>
         <div className="p-3">
-          {definition.kind === "text" && (
+          {isLookupFilter(definition) && <LookupFilterEditor definition={definition} value={filter.value} onChange={filter.setValue} />}
+          {!isLookupFilter(definition) && definition.kind === "text" && (
             <TextFilterEditor value={typeof filter.value === "string" ? filter.value : ""} onChange={filter.setValue} onSubmit={() => setOpen(false)} />
           )}
-          {definition.kind === "options" && (
+          {!isLookupFilter(definition) && definition.kind === "options" && (
             <OptionsFilterEditor
               options={definition.options ?? []}
               value={Array.isArray(filter.value) ? filter.value : []}
@@ -308,11 +327,11 @@ function DateFilterEditor({
       <div className="grid grid-cols-2 gap-2">
         <label className="space-y-1">
           <span className="text-xs text-muted-foreground">{t("columnFilters.from")}</span>
-          <Input type="date" value={value.from ?? ""} max={value.to} onChange={(event) => update({ from: event.target.value || undefined })} className="h-8 text-sm" dir="ltr" />
+          <Input type="date" value={value.from ?? ""} max={value.to} onChange={(event) => update({ from: event.target.value || undefined })} className="h-9 w-full min-w-0 px-2 text-sm" dir="ltr" />
         </label>
         <label className="space-y-1">
           <span className="text-xs text-muted-foreground">{t("columnFilters.to")}</span>
-          <Input type="date" value={value.to ?? ""} min={value.from} onChange={(event) => update({ to: event.target.value || undefined })} className="h-8 text-sm" dir="ltr" />
+          <Input type="date" value={value.to ?? ""} min={value.from} onChange={(event) => update({ to: event.target.value || undefined })} className="h-9 w-full min-w-0 px-2 text-sm" dir="ltr" />
         </label>
       </div>
     </div>
@@ -343,7 +362,7 @@ export function ActiveColumnFilters({ className }: { className?: string }) {
             className="inline-flex h-7 max-w-[18rem] items-center gap-1 rounded-full bg-primary/10 ps-2.5 pe-1 text-xs text-primary"
           >
             <span className="truncate">
-              <span className="font-medium">{definition.label}:</span> {summary}
+              <span className="font-medium">{definition.label}:</span> {isLookupFilter(definition) ? <LookupFilterSummary definition={definition} value={filters[definition.key]} /> : summary}
             </span>
             <button
               type="button"

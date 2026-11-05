@@ -1,6 +1,6 @@
 schema: agents24.workflow/v1
 name: Prysm Clinic Agent
-description: Clinic search and reports with native document and screenshot processing.
+description: Clinic search and reports with native document, screenshot and voice processing.
 inputs:
   text:
     type: string
@@ -17,6 +17,11 @@ inputs:
     semantic_type: images
     enabled: true
     required: false
+  audio:
+    type: list
+    semantic_type: audio
+    enabled: true
+    required: false
 outputs:
   response: string
 start:
@@ -25,6 +30,20 @@ start:
     seconds: 18000
 entry: document_extract
 nodes:
+  speech_to_text:
+    type: speech_to_text
+    with:
+      model_id: $models.speech
+      mime_types:
+        - audio/wav
+        - audio/mpeg
+        - audio/webm
+        - audio/mp4
+      input_sources:
+        - id: audio
+          value_ref:
+            namespace: workflow_input
+            key: audio
   document_extract:
     type: document_extract
     with:
@@ -65,12 +84,18 @@ nodes:
         label: Document contents
       - from: ocr.text
         label: Screenshot and scanned document contents
+      - from: speech_to_text.text
+        label: Voice message
 flow:
+  - from: start
+    to: speech_to_text
   - from: start
     to: ocr
   - from: document_extract
     to: assistant
   - from: ocr
+    to: assistant
+  - from: speech_to_text
     to: assistant
   - from: assistant.output_text
     to: output.response

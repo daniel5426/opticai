@@ -5,6 +5,7 @@ import { TablePagination } from '@/components/table-pagination';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAppLocale } from '@/localization/use-app-locale';
+import { tableLoadingRowCount } from '@/lib/table-loading';
 
 export function TableListPageContent({ children }: { children: React.ReactNode }) {
   const { direction } = useAppLocale();
@@ -35,7 +36,7 @@ export function TableListLayout({ toolbar, header, children, fillHeight = false,
         showTrailingRowBorder={fillHeight}
       >
         <TableHeader className="bg-card sticky top-0 z-0">{header}</TableHeader>
-        <TableBody>{loading ? Array.from({ length: 14 }, (_, row) => <TableRow key={row}>
+        <TableBody>{loading ? Array.from({ length: tableLoadingRowCount(pagination) }, (_, row) => <TableRow key={row}>
           {Array.from({ length: columnCount }, (_, column) => <TableCell key={column}><Skeleton className="my-2 h-4 w-[70%]" /></TableCell>)}
         </TableRow>) : emptyState ? <TableRow><TableCell colSpan={columnCount} className="h-24 text-center text-muted-foreground">{emptyState}</TableCell></TableRow> : children}</TableBody>
       </Table>

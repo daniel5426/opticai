@@ -34,7 +34,9 @@
 - `backend/config.py` reads `DATABASE_URL`, usually from `backend/.env`. The configured target may be a shared Supabase database; inspect its backend, host, database, and username without printing credentials before any schema mutation.
 - SQLAlchemy or Pydantic changes that alter the database schema require an Alembic migration under `backend/alembic/versions`.
 - Keep migrations production-safe and prefer expand/migrate/contract sequencing for destructive changes.
-- Do not automatically apply migrations to a shared or remote database merely because a migration was authored. Apply only when the requested task includes that environment mutation and the exact target is established.
+- Local clinic development uses the shared staging database, Supabase project `eoyqvffwzllggemzfxaw`. When working for the owner, verify the authenticated GitHub account is `daniel5426` with `gh api user --jq .login` (or equivalent authenticated API), then automatically apply required Alembic migrations as part of developing or repairing a feature; no separate confirmation is needed for this staging target.
+- Before each staging migration, verify the effective `DATABASE_URL` resolves to PostgreSQL database `postgres`, either pooler host `aws-0-eu-central-1.pooler.supabase.com` with username `postgres.eoyqvffwzllggemzfxaw`, or direct host `db.eoyqvffwzllggemzfxaw.supabase.co` with username `postgres`. Verify the current revision, review the pending migrations, apply them through Alembic, and confirm the resulting revision and affected behavior. Preserve existing data; destructive resets, drops, or unrelated backfills require explicit authorization.
+- This standing authorization does not apply to contributors or an unknown authenticated identity; the contributor prohibition on shared-database mutations remains in force. It never authorizes automatic production migrations or migrations against any other remote database. Those require explicit authorization for the exact environment or the repository's authorized release contract.
 - Let Alembic own schema state; do not add normal startup-time schema mutation guards. If schema state was changed manually, verify it before using an idempotent migration or stamp.
 
 ## App operations
@@ -42,3 +44,5 @@
 Read `Start.md` before local setup, startup, shutdown, or startup troubleshooting. Read `CI.md` before checks, CI changes, shipping, or production troubleshooting. Use the canonical scripts they identify. Update the relevant operational document when verified durable behavior changes.
 
 App-owned local services and workers start and stop with the app, preserving data. Separate apps, hosted/shared databases and shared host engines remain independent; declare ownership in `devdesk.json`.
+
+Shipping is coding-agent-owned through `CI.md`; DevDesk owns local lifecycle only. Every ship must select proportionate checks and inspect/improve its speed, including successful runs; report the bottleneck and improvement. Do not default to full suites, repeated builds or isolated repository copies.

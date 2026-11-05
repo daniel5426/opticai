@@ -1,3 +1,4 @@
+from services.imported_client_history import clinical_exam_filter
 from security.scope import record_filter
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -11,7 +12,7 @@ from schemas import OpticalExam as OpticalExamSchema, OpticalExamCreate
 from auth import get_current_user
 from .exam_layouts import build_layout_tree
 from services.prism_axis_compatibility import normalize_prism_axis_exam_data
-from utils.column_filters import ColumnFilter, build_column_filter_conditions
+from utils.column_filters import lookup_filter, ColumnFilter, build_column_filter_conditions
 from utils.table_search import build_all_terms_search_condition, search_blob, spaced_concat, split_search_terms
 from security.scope import (
     apply_clinic_user_scope,
@@ -35,7 +36,7 @@ def exam_list_query(db, current_user, clinic_id, search, test_name, type, order,
     ).outerjoin(User, OpticalExam.user_id == User.id).outerjoin(Client, OpticalExam.client_id == Client.id).outerjoin(Clinic, (Clinic.id == OpticalExam.clinic_id) & (Clinic.company_id == OpticalExam.company_id))
 
     allowed_clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
-    base_query = base_query.filter(record_filter(db, current_user, OpticalExam, clinic_id))
+    base_query = base_query.filter(clinical_exam_filter()).filter(record_filter(db, current_user, OpticalExam, clinic_id))
 
     # Apply filters
     if type:
@@ -69,8 +70,8 @@ def exam_list_query(db, current_user, clinic_id, search, test_name, type, order,
         "exam_date": ColumnFilter(OpticalExam.exam_date, "date"),
         "test_name": ColumnFilter(OpticalExam.test_name, "options"),
         "client": ColumnFilter(spaced_concat(Client.first_name, Client.last_name)),
-        "clinic": ColumnFilter(func.coalesce(Clinic.name, OpticalExam.clinic)),
-        "examiner": ColumnFilter(func.coalesce(User.full_name, User.username)),
+        "clinic": lookup_filter(OpticalExam.clinic_id, func.coalesce(Clinic.name, OpticalExam.clinic)),
+        "examiner": lookup_filter(OpticalExam.user_id, func.coalesce(User.full_name, User.username)),
     }))
 
     # Count total before pagination
@@ -142,7 +143,7 @@ def get_exams(
     current_user: User = Depends(get_current_user)
 ):
     """Get all exams with optional filtering"""
-    query = db.query(OpticalExam)
+    query = db.query(OpticalExam).filter(clinical_exam_filter())
     allowed_clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
     query = query.filter(record_filter(db, current_user, OpticalExam, clinic_id))
     
@@ -397,7 +398,7 @@ def get_exams_by_client(
 ):
     """Get all exams for a specific client"""
     client_id = get_scoped_client(db, current_user, client_id).id
-    query = db.query(OpticalExam, Clinic.name).outerjoin(Clinic, (Clinic.id == OpticalExam.clinic_id) & (Clinic.company_id == OpticalExam.company_id)).filter(OpticalExam.client_id == client_id, record_filter(db, current_user, OpticalExam, clinic_id))
+    query = db.query(OpticalExam, Clinic.name).outerjoin(Clinic, (Clinic.id == OpticalExam.clinic_id) & (Clinic.company_id == OpticalExam.company_id)).filter(clinical_exam_filter(), OpticalExam.client_id == client_id, record_filter(db, current_user, OpticalExam, clinic_id))
     
     # Apply filters
     if type:

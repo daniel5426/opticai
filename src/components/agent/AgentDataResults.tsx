@@ -9,21 +9,18 @@ import { useAppLocale } from '@/localization/use-app-locale';
 import { agentJson, downloadAgentReport } from '@/services/agent-client';
 import { AgentLink } from './AgentLinks';
 import { ReportChart, type ReportChartData } from './ReportChart';
+import { parseAgentDataResult, type AgentDataResult as Result } from '@/lib/agent-result-data';
 
 type Row = Record<string, unknown>;
 type Source = { path?: string };
 type Match = { source_date?: string; component_key?: string; distance?: number; source?: Source;
   eyes?: Record<string, { values?: Row; differences?: Record<string, { requested: unknown; recorded: unknown; difference: number }> }> };
-type Result = { type?: string; title?: string; show_table?: boolean; show_stats?: boolean; items?: Row[]; total?: number; next_offset?: number | null; index_ready?: boolean;
-  columns?: string[]; column_labels?: Record<string, string>; rows?: Row[]; job_id?: string; definition?: Row; status?: string; exports?: Record<string, string>;
-  charts?: ReportChartData[];
-  metrics?: { key: string; currency?: string | null; current: number | null; previous?: number | null; change_percent?: number | null }[];
-  period?: { start: string; end: string }; comparison?: { start: string; end: string; total: number; rows: Row[] }; definitions?: Row; limitations?: string[]; coverage?: Row };
 const object = (value: unknown): Row => value && typeof value === 'object' && !Array.isArray(value) ? value as Row : {};
 
 function useColumnLabel() {
   const { t } = useTranslation();
   return (column: string) => {
+    if (typeof column !== 'string' || !column) return t('agent.column.value');
     const [, aggregate, field] = column.match(/^(sum|avg|min|max|count_distinct|count)_(.*)$/) || [];
     const key = (field || column).split('.').at(-1)!;
     const label = t(`agent.column.${key}`, { defaultValue: t('agent.column.value') });
@@ -113,13 +110,14 @@ function ReportResult({ initial, embedded = false }: { initial: Result; embedded
     queryFn: () => agentJson<Result>(scope!, `/reports/${initial.job_id}/page?offset=${offset}`),
     refetchInterval: query => query.state.data?.status && ['queued', 'running'].includes(query.state.data.status) ? 1500 : false,
     retry: false });
-  const result = query.data || initial;
+  const parsed = React.useMemo(() => parseAgentDataResult(query.data || initial), [query.data, initial]);
+  const result = parsed.data;
   const downloading = async (format: string) => {
-    if (!scope || !result.exports?.[format]) return;
+    if (!scope || !result?.exports?.[format]) return;
     try { await downloadAgentReport(scope, result.exports[format]); } catch { setError(true); }
   };
   const save = async () => {
-    if (!scope || !result.definition) return;
+    if (!scope || !result?.definition) return;
     setSaving(true); setError(false);
     try {
       await agentJson(scope, '/saved-reports', { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -128,10 +126,11 @@ function ReportResult({ initial, embedded = false }: { initial: Result; embedded
       void queryClient.invalidateQueries({ queryKey: ['agent-saved-reports'] });
     } catch { setError(true); } finally { setSaving(false); }
   };
-  if (query.isError) return <p role="alert" className="text-xs text-destructive">{t('agent.data.unavailable')}</p>;
+  if (query.isError || !result) return <p role="alert" className="text-xs text-destructive">{t('agent.data.unavailable')}</p>;
   if (result.status === 'failed' || result.status === 'cancelled') return <p role="status" className="text-xs text-muted-foreground">{t(`agent.job.${result.status}`)}</p>;
   if (!result.columns) return <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="size-3.5 animate-spin" aria-hidden />{t('agent.job.running')}</p>;
   return <div className="space-y-4">
+    {parsed.invalid && <UnavailableResult />}
     {!embedded && <div className="flex flex-wrap items-center gap-2"><p className="me-auto text-sm font-medium">{String(result.definition?.title || t('agent.report'))}</p>
       <Button variant="ghost" size="sm" disabled={saved || saving} onClick={() => void save()}><Bookmark className="size-3.5" />{t(saved ? 'agent.data.saved' : 'agent.data.save')}</Button>
       {['xlsx', 'csv'].map(format => <Button key={format} variant="outline" size="sm" onClick={() => void downloading(format)}><Download className="size-3.5" /><bdi>{format === 'xlsx' ? 'Excel' : 'CSV'}</bdi></Button>)}
@@ -142,7 +141,7 @@ function ReportResult({ initial, embedded = false }: { initial: Result; embedded
       <dd className="mt-1 truncate text-lg font-medium tabular-nums" title={valueText(metric.current, locale)}><bdi>{valueText(metric.current, locale)}</bdi></dd>
       {metric.previous !== undefined && metric.previous !== null && <dd className="mt-1 truncate text-xs text-muted-foreground">{t('agent.data.previous')}: <bdi>{valueText(metric.previous, locale)}</bdi>{metric.change_percent !== null && <bdi> · {valueText(metric.change_percent, locale)}%</bdi>}</dd>}
     </div>)}</dl>}
-    {result.charts?.map((chart, index) => <ReportChart key={index} chart={chart} label={key => result.column_labels?.[key] || label(key)} />)}
+    {result.charts?.map((chart, index) => <ReportChart key={index} chart={chart as ReportChartData} label={key => result.column_labels?.[key] || label(key)} />)}
     {result.show_table !== false && <ResultTable columns={result.columns} rows={result.rows || []} labels={result.column_labels} />}
     {result.show_table !== false && result.comparison && <details className="space-y-2 text-xs text-muted-foreground"><summary className="cursor-pointer">{t('agent.data.comparisonPeriod')} · <bdi>{result.comparison.start}</bdi> – <bdi>{result.comparison.end}</bdi></summary>
       <ResultTable columns={result.columns} rows={result.comparison.rows} labels={result.column_labels} />
@@ -163,13 +162,33 @@ function ReportResult({ initial, embedded = false }: { initial: Result; embedded
   </div>;
 }
 
-export function AgentDataResults({ output, embedded = false }: { output: unknown; embedded?: boolean }) {
-  const result = object(output) as Result;
+function UnavailableResult() {
+  const { t } = useTranslation();
+  return <p role="alert" className="text-xs text-destructive">{t('agent.data.unavailable')}</p>;
+}
+
+class ResultBoundary extends React.Component<{ children: React.ReactNode; output: unknown }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidUpdate(previous: { output: unknown }) {
+    if (this.state.failed && previous.output !== this.props.output) this.setState({ failed: false });
+  }
+  render() { return this.state.failed ? <UnavailableResult /> : this.props.children; }
+}
+
+export function AgentDataResults(props: { output: unknown; embedded?: boolean }) {
+  return <ResultBoundary output={props.output}><DataResults {...props} /></ResultBoundary>;
+}
+
+function DataResults({ output, embedded = false }: { output: unknown; embedded?: boolean }) {
+  const parsed = React.useMemo(() => parseAgentDataResult(output), [output]);
+  const result = parsed.data;
   const { t } = useTranslation();
   const [open, setOpen] = React.useState(true);
-  if (!['record_search', 'prescription_search', 'document_search', 'report_run', 'report_result'].includes(String(result.type))) return null;
+  if (!['record_search', 'prescription_search', 'document_search', 'report_run', 'report_result'].includes(String(object(output).type))) return null;
+  if (!result) return <UnavailableResult />;
   return <section className="min-w-0 space-y-3" aria-label={t('agent.data.results')}>
-    {result.type?.startsWith('report_') ? <ReportResult initial={result} embedded={embedded} /> : <>
+    {result.type?.startsWith('report_') ? <ReportResult initial={output as Result} embedded={embedded} /> : <>
       <button type="button" aria-expanded={open} className="flex min-h-9 items-center gap-2 text-xs text-muted-foreground" onClick={() => setOpen(value => !value)}>
         {t('agent.data.resultCount', { count: result.total || 0 })}{open ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
       </button>
@@ -181,7 +200,7 @@ export function AgentDataResults({ output, embedded = false }: { output: unknown
         const title = [values.first_name, values.last_name].filter(Boolean).join(' ') || String(values.test_name || values.file_name || values.name || values.product || values.title || values.id || item.title || t('agent.openRecord'));
         return <li key={index} className="rounded-xl border border-border/50 bg-card p-3 text-sm shadow-sm"><AgentLink href={source.path}>{title}</AgentLink>
           <p className="mt-1 text-xs text-muted-foreground">{Object.values(object(item.matched_fields)).slice(0, 4).map(String).join(' · ') || String(item.excerpt || '')}</p>
-          {Array.isArray(object(item.evidence).locations) && <p className="mt-1 text-xs text-muted-foreground">{(object(item.evidence).locations as Row[]).filter(location => typeof location.page_number === 'number').map(location => t('agent.data.page', { number: location.page_number })).join(' · ')}</p>}
+          {Array.isArray(object(item.evidence).locations) && <p className="mt-1 text-xs text-muted-foreground">{(object(item.evidence).locations as unknown[]).filter((location): location is Row => typeof object(location).page_number === 'number').map(location => t('agent.data.page', { number: location.page_number })).join(' · ')}</p>}
         </li>;
       })}</ul>)}
       {result.next_offset != null && <p className="text-xs text-muted-foreground">{t('agent.data.moreAvailable')}</p>}

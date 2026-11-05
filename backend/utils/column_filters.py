@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from sqlalchemy import String, cast, func, literal, or_
 from sqlalchemy.sql.elements import ColumnElement
 
-ColumnFilterKind = Literal["text", "options", "date"]
+ColumnFilterKind = Literal["text", "options", "lookup", "date"]
 
 MAX_TEXT_LENGTH = 200
 MAX_OPTION_VALUES = 50
@@ -67,7 +67,7 @@ def build_column_filter_conditions(
         if column is None:
             continue
 
-        if column.kind == "text":
+        if column.kind == "text" or (column.kind == "lookup" and isinstance(value, str)):
             if not isinstance(value, str):
                 raise _invalid(f"'{key}' expects text")
             text = value.strip()[:MAX_TEXT_LENGTH]
@@ -76,7 +76,7 @@ def build_column_filter_conditions(
             haystack = func.lower(func.coalesce(cast(column.expression, String), literal("")))
             conditions.append(haystack.like(f"%{_escape_like(text.lower())}%", escape="\\"))
 
-        elif column.kind == "options":
+        elif column.kind in ("options", "lookup"):
             values = [value] if isinstance(value, str) else value
             if not isinstance(values, list) or not all(isinstance(item, str) for item in values):
                 raise _invalid(f"'{key}' expects a list of options")
@@ -104,3 +104,15 @@ def build_column_filter_conditions(
                 conditions.append(column.expression < end + timedelta(days=1))
 
     return conditions
+
+
+def lookup_filter(id_expression, name_expression=None):
+    def condition(value):
+        if value == "__none__":
+            return id_expression.is_(None)
+        if value.isdigit():
+            return id_expression == int(value)
+        if name_expression is not None:
+            return func.lower(func.coalesce(name_expression, "")).like(f"%{_escape_like(value.lower())}%", escape="\\")
+        return id_expression == -1
+    return ColumnFilter(None, "options", option_condition=condition)

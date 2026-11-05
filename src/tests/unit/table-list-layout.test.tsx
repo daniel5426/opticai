@@ -49,9 +49,9 @@ describe.each(['he','en','fr'] as const)('shared Orders and Exams layout in %s',
     await i18n.changeLanguage(locale);
     const cache=new QueryClient({defaultOptions:{queries:{retry:false}}});
     const wrapper=({children}:{children:React.ReactNode})=><QueryClientProvider client={cache}>{children}</QueryClientProvider>;
-    const {rerender}=render(<ExamsTable data={[]} clientId={0} loading fillHeight onExamDeleted={()=>{}} onExamDeleteFailed={()=>{}}/>,{wrapper});
+    const {rerender}=render(<ExamsTable data={[]} clientId={0} loading fillHeight pagination={{page:1,pageSize:25,total:null,setPage:()=>{}}} onExamDeleted={()=>{}} onExamDeleteFailed={()=>{}}/>,{wrapper});
     const table=screen.getByRole('table');
-    expect(table.querySelectorAll('tbody tr')).toHaveLength(14);
+    expect(table.querySelectorAll('tbody tr')).toHaveLength(25);
     expect(table.querySelector('tbody tr')!.children).toHaveLength(6);
     rerender(<ExamsTable data={[]} clientId={0} loading={false} fillHeight onExamDeleted={()=>{}} onExamDeleteFailed={()=>{}}/>);
     expect(screen.getByRole('table')).toBe(table);

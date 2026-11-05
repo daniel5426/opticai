@@ -1,0 +1,29 @@
+{
+  "he": {
+    "phone": "טלפון",
+    "phoneKind": "סוג טלפון",
+    "home": "בית",
+    "work": "עבודה",
+    "homePhone": "טלפון בית",
+    "workPhone": "טלפון עבודה",
+    "email": "אימייל"
+  },
+  "en": {
+    "phone": "Phone",
+    "phoneKind": "Phone type",
+    "home": "Home",
+    "work": "Work",
+    "homePhone": "Home phone",
+    "workPhone": "Work phone",
+    "email": "Email"
+  },
+  "fr": {
+    "phone": "Téléphone",
+    "phoneKind": "Type de téléphone",
+    "home": "Domicile",
+    "work": "Travail",
+    "homePhone": "Téléphone fixe",
+    "workPhone": "Téléphone professionnel",
+    "email": "E-mail"
+  }
+}

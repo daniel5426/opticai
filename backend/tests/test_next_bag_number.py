@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from models import Clinic, Company, ContactLensOrder, Order
+from models import Clinic, Company, Client, ContactLensOrder, Order
 from tests.test_table_search import _client, _seed, _session_factory
 
 
@@ -21,6 +21,8 @@ def test_next_bag_number_matches_client_parse_int_across_order_kinds():
         other_clinic = Clinic(company_id=other_company.id, name="Clinic B", unique_id="clinic-b")
         db.add(other_clinic)
         db.flush()
+        foreign_client = Client(company_id=other_company.id, clinic_id=other_clinic.id, first_name="Foreign")
+        db.add(foreign_client); db.flush()
         db.add_all([
             _order(client_id, clinic_id, "7"),
             _order(client_id, clinic_id, 12),            # stored as a JSON number
@@ -30,7 +32,7 @@ def test_next_bag_number_matches_client_parse_int_across_order_kinds():
             _order(client_id, clinic_id, ""),
             _order(client_id, clinic_id, ...),           # no bag number at all
             _order(client_id, clinic_id, "99", deleted_at=datetime(2026, 1, 1)),  # deleted orders are hidden
-            _order(client_id, other_clinic.id, "500"),   # another company's clinic is out of scope
+            _order(foreign_client.id, other_clinic.id, "500"),   # another company's clinic is out of scope
             ContactLensOrder(client_id=client_id, clinic_id=clinic_id, order_date=date(2026, 5, 6), type="CL", order_data={"details": {"bag_number": "20"}}),
         ])
         db.commit()

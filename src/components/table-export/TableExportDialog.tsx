@@ -16,7 +16,7 @@ export function TableExportDialog({ open, onOpenChange, snapshot: openingSnapsho
   const { locale, direction } = useAppLocale();
   const task = useSyncExternalStore(subscribeExportTasks, () => getExportTask(taskKey));
   const [snapshot, setSnapshot] = useState(() => task?.snapshot || openingSnapshot);
-  const defaults = (source = snapshot): ExportRequest => ({ table: source.table, clinic_id: source.clinicId ?? null, search: source.search, filters: Object.fromEntries(source.filters.map(f => [f.key, f.value])), columns: source.columns || [...exportColumns[source.table]], sort: source.sort, locale, format: 'xlsx', start_date: null, end_date: null, request_key: crypto.randomUUID() });
+  const defaults = (source = snapshot): ExportRequest => ({ table: source.table, column_filters: source.columnFilters || '', clinic_id: source.clinicId ?? null, search: source.search, filters: Object.fromEntries(source.filters.map(f => [f.key, f.value])), columns: source.columns || [...exportColumns[source.table]], sort: source.sort, locale, format: 'xlsx', start_date: null, end_date: null, request_key: crypto.randomUUID() });
   const [request, setRequest] = useState<ExportRequest>(() => task?.request || defaults());
   const [period, setPeriod] = useState(request.start_date ? 'custom' : 'all');
   const [count, setCount] = useState<{ key: string; rows: number } | null>(null);

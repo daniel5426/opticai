@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Float, ForeignKey, Date, JSON, Index, UniqueConstraint, CheckConstraint, literal
+from sqlalchemy import Numeric, Column, Integer, String, Boolean, DateTime, Text, Float, ForeignKey, Date, JSON, Index, UniqueConstraint, CheckConstraint, literal
 from sqlalchemy.orm import declared_attr, relationship, backref, synonym, column_property
 from sqlalchemy.sql import func, false
 from database import Base
@@ -356,6 +356,7 @@ class AuthActionToken(Base):
     id = Column(String, primary_key=True)
     token_hash = Column(String, nullable=False, unique=True, index=True)
     purpose = Column(String(32), nullable=False, index=True)
+    failed_attempts = Column(Integer, nullable=False, default=0, server_default="0")
     pending_setup_id = Column(String, ForeignKey("pending_company_setups.id", ondelete="CASCADE"), index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
     expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
@@ -729,6 +730,17 @@ class OrderGroupEntry(Base):
     group = relationship("OrderGroup")
 
 
+class DiscountDefinition(Base):
+    __tablename__ = "discount_definitions"
+    __table_args__ = (CheckConstraint("amount > 0", name="ck_discount_definitions_amount"),)
+
+    id = Column(Integer, primary_key=True)
+    clinic_id = Column(Integer, ForeignKey("clinics.id", ondelete="CASCADE"), nullable=False, index=True)
+    description = Column(String(200), nullable=False)
+    amount = Column(Numeric(12, 2), nullable=False)
+    currency = Column(String(3), nullable=False)
+
+
 class Billing(Base):
     __tablename__ = "billings"
     
@@ -737,6 +749,9 @@ class Billing(Base):
     order_group = relationship("OrderGroup")
     order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"))
     contact_lens_id = Column(Integer, ForeignKey("contact_lens_orders.id", ondelete="CASCADE"))
+    # Preserve imported header context when billing lines are deliberately changed.
+    line_subtotal_offset = Column(Float, nullable=True)
+    line_total_offset = Column(Float, nullable=True)
     total_before_discount = Column(Float)
     discount_amount = Column(Float)
     discount_percent = Column(Float)

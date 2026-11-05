@@ -1,3 +1,5 @@
+import { CenteredLayoutWidth } from "@/components/exam/CenteredLayoutWidth";
+import { LayoutEditorHelp } from "@/components/exam/LayoutEditorHelp";
 import React, {
   useCallback,
   useEffect,
@@ -206,6 +208,8 @@ export default function ExamLayoutEditorPage() {
   const autoScrollFrameRef = useRef<number | null>(null);
   const scrollContainerRef = useRef<HTMLElement | Window | null>(null);
   const [layoutSizeScale, setLayoutSizeScale] = useState(1);
+  const [sideInsetPx, setSideInsetPx] = useState(0);
+  const [layoutWidthPx, setLayoutWidthPx] = useState<number>();
 
   useEffect(() => {
     itemsRef.current = items;
@@ -241,6 +245,8 @@ export default function ExamLayoutEditorPage() {
           setLayoutClinicId(layout.clinic_id ?? null);
           const parsed = parseLayoutData(layout.layout_data || "[]");
           setItems(parsed.items);
+          setSideInsetPx(parsed.sideInsetPx ?? 0);
+          setLayoutWidthPx(parsed.layoutWidthPx);
         }
       } catch (error) {
         console.error("Error loading layout:", error);
@@ -819,6 +825,8 @@ export default function ExamLayoutEditorPage() {
         name: layoutName,
         layout_data: serializeGridLayoutData(items, EXAM_LAYOUT_GRID_COLUMNS, {
           sizeScale: layoutSizeScale,
+          sideInsetPx,
+          layoutWidthPx,
         }),
         is_default: isDefault,
         type: layoutType,
@@ -930,6 +938,7 @@ export default function ExamLayoutEditorPage() {
               }}
               onSelectComponent={handleSelectComponent}
             />
+            <LayoutEditorHelp />
           </div>
 
           <div className="flex gap-2">
@@ -945,12 +954,9 @@ export default function ExamLayoutEditorPage() {
           </div>
         </div>
 
-        <div className="mb-4 rounded-lg border bg-blue-50 p-4 text-sm text-blue-800">
-          לחץ על שורה כדי לבחור רכיב ולהוסיף אותו שם. גרור כרטיסים בין תאים
-          ושורות, וגרור את אחד מקצוות הכרטיס כדי לשנות רוחב.
-        </div>
-
+        <CenteredLayoutWidth layoutWidthPx={layoutWidthPx} sideInsetPx={sideInsetPx} onChange={width => { setLayoutWidthPx(width); setSideInsetPx(0); }}>
         <div
+          data-exam-layout-editor
           className="border-border overflow-hidden rounded-md border"
           dir="ltr"
         >
@@ -1107,6 +1113,7 @@ export default function ExamLayoutEditorPage() {
             );
           })}
         </div>
+        </CenteredLayoutWidth>
       </div>
     </>
   );

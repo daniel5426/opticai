@@ -1,3 +1,4 @@
+import { NewExamLayoutMenuContent } from "@/components/exam/NewExamLayoutMenuContent";
 import * as React from "react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { IconDots } from "@tabler/icons-react";
@@ -678,7 +679,7 @@ export function SidebarQuickActions({
             <DropdownMenuTrigger asChild>
               <QuickActionButton action={action} />
             </DropdownMenuTrigger>
-            <DropdownMenuContent side={direction === "rtl" ? "left" : "right"} align="start" sideOffset={8}>
+            <NewExamLayoutMenuContent side={direction === "rtl" ? "left" : "right"} align="start" sideOffset={8}>
               {isExamLayoutsLoading ? (
                 <DropdownMenuItem disabled>
                   טוען סוגי בדיקות...
@@ -701,7 +702,7 @@ export function SidebarQuickActions({
                   {layout.name}
                 </DropdownMenuItem>
               ))}
-            </DropdownMenuContent>
+            </NewExamLayoutMenuContent>
           </DropdownMenu>
         );
       }

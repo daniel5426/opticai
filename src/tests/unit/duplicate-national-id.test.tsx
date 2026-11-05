@@ -29,7 +29,7 @@ describe("duplicate national ID check", () => {
     });
     const { result } = renderHook(() => useDuplicateNationalId("22153451", 60), { wrapper });
     await waitFor(() => expect(result.current?.id).toBe(9));
-    expect(vi.mocked(getPaginatedClients).mock.calls[0][1]?.columnFilters).toBe(JSON.stringify({ national_id: "22153451" }));
+    expect(vi.mocked(getPaginatedClients).mock.calls[0][1]?.nationalIdExact).toBe("22153451");
   });
 
   test("leaves out the client being edited", async () => {

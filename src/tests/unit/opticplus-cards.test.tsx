@@ -8,6 +8,15 @@ import { examComponentRegistry } from '@/lib/exam-component-registry';
 import labels from '@/localization/opticplus-cards.json';
 
 afterEach(cleanup);
+test.each(['en', 'he', 'fr'])('imported text follows %s direction while numeric notation stays LTR', async locale => {
+  await i18n.changeLanguage(locale);
+  render(<OpticPlusMigrationCard type="opticplus-contact-fitting" data={{card_instance_id:'direction',cnrtype:'lens type',cnrsph:'-3.25'}} isEditing={false} onChange={vi.fn()} />);
+  const text = screen.getByRole('textbox', {name:i18n.t('opticplusCards.fields.cnrtype')});
+  const number = screen.getByRole('textbox', {name:i18n.t('opticplusCards.fields.cnrsph')});
+  expect(text.getAttribute('dir')).toBe(locale === 'he' ? 'rtl' : 'ltr');
+  expect(number.getAttribute('dir')).toBe('ltr');
+  expect(text.style.textAlign).toBe(locale === 'he' ? 'right' : 'left');
+});
 describe.each(['en', 'he', 'fr'] as const)('OpticPlus cards %s', locale => {
   test('shows false and zero, translates fields, and edits booleans without losing their type', async () => {
     await i18n.changeLanguage(locale);

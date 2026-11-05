@@ -1,3 +1,4 @@
+import i18n from "@/localization/i18n";
 import { exportHtmlToPdf, printHtml } from "@/lib/pdf-exporter";
 import type {
   ContactOrderPrintModel,
@@ -36,6 +37,12 @@ function htmlText(value?: string | number | null): string {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;")
     .replace(/\n/g, "<br />");
+}
+
+function billingItemsTable(data: RegularOrderPrintModel | ContactOrderPrintModel): string {
+  const rows = data.line_items_rows?.filter(row => row.line_index);
+  if (!rows?.length) return "";
+  return `${sectionTitle(i18n.t("orderGroupBillingItems"))}<table dir="${i18n.dir()}" style="text-align:start"><thead><tr><th>${htmlText(i18n.t("orderGroupDescription"))}</th><th>${htmlText(i18n.t("orderGroupAmount"))}</th></tr></thead><tbody>${rows.map(row => `<tr><td>${htmlText(row.line_description)}</td><td dir="ltr">${htmlText(row.line_total)}</td></tr>`).join("")}</tbody></table>`;
 }
 
 function buildPdfFileName(
@@ -338,7 +345,7 @@ export function renderRegularOrderPdfHtml(data: RegularOrderPrintModel, logoUrl?
       ["אורך זרוע", data.frame_length],
       ["סופק על ידי", data.frame_supplied_by],
     ], 3),
-    ...(includeBilling ? [sectionTitle("סיכום כספי"),
+    ...(includeBilling ? [billingItemsTable(data), sectionTitle("סיכום כספי"),
     combinedFieldTable([
       ['סה"כ', data.total_price],
       ["שולם", data.amount_paid],
@@ -398,7 +405,7 @@ export function renderContactOrderPdfHtml(data: ContactOrderPrintModel, logoUrl?
       ["חיטוי", data.disinfection_solution],
       ["שטיפה", data.rinsing_solution],
     ], 3),
-    ...(includeBilling ? [sectionTitle("סיכום כספי"),
+    ...(includeBilling ? [billingItemsTable(data), sectionTitle("סיכום כספי"),
     combinedFieldTable([
       ['סה"כ', data.total_price],
       ["שולם", data.amount_paid],

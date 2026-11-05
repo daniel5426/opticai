@@ -1,5 +1,5 @@
 
-import { GOOGLE_CONFIG, GOOGLE_OAUTH_URL, GOOGLE_TOKEN_URL } from './google-config';
+import { authenticateGoogleWeb, refreshGoogleWebToken } from './google-web-oauth';
 
 export interface GoogleTokens {
   access_token: string;
@@ -17,94 +17,7 @@ export interface GoogleUserInfo {
 }
 
 export const googleWebAPI = {
-  async googleOAuthAuthenticate(): Promise<any> {
-    return new Promise((resolve, reject) => {
-      const params = new URLSearchParams({
-        client_id: GOOGLE_CONFIG.clientId,
-        redirect_uri: GOOGLE_CONFIG.redirectUri,
-        response_type: 'code',
-        scope: GOOGLE_CONFIG.scopes.join(' '),
-        access_type: 'offline',
-        prompt: 'consent'
-      });
-      
-      const url = `${GOOGLE_OAUTH_URL}?${params.toString()}`;
-      const popup = window.open(url, 'google-oauth', 'width=500,height=600');
-      
-      if (!popup) {
-        return resolve({ success: false, error: 'Popup blocked' });
-      }
-
-      // We use BroadcastChannel which we already set up in App.tsx and GoogleAuthCallbackPage.tsx
-      const channel = new BroadcastChannel('google-oauth-channel');
-      
-      const timeout = setTimeout(() => {
-        channel.close();
-        resolve({ success: false, error: 'Authentication timeout' });
-      }, 60000);
-
-      channel.onmessage = async (event) => {
-        if (event.data.type === 'GOOGLE_AUTH_CODE') {
-          clearTimeout(timeout);
-          channel.close();
-          popup.close();
-          
-          const code = event.data.code;
-          try {
-            const result = await this.exchangeCodeForTokens(code);
-            resolve(result);
-          } catch (error) {
-            resolve({ success: false, error: error instanceof Error ? error.message : 'Token exchange failed' });
-          }
-        }
-      };
-    });
-  },
-
-  async exchangeCodeForTokens(code: string): Promise<any> {
-    const response = await fetch(GOOGLE_TOKEN_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        code,
-        client_id: GOOGLE_CONFIG.clientId,
-        client_secret: GOOGLE_CONFIG.clientSecret,
-        redirect_uri: GOOGLE_CONFIG.redirectUri,
-        grant_type: 'authorization_code',
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error_description || 'Failed to exchange code');
-    }
-
-    const tokens = await response.json();
-    
-    // Get user info
-    const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-      headers: { Authorization: `Bearer ${tokens.access_token}` },
-    });
-    
-    const userInfo = await userResponse.json();
-
-    return {
-      success: true,
-      tokens: {
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        id_token: tokens.id_token,
-        scope: tokens.scope,
-        token_type: tokens.token_type,
-        expiry_date: Date.now() + (tokens.expires_in * 1000)
-      },
-      userInfo: {
-        email: userInfo.email,
-        name: userInfo.name,
-        picture: userInfo.picture
-      }
-    };
-  },
+  googleOAuthAuthenticate: authenticateGoogleWeb,
 
   async googleCalendarCreateEvent(tokens: any, appointment: any, client?: any): Promise<string | null> {
     try {
@@ -228,31 +141,7 @@ export const googleWebAPI = {
     }
   },
 
-  async googleOAuthRefreshToken(refreshToken: string): Promise<any> {
-    try {
-      const response = await fetch(GOOGLE_TOKEN_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          refresh_token: refreshToken,
-          client_id: GOOGLE_CONFIG.clientId,
-          client_secret: GOOGLE_CONFIG.clientSecret,
-          grant_type: 'refresh_token',
-        }),
-      });
-
-      if (!response.ok) return { success: false };
-      const data = await response.json();
-      return {
-        success: true,
-        access_token: data.access_token,
-        refresh_token: data.refresh_token || refreshToken,
-        expiry_date: Date.now() + (data.expires_in * 1000)
-      };
-    } catch (error) {
-      return { success: false, error: String(error) };
-    }
-  },
+  googleOAuthRefreshToken: refreshGoogleWebToken,
 
   async googleOAuthValidateTokens(tokens: any): Promise<boolean> {
     if (!tokens?.access_token) return false;

@@ -225,6 +225,10 @@ class ApiClient {
     }
   }
 
+  public discountRequest<T>(path: string, options?: RequestInit) {
+    return this.request<T>(`/discounts${path}`, options);
+  }
+
   public orderGroupRequest<T>(path: string, options?: RequestInit) {
     return this.request<T>(`/order-groups${path}`, options);
   }
@@ -730,9 +734,11 @@ class ApiClient {
 
   async getClientsPaginated(
     clinicId?: number,
-    options?: { limit?: number; offset?: number; order?: string; q?: string; gender?: string; columnFilters?: string; allClinics?: boolean; includeTotal?: boolean; countOnly?: boolean }
+    options?: { limit?: number; offset?: number; order?: string; q?: string; gender?: string; columnFilters?: string; nationalIdExact?: string; excludeClientId?: number; allClinics?: boolean; includeTotal?: boolean; countOnly?: boolean }
   ) {
     const params = new URLSearchParams();
+    if (options?.nationalIdExact !== undefined) params.append('national_id_exact', options.nationalIdExact);
+    if (options?.excludeClientId !== undefined) params.append('exclude_client_id', String(options.excludeClientId));
     if (options?.allClinics) params.append('all_clinics', 'true');
     else if (clinicId) params.append('clinic_id', clinicId.toString());
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
@@ -2680,6 +2686,7 @@ class ApiClient {
     includeDocuments: boolean;
     importUsers?: boolean;
     clientImportLimit?: number | null;
+    clientAccountCode?: string | null;
     bundleFormatVersion?: number | null;
     sourceFingerprint?: string | null;
     previousImportJobId?: string | null;
@@ -2698,6 +2705,7 @@ class ApiClient {
           include_documents: data.includeDocuments,
           import_users: data.importUsers ?? false,
           client_import_limit: data.clientImportLimit ?? null,
+          client_account_code: data.clientAccountCode ?? null,
         },
       }),
     });
@@ -2735,6 +2743,10 @@ class ApiClient {
     return this.request<{ items: Array<{ source_key: string; values: Record<string, unknown> }>; total: number; page: number; limit: number }>(
       `/migration/imports/${jobId}/reference-data?${params}`,
     );
+  }
+
+  async getImportedProfileHistory(clientId: number) {
+    return this.request<{available: boolean; source_system: string; values: Record<string, unknown>}>(`/migration-source-data/client/${clientId}/profile-history`);
   }
 
   async getMigrationSourceDataSummary(

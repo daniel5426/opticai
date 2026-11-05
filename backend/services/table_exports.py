@@ -50,6 +50,7 @@ class ExportRequest(BaseModel):
     clinic_id: int | None = Field(default=None, gt=0)
     search: str = Field(default='', max_length=500)
     filters: dict[str, str] = Field(default_factory=dict)
+    column_filters: str = Field(default='', max_length=12000)
     columns: list[str] = Field(min_length=1, max_length=20)
     sort: str = Field(default='', max_length=80)
     locale: Literal['he', 'en', 'fr'] = 'he'
@@ -129,22 +130,22 @@ def source_query(db, user, request):
     f, clinic, search = request.filters, request.clinic_id, request.search.strip()
     if request.table == 'clients':
         from EndPoints.clients import client_list_query
-        query = client_list_query(db, user, clinic, search, f.get('gender'), request.sort or 'id_desc')
+        query = client_list_query(db, user, clinic, search, f.get('gender'), request.sort or 'id_desc', request.column_filters)
     elif request.table == 'exams':
         from EndPoints.exams import exam_list_query
-        query = exam_list_query(db, user, clinic, search, f.get('test_name'), None, request.sort or 'exam_date_desc')
+        query = exam_list_query(db, user, clinic, search, f.get('test_name'), None, request.sort or 'exam_date_desc', request.column_filters)
     elif request.table == 'appointments':
         from EndPoints.appointments import appointment_list_query
-        query = appointment_list_query(db, user, clinic, search, f.get('exam_name'), f.get('date_scope'), request.sort or 'date_desc')
+        query = appointment_list_query(db, user, clinic, search, f.get('exam_name'), f.get('date_scope'), request.sort or 'date_desc', request.column_filters)
     elif request.table == 'referrals':
         from EndPoints.referrals import referral_list_query
-        query = referral_list_query(db, user, clinic, search, f.get('urgency_level'), f.get('referral_type'), request.sort or 'date_desc')
+        query = referral_list_query(db, user, clinic, search, f.get('urgency_level'), f.get('referral_type'), request.sort or 'date_desc', request.column_filters)
     elif request.table == 'files':
         from EndPoints.files import file_list_query
-        query = file_list_query(db, user, clinic, search, f.get('file_category'), request.sort or 'upload_date_desc')
+        query = file_list_query(db, user, clinic, search, f.get('file_category'), request.sort or 'upload_date_desc', request.column_filters)
     elif request.table == 'orders':
         from EndPoints.order_groups import order_list_candidates
-        source = order_list_candidates(db, user, None, clinic, search, f.get('kind'), f.get('status'))
+        source = order_list_candidates(db, user, None, clinic, search, f.get('kind'), f.get('status'), request.column_filters)
         query = date_range(db.query(source), source.c.opened_date, request)
         direction = source.c.opened_date.asc() if request.sort == 'date_asc' else source.c.opened_date.desc()
         return query.order_by(direction.nulls_last(), source.c.kind, source.c.id.desc())

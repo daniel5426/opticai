@@ -59,3 +59,47 @@ describe('structured search and reports', () => {
     expect(screen.getByRole('status')).toHaveTextContent('has not been enabled');
   });
 });
+
+it.each(['en', 'he', 'fr'] as const)('keeps valid report rows and metrics when a retained metric lacks a key in %s', async locale => {
+  await i18n.changeLanguage(locale);
+  show({ type: 'report_result', columns: ['first_name'], rows: [{ first_name: 'Retained table row' }],
+    metrics: [null, { current: 15 }, { key: 'count_id', current: 7 }], charts: [{ kind: 'bar', series: null }] });
+  expect(screen.getByText('Retained table row')).toBeInTheDocument();
+  expect(screen.getByText('7')).toBeInTheDocument();
+  expect(screen.getByRole('alert')).toHaveTextContent(i18n.t('agent.data.unavailable'));
+});
+
+it.each([
+  { type: 'report_result', columns: [null], rows: [] },
+  { type: 'report_result', columns: ['first_name'], rows: [null] },
+  { type: 'prescription_search', total: 1, items: [{ client_id: 1, matches: 'invalid' }] },
+])('contains malformed result data within its own result card: %j', output => {
+  show(output);
+  expect(screen.getByRole('alert')).toBeInTheDocument();
+});
+
+it('validates freshly fetched report snapshots as well as retained tool output', async () => {
+  mocks.json.mockResolvedValue({ type: 'report_result', job_id: 'malformed', columns: ['first_name'], rows: [{ first_name: 'Fetched table row' }], metrics: [{ current: 1 }] });
+  show({ type: 'report_run', job_id: 'malformed', status: 'queued' });
+  expect(await screen.findByText('Fetched table row')).toBeInTheDocument();
+  expect(screen.getByRole('alert')).toBeInTheDocument();
+});
+
+it('contains an unexpected renderer failure and recovers when the result is replaced', async () => {
+  await i18n.changeLanguage('en');
+  const charts = await import('@/components/agent/ReportChart');
+  const renderChart = vi.spyOn(charts, 'ReportChart').mockImplementation(() => { throw new Error('Synthetic renderer failure'); });
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+  const queryClient = new QueryClient();
+  const view = (output: unknown) => <I18nextProvider i18n={i18n}><QueryClientProvider client={queryClient}>
+    <p>Conversation stays mounted</p><AgentDataResults output={output} />
+  </QueryClientProvider></I18nextProvider>;
+  const rendered = render(view({ type: 'report_result', columns: ['first_name'], rows: [],
+    charts: [{ kind: 'bar', x: 'first_name', series: ['count_id'], rows: [] }] }));
+  expect(screen.getByText('Conversation stays mounted')).toBeInTheDocument();
+  expect(screen.getByRole('alert')).toBeInTheDocument();
+  renderChart.mockRestore();
+  rendered.rerender(view({ type: 'report_result', columns: ['first_name'], rows: [{ first_name: 'Recovered result' }] }));
+  expect(await screen.findByText('Recovered result')).toBeInTheDocument();
+  errors.mockRestore();
+});

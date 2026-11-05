@@ -14,7 +14,15 @@
       "subjective": "Subjective",
       "more": "More data",
       "label": "SoftOptic exam sections"
-    }
+    },
+    "clientNumber": "Legacy client number (optional)",
+    "clientNumberPlaceholder": "For example, 23470",
+    "clientNumberHint": "Import only this Softoptic client and their related records. Overrides the client limit and keeps other imports. Already imported client numbers are blocked to prevent duplicates.",
+    "invalidClientNumber": "Enter a valid legacy client number.",
+    "clientNotFound": "This client number was not found in the exported database.",
+    "selectionMismatch": "The exported client does not match the selected client number.",
+    "clientAlreadyImported": "This client has already been imported. Resume its unfinished job, or use a separate test clinic.",
+    "workerExited": "The migration stopped before completing its current stage. Resume the job to retry."
   },
   "he": {
     "examTabs": {
@@ -31,7 +39,15 @@
       "subjective": "Subjective",
       "more": "נתונים נוספים",
       "label": "מקטעי בדיקת SoftOptic"
-    }
+    },
+    "clientNumber": "מספר לקוח במערכת הישנה (לא חובה)",
+    "clientNumberPlaceholder": "לדוגמה, 23470",
+    "clientNumberHint": "ייבוא לקוח זה בלבד מסופטאופטיק והנתונים הקשורים אליו. הבחירה מחליפה את מגבלת הלקוחות ושומרת ייבואים אחרים. מספרי לקוח שכבר יובאו חסומים למניעת כפילויות.",
+    "invalidClientNumber": "יש להזין מספר לקוח תקין מהמערכת הישנה.",
+    "clientNotFound": "מספר הלקוח לא נמצא במסד הנתונים שיוצא.",
+    "selectionMismatch": "הלקוח שיוצא אינו תואם למספר הלקוח שנבחר.",
+    "clientAlreadyImported": "לקוח זה כבר יובא. יש להמשיך את הייבוא שטרם הושלם או להשתמש במרפאת בדיקה נפרדת.",
+    "workerExited": "הייבוא נעצר לפני השלמת השלב הנוכחי. יש להמשיך את הפעולה כדי לנסות שוב."
   },
   "fr": {
     "examTabs": {
@@ -48,6 +64,14 @@
       "subjective": "Subjective",
       "more": "Autres données",
       "label": "Sections de l'examen SoftOptic"
-    }
+    },
+    "clientNumber": "Numéro client dans l’ancien logiciel (facultatif)",
+    "clientNumberPlaceholder": "Par exemple, 23470",
+    "clientNumberHint": "Importer uniquement ce client Softoptic et ses données associées. Remplace la limite de clients et conserve les autres imports. Les numéros déjà importés sont bloqués pour éviter les doublons.",
+    "invalidClientNumber": "Saisissez un numéro client valide de l’ancien logiciel.",
+    "clientNotFound": "Ce numéro client est introuvable dans la base exportée.",
+    "selectionMismatch": "Le client exporté ne correspond pas au numéro sélectionné.",
+    "clientAlreadyImported": "Ce client a déjà été importé. Reprenez son import inachevé ou utilisez un autre cabinet de test.",
+    "workerExited": "La migration s’est arrêtée avant la fin de l’étape en cours. Reprenez l’import pour réessayer."
   }
 }

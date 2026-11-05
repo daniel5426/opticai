@@ -36,6 +36,8 @@ CASES = {
         ({"urgency": ["routine", "urgent"]}, 1),
         ({"urgency": ["emergency"]}, 0),
         ({"type": "special"}, 1),
+        ({"type": ["Specialist"]}, 1),
+        ({"type": ["special"]}, 0),
         ({"recipient": "clinic"}, 0),
         ({"date": {"from": "2026-05-08", "to": "2026-05-08"}}, 1),
         ({"date": {"from": "2026-05-09"}}, 0),
@@ -103,6 +105,27 @@ def test_families_filter_both_count_and_page(api):
     assert response.json()["total"] == 1
     assert [item["name"] for item in response.json()["items"]] == ["Levi"]
     assert api(path, {"name": "zzz"}) == 0
+    assert api(path, {"clinic": [str(clinic)]}) == 2
+    assert api(path, {"clinic": [str(clinic + 100000)]}) == 0
+
+
+@pytest.mark.parametrize("path", list(CASES))
+def test_clinic_selections_match_ids_and_cannot_expand_scope(api, path):
+    expected = api(path, {})
+    assert api(path, {"clinic": [str(api.clinic_id)]}) == expected
+    assert api(path, {"clinic": [str(api.clinic_id + 100000)]}) == 0
+    assert api(path, {"clinic": ["__none__"]}) == 0
+
+
+@pytest.mark.parametrize("path", ["/api/v1/exams/enriched", "/api/v1/appointments/paginated"])
+def test_examiner_selection_uses_identity_instead_of_display_name(api, path):
+    from database import get_db
+    from models import User
+
+    db = next(api.client.app.dependency_overrides[get_db]())
+    examiner = db.query(User).filter(User.username == "alice").one()
+    assert api(path, {"examiner": [str(examiner.id)]}) == 1
+    assert api(path, {"examiner": [str(examiner.id + 100000)]}) == 0
 
 
 @pytest.mark.parametrize(
@@ -202,3 +225,24 @@ def test_clients_last_exam_dates_cover_a_list_page(api):
     response = api.client.get("/api/v1/clients/last-exam-dates", params={"ids": [john.id, sarah.id, 999999]})
     assert response.status_code == 200, response.text
     assert response.json() == {str(john.id): "2026-05-06"}
+
+
+def test_exact_national_id_normalizes_before_pagination_and_exclusion():
+    from models import Client
+    SessionLocal = _session_factory()
+    with SessionLocal() as db:
+        ids = _seed(db)
+        company_id = db.query(Client.company_id).first()[0]
+        target = Client(company_id=company_id, clinic_id=ids['clinic_id'], first_name='Duplicate', national_id=' 022-153451 ')
+        db.add(target); db.flush()
+        target_id = target.id
+        for index in range(15):
+            db.add(Client(company_id=company_id, clinic_id=ids['clinic_id'], national_id=f'{index + 1}22153451'))
+        db.commit()
+    with _client(SessionLocal, ids['current_user_id']) as client:
+        params = {'clinic_id': ids['clinic_id'], 'national_id_exact': '22153451', 'limit': 1}
+        response = client.get('/api/v1/clients/paginated', params=params)
+        assert response.status_code == 200
+        assert [row['id'] for row in response.json()['items']] == [target_id]
+        params['exclude_client_id'] = target_id
+        assert client.get('/api/v1/clients/paginated', params=params).json()['items'] == []

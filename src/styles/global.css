@@ -249,6 +249,11 @@
   .examcard {
     @apply !border;
   }
+  /* Gently separate white exam cards from the panel and the tinted page canvas. */
+  [data-exam-surface].bg-card,
+  [data-exam-layout-editor] {
+    background-color: var(--appearance-exam-panel) !important;
+  }
   /* Scale field utilities locally; grid tracks and surrounding labels stay intact.
      Fixed token values prevent nested composite controls from scaling twice. */
   :is([data-slot="input-wrapper"], [data-slot="input"], [data-slot="textarea"], [data-slot="textarea-mirror"], [data-slot="select-trigger"], [data-slot="optimized-select"], [data-slot="va-select"], [data-slot="date-input"], .field-view) {
@@ -269,12 +274,6 @@
     border-color: transparent !important;
     box-shadow: none !important;
     opacity: 1 !important;
-  }
-  /* Exam-page cards sit slightly inset into the tab panel. */
-  [data-exam-card] [data-slot="card"] {
-    background-color: hsl(var(--muted)) !important;
-    border-width: 0 !important;
-    box-shadow: var(--appearance-exam-inset-shadow) !important;
   }
   [data-exam-card] :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"], [data-slot="optimized-select"], [data-slot="va-select"], .field-view):not(.bg-transparent):not(.\!bg-transparent) {
     border-width: 1px !important;

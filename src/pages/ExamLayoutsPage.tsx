@@ -99,10 +99,6 @@ export default function ExamLayoutsPage() {
         parentLink="/settings"
       />
       <div className="mb-10 flex flex-1 flex-col p-4 lg:p-6 lg:pt-4" dir={direction}>
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-start text-xl font-semibold">ניהול פריסות בדיקה</h2>
-        </div>
-        
         <ExamLayoutsTable
           data={layouts}
           onRefresh={handleRefresh}

@@ -264,6 +264,33 @@ describe("page gradient preferences", () => {
 
 
 describe("Bloom default rollout", () => {
+  it("replaces Graphite from the previous rollout on both startup and account activation", () => {
+    const { store, values } = fixture({
+      appearance_defaults_version: "bloom-2026-11", color_theme: "neutral",
+      user_appearance_defaults_version_7: "bloom-2026-11", user_color_theme_7: "neutral",
+      user_theme_7: "dark", user_canvas_gradient_7: "null",
+    }, true, false);
+    expect(store.getSnapshot()).toMatchObject({ mode: "light", palette: "bloom", canvasGradient: DEFAULT_APP_CANVAS });
+    store.activateUser(7, "dark");
+    expect(store.getSnapshot()).toMatchObject({ mode: "light", palette: "bloom", canvasGradient: DEFAULT_APP_CANVAS });
+    expect(values.get(getAppearanceDefaultsKey(7))).toBe(APPEARANCE_DEFAULTS_VERSION);
+  });
+  it("resets all settings and previews together, persists across restart, and leaves other accounts alone", () => {
+    const { store, values, storage, root, media } = fixture({ user_color_theme_8: "forest" });
+    store.activateUser(7);
+    store.setMode("dark"); store.setStyle("pro"); store.setPalette("neutral"); store.setCanvasElevation("lift");
+    store.setCanvasGradient(null);
+    store.previewCanvasGradient({ ...DEFAULT_APP_CANVAS, colorOne: "#123456" });
+    store.resetToDefaults();
+    expect(store.getSnapshot()).toMatchObject({ mode: "light", style: "classic", palette: "bloom", canvasElevation: "flat", canvasGradient: DEFAULT_APP_CANVAS, previewPalette: null, previewCanvasGradient: undefined });
+    expect(root.style.getPropertyValue("--canvas-gradient-base")).toBe("#F2F7FD");
+    expect(values.get("user_color_theme_8")).toBe("forest");
+    const restarted = createAppearanceStore({ storage, root, media: media as unknown as MediaQueryList });
+    expect(restarted.getSnapshot()).toMatchObject({ mode: "light", palette: "bloom", canvasGradient: DEFAULT_APP_CANVAS });
+    restarted.activateUser(7, "dark");
+    expect(restarted.getSnapshot()).toMatchObject({ mode: "light", style: "classic", palette: "bloom", canvasElevation: "flat", canvasGradient: DEFAULT_APP_CANVAS });
+  });
+
   it("applies the requested appearance to a fresh device even when the OS is dark", () => {
     const { store, root } = fixture({}, true, false);
     store.initialize();

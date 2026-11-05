@@ -1,4 +1,5 @@
-import { RecordClinicLabel } from "@/components/RecordClinicLabel"
+import { tableLoadingRowCount } from "@/lib/table-loading";
+import { ClinicTableHead, ClinicTableCell } from "@/components/RecordClinicColumn"
 import React, { useRef, useState } from "react";
 import {
   Table,
@@ -120,8 +121,9 @@ const AppointmentTableRow = React.memo(function AppointmentTableRow({
           ? new Date(appointment.date).toLocaleDateString("he-IL")
           : ""}
       </TableCell>
+      <ClinicTableCell clinicId={appointment.clinic_id} />
       <TableCell onClick={() => onEdit(appointment)} className="cursor-pointer">
-        {appointment.time}<RecordClinicLabel clinicId={appointment.clinic_id} />
+        {appointment.time}
       </TableCell>
       {clientId === 0 && (
         <TableCell>
@@ -338,6 +340,7 @@ export function AppointmentsTable({
         .map((value) => ({ value, label: value }));
     return [
       { key: "date", label: "תאריך", kind: "date", getValue: (appointment) => appointment.date },
+      { key: "clinic", label: "companyClients.clinic", kind: "options", getValue: (appointment) => String(appointment.clinic_id ?? "__none__") },
       { key: "time", label: "שעה", kind: "text", getValue: (appointment) => appointment.time },
       ...(clientId === 0
         ? [{ key: "client", label: "לקוח", kind: "text" as const, getValue: (appointment: Appointment) => appointment.client_full_name }]
@@ -354,7 +357,7 @@ export function AppointmentsTable({
         label: "בודק",
         kind: "options",
         options: names(users.map((user) => user.full_name || user.username)),
-        getValue: (appointment) => appointment.examiner_name,
+        getValue: (appointment) => String(appointment.user_id ?? ""),
       },
       { key: "note", label: "הערות", kind: "text", getValue: (appointment) => appointment.note },
     ];
@@ -446,7 +449,7 @@ export function AppointmentsTable({
       time: { getValue: (appointment) => appointment.time },
       client: { getValue: (appointment) => appointment.client_full_name },
       exam_name: { getValue: (appointment) => appointment.exam_name },
-      examiner: { getValue: (appointment) => appointment.examiner_name },
+      examiner: { getValue: (appointment) => String(appointment.user_id ?? "") },
       note: { getValue: (appointment) => appointment.note },
     }),
     [],
@@ -1194,6 +1197,7 @@ export function AppointmentsTable({
               >
                 תאריך
               </SortableTableHead>
+              <ClinicTableHead />
               <SortableTableHead
                 sortKey="time"
                 sort={activeSort}
@@ -1241,8 +1245,8 @@ export function AppointmentsTable({
           </TableHeader>
           <TableBody>
             {loading
-              ? Array.from({ length: 14 }).map((_, i) => (
-                  <TableRow key={i}>
+              ? Array.from({ length: tableLoadingRowCount(pagination) }).map((_, i) => (
+                  <TableRow key={i}><TableCell><Skeleton className="h-4 w-24" /></TableCell>
                     <TableCell>
                       <Skeleton className="my-2 h-4 w-[70%]" />
                     </TableCell>

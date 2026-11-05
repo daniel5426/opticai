@@ -1,0 +1,15 @@
+{
+  "name": "opticai",
+  "productName": "Prysm",
+  "version": "1.0.99",
+  "description": "Multi-clinic management system for optical clinics",
+  "main": "dist-electron/main.js",
+  "author": "Daniel Benassayag",
+  "license": "MIT",
+  "dependencies": {
+    "better-sqlite3": "11.10.0",
+    "cors": "2.8.5",
+    "express": "5.1.0",
+    "googleapis": "152.0.0"
+  }
+}

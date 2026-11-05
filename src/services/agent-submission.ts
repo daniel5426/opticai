@@ -1,4 +1,3 @@
-import { transcribeAudio } from './agent-transcription';
 import { usePrysmAgent } from '@/contexts/PrysmAgentContext';
 import { agentJson } from './agent-client';
 import type { AgentChatInputContract } from '@agents24/chat-react/runtime';
@@ -25,10 +24,6 @@ export function useAgentSubmission() {
         const bytes = file.data instanceof Uint8Array || file.data instanceof ArrayBuffer ? file.data : await file.data.arrayBuffer();
         form.append('file', new Blob([bytes as BlobPart], { type: file.mediaType }), file.name);
         const result = await agentJson<{ text: string }>(workspace.scope, '/supply/extract', { method: 'POST', body: form });
-        files.push({ name: file.name + '.txt', mediaType: 'text/plain', data: new TextEncoder().encode(result.text) });
-      } else if (file.mediaType.startsWith('audio/')) {
-        const bytes = file.data instanceof Uint8Array || file.data instanceof ArrayBuffer ? file.data : await file.data.arrayBuffer();
-        const result = await transcribeAudio(workspace.scope, new File([bytes as BlobPart], file.name, {type:file.mediaType}));
         files.push({ name: file.name + '.txt', mediaType: 'text/plain', data: new TextEncoder().encode(result.text) });
       } else files.push(file);
     }

@@ -1,3 +1,4 @@
+import { tableLoadingRowCount } from "@/lib/table-loading";
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { Client } from "@/lib/db/schema-interface"
@@ -13,7 +14,7 @@ import { TableFiltersBar, type TableFiltersBarSelect } from "@/components/table-
 import { TablePagination } from "@/components/table-pagination"
 import { GENDER_FILTER_OPTIONS } from "@/lib/table-filters"
 import { SortableTableHead } from "@/components/sortable-table-head"
-import { ActiveColumnFilters, ColumnFiltersProvider, useColumnFilterState } from "@/components/column-filter"
+import { FilterableHeaderLabel, ActiveColumnFilters, ColumnFiltersProvider, useColumnFilterState } from "@/components/column-filter"
 import { matchesColumnFilters, type ColumnFilterDefinition, type ColumnFilters } from "@/lib/column-filters"
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
 import { DateSearchHelper } from "@/lib/date-search-helper"
@@ -81,6 +82,7 @@ interface ClientsTableProps {
 }
 
 const CLIENT_COLUMN_FILTERS: ColumnFilterDefinition<Client>[] = [
+  { key: "clinic", label: "companyClients.clinic", kind: "options", getValue: client => String(client.clinic_id ?? "__none__") },
   { key: "id", label: "מס' לקוח", kind: "text", getValue: (client) => client.id },
   { key: "first_name", label: "שם פרטי", kind: "text", getValue: (client) => client.first_name },
   { key: "last_name", label: "שם משפחה", kind: "text", getValue: (client) => client.last_name },
@@ -432,7 +434,7 @@ export function ClientsTable({
                   תפקיד במשפחה
                 </SortableTableHead>
               )}
-              {showClinicColumn && <TableHead className="bg-card sticky top-0 z-20 text-start">סניף</TableHead>}
+              {showClinicColumn && <TableHead className="bg-card sticky top-0 z-20 text-start"><FilterableHeaderLabel filterKey="clinic">{t("companyClients.clinic")}</FilterableHeaderLabel></TableHead>}
               <TableHead className="bg-card sticky top-0 z-20 w-[50px] text-start"></TableHead>
             </TableRow>
           </TableHeader>
@@ -460,7 +462,7 @@ export function ClientsTable({
               </TableRow>
             )}
             {loading ? (
-              Array.from({ length: 14 }).map((_, i) => (
+              Array.from({ length: tableLoadingRowCount(pagination) }).map((_, i) => (
                 <TableRow key={i}>
                   {mergeMode && (
                     <TableCell className="w-[44px] !p-0">

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from auth import get_current_user
 from database import get_db
-from models import Client, ContactLensOrder, MigrationSourceLink, OpticalExam, Order, User, MedicalLog
+from models import Client, ContactLensOrder, MigrationSourceLink, OpticalExam, Order, User, MedicalLog, ExamLayoutInstance
 from security.scope import (
     assert_clinic_scope,
     get_scoped_client,
@@ -17,6 +17,31 @@ from security.scope import (
 
 
 router = APIRouter(prefix="/migration-source-data", tags=["migration-source-data"])
+
+
+@router.get('/client/{client_id}/profile-history')
+def get_imported_profile_history(client_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from migration.opticplus.clinical import client_history
+    client = get_scoped_client(db, current_user, client_id)
+    links = _raw_links(db, target_model='Client', target_id=client.id, clinic_id=client.clinic_id)
+    source = next((link for link in links if link.source_system == 'opticplus' and link.source_table == 'cust_list'), None)
+    if source is None and not db.query(MigrationSourceLink.id).filter_by(
+        target_model='Client', target_id=client.id, clinic_id=client.clinic_id, source_system='opticplus',
+    ).first():
+        return {'available': False, 'source_system': 'opticplus', 'values': {}}
+    values = client_history({k.lower(): v for k, v in source.raw_payload.items()}) if source else {}
+    # Already imported cards may have been edited. Prefer their saved values over
+    # the original row; retain all records and source links for recovery.
+    instances = db.query(ExamLayoutInstance).join(OpticalExam, OpticalExam.id == ExamLayoutInstance.exam_id).filter(
+        OpticalExam.client_id == client.id, OpticalExam.company_id == client.company_id,
+        OpticalExam.clinic_id == client.clinic_id, OpticalExam.test_name == 'opticplus.exam.history',
+    ).order_by(ExamLayoutInstance.id).all()
+    metadata = {'id', 'card_instance_id', 'source_card_type', 'source_table', 'source_key', 'bindings', 'opticplus_source', 'layout_instance_id'}
+    for instance in instances:
+        for key, block in (instance.exam_data or {}).items():
+            if key.startswith('opticplus-legacy-history') and isinstance(block, dict):
+                values.update({k: v for k, v in block.items() if k not in metadata and not k.startswith('__')})
+    return {'available': bool(values), 'source_system': 'opticplus', 'values': values}
 
 _TARGETS: dict[str, Tuple[str, Type[Any]]] = {
     "client": ("Client", Client),

@@ -752,6 +752,8 @@ export interface ContactLensOrder {
 }
 
 export interface Billing {
+  line_subtotal_offset?: number | null;
+  line_total_offset?: number | null;
   id?: number;
   order_id?: number;
   contact_lens_id?: number;

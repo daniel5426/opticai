@@ -3,7 +3,7 @@ import { Check, SlidersHorizontal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "@/components/theme-provider";
 import { useAppLocale } from "@/localization/use-app-locale";
-import { COLOR_THEMES } from "@/lib/appearance";
+import { DEFAULT_APP_CANVAS } from "@/lib/appearance";
 import { canvasGradientVariables, DEFAULT_CANVAS_GRADIENT, type CanvasGradient } from "@/lib/canvas-gradient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-const swatches = ["#ffffff", "#cbd5e1", "#2389dc", "#67c8f0", "#14b8a6", "#86c99b", "#c4b5fd", "#a78bfa", "#f0abcb", "#fda4af", "#fdba74", "#fde68a"];
+const swatches = ["#f2f7fd", "#ffffff", "#f1f5f9", "#eef8fc", "#effaf7", "#f1f8f3", "#f5f2fc", "#f3effa", "#fcf1f6", "#fdf1f3", "#fdf5ed", "#fdf9eb"];
 
 function ColorPalette({ label, value, onChange }: { label: string; value: string; onChange: (color: string) => void }) {
   const { t } = useTranslation();
@@ -59,11 +59,11 @@ function GradientRange({ label, value, max, unit, onChange }: { label: string; v
 export function CanvasGradientEditor({ inline = false }: { inline?: boolean }) {
   const { t } = useTranslation();
   const { direction } = useAppLocale();
-  const { canvasGradient, palette, setCanvasGradient, previewCanvasGradient } = useTheme();
+  const { canvasGradient, setCanvasGradient, previewCanvasGradient } = useTheme();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<CanvasGradient | null>(canvasGradient);
   const backgroundTypeId = useId();
-  const defaults = { ...DEFAULT_CANVAS_GRADIENT, colorOne: palette === "bloom" ? DEFAULT_CANVAS_GRADIENT.colorOne : COLOR_THEMES[palette].primary };
+  const defaults = DEFAULT_CANVAS_GRADIENT;
   const value = draft ?? defaults;
   useEffect(() => () => previewCanvasGradient(undefined), [previewCanvasGradient]);
   useEffect(() => setDraft(canvasGradient), [canvasGradient]);
@@ -102,7 +102,7 @@ export function CanvasGradientEditor({ inline = false }: { inline?: boolean }) {
       </div> : null}
     </> : null}
     <div className="flex flex-wrap items-center justify-end gap-2">
-      <Button variant="ghost" className="me-auto" disabled={!draft} onClick={() => { setDraft(null); previewCanvasGradient(null); }}>{t("gradientReset")}</Button>
+      <Button variant="ghost" className="me-auto" disabled={JSON.stringify(draft) === JSON.stringify(DEFAULT_APP_CANVAS)} onClick={() => { setDraft({ ...DEFAULT_APP_CANVAS }); previewCanvasGradient(DEFAULT_APP_CANVAS); }}>{t("gradientReset")}</Button>
       <Button variant="outline" disabled={inline && !dirty} onClick={() => { setDraft(canvasGradient); if (inline) previewCanvasGradient(undefined); else close(); }}>{t("appearanceCancel")}</Button>
       <Button disabled={inline && !dirty} onClick={() => { setCanvasGradient(draft); setOpen(false); }}>{t("appearanceSave")}</Button>
     </div>

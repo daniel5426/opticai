@@ -31,25 +31,46 @@ def worker_id() -> str:
 
 
 def run_once(worker_name: str) -> bool:
+    job_id = None
     db = SessionLocal()
     try:
         job = claim_next_job(db, worker_name)
         if not job:
             return False
 
+        job_id = job.id
         storage = get_file_storage_service()
 
         def on_progress(**kwargs):
-            current = db.get(SoftOpticMigrationJob, job.id)
-            if current:
-                update_job(db, current, **kwargs)
+            # A failed import transaction must not erase its own failure report.
+            # Heartbeats also must not commit partially imported clinical data.
+            with SessionLocal() as progress_db:
+                current = progress_db.get(SoftOpticMigrationJob, job_id)
+                if current is None:
+                    raise RuntimeError("Migration job disappeared")
+                update_job(progress_db, current, **kwargs)
+            db.expire(job)
 
         logger.info("Running %s migration job %s", getattr(job, "source_system", "softoptic"), job.id)
         run_migration_import(db, job=job, storage=storage, on_progress=on_progress)
-        logger.info("Finished migration job %s status=%s", job.id, job.status)
+        db.refresh(job)
+        if job.status == "running":
+            db.rollback()
+            on_progress(status="failed", error="softoptic.workerExited",
+                        errors=["softoptic.workerExited"])
+        logger.info("Finished migration job %s status=%s", job_id, job.status)
         return True
-    except Exception:
-        logger.exception("SoftOptic worker iteration failed")
+    except Exception as exc:
+        db.rollback()
+        original = getattr(exc, "orig", None)
+        diagnostic = getattr(original, "diag", None)
+        message = getattr(diagnostic, "message_primary", None) or (str(original) if original else str(exc))
+        logger.error("SoftOptic worker job %s failed: %s", job_id, message)
+        if job_id:
+            with SessionLocal() as failure_db:
+                current = failure_db.get(SoftOpticMigrationJob, job_id)
+                if current and current.status == "running":
+                    update_job(failure_db, current, status="failed", error=message, errors=[message])
         return False
     finally:
         db.close()

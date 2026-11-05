@@ -22,30 +22,61 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Select affected component
+        id: changes
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: >
+          selected='["backend","web"]'
+
+          if [[ "$BASE" =~ ^[a-f0-9]{40}$ ]] && git cat-file -e "$BASE"
+          2>/dev/null; then
+            selected="$(node scripts/devdesk-check.mjs --selection --base "$BASE")"
+          fi
+
+          SELECTED="$selected" node -e
+          'console.log("run="+JSON.parse(process.env.SELECTED).includes("web"))'
+          >> "$GITHUB_OUTPUT"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
+        if: steps.changes.outputs.run == 'true'
 
       - name: Validate public release inputs
         run: node scripts/devdesk-check.mjs --release --lock-only
+        if: steps.changes.outputs.run == 'true'
 
       - name: Test change selection
         run: node scripts/devdesk-check.mjs --selection-test
+        if: steps.changes.outputs.run == 'true'
 
       - name: Apply public release dependency lock
         run: DEVDESK_RELEASE_BUILD=1 node scripts/devdesk-release-inputs.mjs apply
+        if: steps.changes.outputs.run == 'true'
 
       - name: Install dependencies
         run: npm ci
+        if: steps.changes.outputs.run == 'true'
+
+      - name: Test release artifact and runtime guards
+        run: |
+          python3 -m unittest discover -s scripts -p test_release_pipeline.py
+          node --test scripts/desktop-release.test.mjs
+        if: steps.changes.outputs.run == 'true'
 
       - name: Test web
         run: npm test -- --run
+        if: steps.changes.outputs.run == 'true'
 
       - name: Test hosted agent streaming proxy
         run: node --test --test-timeout=15000 scripts/agent-web-proxy.test.mjs
+        if: steps.changes.outputs.run == 'true'
 
       - name: Build web
         run: npm run build:web
+        if: steps.changes.outputs.run == 'true'

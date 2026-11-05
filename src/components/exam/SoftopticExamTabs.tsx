@@ -32,7 +32,7 @@ export function SoftopticExamTabs({ tabs, activeTab, onTabChange }: Props) {
             className={cn(
               "inline-flex items-center rounded-t-lg px-[18px] pt-2 pb-[9px] text-[15px] whitespace-nowrap transition-colors",
               isActive
-                ? "bg-card text-foreground relative z-[1] font-semibold shadow-sm after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-2 after:bg-card after:content-['']"
+                ? "bg-[var(--appearance-exam-panel)] text-foreground relative z-[1] font-semibold shadow-sm after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-2 after:bg-[var(--appearance-exam-panel)] after:content-['']"
                 : "text-muted-foreground/70 hover:text-foreground font-medium",
             )}
           >

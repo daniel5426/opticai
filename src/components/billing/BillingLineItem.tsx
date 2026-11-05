@@ -5,11 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import type { OrderLineItem } from "@/lib/db/schema-interface";
+import { isDiscountLine as discountLine } from "@/lib/discounts";
 import { cn } from "@/utils/tailwind";
 
 export type BillingLineField =
   | "description"
   | "sku"
+  | "line_total"
   | "price"
   | "quantity"
   | "discount"
@@ -40,7 +42,9 @@ export function BillingLineItem({
 }: BillingLineItemProps) {
   const { t } = useTranslation();
   const id = item.id!;
-  const isDiscountLine = !Number(item.price) && Number(item.discount) > 0;
+  const discountRow = React.useRef(discountLine(item));
+  if (discountLine(item)) discountRow.current = true;
+  const isDiscountLine = discountRow.current;
   const showPriceSummary = item.price != null && item.quantity != null && !isDiscountLine;
   const total = (
     <span className="text-sm font-medium tabular-nums">
@@ -111,7 +115,8 @@ export function BillingLineItem({
             onChange={(event) => onChange(id, "description", event.target.value)}
             className={quietInput}
           />
-          <div className="text-muted-foreground flex items-center gap-1 text-xs">
+          {isDiscountLine && <p className="text-muted-foreground text-xs">{t("discounts.rowLabel")}</p>}
+          {!isDiscountLine && <div className="text-muted-foreground flex items-center gap-1 text-xs">
             {numberField("quantity", t("orderGroupQuantity"), "1", "w-11 shrink-0")}
             <span aria-hidden="true">×</span>
             {numberField("price", t("orderGroupPrice"), "0.01", "w-20 shrink-0")}
@@ -125,13 +130,13 @@ export function BillingLineItem({
               className={cn(quietInput, "text-xs")}
               wrapperClassName="min-w-0 flex-1"
             />
-          </div>
+          </div>}
           <div className="text-muted-foreground flex items-center gap-4 text-xs">
             <label className="flex items-center gap-1.5">
               {t("orderGroupDiscount")}
               {numberField("discount", t("orderGroupDiscount"), "0.01", "w-16")}
             </label>
-            <label className="flex cursor-pointer items-center gap-1.5">
+            {!isDiscountLine && <label className="flex cursor-pointer items-center gap-1.5">
               <Checkbox
                 checked={Boolean(item.supplied)}
                 onCheckedChange={(checked) =>
@@ -139,11 +144,18 @@ export function BillingLineItem({
                 }
               />
               {t("orderGroupSupplied")}
-            </label>
+            </label>}
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
-          <div className="flex h-7 items-center">{total}</div>
+          <div className="flex h-7 items-center">{isDiscountLine ? total : <Input
+            type="number" min="0" step="0.01" dir="ltr"
+            aria-label={t("orderWorkspace.editValue", { value: t("orderGroupTotal") })}
+            value={formatNumber(item.line_total)}
+            onChange={event => onChange(id, "line_total", event.target.value)}
+            className={cn(quietInput, "text-center font-medium tabular-nums")}
+            wrapperClassName="w-24"
+          />}</div>
           <div className="flex items-center">
             {iconButton(
               t("orderGroupRemoveItem"),
@@ -164,6 +176,7 @@ export function BillingLineItem({
         {item.description?.trim() ? (
           <p className="text-sm break-words">{item.description}</p>
         ) : null}
+        {isDiscountLine && <p className="text-muted-foreground text-xs">{t("discounts.rowLabel")}</p>}
         {(showPriceSummary || item.sku) ? <p className="text-muted-foreground text-xs">
           {showPriceSummary ? (
           <span className="tabular-nums">

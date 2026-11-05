@@ -87,6 +87,13 @@ def create_import(
     if client_limit is not None and (not isinstance(client_limit, int) or client_limit < 1):
         raise HTTPException(status_code=422, detail="client_import_limit must be a positive integer")
     source_metadata = payload.get("source_metadata") if isinstance(payload.get("source_metadata"), dict) else {}
+    account_code = options.get("client_account_code")
+    if account_code is not None:
+        if (source_system != "softoptic" or not isinstance(account_code, str)
+                or not re.fullmatch(r"[0-9]{1,30}", account_code) or client_limit is not None):
+            raise HTTPException(status_code=422, detail="softoptic.invalidClientNumber")
+    # Do not accept a hidden selection supplied through source_metadata.
+    source_metadata = {**source_metadata, "client_account_code": account_code}
     export_summary = payload.get("export_summary") if isinstance(payload.get("export_summary"), dict) else {}
     job_id = uuid4().hex
     if source_system == "opticplus":

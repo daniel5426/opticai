@@ -1,3 +1,4 @@
+import { inputSyncManager } from '@/lib/input-sync-manager';
 import { useAgentDraft } from '@/lib/agent-page-context';
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useBlocker } from '@tanstack/react-router'
@@ -24,7 +25,7 @@ export const useUnsavedChanges = ({ getSerializedState, isEditing, isNewMode, en
   const checkDirty = useCallback(() => {
     if (!enabled || !baselineInitializedRef.current) return false
     if (!isEditing && !isNewMode) return false
-    return getSerializedState() !== baselineRef.current
+    return inputSyncManager.hasPendingChanges() || getSerializedState() !== baselineRef.current
   }, [getSerializedState, isEditing, isNewMode, enabled])
 
   const hasUnsavedChanges = checkDirty()
@@ -40,9 +41,9 @@ export const useUnsavedChanges = ({ getSerializedState, isEditing, isNewMode, en
   const { registerGuard } = useNavigationGuard()
 
   const blockerState = useBlocker({
-    shouldBlockFn: () => hasUnsavedChanges && !allowNavigationRef.current,
+    shouldBlockFn: () => checkDirty() && !allowNavigationRef.current,
     withResolver: true,
-    disabled: !hasUnsavedChanges,
+    disabled: !enabled || (!isEditing && !isNewMode),
     enableBeforeUnload: false
   }, hasUnsavedChanges)
 
@@ -95,8 +96,9 @@ export const useUnsavedChanges = ({ getSerializedState, isEditing, isNewMode, en
   }, [handleNavigationAttempt, registerGuard, enabled])
 
   useEffect(() => {
-    if (!hasUnsavedChanges) return
+    if (!enabled || (!isEditing && !isNewMode)) return
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!checkDirty() || allowNavigationRef.current) return
       event.preventDefault()
       event.returnValue = ''
     }
@@ -104,7 +106,7 @@ export const useUnsavedChanges = ({ getSerializedState, isEditing, isNewMode, en
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload)
     }
-  }, [hasUnsavedChanges])
+  }, [enabled, isEditing, isNewMode, checkDirty])
 
   useEffect(() => {
     if (hasUnsavedChanges) return

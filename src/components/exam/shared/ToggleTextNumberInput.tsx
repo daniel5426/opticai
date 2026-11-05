@@ -5,12 +5,13 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import { cn } from "@/utils/tailwind";
 import { FastInput, inputSyncManager } from "./OptimizedInputs";
 import { useTranslation } from "react-i18next";
 import { ChevronDown } from "lucide-react";
 
+const NUMBER_INPUT_PATTERN = /^[+-]?(?:\d*\.?\d*)$/;
 const PRESET_TRIGGER_WIDTH_PX = 12;
 const PRESET_TRIGGER_GUTTER_PX = 8;
 
@@ -40,6 +41,7 @@ export function ToggleTextNumberInput({
 }: ToggleTextNumberInputProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+  const [editingNumber, setEditingNumber] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLSpanElement>(null);
@@ -87,7 +89,8 @@ export function ToggleTextNumberInput({
   }, [normalizedValue, textDisplayAliases]);
   const canonicalTextValue = displayAlias || normalizedValue;
 
-  const isImportedValue = normalizedValue !== "" &&
+  const isPartialNumber = NUMBER_INPUT_PATTERN.test(normalizedValue);
+  const isImportedValue = normalizedValue !== "" && !isPartialNumber &&
     !Number.isFinite(Number(normalizedUnsignedValue)) &&
     !textOptions.includes(canonicalTextValue) &&
     !reverseAliases[normalizedValue] &&
@@ -107,9 +110,10 @@ export function ToggleTextNumberInput({
     return "";
   }, [canonicalTextValue, normalizedValue, normalizedUnsignedValue, textOptions, reverseAliases]);
 
-  const displayValue = isImportedValue ? `${value} (I)` : isTextValue ? selectValue : value;
+  const useNumericValue = editingNumber && !isImportedValue && !textOptions.includes(canonicalTextValue);
+  const displayValue = isImportedValue ? `${value} (I)` : isTextValue && !useNumericValue ? selectValue : value;
   const shownValue = optimisticText ?? displayValue;
-  const isShownAsText = isTextValue || !!optimisticText;
+  const isShownAsText = (isTextValue && !useNumericValue) || !!optimisticText;
   const effectiveSuffix = isShownAsText ? undefined : numericProps?.suffix;
 
   useEffect(() => {
@@ -239,6 +243,16 @@ export function ToggleTextNumberInput({
         type={isShownAsText ? "text" : "number"}
         dir={isShownAsText ? "ltr" : undefined}
         center={false}
+        onFocus={(event) => {
+          // Commit the numeric display before selecting it (for aliases such as Plano).
+          flushSync(() => setEditingNumber(true));
+          event.currentTarget.select();
+          numericProps?.onFocus?.(event);
+        }}
+        onBlur={(event) => {
+          setEditingNumber(false);
+          numericProps?.onBlur?.(event);
+        }}
         value={shownValue}
         suffix={effectiveSuffix}
         leadingOverlayWidth={PRESET_TRIGGER_WIDTH_PX}
@@ -290,7 +304,7 @@ export function ToggleTextNumberInput({
             onChange?.(stored);
             return;
           }
-          if (isImportedValue && val !== "" && !Number.isFinite(Number(val))) return;
+          if (isImportedValue && val !== "" && !NUMBER_INPUT_PATTERN.test(val) && !Number.isFinite(Number(val))) return;
           setOptimisticText(null);
           onChange?.(val);
         }}

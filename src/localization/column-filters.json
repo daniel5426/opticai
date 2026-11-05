@@ -12,7 +12,8 @@
     "last7Days": "Last 7 days",
     "last30Days": "Last 30 days",
     "activeFilters": "Filtered by",
-    "removeFilter": "Remove {{column}} filter"
+    "removeFilter": "Remove {{column}} filter",
+    "noClinic": "No clinic"
   },
   "he": {
     "filterColumn": "סינון לפי {{column}}",
@@ -27,7 +28,8 @@
     "last7Days": "7 ימים אחרונים",
     "last30Days": "30 ימים אחרונים",
     "activeFilters": "מסונן לפי",
-    "removeFilter": "הסר סינון {{column}}"
+    "removeFilter": "הסר סינון {{column}}",
+    "noClinic": "ללא מרפאה"
   },
   "fr": {
     "filterColumn": "Filtrer par {{column}}",
@@ -42,6 +44,7 @@
     "last7Days": "7 derniers jours",
     "last30Days": "30 derniers jours",
     "activeFilters": "Filtré par",
-    "removeFilter": "Retirer le filtre {{column}}"
+    "removeFilter": "Retirer le filtre {{column}}",
+    "noClinic": "Sans cabinet"
   }
 }

@@ -37,10 +37,11 @@ export const LookupSelect = React.memo(function LookupSelect({
   center = false,
   className = '',
   disabled = false,
-  dir = 'rtl',
+  dir: suppliedDir,
   variant = 'default'
 }: LookupSelectProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const dir = suppliedDir ?? i18n.dir()
   const resolvedPlaceholder = placeholder ?? t('lookupSelectPlaceholder')
   const [isOpen, setIsOpen] = useState(false)
   const [inputValue, setInputValue] = useState(value)
@@ -221,7 +222,7 @@ export const LookupSelect = React.memo(function LookupSelect({
   return (
     <div
       ref={containerRef}
-      className={`relative ${variant === 'text' ? 'inline-block align-middle' : 'dark:bg-card'} ${className}`}
+      className={`relative ${variant === 'text' ? 'inline-block align-middle' : ''} ${className}`}
       dir={dir}
     >
       {variant === 'text' && <span aria-hidden="true" className="invisible whitespace-pre">{inputValue || resolvedPlaceholder || "\u00a0"}</span>}
@@ -235,7 +236,7 @@ export const LookupSelect = React.memo(function LookupSelect({
           aria-label={ariaLabel}
           placeholder={resolvedPlaceholder}
           disabled={disabled}
-          className={variant === 'text' ? 'h-auto rounded-none border-0 bg-transparent dark:bg-transparent p-0 text-sm leading-[inherit] font-[inherit] shadow-none focus-visible:border-0 focus-visible:ring-0 md:text-sm' : `text-start pe-5 ${!disabled ? 'bg-card' : 'bg-accent/50 dark:bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${center ? 'text-center' : ''}`}
+          className={variant === 'text' ? 'h-auto rounded-none border-0 bg-transparent dark:bg-transparent p-0 text-sm leading-[inherit] font-[inherit] shadow-none focus-visible:border-0 focus-visible:ring-0 md:text-sm' : `text-start pe-5 disabled:opacity-100 disabled:cursor-default ${center ? 'text-center' : ''}`}
           style={variant === 'text' ? {font: 'inherit'} : undefined}
           dir={dir}
         />

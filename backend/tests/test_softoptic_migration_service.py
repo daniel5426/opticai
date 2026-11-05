@@ -113,12 +113,12 @@ def test_safe_extract_zip_rejects_windows_path_traversal(tmp_path):
     assert not (tmp_path / "outside.csv").exists()
 
 
-def _seed_job(db, bundle_path, job_id="job1", client_import_limit=None):
+def _seed_job(db, bundle_path, job_id="job1", client_import_limit=None, clinic_unique_id="clinic-a", username="admin"):
     company = Company(name="A", owner_full_name="Owner")
     db.add(company)
     db.flush()
-    clinic = Clinic(company_id=company.id, name="Clinic", unique_id="clinic-a")
-    user = User(company_id=company.id, clinic_id=None, username="admin", role_level=4, is_active=True)
+    clinic = Clinic(company_id=company.id, name="Clinic", unique_id=clinic_unique_id)
+    user = User(company_id=company.id, clinic_id=None, username=username, role_level=4, is_active=True)
     db.add_all([clinic, user])
     db.flush()
     job = SoftOpticMigrationJob(
@@ -267,7 +267,8 @@ def test_softoptic_import_respects_client_import_limit(tmp_path):
 
         imported_clients = db.query(Client).filter_by(clinic_id=clinic.id).all()
         assert len(imported_clients) == 1
-        assert imported_clients[0].id == int(f"{clinic.id}101")
+        link = db.query(MigrationSourceLink).filter_by(target_model="Client", target_id=imported_clients[0].id).one()
+        assert link.raw_payload["account_code"] == "101"
         db.refresh(job)
         assert job.import_summary["client_import_limit"] == 1
         assert job.import_summary["client_imported_count"] == 1
@@ -439,3 +440,99 @@ def test_cleanup_deletes_billing_payments_before_billings(tmp_path):
         assert db.query(BillingPayment).count() == 0
         assert db.query(Billing).count() == 0
         assert db.query(Order).count() == 0
+
+
+def test_client_id_collision_and_resume_mapping(tmp_path):
+    from migration.pipeline.steps import migrate_clients_and_families
+    SessionLocal = _session_factory()
+    bundle, export = _write_bundle(tmp_path, client_count=2)
+    with SessionLocal() as db:
+        job, clinic = _seed_job(db, bundle)
+        other_company = Company(name="Other", owner_full_name="Owner")
+        db.add(other_company)
+        db.flush()
+        other_clinic = Clinic(company_id=other_company.id, name="Other", unique_id="other-clinic")
+        db.add(other_clinic)
+        db.flush()
+        collision_id = int(f"{clinic.id}101")
+        existing = Client(id=collision_id, company_id=other_company.id, clinic_id=other_clinic.id, first_name="Keep")
+        db.add(existing)
+        db.commit()
+        trace = dict(source_system="softoptic", company_id=job.company_id, migration_job_id=job.id)
+        mapping, _ = migrate_clients_and_families(db, str(export), clinic.company, target_clinic_id=clinic.id, trace_context=trace)
+        assert mapping["101"] != collision_id
+        assert db.get(Client, collision_id).first_name == "Keep"
+        resumed, _ = migrate_clients_and_families(db, str(export), clinic.company, return_only=True, target_clinic_id=clinic.id, trace_context=trace)
+        assert resumed == mapping
+        # Recovery between the data commit and phase checkpoint must not duplicate clients.
+        repeated, _ = migrate_clients_and_families(db, str(export), clinic.company, target_clinic_id=clinic.id, trace_context=trace)
+        assert repeated == mapping
+        assert db.query(Client).filter_by(clinic_id=clinic.id).count() == 2
+
+
+def test_failed_batch_rolls_back_and_reports_error(tmp_path, monkeypatch):
+    from sqlalchemy.exc import IntegrityError
+    SessionLocal = _session_factory()
+    bundle, _ = _write_bundle(tmp_path, client_count=2)
+    with SessionLocal() as db:
+        job, clinic = _seed_job(db, bundle)
+        updates = []
+        def fail(*args, **kwargs):
+            raise IntegrityError("private SQL", {"name": "private patient"}, Exception("duplicate client ID"))
+        monkeypatch.setattr(db, "bulk_save_objects", fail)
+        run_softoptic_import(db, job=job, storage=None, on_progress=lambda **kw: updates.append(kw))
+        assert updates[-1]["status"] == "failed"
+        assert updates[-1]["error"] == "duplicate client ID"
+        assert "private patient" not in str(updates[-1])
+        assert db.query(Client).filter_by(clinic_id=clinic.id).count() == 0
+
+
+def test_single_client_selection_preserves_other_imports_and_rejects_mismatch(tmp_path):
+    import json
+    SessionLocal = _session_factory()
+    bundle, export = _write_bundle(tmp_path)
+    (export / "manifest.json").write_text(json.dumps({"client_account_code": "101"}))
+    with zipfile.ZipFile(bundle, "a") as archive:
+        archive.write(export / "manifest.json", "manifest.json")
+    with SessionLocal() as db:
+        job, clinic = _seed_job(db, bundle)
+        keep = Client(company_id=clinic.company_id, clinic_id=clinic.id, first_name="Keep")
+        db.add(keep)
+        db.flush()
+        keep_id = keep.id
+        db.add(MigrationSourceLink(source_system="softoptic", source_table="account.csv", target_model="Client",
+            target_id=keep_id, clinic_id=clinic.id, company_id=clinic.company_id,
+            raw_row_ref="old-client", source_primary_key_parts=[["account_code", "999"]], raw_payload={"account_code": "999"}))
+        job.source_metadata = {"client_account_code": "101"}
+        db.commit()
+        def progress(**kwargs):
+            update_job(db, job, **kwargs)
+        run_softoptic_import(db, job=job, storage=None, on_progress=progress)
+        assert job.status == "completed"
+        assert db.get(Client, keep_id).first_name == "Keep"
+        assert db.query(Client).filter_by(clinic_id=clinic.id).count() == 2
+        job.source_metadata = {"client_account_code": "102"}
+        db.commit()
+        run_softoptic_import(db, job=job, storage=None, on_progress=progress)
+        assert job.status == "failed"
+        assert job.error == "softoptic.selectionMismatch"
+        assert db.query(Client).filter_by(clinic_id=clinic.id).count() == 2
+
+
+def test_single_client_option_is_validated_and_bound_by_api(tmp_path):
+    from EndPoints.migration import create_import
+    from fastapi import HTTPException
+    SessionLocal = _session_factory()
+    bundle, _ = _write_bundle(tmp_path)
+    with SessionLocal() as db:
+        job, clinic = _seed_job(db, bundle)
+        job.status = "completed"
+        db.commit()
+        user = db.get(User, job.user_id)
+        payload = {"clinic_id": clinic.id, "source_system": "softoptic", "options": {"client_account_code": "23470"}}
+        for bad in [True, 23470, "", "12x", "1" * 31]:
+            with pytest.raises(HTTPException) as error:
+                create_import({**payload, "options": {"client_account_code": bad}}, db, user)
+            assert error.value.status_code == 422
+        result = create_import(payload, db, user)
+        assert db.get(SoftOpticMigrationJob, result["id"]).source_metadata["client_account_code"] == "23470"

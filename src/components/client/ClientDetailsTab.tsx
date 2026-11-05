@@ -1,7 +1,8 @@
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { ImportedProfileHistory } from "@/components/migration/ImportedProfileHistory"
 import React from "react"
 import { useTranslation } from "react-i18next"
 import { Client, Family } from "@/lib/db/schema-interface"
-import { useClientExamDatesQuery } from "@/hooks/client/useClientTabQueries"
 import { useDuplicateNationalId } from "@/hooks/client/useDuplicateNationalId"
 import { GuardedRouterLink } from "@/components/GuardedRouterLink"
 
@@ -70,11 +71,12 @@ export function ClientDetailsTab({
 }: ClientDetailsTabProps) {
   const { direction } = useAppLocale()
   const { t } = useTranslation()
+  const [phoneTab, setPhoneTab] = React.useState<'home' | 'work'>(() => draft.phone_home || !draft.phone_work ? 'home' : 'work')
+  React.useEffect(() => { setPhoneTab(draft.phone_home || !draft.phone_work ? 'home' : 'work') }, [draft.id])
   const isNewMode = mode === 'new'
   const showEditableFields = isEditing || isNewMode
   const { currentClinic } = useUser()
   const formData = draft
-  const examDates = useClientExamDatesQuery(draft.id, !isNewMode)
   // Checked live while the ID is typed, when opening a client or editing one.
   const duplicateClient = useDuplicateNationalId(formData.national_id, currentClinic?.id, {
     enabled: showEditableFields,
@@ -247,7 +249,7 @@ export function ClientDetailsTab({
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" dir={direction}>
-          <div className={`bg-card rounded-lg p-6 shadow-md ${direction === "ltr" ? "lg:order-3" : ""}`} dir={direction}>
+          <div className="bg-card rounded-lg p-6 shadow-md lg:order-3" dir={direction}>
             <div className="flex items-center gap-3 mb-10" dir={direction}>
               <Skeleton className="h-7 w-7 rounded-lg" />
               <Skeleton className="h-5 w-32" />
@@ -262,7 +264,7 @@ export function ClientDetailsTab({
             </div>
           </div>
 
-          <div className={`bg-card rounded-lg p-6 shadow-md ${direction === "ltr" ? "lg:order-2" : ""}`} dir={direction}>
+          <div className="bg-card rounded-lg p-6 shadow-md lg:order-2" dir={direction}>
             <div className="flex items-center gap-3 mb-10" dir={direction}>
               <Skeleton className="h-7 w-7 rounded-lg" />
               <Skeleton className="h-5 w-40" />
@@ -277,7 +279,7 @@ export function ClientDetailsTab({
             </div>
           </div>
 
-          <div className={`bg-card rounded-lg p-6 shadow-md ${direction === "ltr" ? "lg:order-1" : ""}`} dir={direction}>
+          <div className="bg-card rounded-lg p-6 shadow-md lg:order-1" dir={direction}>
             <div className="flex items-center gap-3 mb-10" dir={direction}>
               <Skeleton className="h-7 w-7 rounded-lg" />
               <Skeleton className="h-5 w-28" />
@@ -338,6 +340,7 @@ export function ClientDetailsTab({
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold">פרטים אישיים</h2>
           <div className="flex gap-2">
+            <ImportedProfileHistory clientId={draft.id} />
             <ImportedSourceDataDialog recordType="client" recordId={draft.id} />
             {isEditing && onCancelEdit && (
               <Button
@@ -363,7 +366,7 @@ export function ClientDetailsTab({
       <div className="space-y-6">
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" dir={direction}>
-          <div className={`bg-card rounded-lg examcard p-6 ${direction === "ltr" ? "lg:order-3" : ""}`} dir={direction}>
+          <div className="bg-card rounded-lg examcard p-6 lg:order-3" dir={direction}>
             <div className="flex items-center gap-3 mb-6" dir={direction}>
               <div className="p-2 bg-muted rounded-lg">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
@@ -409,7 +412,7 @@ export function ClientDetailsTab({
                   value={formData.price_list || ''}
                   onChange={handleInputChange}
                   disabled={!showEditableFields}
-                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
+                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
                   placeholder={showEditableFields ? "הכנס מחירון" : ""}
                 />
               </div>
@@ -421,7 +424,7 @@ export function ClientDetailsTab({
                   value={formData.discount_percent || ''}
                   onChange={handleInputChange}
                   disabled={!showEditableFields}
-                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
+                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
                   placeholder={showEditableFields ? "הכנס אחוז הנחה" : ""}
                 />
               </div>
@@ -433,7 +436,7 @@ export function ClientDetailsTab({
                   value={formData.sorting_group || ''}
                   onChange={handleInputChange}
                   disabled={!showEditableFields}
-                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
+                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
                   placeholder={showEditableFields ? "הכנס קבוצת מיון" : ""}
                 />
               </div>
@@ -445,7 +448,7 @@ export function ClientDetailsTab({
                   value={formData.referring_party || ''}
                   onChange={handleInputChange}
                   disabled={!showEditableFields}
-                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
+                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
                   placeholder={showEditableFields ? "הכנס גורם מפנה" : ""}
                 />
               </div>
@@ -488,7 +491,7 @@ export function ClientDetailsTab({
             </div>
           </div>
 
-          <div className={`bg-card rounded-lg examcard p-6 ${direction === "ltr" ? "lg:order-2" : ""}`} dir={direction}>
+          <div className="bg-card rounded-lg examcard p-6 lg:order-2" dir={direction}>
             <div className="flex items-center gap-3 mb-6" dir={direction}>
               <div className="p-2 bg-muted rounded-lg">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
@@ -532,7 +535,7 @@ export function ClientDetailsTab({
                   value={formData.address_street || ''}
                   onChange={handleInputChange}
                   disabled={!showEditableFields}
-                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
+                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
                   placeholder={showEditableFields ? "הכנס רחוב" : ""}
                 />
               </div>
@@ -544,7 +547,7 @@ export function ClientDetailsTab({
                   value={formData.postal_code || ''}
                   onChange={handleInputChange}
                   disabled={!showEditableFields}
-                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
+                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
                   placeholder={showEditableFields ? "הכנס מיקוד" : ""}
                 />
               </div>
@@ -556,7 +559,7 @@ export function ClientDetailsTab({
                   value={formData.address_number || ''}
                   onChange={handleInputChange}
                   disabled={!showEditableFields}
-                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
+                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
                   placeholder={showEditableFields ? "הכנס דירה/מספר בית" : ""}
                 />
               </div>
@@ -565,59 +568,54 @@ export function ClientDetailsTab({
                 <Input
                   type="tel"
                   name="phone_mobile"
+                  dir="ltr"
                   value={formData.phone_mobile || ''}
                   onChange={handleInputChange}
                   disabled={!showEditableFields}
-                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
+                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
                   placeholder={showEditableFields ? "הכנס טלפון נייד" : ""}
                 />
               </div>
-              <div className="space-y-2">
-                <ModernLabel>טלפון בית</ModernLabel>
-                <Input
-                  type="tel"
-                  name="phone_home"
-                  value={formData.phone_home || ''}
-                  onChange={handleInputChange}
-                  disabled={!showEditableFields}
-                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
-                  placeholder={showEditableFields ? "הכנס טלפון בית" : ""}
-                />
-              </div>
-              <div className="space-y-2">
-                <ModernLabel>טלפון עבודה</ModernLabel>
-                <Input
-                  type="tel"
-                  name="phone_work"
-                  value={formData.phone_work || ''}
-                  onChange={handleInputChange}
-                  disabled={!showEditableFields}
-                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
-                  placeholder={showEditableFields ? "הכנס טלפון עבודה" : ""}
-                />
-              </div>
+              <Tabs value={phoneTab} onValueChange={value => setPhoneTab(value as 'home' | 'work')} dir={direction} className="gap-0">
+                <div className="mb-2 flex min-h-4 items-center gap-2">
+                  <span className="text-xs text-muted-foreground">{t('clientContact.phone')}</span>
+                  <TabsList aria-label={t('clientContact.phoneKind')} className="h-auto bg-transparent p-0 gap-2">
+                    {(['home', 'work'] as const).map(kind => <TabsTrigger key={kind} value={kind}
+                      className="h-4 flex-none rounded-none border-0 border-b-2 border-transparent p-0 text-xs leading-3 text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none">
+                      {t(`clientContact.${kind}`)}
+                    </TabsTrigger>)}
+                  </TabsList>
+                </div>
+                {(['home', 'work'] as const).map(kind => <TabsContent key={kind} value={kind} className="mt-0">
+                  <Input type="tel" name={`phone_${kind}`} aria-label={t(`clientContact.${kind}Phone`)} dir="ltr"
+                    value={formData[kind === 'home' ? 'phone_home' : 'phone_work'] || ''}
+                    onChange={handleInputChange} disabled={!showEditableFields}
+                    className={`h-9 text-sm disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`} />
+                </TabsContent>)}
+              </Tabs>
               {(showEditableFields || formData.fax) && <div className="space-y-2">
                 <ModernLabel>{t('opticplusCards.fields.fax')}</ModernLabel>
                 <Input type="tel" name="fax" aria-label={t('opticplusCards.fields.fax')} dir="ltr"
                   value={formData.fax || ''} onChange={handleInputChange} disabled={!showEditableFields}
-                  className="h-9 text-sm disabled:cursor-default disabled:opacity-100" />
+                  className={`h-9 text-sm disabled:cursor-default disabled:opacity-100 ${direction === 'rtl' ? 'text-right' : 'text-left'}`} />
               </div>}
               <div className="space-y-2">
-                <ModernLabel>אימייל</ModernLabel>
+                <ModernLabel>{t('clientContact.email')}</ModernLabel>
                 <Input
                   type="email"
                   name="email"
+                  dir="ltr"
                   value={formData.email || ''}
                   onChange={handleInputChange}
                   disabled={!showEditableFields}
-                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
+                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
                   placeholder={showEditableFields ? "הכנס אימייל" : ""}
                 />
               </div>
             </div>
           </div>
 
-          <div className={`bg-card rounded-lg examcard p-6 ${direction === "ltr" ? "lg:order-1" : ""}`} dir={direction}>
+          <div className="bg-card rounded-lg examcard p-6 lg:order-1" dir={direction}>
             <div className="flex items-center gap-3 mb-6" dir={direction}>
               <div className="p-2 bg-muted rounded-lg">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
@@ -639,7 +637,7 @@ export function ClientDetailsTab({
                   value={formData.first_name || ''}
                   onChange={handleInputChange}
                   disabled={!showEditableFields}
-                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
+                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
                   placeholder={showEditableFields ? "הכנס שם פרטי" : ""}
                   required={isNewMode}
                 />
@@ -656,7 +654,7 @@ export function ClientDetailsTab({
                   value={formData.last_name || ''}
                   onChange={handleInputChange}
                   disabled={!showEditableFields}
-                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
+                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
                   placeholder={showEditableFields ? "הכנס שם משפחה" : ""}
                   required={isNewMode}
                 />
@@ -737,7 +735,7 @@ export function ClientDetailsTab({
                   value={formData.occupation || ''}
                   onChange={handleInputChange}
                   disabled={!showEditableFields}
-                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
+                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
                   placeholder={showEditableFields ? "הכנס תעסוקה" : ""}
                 />
               </div>
@@ -984,21 +982,8 @@ export function ClientDetailsTab({
                 </div>
               )}
 
-              {isNewMode && !isCreatingFamily && (
+              {!isCreatingFamily && (
                 <div className="text-sm h-[0.786rem] text-muted-foreground">
-                </div>
-              )}
-
-              {!isNewMode && (
-                <div className="grid grid-cols-1 @[500px]:grid-cols-2 gap-3 border-t border-border pt-4">
-                  <div className="space-y-2">
-                    <ModernLabel>{t("clientFirstExam")}</ModernLabel>
-                    <DateInput name="first_exam_date" value={examDates.data?.first_exam_date ?? undefined} onChange={() => {}} disabled />
-                  </div>
-                  <div className="space-y-2">
-                    <ModernLabel>{t("clientLastExam")}</ModernLabel>
-                    <DateInput name="last_exam_date" value={examDates.data?.last_exam_date ?? undefined} onChange={() => {}} disabled />
-                  </div>
                 </div>
               )}
 

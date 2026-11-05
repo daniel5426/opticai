@@ -1,3 +1,4 @@
+import { useLayoutWidth } from "@/hooks/exam/useLayoutWidth";
 import React, {
   useState,
   useRef,
@@ -587,6 +588,11 @@ export default function ExamDetailPage({
     if (!activeSoftopticTab) return { rows: cardRows, customWidths, items: gridItems };
     return parseLayoutData(serializeGridLayoutData(packSoftopticCards(activeSoftopticTab.cards)));
   }, [activeSoftopticTab, cardRows, customWidths, gridItems]);
+  const activeLayoutWidth = useMemo(() =>
+    parseLayoutData(layoutTabs.find(tab => tab.id === activeInstanceId)?.layout_data),
+    [layoutTabs, activeInstanceId],
+  );
+  const { ref: layoutWidthRef, maxWidth: preferredLayoutWidth } = useLayoutWidth(activeLayoutWidth.layoutWidthPx, activeLayoutWidth.sideInsetPx, activeInstanceId);
 
   // Empty OpticSoft sections save into the imported instance, like the imported cards around them.
   useEffect(() => {
@@ -1928,12 +1934,15 @@ export default function ExamDetailPage({
       />
       <ClientSpaceLayout>
         <div
-          className="no-scrollbar flex h-full min-h-0 flex-1 flex-col overflow-hidden p-4 lg:p-5"
+          ref={layoutWidthRef}
+          className="no-scrollbar flex h-full min-h-0 flex-1 flex-col overflow-hidden p-4 lg:p-5 [--exam-page-padding:1rem] lg:[--exam-page-padding:1.25rem]"
           dir={direction}
           style={{
             scrollbarWidth: "none",
             msOverflowStyle: "none",
-            margin: "0",
+            marginInline: "auto",
+            width: "100%",
+            maxWidth: preferredLayoutWidth ? `calc(${preferredLayoutWidth}px + 2 * var(--exam-page-padding))` : undefined,
           }}
         >
           {/* Layout Tabs */}

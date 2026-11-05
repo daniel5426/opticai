@@ -1,5 +1,6 @@
 {
   "en": {
+    "appearanceResetDefaults": "Reset to default appearance",
     "gradientEditor": "Page background",
     "gradientDescription": "Choose a solid color or a gradient for page backgrounds. Preview changes live, then save to keep them on this device.",
     "gradientChooseColor": "Choose {{color}}",
@@ -70,6 +71,7 @@
     "backgroundColor": "Background color"
   },
   "he": {
+    "appearanceResetDefaults": "שחזור מראה ברירת המחדל",
     "gradientEditor": "רקע העמוד",
     "gradientDescription": "בחרו צבע אחיד או מעבר צבעים לרקע העמודים. השינויים מוצגים מיד; שמרו כדי לשמור אותם במכשיר הזה.",
     "gradientChooseColor": "בחירת {{color}}",
@@ -140,6 +142,7 @@
     "backgroundColor": "צבע הרקע"
   },
   "fr": {
+    "appearanceResetDefaults": "Rétablir l’apparence par défaut",
     "gradientEditor": "Fond des pages",
     "gradientDescription": "Choisissez une couleur unie ou un dégradé pour le fond des pages. Prévisualisez les modifications, puis enregistrez-les sur cet appareil.",
     "gradientChooseColor": "Choisir {{color}}",

@@ -16,7 +16,10 @@ import { CustomModal } from "@/components/ui/custom-modal";
 import { History, Loader2, Plus, Trash2 } from "lucide-react";
 import { Billing, BillingPayment, OrderLineItem } from "@/lib/db/schema-interface";
 import { BillingPaymentMenu } from "@/components/billing/BillingPaymentMenu";
+import { editBillingLineTotal, editBillingSummary } from "@/lib/billing-summary";
 import { groupLineTotal } from "@/lib/order-groups";
+import { DiscountPicker } from "@/components/billing/DiscountPicker";
+import { discountLine, type DiscountDefinition } from "@/lib/discounts";
 import { CompactBillingView } from "@/components/billing/CompactBillingView";
 import {
   createBillingPayment,
@@ -85,7 +88,10 @@ const isClientOrdersContextKey = (queryKey: readonly unknown[]) =>
   queryKey[0] === "client" && queryKey[2] === "orders-context";
 
 interface BillingTabProps {
+  discountClinicId?: number;
   compact?: boolean;
+  compactDisabled?: boolean;
+  onSaveBilling?: (billing?: Billing, items?: OrderLineItem[]) => Promise<boolean>;
   canPay?: boolean;
   paymentAdapter?: { create: (payment: {amount: number; paid_at: string; kind: "payment"}) => Promise<BillingPayment>; remove: (paymentId: number) => Promise<boolean> };
   billingFormData: Billing;
@@ -97,7 +103,10 @@ interface BillingTabProps {
 }
 
 export function BillingTab({
+  discountClinicId,
   compact = false,
+  compactDisabled = false,
+  onSaveBilling,
   canPay = true,
   paymentAdapter,
   billingFormData,
@@ -110,6 +119,7 @@ export function BillingTab({
   const queryClient = useQueryClient();
   const { locale, direction } = useAppLocale();
   const { t } = useTranslation();
+  const [discountPickerOpen, setDiscountPickerOpen] = React.useState(false);
   const billingCurrency = billingFormData.currency || "ILS";
   const formatCurrency = (value?: number | null, currency = billingCurrency) =>
     formatBillingAmount(value, currency, locale);
@@ -440,6 +450,9 @@ export function BillingTab({
     setOrderLineItems((prev) =>
       prev.map((item) => {
         if (item.id === id) {
+          if (field === "line_total") {
+            return editBillingLineTotal(item, parseNumberInput(value) ?? 0);
+          }
           const updatedItem = { ...item, manually_edited: true };
           const numericFields = ["price", "quantity", "discount"];
           if (numericFields.includes(field)) {
@@ -491,6 +504,18 @@ export function BillingTab({
       const newItems = [...prev, itemToAdd];
       return newItems;
     });
+  };
+
+  const [addingDiscount, setAddingDiscount] = React.useState(false);
+  const addDiscount = async (definition: DiscountDefinition) => {
+    if (!isEditing || compactDisabled || addingDiscount) return;
+    const items = [...orderLineItems, discountLine(definition, billingFormData, orderLineItems)];
+    setAddingDiscount(true);
+    try {
+      if (onSaveBilling) { if (!await onSaveBilling(undefined, items)) return; }
+      else setOrderLineItems(items);
+      setDiscountPickerOpen(false);
+    } finally { setAddingDiscount(false); }
   };
 
   const deleteLineItem = (id: number) => {
@@ -595,6 +620,7 @@ export function BillingTab({
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
         <CompactBillingView
+          disabled={compactDisabled}
           items={orderLineItems}
           billing={billingFormData}
           isEditing={isEditing}
@@ -602,12 +628,24 @@ export function BillingTab({
           formatCurrency={formatCurrency}
           formatNumber={(value) => formatNumberInputValue(value, true)}
           onAddItem={addNewLineItem}
+          onAddDiscount={discountClinicId ? () => setDiscountPickerOpen(true) : undefined}
           onItemChange={handleLineItemChange}
-          onDeleteItem={deleteLineItem}
-          onBillingInput={handleBillingInputChange}
+          onDeleteItem={async id => {
+            if (onSaveBilling) return onSaveBilling(undefined, orderLineItems.filter(item => item.id !== id));
+            deleteLineItem(id);
+            return true;
+          }}
+          onSave={onSaveBilling}
+          onSummarySave={async (field, value) => {
+            const next = editBillingSummary(billingFormData, orderLineItems, field, value, t("orderWorkspace.billingAdjustment"));
+            if (onSaveBilling && !await onSaveBilling(next.billing, next.items)) return false;
+            if (!onSaveBilling) { setBillingFormData(next.billing); setOrderLineItems(next.items); }
+            return true;
+          }}
           onOpenHistory={openPaymentHistory}
           paymentMenu={paymentMenu}
         />
+        <DiscountPicker open={discountPickerOpen} onClose={() => setDiscountPickerOpen(false)} clinicId={discountClinicId} currency={billingCurrency} onSelect={addDiscount} disabled={compactDisabled || addingDiscount || !isEditing} />
         {paymentHistoryModal}
       </div>
     );

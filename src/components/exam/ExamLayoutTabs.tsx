@@ -49,7 +49,7 @@ export function ExamLayoutTabs({
   const handleFullDataClick = onFullDataClick ?? onRegenerateFullData;
   const canRemoveLayoutTabs = visibleTabs.length > 0;
   const activeTabShadow =
-    "shadow-sm after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-2 after:bg-card after:content-['']";
+    "shadow-sm after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-2 after:bg-[var(--appearance-exam-panel)] after:content-['']";
 
   const requestDelete = (tab: LayoutTab) => {
     if (hasTabData(tab)) {
@@ -82,7 +82,7 @@ export function ExamLayoutTabs({
     border: "none",
     marginBottom: isActive ? "-1px" : 0,
     zIndex: isActive ? 1 : undefined,
-    background: isActive ? "hsl(var(--card))" : "transparent",
+    background: isActive ? "var(--appearance-exam-panel)" : "transparent",
     color: isActive
       ? "hsl(var(--foreground))"
       : "hsl(var(--muted-foreground) / 0.72)",

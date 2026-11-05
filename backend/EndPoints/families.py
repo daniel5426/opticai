@@ -7,7 +7,7 @@ from models import Family, Client
 from schemas import FamilyCreate, FamilyUpdate, Family as FamilySchema, FamilyWithMembers
 from auth import get_current_user
 from models import User
-from utils.column_filters import ColumnFilter, build_column_filter_conditions
+from utils.column_filters import lookup_filter, ColumnFilter, build_column_filter_conditions
 from utils.table_search import build_all_terms_search_condition, search_blob
 from security.scope import (
     get_record_clinic_ids,
@@ -52,6 +52,7 @@ def get_families_paginated(
     if search_condition is not None:
         count_q = count_q.filter(search_condition)
     column_conditions = build_column_filter_conditions(filters, {
+        "clinic": lookup_filter(Family.clinic_id),
         "name": ColumnFilter(Family.name),
         "created_date": ColumnFilter(Family.created_date, "date"),
     })

@@ -1,5 +1,6 @@
 """Protect clinical components that the published v1.0.79 writer cannot serialize."""
 import json
+from decimal import Decimal, InvalidOperation
 
 
 # Frozen from v1.0.79's ExamComponentRegistry, not the current UI registry.
@@ -30,7 +31,34 @@ def represented_types(request):
     return LEGACY_COMPONENTS
 
 
+def _same_number(left, right):
+    try:
+        return Decimal(str(left)) == Decimal(str(right))
+    except (InvalidOperation, ValueError):
+        return left == right
+
+
+def preserve_keratometer_edits(stored, incoming):
+    """Older editors change mm but retain an unknown, stale diopter field."""
+    result = dict(incoming)
+    for key, block in incoming.items():
+        if not (key == "keratometer" or key.startswith("keratometer-")) or not isinstance(block, dict):
+            continue
+        previous = (stored or {}).get(key, (stored or {}).get("keratometer", {}))
+        if not isinstance(previous, dict):
+            continue
+        updated = dict(block)
+        for field in ("r_k1", "r_k2", "l_k1", "l_k2"):
+            diopters = field + "_d"
+            if field in block and not _same_number(block[field], previous.get(field)):
+                if diopters not in block or _same_number(block.get(diopters), previous.get(diopters)):
+                    updated.pop(diopters, None)
+        result[key] = updated
+    return result
+
+
 def preserve_unrepresented_components(stored, incoming, request=None):
+    incoming = preserve_keratometer_edits(stored, incoming)
     supported = represented_types(request)
     def represented(key):
         return key == "__ui" or any(key == kind or key.startswith(kind + "-") for kind in supported)

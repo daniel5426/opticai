@@ -1,10 +1,11 @@
+import { NewExamLayoutMenuContent } from "@/components/exam/NewExamLayoutMenuContent";
 import { useRecordClinicName } from "@/components/RecordClinicLabel"
 import { importedExamName } from "@/lib/opticplus-cards";
 import React, { useState, useEffect } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { DropdownMenu, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Plus, Trash2 } from "lucide-react"
 import { OpticalExam, ExamLayout } from "@/lib/db/schema-interface"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
@@ -117,7 +118,7 @@ export function ExamsTable({
       test_name: { getValue: (exam) => exam.test_name },
       client: { getValue: (exam) => exam.clientName },
       clinic: { getValue: (exam) => clinicName(exam.clinic_id, exam.clinic_name, exam.clinic) },
-      examiner: { getValue: (exam) => exam.full_name || exam.username }
+      examiner: { getValue: (exam) => String(exam.user_id ?? "") }
     }),
     [clinicName]
   )
@@ -162,8 +163,8 @@ export function ExamsTable({
       ...(clientId === 0
         ? [{ key: "client", label: t("examList.client"), kind: "text" as const, getValue: (exam: ExamWithNames) => exam.clientName }]
         : []),
-      { key: "clinic", label: t("examList.clinic"), kind: "text", getValue: (exam) => exam.clinic_name || exam.clinic },
-      { key: "examiner", label: t("examList.examiner"), kind: "text", getValue: (exam) => exam.full_name || exam.username },
+      { key: "clinic", label: t("examList.clinic"), kind: "text", getValue: (exam) => String(exam.clinic_id ?? "__none__") },
+      { key: "examiner", label: t("examList.examiner"), kind: "text", getValue: (exam) => String(exam.user_id ?? "") },
     ]
   }, [activeLayouts, clientId, data, locale, t])
 
@@ -255,14 +256,14 @@ onReset:() => {
           columnFilters.setFilters({})
         },
 actions:clientId > 0 ? (
-            activeLayouts.length > 0 ? (
+            (
               <DropdownMenu dir={direction} open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
                 <DropdownMenuTrigger dir={direction} asChild>
                   <Button aria-label={t("examList.add")}>
                     <Plus className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
+                <NewExamLayoutMenuContent align={direction === "rtl" ? "end" : "start"}>
                   {activeLayouts.map((layout) => (
                     <DropdownMenuItem
                       dir={direction}
@@ -279,12 +280,8 @@ actions:clientId > 0 ? (
                       {layout.name}
                     </DropdownMenuItem>
                   ))}
-                </DropdownMenuContent>
+                </NewExamLayoutMenuContent>
               </DropdownMenu>
-            ) : (
-              <Button aria-label={t("examList.add")}>
-                <Plus className="h-4 w-4" />
-              </Button>
             )
           ) : (
             <NewExamButtonWithoutClient
@@ -480,8 +477,7 @@ function NewExamButtonWithoutClient({
     setSelectedLayoutId(undefined)
   }
 
-  if (activeLayouts.length > 0) {
-    return (
+  return (
       <>
         <DropdownMenu dir={direction} open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
           <DropdownMenuTrigger asChild>
@@ -489,13 +485,13 @@ function NewExamButtonWithoutClient({
               <Plus className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
+          <NewExamLayoutMenuContent align={direction === "rtl" ? "end" : "start"}>
             {activeLayouts.map((layout) => (
               <DropdownMenuItem dir={direction} key={layout.id} onClick={() => handleLayoutSelect(layout.id!)}>
                 {layout.name}
               </DropdownMenuItem>
             ))}
-          </DropdownMenuContent>
+          </NewExamLayoutMenuContent>
         </DropdownMenu>
         <ClientSelectModal
           isOpen={isClientModalOpen}
@@ -506,12 +502,5 @@ function NewExamButtonWithoutClient({
           onClientSelect={handleClientSelect}
         />
       </>
-    )
-  }
-
-  return (
-    <Button aria-label={t("examList.add")}>
-      <Plus className="h-4 w-4" />
-    </Button>
   )
 }
