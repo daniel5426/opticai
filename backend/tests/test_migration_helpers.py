@@ -15,6 +15,7 @@ from backend.models import (
     Company,
     ContactLensOrder,
     ExamLayoutInstance,
+    LookupAdvisor,
     LookupColor,
     MedicalLog,
     OpticalExam,
@@ -38,6 +39,7 @@ def test_visual_acuity_normalizes_softoptic_bare_meter_denominators():
     assert migration.parse_visual_acuity("24") == "6/24"
     assert migration.parse_visual_acuity("2") == "6/2"
     assert migration.parse_visual_acuity("1") == "6/1"
+    assert migration.parse_visual_acuity("6765") == "6/6765"
     assert migration.parse_visual_acuity("1.0+2") == "1.0+2"
     assert migration.parse_visual_acuity("Ambli") == "Ambli"
 
@@ -953,6 +955,84 @@ def test_regular_order_migrates_lookup_lens_frame_billing_and_payments(tmp_path)
         assert line_item.supplied is True
 
 
+def _write_csv(path, rows):
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def test_regular_order_resolves_opticsoft_fulfillment_codes(tmp_path):
+    account = {"account_type": "", "account_code": "", "acc_name": "", "first_name": "", "last_name": "", "is_active": "1"}
+    _write_csv(
+        tmp_path / "account.csv",
+        [
+            {**account, "account_type": "SITE", "account_code": "1", "acc_name": "אופטיקה הראל-ירושלים"},
+            {**account, "account_type": "WORK", "account_code": "2", "acc_name": "הראל שלומי"},
+            {**account, "account_type": "WORK", "account_code": "363", "first_name": "יעל", "last_name": "אלבז"},
+            {**account, "account_type": "WORK", "account_code": "9", "acc_name": "עובד לשעבר", "is_active": "0"},
+            {**account, "account_type": "CUST", "account_code": "2", "acc_name": "לקוח"},
+        ],
+    )
+    _write_csv(tmp_path / "optic_tv_order_status.csv", [{"code": "18", "name": "יש להזמין"}])
+    _write_csv(
+        tmp_path / "optic_glasses_presc.csv",
+        [
+            {
+                "code": "164291",
+                "account_code": "101",
+                "branch_code": "1",
+                "presc_date": "2026-07-29",
+                "advisor_code": "2",
+                "giver_code": "363",
+                "tech_code": "77",
+                "order_status": "18",
+                "supply_branch": "1",
+                "end_of_warranty": "2026-07-30",
+            }
+        ],
+    )
+
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base.metadata.create_all(bind=engine)
+
+    with SessionLocal() as db:
+        company = Company(name="A", owner_full_name="Owner A")
+        db.add(company)
+        db.flush()
+        clinic = Clinic(company_id=company.id, name="Selected", unique_id="selected")
+        db.add(clinic)
+        db.flush()
+        user = User(company_id=company.id, clinic_id=clinic.id, username="admin", role_level=4, is_active=True)
+        client = Client(company_id=company.id, clinic_id=clinic.id, first_name="A")
+        db.add_all([user, client])
+        db.commit()
+
+        migration.migrate_lookups(db, str(tmp_path), [clinic.id])
+        migration.migrate_regular_orders(db, str(tmp_path), {"101": client.id}, {"1": clinic.id}, user.id)
+
+        assert sorted(name for (name,) in db.query(LookupAdvisor.name).filter_by(clinic_id=clinic.id)) == [
+            "אלבז יעל",
+            "הראל שלומי",
+        ]
+        order_data = db.query(Order).one().order_data
+        details = order_data["details"]
+        assert details["advisor"] == "הראל שלומי"
+        assert details["delivered_by"] == "אלבז יעל"
+        assert details["technician"] == "77"  # unknown codes stay as imported
+        assert details["order_status"] == "יש להזמין"
+        assert details["delivery_clinic_id"] == clinic.id
+        assert details["delivery_location"] == "אופטיקה הראל-ירושלים"
+        tab = order_data["lens_frame_tabs"][0]
+        assert tab["lens"]["warranty_expiration"] == "2026-07-30"
+        assert tab["frame"]["warranty_expiration"] == "2026-07-30"
+
+
 def test_contact_order_migrates_type_aliases_price_rows_and_installments(tmp_path):
     with (tmp_path / "optic_contact_presc.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(
@@ -1142,3 +1222,60 @@ def test_subjective_softoptic_maps_vertical_prism_and_dual_writes_horizontal():
     assert final_subjective["r_pr_v"] == 0.5
     assert final_subjective["r_base_v"] == "DOWN"
 
+
+
+def test_softoptic_details_keep_fields_without_a_prysm_card():
+    data = migration.build_exam_data_from_eye_tests({}, {
+        "old2_pa": "1",
+        "old2_ffa": "3",
+        "old2_source": "מקור",
+        "sub_f_df": "4",
+        "test_board": " + = FCC ",
+        "sb_mid_fa": "222",
+        "sb_mid_fa_add": "2",
+        "fun_r_macula": "12",
+        "fun_l_diska": "43",
+        "ishihara_test": "1",
+        "ishihara_rem": "ראה",
+        "bio_r_iop": "1",
+        "bio_r_cornia": "ok",
+        "bio_shirmer_r": "1",
+        "bio_shirmer_l": "0",
+        "anam_c_lens_rem": "ok",
+        "anam_start_before": "4",
+        "anam_start_before_p": "7",
+        "anam_remarks": "ראה טוב",
+        "test_remark": "אחר",
+    })
+
+    assert data["softoptic-details-old-ref-2"] == {"pa": "1", "ffa": "3", "source": "מקור", "card_instance_id": "old-ref-2"}
+    assert data["softoptic-details-final"]["df"] == "4"
+    assert data["softoptic-details-final"]["test_board"] == "+ = FCC"
+    assert data["softoptic-details-subjective"]["comb_fa"] == "222"
+    assert data["softoptic-details-subjective"]["comb_fa_tuning"] == "2"
+    assert data["softoptic-details-fundus"]["r_macula"] == "12"
+    assert data["softoptic-details-fundus"]["l_disc"] == "43"
+    assert data["softoptic-details-fundus"]["ishihara_rem"] == "ראה"
+    bio = data["softoptic-details-bio"]
+    assert (bio["r_iop"], bio["r_cornea"], bio["r_schirmer"]) == ("1", "ok", "1")
+    assert "l_schirmer" not in bio
+    anamnesa = data["softoptic-details-anamnesa"]
+    assert (anamnesa["started_before"], anamnesa["started_unit"]) == ("4", "7")
+    assert anamnesa["contact_lens_notes"] == "ok"
+    assert anamnesa["exam_remark"] == "אחר"
+    assert "softoptic-details-old-ref-1" not in data
+
+
+def test_softoptic_defaults_alone_add_no_details_and_wearing_numbers_are_not_dates():
+    data = migration.build_exam_data_from_eye_tests({}, {
+        "ishihara_test": "1",
+        "test_board": "FCC",
+        "anam_medicine": "x",
+        "anam_start_before": "4",
+        "anam_stop_before": "2026-01-02",
+    })
+
+    assert "softoptic-details-fundus" not in data
+    assert "softoptic-details-final" not in data
+    assert "started_wearing_since" not in data["anamnesis"] or data["anamnesis"]["started_wearing_since"] is None
+    assert data["anamnesis"]["stopped_wearing_since"] == "2026-01-02"

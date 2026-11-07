@@ -20,6 +20,9 @@ interface RefractionTabsHeaderProps {
   onDeleteTab?: (index: number) => void;
   onDuplicateTab?: (index: number) => void;
   onUpdateType?: (index: number, type: string) => void;
+  /** Shows only this card's title, for views where each refraction already has its own page tab. */
+  hideTabs?: boolean;
+  tabLabel?: string;
 }
 
 export function RefractionTabsHeader({
@@ -33,8 +36,20 @@ export function RefractionTabsHeader({
   onDeleteTab,
   onDuplicateTab,
   onUpdateType,
+  hideTabs = false,
+  tabLabel,
 }: RefractionTabsHeaderProps) {
   const [menuIndex, setMenuIndex] = useState<number | null>(null);
+
+  if (hideTabs) {
+    return (
+      <div className="text-center">
+        <h3 className="text-muted-foreground font-medium">
+          {tabLabel ? `${title} · ${tabLabel}` : title}
+        </h3>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex items-center" style={{ minHeight: 24 }}>

@@ -28,23 +28,35 @@ export type SoftopticTabKey = SoftopticExamTab | typeof SOFTOPTIC_MORE_TAB
 const OLD_REF_TABS: Partial<Record<SoftopticExamTab, number>> = { oldRef1: 1, oldRef2: 2, oldRef3: 3 }
 const OLD_REFRACTION_TYPES = ["old-refraction-extension", "old-refraction"]
 const OLD_REF_GRID_TYPES = ["softoptic-cover-test", "softoptic-maddox-grid"]
+const DETAILS_TYPE = "softoptic-details"
+// Which softoptic-details slots each tab shows.
+const TAB_DETAIL_SLOTS: Partial<Record<SoftopticExamTab, string[]>> = {
+  anamnesa: ["anamnesa"],
+  oldRef1: ["old-ref-1"],
+  oldRef2: ["old-ref-2"],
+  oldRef3: ["old-ref-3"],
+  fundus: ["fundus"],
+  bioMicroscopy: ["bio"],
+  bino: ["bino"],
+  subjective: ["subjective", "final"],
+}
 
 // Card types per tab, in OpticSoft's on-screen order.
 const TAB_CARD_TYPES: Record<SoftopticExamTab, string[]> = {
   objective: ["keratometer-full", "keratometer", "retinoscop", "retinoscop-dilation", "objective", "corneal-topography", "uncorrected-va"],
-  anamnesa: ["uncorrected-va", "anamnesis"],
-  oldRef3: [...OLD_REFRACTION_TYPES, ...OLD_REF_GRID_TYPES],
-  oldRef2: [...OLD_REFRACTION_TYPES, ...OLD_REF_GRID_TYPES],
-  oldRef1: [...OLD_REFRACTION_TYPES, ...OLD_REF_GRID_TYPES],
+  anamnesa: ["uncorrected-va", "anamnesis", DETAILS_TYPE],
+  oldRef3: [...OLD_REFRACTION_TYPES, ...OLD_REF_GRID_TYPES, DETAILS_TYPE],
+  oldRef2: [...OLD_REFRACTION_TYPES, ...OLD_REF_GRID_TYPES, DETAILS_TYPE],
+  oldRef1: [...OLD_REFRACTION_TYPES, ...OLD_REF_GRID_TYPES, DETAILS_TYPE],
   summary: [...OLD_REFRACTION_TYPES, "final-subjective", "addition", "keratometer", "uncorrected-va"],
   amslerGrid: [],
-  fundus: [],
-  bioMicroscopy: ["schirmer-test", "contact-lens-diameters"],
+  fundus: [DETAILS_TYPE],
+  bioMicroscopy: ["schirmer-test", "contact-lens-diameters", DETAILS_TYPE],
   bino: [
     "softoptic-cover-test", "cover-test-v2", "cover-test", "maddox-wing", "stereo-test", "maddox-rod",
-    "softoptic-ocular-mot", "ocular-motor-assessment", "npc", "softoptic-rg", "rg", "fusion-range",
+    "softoptic-ocular-mot", "ocular-motor-assessment", "npc", "softoptic-rg", "rg", "fusion-range", DETAILS_TYPE,
   ],
-  subjective: ["subjective", "final-subjective", "addition", "rg-balance", "uncorrected-va"],
+  subjective: ["subjective", "final-subjective", "addition", "rg-balance", "uncorrected-va", DETAILS_TYPE],
 }
 
 /**
@@ -68,6 +80,15 @@ export function oldRefTabId(tabIds: string[] | undefined, n: number): string | u
 }
 
 const gridSlot = (card: CardDef) => Number(/-(\d+)$/.exec(card.id)?.[1])
+
+/**
+ * Old Ref cover-test and Maddox data loads as one tabbed card ("<type>-1", tabs 1..3), but each OpticSoft
+ * Old Ref tab shows its own slot, so the data view needs one card per stored tab.
+ */
+export function softopticGridSlotCardId(type: string, value: { card_id?: unknown; card_instance_id?: unknown } | null | undefined): string | null {
+  if (!OLD_REF_GRID_TYPES.includes(type) || !value?.card_id) return null
+  return /^[1-3]$/.test(String(value.card_instance_id)) ? `${value.card_id}-${value.card_instance_id}` : null
+}
 
 export type SoftopticTabView<T extends CardDef = CardDef> = {
   key: SoftopticTabKey
@@ -95,6 +116,7 @@ export function buildSoftopticTabs<T extends CardDef>(cards: T[], oldRefTabs: (c
     const tabCards = TAB_CARD_TYPES[key].flatMap((type) => {
       const matches = cards.filter((card) => {
         if (card.type !== type) return false
+        if (type === DETAILS_TYPE) return Boolean(TAB_DETAIL_SLOTS[key]?.includes(card.id))
         if (key === "bino" && binoGrid && BINO_GRID_REPLACES.includes(type)) return false
         if (key === "bino" && OLD_REF_GRID_TYPES.includes(type)) return card.id === BINO_GRID_ID
         if (oldRef == null) return true

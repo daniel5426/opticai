@@ -65,6 +65,7 @@ from models import (
     LookupCleaningSolution,
     LookupDisinfectionSolution,
     LookupRinsingSolution,
+    LookupAdvisor,
     MigrationSourceLink,
 )
 from services.lookup_defaults import seed_default_lookup_values_for_clinic
@@ -353,7 +354,8 @@ def parse_visual_acuity(value: Optional[str]) -> Optional[Any]:
     raw_number = match.group(1)
     denominator = float(raw_number)
     is_integer = "." not in raw_number
-    if denominator > 190:
+    # SoftOptic shows any whole number as ``6/<n>`` (even implausible ones like 6/6765).
+    if not is_integer and denominator > 190:
         return cleaned
     if is_integer and denominator < 1:
         return cleaned
@@ -1562,6 +1564,13 @@ def _build_corneal_topography_component(row: Dict[str, Any], expanded: Optional[
     return None
 
 
+def _softoptic_wearing_date(value: Optional[str]) -> Optional[str]:
+    # OpticSoft keeps "N units ago" here, not a date; the bare number goes to softoptic-details.
+    if value is None or re.fullmatch(r"\d+", value) or parse_date(value) is None:
+        return None
+    return value
+
+
 def _build_anamnesis_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     contact_lens_wear = _get_bool(expanded, row, ["anam_c_lens"])
     data = {
@@ -1571,8 +1580,9 @@ def _build_anamnesis_component(row: Dict[str, Any], expanded: Optional[Dict[str,
         "previous_treatments": _get_str(expanded, row, ["anam_p_treat", "anam_p_treat_rem"], None, True),
         "lazy_eye": _get_str(expanded, row, ["anam_l_eye", "anam_l_eye_rem"], None, True),
         "contact_lens_wear": contact_lens_wear,
-        "started_wearing_since": _get_str(expanded, row, ["anam_start_before", "anam_start_before_p"], None, True),
-        "stopped_wearing_since": _get_str(expanded, row, ["anam_stop_before", "anam_stop_before_p"], None, True),
+        "contact_lens_type": _get_str(expanded, row, ["anam_c_lens_type"], None, True),
+        "started_wearing_since": _softoptic_wearing_date(_get_str(expanded, row, ["anam_start_before"], None, True)),
+        "stopped_wearing_since": _softoptic_wearing_date(_get_str(expanded, row, ["anam_stop_before"], None, True)),
         "additional_notes": _get_str(expanded, row, ["anam_remarks"], None, True),
     }
     if any(v is not None for v in data.values()):
@@ -1846,6 +1856,87 @@ def _build_sensation_vision_stability_component(row: Dict[str, Any], expanded: O
     return None
 
 
+def _softoptic_old_ref_detail_fields(index: int) -> Dict[str, str]:
+    prefix = f"old{index}"
+    return {
+        field: f"{prefix}_{field}"
+        for field in ("source", "lens", "remark", "pa", "bvd", "ffa", "df", "dn")
+    }
+
+
+def _softoptic_eye_detail_fields(fields: Dict[str, str]) -> Dict[str, str]:
+    return {
+        f"{eye}_{field}": source.format(eye=eye, side="right" if eye == "r" else "left")
+        for field, source in fields.items()
+        for eye in ("r", "l")
+    }
+
+
+# softoptic-details card slot -> {stored field: OpticSoft column}. Fields with no place on Prysm's cards.
+SOFTOPTIC_DETAIL_SLOTS: Dict[str, Dict[str, str]] = {
+    "anamnesa": {
+        "contact_lens_notes": "anam_c_lens_rem",
+        "started_before": "anam_start_before",
+        "started_unit": "anam_start_before_p",
+        "stopped_before": "anam_stop_before",
+        "stopped_unit": "anam_stop_before_p",
+    },
+    "old-ref-1": _softoptic_old_ref_detail_fields(1),
+    "old-ref-2": _softoptic_old_ref_detail_fields(2),
+    "old-ref-3": _softoptic_old_ref_detail_fields(3),
+    "final": {
+        "pa": "sub_f_pa", "bvd": "sub_f_bvd", "ffa": "sub_f_ffa", "df": "sub_f_df", "dn": "sub_f_dn",
+        "test_board": "test_board",
+        "cm_read": "add_cm1", "cm_int": "add_cm2", "cm_bif": "add_cm3", "cm_mul": "add_cm4",
+    },
+    "subjective": {
+        **_softoptic_eye_detail_fields({"fa": "sb_{side}_fa", "fa_tuning": "sb_{side}_fa_add"}),
+        "comb_fa": "sb_mid_fa",
+        "comb_fa_tuning": "sb_mid_fa_add",
+        "remark": "subjective_remarks",
+    },
+    "bino": {"remark": "bino_remarks"},
+    "fundus": {
+        **_softoptic_eye_detail_fields({
+            "macula": "fun_{eye}_macula", "blood": "fun_{eye}_blood", "disc": "fun_{eye}_diska",
+            "pupil": "fun_{eye}_pupil", "amsler": "amsler_{eye}_ok",
+        }),
+        "ishihara_test": "ishihara_test",
+        "ishihara_rem": "ishihara_rem",
+        "sight_field": "sight_field",
+    },
+    "bio": {
+        **_softoptic_eye_detail_fields({
+            "iop": "bio_{eye}_iop", "cornea": "bio_{eye}_cornia", "lens": "bio_{eye}_lens", "tear": "bio_{eye}_lach",
+            "limbus": "bio_{eye}_limbus", "upper_lid": "bio_{eye}_up_eyelid", "lower_lid": "bio_{eye}_down_eyelid",
+            "schirmer": "bio_shirmer_{eye}",
+        }),
+        "eye_color": "bio_eyes_color",
+        "eyelid_tension": "bio_eyelid_tens",
+    },
+}
+# Filled on nearly every exported row, so alone they do not make a card worth showing.
+SOFTOPTIC_DETAIL_DEFAULT_ONLY_FIELDS = {"ishihara_test", "test_board"}
+SOFTOPTIC_DETAIL_ZERO_VALUES = {"0", "0.0", "0.00"}
+
+
+def _append_softoptic_detail_slots(data: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> None:
+    if not expanded:
+        return
+    for slot, fields in SOFTOPTIC_DETAIL_SLOTS.items():
+        block: Dict[str, Any] = {}
+        for field, column in fields.items():
+            value = clean_legacy_text(expanded.get(column))
+            if value is not None and value not in SOFTOPTIC_DETAIL_ZERO_VALUES:
+                block[field] = value
+        if slot == "anamnesa":
+            remark = clean_legacy_text(expanded.get("test_remark"))
+            if remark and remark != clean_legacy_text(expanded.get("anam_remarks")):
+                block["exam_remark"] = remark
+        if set(block) - SOFTOPTIC_DETAIL_DEFAULT_ONLY_FIELDS:
+            data[f"softoptic-details-{slot}"] = {**block, "card_instance_id": slot}
+
+
 def build_exam_data_from_eye_tests(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     data: Dict[str, Any] = {}
     builders: List[Tuple[str, Any]] = [
@@ -1893,6 +1984,7 @@ def build_exam_data_from_eye_tests(row: Dict[str, Any], expanded: Optional[Dict[
         card_id = "softoptic-cover-test-bino"
         data[f"softoptic-cover-test-{card_id}"] = {**bino_cover_test, "card_instance_id": card_id}
     _append_softoptic_grid_slots(data, expanded, "softoptic-maddox-grid", _build_softoptic_maddox_grid_slot)
+    _append_softoptic_detail_slots(data, expanded)
     warnings: List[str] = []
     for component_key, block in data.items():
         if not isinstance(block, dict) or component_key == "__ui":

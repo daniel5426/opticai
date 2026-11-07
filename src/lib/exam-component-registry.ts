@@ -469,6 +469,13 @@ examComponentRegistry.register('softoptic-rg', {
   showInLayoutEditor: false
 })
 
+examComponentRegistry.register('softoptic-details', {
+  name: 'SoftOptic',
+  component: () => import('../components/exam/SoftOpticDetailsTab'),
+  order: 32,
+  showInLayoutEditor: false
+})
+
 examComponentRegistry.register('cover-test-v2', {
   name: 'בדיקת כיסוי',
   component: () => import('../components/exam/CoverTestV2Tab'),

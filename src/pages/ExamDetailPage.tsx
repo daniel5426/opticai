@@ -91,7 +91,7 @@ import {
 import { ExamLayoutTabs } from "@/components/exam/ExamLayoutTabs";
 import { OptitechExamTabs } from "@/components/exam/OptitechExamTabs";
 import { SoftopticExamTabs } from "@/components/exam/SoftopticExamTabs";
-import { buildSoftopticTabs, defaultSoftopticTab, oldRefTabId, type SoftopticTabKey } from "@/lib/softoptic-exam-tabs";
+import { buildSoftopticTabs, defaultSoftopticTab, oldRefTabId, softopticGridSlotCardId, type SoftopticTabKey } from "@/lib/softoptic-exam-tabs";
 import { packSoftopticCards } from "@/lib/softoptic-exam-layout";
 import { optitechExamKind } from "@/lib/optitech-exam-tabs";
 import { ExamLayoutRenderer } from "@/components/exam/ExamLayoutRenderer";
@@ -156,13 +156,14 @@ const buildFullDataLayoutDataFromExamData = (
       if (registeredType) {
         type = registeredType;
         cardId =
-          key === registeredType
+          softopticGridSlotCardId(registeredType, value as any) ??
+          (key === registeredType
             ? registeredType === "cover-test" ||
               registeredType === "old-refraction" ||
               registeredType === "old-refraction-extension"
               ? (value as any)?.card_id || registeredType
               : (value as any)?.card_instance_id || registeredType
-            : (value as any)?.card_id || key.replace(`${registeredType}-`, "");
+            : (value as any)?.card_id || key.replace(`${registeredType}-`, ""));
       }
     }
 

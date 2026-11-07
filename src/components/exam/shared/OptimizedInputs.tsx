@@ -523,12 +523,18 @@ export const FastSelect = memo(function FastSelect({
     const [open, setOpen] = useState(false);
     const knownValues = options.map((opt) => typeof opt === "string" ? opt : opt.value);
     const importedValue = allowImportedValue && localValue && !knownValues.includes(localValue) ? localValue : null;
+    // Radix's hidden native select reports "" when the new value's option isn't registered yet. No item can
+    // have an empty value, so for imported values this is never a user's choice and must not erase the data.
+    const handleSelectChange = (next: string) => {
+        if (allowImportedValue && next === "") return;
+        handleValueChange(next);
+    };
 
     return (
         <Select 
             {...props} 
             value={localValue} 
-            onValueChange={handleValueChange}
+            onValueChange={handleSelectChange}
             open={open}
             onOpenChange={(open) => {
                 setOpen(open);

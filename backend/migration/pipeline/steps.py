@@ -31,6 +31,7 @@ def migrate_lookups(db: Session, csv_dir: str, clinic_ids: List[int]):
         ("optic_tv_order_type.csv", LookupOrderType),
         ("account_tv_memo_type.csv", LookupReferralType),
     ]
+    lookup_names: List[Tuple[Any, List[str]]] = []
     for filename, model in simple_mappings:
         rows = read_csv(csv_dir, filename)
         print(f"[lookups] {filename}: {len(rows)} rows", flush=True)
@@ -41,6 +42,12 @@ def migrate_lookups(db: Session, csv_dir: str, clinic_ids: List[int]):
                 if clean_legacy_text(r.get("name"))
             }
         )
+        lookup_names.append((model, names))
+    # Active OpticSoft workers are the order advisors ("יועץ").
+    advisor_names = sorted(set(_build_account_name_map(csv_dir, "WORK", active_only=True).values()))
+    print(f"[lookups] account.csv WORK advisors: {len(advisor_names)}", flush=True)
+    lookup_names.append((LookupAdvisor, advisor_names))
+    for model, names in lookup_names:
         if not names:
             continue
         for clinic_id in target_clinic_ids:
@@ -171,6 +178,28 @@ def _build_lookup_code_name_map(csv_dir: str, filename: str) -> Dict[str, str]:
             if value:
                 lookup[value] = name
     return lookup
+
+
+def _build_account_name_map(csv_dir: str, account_type: str, active_only: bool = False) -> Dict[str, str]:
+    """Map OpticSoft account codes of one type (WORK workers, SITE branches) to display names."""
+    names: Dict[str, str] = {}
+    for row in read_csv_streaming(csv_dir, "account.csv"):
+        if clean_legacy_text(row.get("account_type")) != account_type:
+            continue
+        if active_only and clean_legacy_text(row.get("is_active")) != "1":
+            continue
+        code = clean_legacy_text(row.get("account_code"))
+        name = clean_legacy_text(row.get("acc_name")) or " ".join(
+            part for part in (clean_legacy_text(row.get("last_name")), clean_legacy_text(row.get("first_name"))) if part
+        )
+        if code and name:
+            names[code] = name
+    return names
+
+
+def _lookup_legacy_code(lookup: Dict[str, str], value: Any) -> Optional[str]:
+    code = clean_legacy_text(value)
+    return lookup.get(code, code) if code else None
 
 
 def _group_presc_price_rows(csv_dir: str) -> Dict[str, List[Tuple[Dict[str, Any], int]]]:
@@ -794,6 +823,8 @@ def migrate_contact_lens_orders(
     valid_account_codes = set(account_to_client.keys())
     print(f"[cl_orders] filtering orders to {len(valid_account_codes)} valid account codes", flush=True)
     rows_iter = read_csv_streaming(csv_dir, "optic_contact_presc.csv")
+    order_status_lookup = _build_lookup_code_name_map(csv_dir, "optic_tv_order_status.csv")
+    worker_names = _build_account_name_map(csv_dir, "WORK")
     presc_price_rows = _group_presc_price_rows(csv_dir)
     existing_order_refs = existing_job_source_refs(
         db,
@@ -845,8 +876,8 @@ def migrate_contact_lens_orders(
         supply_branch = r.get("supply_branch")
         supply_in_clinic_id = resolve_migration_clinic_id(branch_to_clinic, supply_branch)
 
-        order_status = clean_legacy_text(r.get("order_status"))
-        advisor = clean_legacy_text(r.get("advisor_code"))
+        order_status = _lookup_legacy_code(order_status_lookup, r.get("order_status"))
+        advisor = _lookup_legacy_code(worker_names, r.get("advisor_code"))
         priority = clean_legacy_text(r.get("order_iner_priority"))
         approval_date = parse_date(r.get("given_at"))
         guaranteed_date = parse_date(r.get("promise_to_date"))
@@ -1116,6 +1147,9 @@ def migrate_regular_orders(
     t0 = time.time()
     rows_iter = read_csv_streaming(csv_dir, "optic_glasses_presc.csv")
     order_type_lookup = _build_lookup_code_name_map(csv_dir, "optic_tv_order_type.csv")
+    order_status_lookup = _build_lookup_code_name_map(csv_dir, "optic_tv_order_status.csv")
+    worker_names = _build_account_name_map(csv_dir, "WORK")
+    site_names = _build_account_name_map(csv_dir, "SITE")
     presc_price_rows = _group_presc_price_rows(csv_dir)
     existing_order_refs = existing_job_source_refs(
         db,
@@ -1224,20 +1258,28 @@ def migrate_regular_orders(
             "length": parse_float(r.get("frame_length")),
         }
 
+        # OpticSoft has one warranty date; Prysm keeps it on the lens and on the frame.
+        warranty_expiration = to_iso_date_string(r.get("end_of_warranty"))
+        if warranty_expiration:
+            lens["warranty_expiration"] = warranty_expiration
+            frame["warranty_expiration"] = warranty_expiration
+
         notes = clean_legacy_text(r.get("order_remarks")) or clean_legacy_text(r.get("presc_remark"))
         lens_order_notes = clean_legacy_text(r.get("presc_remark"))
+        supply_branch = clean_legacy_text(r.get("supply_branch"))
         details = {
             "branch": clean_legacy_text(r.get("current_branch")) or clean_legacy_text(r.get("branch_code")),
             "supplier_status": clean_legacy_text(r.get("lab_status")),
             "bag_number": clean_legacy_text(r.get("bag_number")),
-            "advisor": clean_legacy_text(r.get("advisor_code")),
-            "delivered_by": clean_legacy_text(r.get("giver_code")),
-            "technician": clean_legacy_text(r.get("tech_code")),
+            "advisor": _lookup_legacy_code(worker_names, r.get("advisor_code")),
+            "delivered_by": _lookup_legacy_code(worker_names, r.get("giver_code")),
+            "technician": _lookup_legacy_code(worker_names, r.get("tech_code")),
             "delivered_at": to_iso_date_string(r.get("delivere_date")),
-            "warranty_expiration": to_iso_date_string(r.get("end_of_warranty")),
-            "delivery_location": clean_legacy_text(r.get("supply_branch")),
+            "warranty_expiration": warranty_expiration,
+            "delivery_clinic_id": resolve_migration_clinic_id(branch_to_clinic, supply_branch) if supply_branch else None,
+            "delivery_location": _lookup_legacy_code(site_names, supply_branch),
             "manufacturing_lab": clean_legacy_text(r.get("manuf_branch")),
-            "order_status": clean_legacy_text(r.get("order_status")),
+            "order_status": _lookup_legacy_code(order_status_lookup, r.get("order_status")),
             "priority": clean_legacy_text(r.get("order_iner_priority")),
             "promised_date": to_iso_date_string(r.get("promise_to_date")),
             "approval_date": to_iso_date_string(r.get("confirmation_date")),

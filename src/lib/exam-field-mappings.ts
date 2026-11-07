@@ -70,6 +70,7 @@ export type ExamComponentType =
   | 'softoptic-maddox-grid'
   | 'softoptic-ocular-mot'
   | 'softoptic-rg'
+  | 'softoptic-details'
   | 'schirmer-test'
   | 'anamnesis'
   | 'notes'
@@ -120,6 +121,7 @@ export const fullExamsList: ExamComponentType[] = [
   'softoptic-maddox-grid',
   'softoptic-ocular-mot',
   'softoptic-rg',
+  'softoptic-details',
   'schirmer-test',
   'anamnesis',
   'notes',
@@ -179,6 +181,7 @@ export const examComponentTypeToExamFields: Record<ExamComponentType, ExamCompon
   'softoptic-maddox-grid': [],
   'softoptic-ocular-mot': [],
   'softoptic-rg': [],
+  'softoptic-details': [],
   'schirmer-test': [],
   'anamnesis': [],
   'notes': [],
@@ -249,6 +252,7 @@ export class ExamFieldMapper {
     'softoptic-maddox-grid': ['softoptic-maddox-grid'],
     'softoptic-ocular-mot': ['softoptic-ocular-mot'],
     'softoptic-rg': ['softoptic-rg'],
+    'softoptic-details': ['softoptic-details'],
     'schirmer-test': [],
     'anamnesis': [],
     'notes': [],
@@ -350,6 +354,8 @@ export class ExamFieldMapper {
         return ['ocular_motility', 'acc_r', 'acc_l', 'cnp_cm', 'cnp_eye']
       case 'softoptic-rg':
         return ['rg_status', 'suppressed_eye', 'pr_h', 'base_h', 'pr_v', 'base_v']
+      case 'softoptic-details':
+        return []
       case 'schirmer-test':
         return ['r_mm', 'l_mm', 'r_but', 'l_but']
       case 'notes':

@@ -32,6 +32,7 @@ interface OldRefractionExtensionTabProps {
   onDuplicateTab?: (tabIdx: number) => void;
   onUpdateType?: (tabIdx: number, newType: string) => void;
   allTabsData?: OldRefractionExtensionExam[];
+  hideTabs?: boolean;
 }
 
 export function OldRefractionExtensionTab({
@@ -48,6 +49,7 @@ export function OldRefractionExtensionTab({
   onDuplicateTab,
   onUpdateType,
   allTabsData = [],
+  hideTabs = false,
 }: OldRefractionExtensionTabProps) {
   const { t } = useTranslation();
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
@@ -244,6 +246,8 @@ export function OldRefractionExtensionTab({
             onDeleteTab={onDeleteTab}
             onDuplicateTab={onDuplicateTab}
             onUpdateType={onUpdateType}
+            hideTabs={hideTabs}
+            tabLabel={(oldRefractionExtensionData as { legacy_glasses_type?: string }).legacy_glasses_type || oldRefractionExtensionData.r_glasses_type}
           />
 
           <div className="grid gap-2 items-center" style={{ gridTemplateColumns: getExamInputGridTemplate(columns, hideEyeLabels) }}>

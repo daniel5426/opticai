@@ -1220,6 +1220,14 @@ export interface SoftOpticOcularMotExam {
   cnp_eye?: string;
 }
 
+/** OpticSoft fields without a Prysm card (imported SoftOptic exams only); see softoptic-details.ts. */
+export interface SoftOpticDetailsExam {
+  id?: number;
+  layout_instance_id: number;
+  card_instance_id?: string;
+  [field: string]: unknown;
+}
+
 /** OpticSoft's R/G section (imported SoftOptic exams only): status and the prism for fusion. */
 export interface SoftOpticRgExam {
   id?: number;

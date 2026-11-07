@@ -31,6 +31,7 @@ import { SoftOpticCoverTestTab } from "@/components/exam/SoftOpticCoverTestTab";
 import { SoftOpticMaddoxGridTab } from "@/components/exam/SoftOpticMaddoxGridTab";
 import { SoftOpticOcularMotTab } from "@/components/exam/SoftOpticOcularMotTab";
 import { SoftOpticRgTab } from "@/components/exam/SoftOpticRgTab";
+import { SoftOpticDetailsTab } from "@/components/exam/SoftOpticDetailsTab";
 import { AnamnesisTab } from "@/components/exam/AnamnesisTab";
 import { SchirmerTestTab } from "@/components/exam/SchirmerTestTab";
 import { ContactLensDiametersTab } from "@/components/exam/ContactLensDiametersTab";
@@ -61,6 +62,7 @@ import {
   SoftOpticMaddoxGridExam,
   SoftOpticOcularMotExam,
   SoftOpticRgExam,
+  SoftOpticDetailsExam,
   AnamnesisExam,
   NotesExam,
   SchirmerTestExam,
@@ -216,6 +218,7 @@ export interface CardItem {
     | "softoptic-maddox-grid"
     | "softoptic-ocular-mot"
     | "softoptic-rg"
+    | "softoptic-details"
     | "notes"
     | "anamnesis"
     | "schirmer-test"
@@ -364,6 +367,8 @@ const getExamFormData = (
       return { layout_instance_id: 0 } as SoftOpticOcularMotExam;
     case "softoptic-rg":
       return { layout_instance_id: 0 } as SoftOpticRgExam;
+    case "softoptic-details":
+      return { layout_instance_id: 0 } as SoftOpticDetailsExam;
     case "anamnesis":
       return { layout_instance_id: 0 } as AnamnesisExam;
     case "notes":
@@ -579,6 +584,7 @@ export const getColumnCount = (
       return 8;
     case "softoptic-ocular-mot":
     case "softoptic-rg":
+    case "softoptic-details":
       return 6;
     case "notes":
       return 5;
@@ -639,6 +645,7 @@ export const getMaxWidth = (
       return 560;
     case "softoptic-ocular-mot":
     case "softoptic-rg":
+    case "softoptic-details":
       return 520;
     case "corneal-topography":
       return 1260;
@@ -1208,6 +1215,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
           return emptySoftOpticMaddoxGridData;
         case "softoptic-ocular-mot":
         case "softoptic-rg":
+        case "softoptic-details":
           return { layout_instance_id: 0 };
         case "anamnesis":
           return emptyAnamnesisData;
@@ -1436,6 +1444,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
                 legacyHandlers.handleMultifocalOldRefraction || (() => {})
               }
               hideEyeLabels={finalHideEyeLabels}
+              hideTabs={Boolean(detailProps?.softopticView)}
               tabCount={oldRefTabs.length}
               activeTab={displayActiveTab}
               onTabChange={(idx) => setActiveTab(idx)}
@@ -1548,6 +1557,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
                 (() => {})
               }
               hideEyeLabels={finalHideEyeLabels}
+              hideTabs={Boolean(detailProps?.softopticView)}
               tabCount={extensionTabs.length}
               activeTab={activeTabIndex}
               onTabChange={setActiveTab}
@@ -2066,6 +2076,19 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
             <SoftOpticRgTab
               data={getExamData("softoptic-rg", item.id) as SoftOpticRgExam}
               onChange={getChangeHandler("softoptic-rg", item.id) as (field: keyof SoftOpticRgExam, value: string) => void}
+              isEditing={mode === "detail" ? detailProps!.isEditing : false}
+            />
+          </div>
+        );
+
+      case "softoptic-details":
+        return (
+          <div className="relative">
+            {toolbox}
+            <SoftOpticDetailsTab
+              data={getExamData("softoptic-details", item.id) as SoftOpticDetailsExam}
+              cardId={item.id}
+              onChange={getChangeHandler("softoptic-details", item.id) as (field: string, value: string) => void}
               isEditing={mode === "detail" ? detailProps!.isEditing : false}
             />
           </div>

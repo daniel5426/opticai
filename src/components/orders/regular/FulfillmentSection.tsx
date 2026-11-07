@@ -24,7 +24,12 @@ const PRIORITY_OPTIONS = [
   { value: "מיידי", label: "priorityImmediate" },
 ];
 
-const useCompanyClinics = (companyId?: number) => {
+// Imported values (e.g. OpticSoft statuses) that are not one of the options still need an item,
+// otherwise the select shows them blank.
+const ImportedValueItem = ({ value, options }: { value?: string; options: readonly string[] }) =>
+  value && !options.includes(value) ? <SelectItem value={value}>{value}</SelectItem> : null;
+
+const useCompanyClinics =(companyId?: number) => {
   const [clinics, setClinics] = useState<Clinic[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -120,6 +125,7 @@ export function FulfillmentSection({
                   {t(ORDER_STATUS_LABEL_KEYS[status])}
                 </SelectItem>
               ))}
+              <ImportedValueItem value={details.order_status} options={ORDER_STATUS_OPTIONS} />
             </SelectContent>
           </Select>
         </OrderField>
@@ -140,6 +146,10 @@ export function FulfillmentSection({
                   {t(`orderWorkspace.${option.label}`)}
                 </SelectItem>
               ))}
+              <ImportedValueItem
+                value={details.priority}
+                options={PRIORITY_OPTIONS.map((option) => option.value)}
+              />
             </SelectContent>
           </Select>
         </OrderField>
@@ -235,6 +245,10 @@ export function FulfillmentSection({
                     {user.full_name || user.username}
                   </SelectItem>
                 ))}
+              <ImportedValueItem
+                value={details.delivered_by}
+                options={users.filter((user) => user.id).map((user) => user.full_name || user.username)}
+              />
             </SelectContent>
           </Select>
         </OrderField>
