@@ -73,6 +73,45 @@ def _root_preview(db: Session, item: TrashItem) -> dict:
     }
 
 
+def _filtered_trash_query(
+    db: Session,
+    current_user: User,
+    clinic_id: Optional[int],
+    deleted_by_user_id: Optional[int],
+    deleted_from: Optional[date],
+    deleted_to: Optional[date],
+    search: Optional[str],
+):
+    get_record_clinic_ids(db, current_user, clinic_id)
+    query = (
+        db.query(TrashItem, User.full_name)
+        .outerjoin(User, User.id == TrashItem.deleted_by_user_id)
+        .filter(TrashItem.company_id == resolve_company_id(db, current_user), TrashItem.status.in_(("trashed", "purging")))
+    )
+    if clinic_id is not None:
+        # Company-wide client envelopes are visible wherever their history occurred.
+        member_conditions = []
+        for kind, model in (("exam", OpticalExam), ("order", Order), ("contact_lens_order", ContactLensOrder),
+                ("appointment", Appointment), ("referral", Referral), ("medical_log", MedicalLog), ("file", File)):
+            member_conditions.append(db.query(TrashMember.id).filter(TrashMember.trash_item_id == TrashItem.id,
+                TrashMember.entity_type == kind, TrashMember.entity_id.in_(db.query(model.id).filter(model.clinic_id == clinic_id))).exists())
+        query = query.filter(or_(TrashItem.clinic_id == clinic_id, *member_conditions)).execution_options(include_deleted=True)
+    if deleted_by_user_id:
+        query = query.filter(TrashItem.deleted_by_user_id == deleted_by_user_id)
+    if deleted_from:
+        query = query.filter(TrashItem.deleted_at >= datetime.combine(deleted_from, time.min, tzinfo=timezone.utc))
+    if deleted_to:
+        query = query.filter(TrashItem.deleted_at <= datetime.combine(deleted_to, time.max, tzinfo=timezone.utc))
+    if search and search.strip():
+        term = f"%{search.strip()}%"
+        numeric_id = int(search) if search.strip().isdigit() else None
+        predicates = [TrashItem.display_label.ilike(term), TrashItem.client_label.ilike(term)]
+        if numeric_id is not None:
+            predicates.extend((TrashItem.root_entity_id == numeric_id, TrashItem.client_id == numeric_id))
+        query = query.filter(or_(*predicates))
+    return query
+
+
 @router.get("")
 def list_trash(
     clinic_id: Optional[int] = Query(None),
@@ -87,38 +126,28 @@ def list_trash(
     current_user: User = Depends(get_current_user),
 ):
     _require_editor(current_user)
-    clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
-    query = (
-        db.query(TrashItem, User.full_name)
-        .outerjoin(User, User.id == TrashItem.deleted_by_user_id)
-        .filter(TrashItem.company_id == resolve_company_id(db, current_user), TrashItem.status.in_(("trashed", "purging")))
-    )
-    if clinic_id is not None:
-        # Company-wide client envelopes are visible wherever their history occurred.
-        member_conditions = []
-        for kind, model in (("exam", OpticalExam), ("order", Order), ("contact_lens_order", ContactLensOrder),
-                ("appointment", Appointment), ("referral", Referral), ("medical_log", MedicalLog), ("file", File)):
-            member_conditions.append(db.query(TrashMember.id).filter(TrashMember.trash_item_id == TrashItem.id,
-                TrashMember.entity_type == kind, TrashMember.entity_id.in_(db.query(model.id).filter(model.clinic_id == clinic_id))).exists())
-        query = query.filter(or_(TrashItem.clinic_id == clinic_id, *member_conditions)).execution_options(include_deleted=True)
+    query = _filtered_trash_query(db, current_user, clinic_id, deleted_by_user_id, deleted_from, deleted_to, search)
     if entity_type:
         query = query.filter(TrashItem.root_entity_type == entity_type)
-    if deleted_by_user_id:
-        query = query.filter(TrashItem.deleted_by_user_id == deleted_by_user_id)
-    if deleted_from:
-        query = query.filter(TrashItem.deleted_at >= datetime.combine(deleted_from, time.min, tzinfo=timezone.utc))
-    if deleted_to:
-        query = query.filter(TrashItem.deleted_at <= datetime.combine(deleted_to, time.max, tzinfo=timezone.utc))
-    if search and search.strip():
-        term = f"%{search.strip()}%"
-        numeric_id = int(search) if search.strip().isdigit() else None
-        predicates = [TrashItem.display_label.ilike(term), TrashItem.client_label.ilike(term)]
-        if numeric_id is not None:
-            predicates.extend((TrashItem.root_entity_id == numeric_id, TrashItem.client_id == numeric_id))
-        query = query.filter(or_(*predicates))
     total = query.with_entities(func.count(TrashItem.id)).scalar() or 0
     rows = query.order_by(TrashItem.deleted_at.desc(), TrashItem.id.desc()).offset(offset).limit(limit).all()
     return {"items": [_serialize(item, deleted_by) for item, deleted_by in rows], "total": total, "limit": limit, "offset": offset}
+
+
+@router.get("/counts")
+def count_trash_by_type(
+    clinic_id: Optional[int] = Query(None),
+    deleted_by_user_id: Optional[int] = Query(None),
+    deleted_from: Optional[date] = Query(None),
+    deleted_to: Optional[date] = Query(None),
+    search: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _require_editor(current_user)
+    query = _filtered_trash_query(db, current_user, clinic_id, deleted_by_user_id, deleted_from, deleted_to, search)
+    rows = query.with_entities(TrashItem.root_entity_type, func.count(TrashItem.id)).group_by(TrashItem.root_entity_type).all()
+    return {entity_type: count for entity_type, count in rows}
 
 
 @router.get("/{item_id}")

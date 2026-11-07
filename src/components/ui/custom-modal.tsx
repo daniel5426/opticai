@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useAppLocale } from '@/localization/use-app-locale'
-import React, { useEffect, useRef, useId } from 'react'
+import React, { useEffect, useRef, useId, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Loader2 } from 'lucide-react'
 import { Button } from './button'
@@ -14,7 +14,7 @@ interface CustomModalProps {
   description?: string
   children?: React.ReactNode
   className?: string
-  onConfirm?: () => void
+  onConfirm?: () => void | Promise<void>
   confirmText?: string
   cancelText?: string
   showCloseButton?: boolean
@@ -32,6 +32,22 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
   const previousFocus = useRef<HTMLElement | null>(null)
   const modalRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
+  // Ignore repeat clicks while an async confirm (e.g. a delete request) is still running.
+  const confirmingRef = useRef(false)
+  const [confirming, setConfirming] = useState(false)
+  const busy = isLoading || confirming
+
+  const handleConfirm = async () => {
+    if (!onConfirm || confirmingRef.current) return
+    confirmingRef.current = true
+    setConfirming(true)
+    try {
+      await onConfirm()
+    } finally {
+      confirmingRef.current = false
+      setConfirming(false)
+    }
+  }
 
   useEffect(() => {
     let focusTimer: ReturnType<typeof setTimeout> | undefined
@@ -161,11 +177,11 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
 
         {onConfirm && (
           <div className="flex justify-center p-4 " dir={direction}>
-            <Button variant="outline" onClick={onClose} className="me-2" disabled={isLoading}>
+            <Button variant="outline" onClick={onClose} className="me-2" disabled={busy}>
               {cancelText ?? t("appearanceCancel")}
             </Button>
-            <Button onClick={onConfirm} disabled={isLoading}>
-              {isLoading ? (
+            <Button onClick={() => void handleConfirm()} disabled={busy}>
+              {busy ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 confirmText ?? t("appearanceConfirm")

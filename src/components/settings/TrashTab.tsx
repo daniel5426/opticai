@@ -21,24 +21,26 @@ import { CustomModal } from "@/components/ui/custom-modal"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAppLocale } from "@/localization/use-app-locale"
 import { apiClient } from "@/lib/api-client"
 import type { Clinic, User } from "@/lib/db/schema-interface"
 import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels"
-import type { TrashEntityType, TrashItem } from "@/lib/trash"
+import type { TrashCounts, TrashEntityType, TrashItem } from "@/lib/trash"
 
 const PAGE_SIZE = 25
-const ENTITY_TYPES: TrashEntityType[] = [
-  "order_group",
+export const TRASH_TAB_TYPES: TrashEntityType[] = [
   "client",
+  "exam",
   "order",
   "contact_lens_order",
-  "exam",
+  "order_group",
   "referral",
   "medical_log",
   "appointment",
   "file",
 ]
+type TrashTabValue = "all" | TrashEntityType
 
 const TYPE_KEYS: Record<TrashEntityType, string> = {
   order_group: "orderGroupTitle",
@@ -50,6 +52,18 @@ const TYPE_KEYS: Record<TrashEntityType, string> = {
   medical_log: "trashTypeMedicalNote",
   appointment: "trashTypeAppointment",
   file: "trashTypeFile",
+}
+
+const TAB_KEYS: Record<TrashEntityType, string> = {
+  order_group: "trashCountOrderGroups",
+  client: "trashCountClients",
+  order: "trashCountOrders",
+  contact_lens_order: "trashCountContactLensOrders",
+  exam: "trashCountExams",
+  referral: "trashCountReferrals",
+  medical_log: "trashCountMedicalNotes",
+  appointment: "trashCountAppointments",
+  file: "trashCountFiles",
 }
 
 const COUNT_KEYS: Record<string, string> = {
@@ -110,6 +124,10 @@ function recordPath(item: TrashItem): string | null {
   return null
 }
 
+function daysUntil(value: string): number {
+  return Math.max(0, Math.ceil((new Date(value).getTime() - Date.now()) / 86_400_000))
+}
+
 export function TrashTab({
   currentClinic,
   currentUser,
@@ -125,7 +143,8 @@ export function TrashTab({
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
-  const [entityType, setEntityType] = useState("")
+  const [activeTab, setActiveTab] = useState<TrashTabValue>("all")
+  const [tabCounts, setTabCounts] = useState<TrashCounts>({})
   const [deletedBy, setDeletedBy] = useState("")
   const [deletedFrom, setDeletedFrom] = useState("")
   const [deletedTo, setDeletedTo] = useState("")
@@ -163,24 +182,31 @@ export function TrashTab({
   const loadTrash = useCallback(async () => {
     if (!selectedClinicId) return
     setLoading(true)
-    const response = await apiClient.getTrash({
+    const filters = {
       clinicId: selectedClinicId,
-      entityType: entityType || undefined,
       deletedByUserId: deletedBy ? Number(deletedBy) : undefined,
       deletedFrom: deletedFrom || undefined,
       deletedTo: deletedTo || undefined,
       search: search.trim() || undefined,
-      limit: PAGE_SIZE,
-      offset: (page - 1) * PAGE_SIZE,
-    })
+    }
+    const [response, countsResponse] = await Promise.all([
+      apiClient.getTrash({
+        ...filters,
+        entityType: activeTab === "all" ? undefined : activeTab,
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
+      }),
+      apiClient.getTrashCounts(filters),
+    ])
     if (response.error || !response.data) {
       toast.error(t("trashLoadFailed"))
     } else {
       setItems(response.data.items)
       setTotal(response.data.total)
     }
+    if (countsResponse.data) setTabCounts(countsResponse.data)
     setLoading(false)
-  }, [deletedBy, deletedFrom, deletedTo, entityType, page, search, selectedClinicId, t])
+  }, [activeTab, deletedBy, deletedFrom, deletedTo, page, search, selectedClinicId, t])
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void loadTrash() }, 250)
@@ -189,7 +215,7 @@ export function TrashTab({
 
   useEffect(() => {
     setPage(1)
-  }, [deletedBy, deletedFrom, deletedTo, entityType, search, selectedClinicId])
+  }, [activeTab, deletedBy, deletedFrom, deletedTo, search, selectedClinicId])
 
   const formatDate = useCallback((value: string) => new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
@@ -258,6 +284,8 @@ export function TrashTab({
     () => Object.entries(selected?.included_counts ?? {}).filter(([, count]) => count > 0),
     [selected?.included_counts],
   )
+  const allCount = Object.values(tabCounts).reduce((sum, value) => sum + (value ?? 0), 0)
+
   const hasFailedJobs = selected?.jobs?.some(job => job.status === "failed")
   const fileMembers = selected?.members?.filter(member => member.type === "file") ?? []
 
@@ -271,8 +299,19 @@ export function TrashTab({
         <CardDescription>{t("trashDescription")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 px-5">
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-5">
-          <div className="relative md:col-span-2 xl:col-span-1">
+        <Tabs value={activeTab} onValueChange={value => setActiveTab(value as TrashTabValue)} dir={direction}>
+          <TabsList className="no-scrollbar w-full justify-start overflow-x-auto" aria-label={t("trashFilterType")}>
+            {(["all", ...TRASH_TAB_TYPES] as TrashTabValue[]).map(type => (
+              <TabsTrigger key={type} value={type} className="flex-none whitespace-nowrap px-3">
+                {type === "all" ? t("trashTabAll") : t(TAB_KEYS[type])}
+                <span className="text-xs tabular-nums text-muted-foreground">{type === "all" ? allCount : tabCounts[type] ?? 0}</span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+
+        <div className="space-y-2">
+          <div className="relative">
             <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <Input
               value={search}
@@ -282,28 +321,24 @@ export function TrashTab({
               className="ps-9"
             />
           </div>
-          <Select value={entityType} onValueChange={setEntityType}>
-            <SelectTrigger aria-label={t("trashFilterType")}><SelectValue placeholder={t("trashAllTypes")} /></SelectTrigger>
-            <SelectContent>
-              {ENTITY_TYPES.map(type => <SelectItem key={type} value={type}>{t(TYPE_KEYS[type])}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={deletedBy} onValueChange={setDeletedBy}>
-            <SelectTrigger aria-label={t("trashFilterDeletedBy")}><SelectValue placeholder={t("trashAllUsers")} /></SelectTrigger>
-            <SelectContent>
-              {users.map(user => user.id ? <SelectItem key={user.id} value={String(user.id)}>{user.full_name || user.username}</SelectItem> : null)}
-            </SelectContent>
-          </Select>
-          <Input type="date" value={deletedFrom} onChange={event => setDeletedFrom(event.target.value)} aria-label={t("trashDeletedFrom")} />
-          <Input type="date" value={deletedTo} onChange={event => setDeletedTo(event.target.value)} aria-label={t("trashDeletedTo")} />
-          {isCeo && clinics.length > 1 && (
-            <Select value={String(selectedClinicId)} onValueChange={value => setSelectedClinicId(Number(value))} clearable={false}>
-              <SelectTrigger aria-label={t("trashClinic")}><SelectValue /></SelectTrigger>
+          <div className={isCeo && clinics.length > 1 ? "grid grid-cols-2 gap-2 lg:grid-cols-4" : "grid grid-cols-1 gap-2 sm:grid-cols-3"}>
+            <Select value={deletedBy} onValueChange={setDeletedBy}>
+              <SelectTrigger aria-label={t("trashFilterDeletedBy")}><SelectValue placeholder={t("trashAllUsers")} /></SelectTrigger>
               <SelectContent>
-                {clinics.map(clinic => clinic.id ? <SelectItem key={clinic.id} value={String(clinic.id)}>{clinic.name || clinic.clinic_name}</SelectItem> : null)}
+                {users.map(user => user.id ? <SelectItem key={user.id} value={String(user.id)}>{user.full_name || user.username}</SelectItem> : null)}
               </SelectContent>
             </Select>
-          )}
+            <Input type="date" value={deletedFrom} onChange={event => setDeletedFrom(event.target.value)} aria-label={t("trashDeletedFrom")} title={t("trashDeletedFrom")} />
+            <Input type="date" value={deletedTo} onChange={event => setDeletedTo(event.target.value)} aria-label={t("trashDeletedTo")} title={t("trashDeletedTo")} />
+            {isCeo && clinics.length > 1 && (
+              <Select value={String(selectedClinicId)} onValueChange={value => setSelectedClinicId(Number(value))} clearable={false}>
+                <SelectTrigger aria-label={t("trashClinic")}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {clinics.map(clinic => clinic.id ? <SelectItem key={clinic.id} value={String(clinic.id)}>{clinic.name || clinic.clinic_name}</SelectItem> : null)}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
         </div>
 
         <Table
@@ -311,38 +346,45 @@ export function TrashTab({
           emptyState={!loading && items.length === 0 ? (
             <div className="flex flex-col items-center gap-2">
               <FileQuestion className="size-8 opacity-50" aria-hidden="true" />
-              <span>{t("trashEmpty")}</span>
+              <span>{activeTab === "all" ? t("trashEmpty") : t("trashEmptyForType", { type: t(TAB_KEYS[activeTab]) })}</span>
             </div>
           ) : undefined}
         >
           <TableHeader>
             <TableRow>
               <TableHead>{t("trashItem")}</TableHead>
-              <TableHead>{t("trashType")}</TableHead>
-              <TableHead>{t("trashClient")}</TableHead>
-              <TableHead>{t("trashDeletedBy")}</TableHead>
               <TableHead>{t("trashDeletedAt")}</TableHead>
-              <TableHead>{t("trashExpiresAt")}</TableHead>
-              <TableHead className="w-36">{t("trashActions")}</TableHead>
+              <TableHead>{t("trashAutoPurge")}</TableHead>
+              <TableHead className="w-px"><span className="sr-only">{t("trashActions")}</span></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={7} className="h-56 text-center"><Loader2 className="mx-auto size-5 animate-spin text-muted-foreground" aria-label={t("loading")} /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={4} className="h-56 text-center"><Loader2 className="mx-auto size-5 animate-spin text-muted-foreground" aria-label={t("loading")} /></TableCell></TableRow>
             ) : items.map(item => (
               <TableRow key={item.id} className="cursor-pointer" tabIndex={0} onClick={() => void openPreview(item)} onKeyDown={event => {
                 if (event.key === "Enter" || event.key === " ") { event.preventDefault(); void openPreview(item) }
               }}>
-                <TableCell className="max-w-52 truncate font-medium">{item.display_label}</TableCell>
-                <TableCell><Badge variant="outline">{t(TYPE_KEYS[item.root_entity_type])}</Badge></TableCell>
-                <TableCell>{item.client_label || t("trashNoClient")}</TableCell>
-                <TableCell>{item.deleted_by || t("trashUnknownUser")}</TableCell>
-                <TableCell>{formatDate(item.deleted_at)}</TableCell>
-                <TableCell>
-                  <span className="inline-flex items-center gap-1.5"><Clock3 className="size-3.5 text-muted-foreground" aria-hidden="true" />{formatDate(item.expires_at)}</span>
+                <TableCell className="max-w-64">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="truncate font-medium">{item.display_label}</span>
+                    {activeTab === "all" && <Badge variant="outline" className="shrink-0">{t(TYPE_KEYS[item.root_entity_type])}</Badge>}
+                  </div>
+                  {item.root_entity_type !== "client" && item.client_label && (
+                    <div className="truncate text-xs text-muted-foreground">{item.client_label}</div>
+                  )}
                 </TableCell>
                 <TableCell>
-                  <div className="flex items-center gap-1">
+                  <div>{formatDate(item.deleted_at)}</div>
+                  <div className="text-xs text-muted-foreground">{item.deleted_by || t("trashUnknownUser")}</div>
+                </TableCell>
+                <TableCell>
+                  <span className="inline-flex items-center gap-1.5 text-muted-foreground" title={formatDate(item.expires_at)}>
+                    <Clock3 className="size-3.5" aria-hidden="true" />{t("trashDaysLeft", { count: daysUntil(item.expires_at) })}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center justify-end gap-1">
                     <Button size="sm" variant="outline" onClick={event => { event.stopPropagation(); void restore(item) }} disabled={actionLoading || item.status !== "trashed"}>
                       <RotateCcw className="size-4" aria-hidden="true" />{t("trashRestore")}
                     </Button>

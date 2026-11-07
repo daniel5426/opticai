@@ -41,7 +41,7 @@ import type {
   InventoryAnalyticsResponse,
   WorkforceAnalyticsResponse,
 } from "./analytics";
-import type { TrashItem, TrashPage } from "./trash";
+import type { TrashCounts, TrashItem, TrashPage } from "./trash";
 
 const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_URL);
 const EXAM_WRITE_HEADERS = {
@@ -948,6 +948,22 @@ class ApiClient {
     params.set("limit", String(options?.limit ?? 25))
     params.set("offset", String(options?.offset ?? 0))
     return this.request<TrashPage>(`/trash?${params.toString()}`)
+  }
+
+  async getTrashCounts(options?: {
+    clinicId?: number
+    deletedByUserId?: number
+    deletedFrom?: string
+    deletedTo?: string
+    search?: string
+  }) {
+    const params = new URLSearchParams();
+    if (options?.clinicId) params.set("clinic_id", String(options.clinicId))
+    if (options?.deletedByUserId) params.set("deleted_by_user_id", String(options.deletedByUserId))
+    if (options?.deletedFrom) params.set("deleted_from", options.deletedFrom)
+    if (options?.deletedTo) params.set("deleted_to", options.deletedTo)
+    if (options?.search) params.set("search", options.search)
+    return this.request<TrashCounts>(`/trash/counts?${params.toString()}`)
   }
 
   async getTrashItem(id: number) {
