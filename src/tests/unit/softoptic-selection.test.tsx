@@ -46,6 +46,6 @@ test('a failed job remains resumable after reopening the migration tab', async (
   render(<SoftOpticMigrationTab clinicId={7} />);
   expect(await screen.findByText(copy.en.workerExited)).toBeTruthy();
   expect(screen.getByRole('button', {name: 'המשך'})).toBeEnabled();
-  expect(screen.getByLabelText(copy.en.clientNumber)).toHaveValue('23470');
+  await waitFor(() => expect(screen.getByLabelText(copy.en.clientNumber)).toHaveValue('23470'));
   expect(screen.getByLabelText(copy.en.clientNumber)).toBeDisabled();
 });
