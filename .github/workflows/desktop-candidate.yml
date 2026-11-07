@@ -61,7 +61,7 @@ jobs:
         run: node scripts/devdesk-release-inputs.mjs apply
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: Generate production environment file
         run: |
@@ -122,7 +122,7 @@ jobs:
         run: node scripts/devdesk-release-inputs.mjs apply
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: Restore or build verified native reader
         uses: ./.github/actions/optitech-reader

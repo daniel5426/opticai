@@ -14,6 +14,14 @@ For rollback, identify the last verified compatible revision and exact service d
 
 ## Verification and improvement
 
+Desktop candidate dependency installs use `npm ci --no-audit --no-fund` to avoid
+non-gating registry audit traffic during packaging. Lock integrity and packaged
+runtime/updater checks remain required.
+
+Release v1.0.101 publishes the previously promoted application changes for Windows
+x64 and macOS Apple Silicon. Migration note: No new migration; production already
+has required revisions 0056 and 0057. Uncommitted campaign/messaging work is excluded.
+
 Backend CI pins Ubuntu 24.04 to keep the Python 3.12.8 runtime available after the
 `ubuntu-latest` transition to Ubuntu 26.04. This avoids setup failures and release retries.
 
