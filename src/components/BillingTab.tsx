@@ -454,7 +454,7 @@ export function BillingTab({
             return editBillingLineTotal(item, parseNumberInput(value) ?? 0);
           }
           const updatedItem = { ...item, manually_edited: true };
-          const numericFields = ["price", "quantity", "discount"];
+          const numericFields = ["price", "quantity", "discount", "discount_percent"];
           if (numericFields.includes(field)) {
             (updatedItem as any)[field] = parseNumberInput(value);
           } else if (field === "supplied") {
@@ -466,10 +466,15 @@ export function BillingTab({
           if (
             field === "price" ||
             field === "quantity" ||
-            field === "discount"
+            field === "discount" || field === "discount_percent"
           ) {
             const price = toSafeNumber(updatedItem.price);
             const quantity = toSafeNumber(updatedItem.quantity);
+            if (field === "discount") updatedItem.discount_percent = null;
+            if (updatedItem.discount_percent) {
+              updatedItem.discount_percent = Math.min(100, Math.max(0, updatedItem.discount_percent));
+              updatedItem.discount = roundToTwoDecimals(price * quantity * updatedItem.discount_percent / 100);
+            } else if (field === "discount_percent") updatedItem.discount = 0;
             const discount = toSafeNumber(updatedItem.discount);
             updatedItem.line_total = roundToTwoDecimals(
               compact ? groupLineTotal(price, quantity, discount) : price * quantity - discount,
@@ -509,12 +514,20 @@ export function BillingTab({
   const [addingDiscount, setAddingDiscount] = React.useState(false);
   const addDiscount = async (definition: DiscountDefinition) => {
     if (!isEditing || compactDisabled || addingDiscount) return;
-    const items = [...orderLineItems, discountLine(definition, billingFormData, orderLineItems)];
+    const added = discountLine(definition, billingFormData, orderLineItems);
+    const items = [...orderLineItems, added];
     setAddingDiscount(true);
+    setOrderLineItems(items);
+    setDiscountPickerOpen(false);
+    const restorePicker = () => {
+      setOrderLineItems(current => current.filter(item => item.id !== added.id));
+      setDiscountPickerOpen(true);
+    };
     try {
-      if (onSaveBilling) { if (!await onSaveBilling(undefined, items)) return; }
-      else setOrderLineItems(items);
-      setDiscountPickerOpen(false);
+      if (onSaveBilling && !await onSaveBilling(undefined, items)) restorePicker();
+    } catch {
+      restorePicker();
+      toast.error(t("orderGroupSaveError"));
     } finally { setAddingDiscount(false); }
   };
 
@@ -620,7 +633,7 @@ export function BillingTab({
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
         <CompactBillingView
-          disabled={compactDisabled}
+          disabled={compactDisabled || addingDiscount}
           items={orderLineItems}
           billing={billingFormData}
           isEditing={isEditing}

@@ -3,7 +3,6 @@ import * as React from "react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { IconDots } from "@tabler/icons-react";
 import {
-  History,
   Loader2,
   SquarePen,
   User as UserIcon,
@@ -136,13 +135,13 @@ const QuickActionButton = React.forwardRef<
   return (
     <SidebarMenuAction
       ref={ref}
-      showOnHover
+      showOnHover={!isRecentClients}
       type={type}
       aria-label={label}
       title={props.title || label}
       {...props}
     >
-      {isInventory ? <IconDots /> : isRecentClients ? <History /> : <SquarePen />}
+      {isInventory ? <IconDots /> : isRecentClients ? <UserIcon /> : <SquarePen />}
     </SidebarMenuAction>
   );
 });

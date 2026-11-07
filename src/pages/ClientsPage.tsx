@@ -1,3 +1,4 @@
+import { affectsFamily } from "@/lib/record-changes";
 import { TableExportProvider } from "@/components/table-export/context";
 import { CompanyClinicToolbarProvider } from "@/components/CompanyClinicFilter"
 import { useCompanyClinicFilter } from "@/hooks/client/useCompanyClinicFilter"
@@ -115,11 +116,11 @@ export default function ClientsPage() {
     return () => window.clearTimeout(timeout)
   }, [navigate, search.q, searchInput])
 
-  const loadClients = async () => {
+  const loadClients = async (background = false) => {
     if (!currentClinic) return
     const canCommit = startSearchRequest(search.q)
     try {
-      setClientsLoading(true)
+      if (!background) setClientsLoading(true)
       setClientsTotal(null)
       const paginationOptions = {
         limit: pageSize,
@@ -146,11 +147,11 @@ export default function ClientsPage() {
     }
   }
 
-  const loadFamilies = async () => {
+  const loadFamilies = async (background = false) => {
     if (!currentClinic) return
     const canCommit = startSearchRequest(search.q)
     try {
-      setFamiliesLoading(true)
+      if (!background) setFamiliesLoading(true)
       setFamiliesTotal(null)
       const paginationOptions = {
         limit: pageSize,
@@ -176,11 +177,11 @@ export default function ClientsPage() {
     }
   }
 
-  const loadData = async () => {
+  const loadData = async (background = false) => {
     if (isFamilyMode) {
-      await loadFamilies()
+      await loadFamilies(background)
     } else {
-      await loadClients()
+      await loadClients(background)
     }
   }
 
@@ -344,7 +345,7 @@ export default function ClientsPage() {
   }
 
   useEffect(() => {
-    const refresh = () => { void loadData() }
+    const refresh = (event: Event) => { if (affectsFamily(event, "clients")) void loadData(true) }
     window.addEventListener("prysm:client-records-changed", refresh)
     return () => window.removeEventListener("prysm:client-records-changed", refresh)
   }, [loadData])

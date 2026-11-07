@@ -1,3 +1,4 @@
+import { notifyRecordWrite } from "./record-changes";
 import type { InventoryImportPreview, InventoryImportRow, ImportDiagnostic } from './inventory-import';
 import { normalizeApiBaseUrl } from '@/services/api-base-url';
 import { getActiveLocale } from "@/localization/locale";
@@ -134,11 +135,7 @@ class ApiClient {
   private refreshTokenPromise: Promise<boolean> | null = null;
 
   private emitTrashCreated(endpoint: string, options: RequestInit, data: any) {
-    if (typeof window !== "undefined" && options.method && options.method.toUpperCase() !== "GET" &&
-        /^\/(clients|families|exams|orders|contact-lens-orders|order-groups|appointments|files|referrals|medical-logs|trash|unified-exam-data)(\/|$)/.test(endpoint) &&
-        !endpoint.includes("recent-visit")) {
-      window.dispatchEvent(new Event("prysm:client-records-changed"));
-    }
+    notifyRecordWrite(endpoint, options, data);
     if (
       typeof window !== "undefined" &&
       options.method?.toUpperCase() === "DELETE" &&
@@ -1077,6 +1074,14 @@ class ApiClient {
     return this.request<OpticalExam[]>(url);
   }
 
+  async saveExamWorkspace(id: number | undefined, payload: unknown, creationKey: string) {
+    return this.request(id ? `/exams/${id}/workspace` : '/exams/workspace', {
+      method: id ? 'PATCH' : 'POST',
+      headers: { ...EXAM_WRITE_HEADERS, ...(!id ? { 'Idempotency-Key': creationKey } : {}) },
+      body: JSON.stringify(payload),
+    });
+  }
+
   async createExam(exam: any) {
     return this.request<OpticalExam>('/exams/', {
       method: 'POST',
@@ -1443,7 +1448,7 @@ class ApiClient {
   async getInventoryVariants(
     clinicId: number,
     options?: {
-      category?: "frame" | "contact_lens";
+      category?: "frame" | "contact_lens" | "spectacle_lens";
       orderId?: number;
       orderKind?: "regular" | "contact";
       search?: string;

@@ -1,3 +1,6 @@
+import { useSaveController } from "@/hooks/shared/useSaveController"
+import { stableSaveJson } from "@/lib/exam-workspace"
+import { flushSync } from "react-dom"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { getClientById, updateClient } from "@/lib/db/clients-db"
@@ -29,6 +32,7 @@ export function useClientDetailsEditor(clientId: number) {
   })
 
   const serverClient = clientQuery.data || null
+  const controller = useSaveController({identity:clientId, dirty: isEditing && stableSaveJson(draftClient) !== stableSaveJson(serverClient)})
 
   useEffect(() => {
     setDraftClient(null)
@@ -77,15 +81,17 @@ export function useClientDetailsEditor(clientId: number) {
     if (!serverClient || !draftClient) return null
 
     const payload = buildClientUpdatePayload(serverClient, draftClient)
+    if (stableSaveJson(draftClient) === stableSaveJson(serverClient)) return draftClient
     try {
+      return await controller.run(async () => {
       const updated = await saveMutation.mutateAsync(payload)
       if (!updated) throw new Error("Client update failed")
 
       const normalized = normalizeClientForDraft(updated)
       queryClient.setQueryData(queryKey, normalized)
-      setDraftClient(normalized)
-      setIsEditing(false)
+      flushSync(() => { setDraftClient(normalized); setIsEditing(true) })
       return normalized
+      })
     } catch {
       setIsEditing(true)
       return null
@@ -98,7 +104,8 @@ export function useClientDetailsEditor(clientId: number) {
     isEditing,
     isLoading: clientQuery.isLoading,
     isError: clientQuery.isError,
-    isSaving: saveMutation.isPending,
+    isSaving: controller.isSaving,
+    saveState: controller.state,
     startEdit,
     cancelEdit,
     updateDraftField,

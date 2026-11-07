@@ -1,3 +1,4 @@
+import { SaveStatus } from "@/components/SaveStatus";
 import { useLayoutWidth } from "@/hooks/exam/useLayoutWidth";
 import React, {
   useState,
@@ -214,22 +215,15 @@ export default function ExamDetailPage({
   }
 
   const clientId = propClientId || routeClientId;
-  const examId = propExamId || routeExamId;
+  const [createdExamId, setCreatedExamId] = useState<number | null>(null);
+  const examId = propExamId || (routeExamId === 'new' ? undefined : routeExamId) || createdExamId?.toString();
+  const isNewMode = (mode === "new" && !createdExamId) || !examId;
+  const reconciledExamId = useRef<number | null>(null);
+  const preserveSaveScroll = useRef(false);
+  const [reloadVersion, setReloadVersion] = useState(0);
 
-  const isNewMode = mode === "new" || !examId;
-
-  let layoutIdFromSearch: string | undefined;
-  if (isNewMode) {
-    try {
-      const search = useSearch({
-        from: "/clients/$clientId/exams/new",
-        strict: false,
-      });
-      layoutIdFromSearch = (search as any)?.layoutId as string | undefined;
-    } catch {
-      layoutIdFromSearch = undefined;
-    }
-  }
+  const search = useSearch({ strict: false }) as { layoutId?: string };
+  const layoutIdFromSearch = isNewMode ? search.layoutId : undefined;
 
   // State declarations
   const [loading, setLoading] = useState(true);
@@ -281,6 +275,7 @@ export default function ExamDetailPage({
 
   useEffect(() => {
     const content = layoutContentRef.current;
+    if (preserveSaveScroll.current) { preserveSaveScroll.current = false; return; }
     if (content) content.scrollTop = 0;
   }, [activeInstanceId]);
 
@@ -347,12 +342,14 @@ export default function ExamDetailPage({
         formData: sortKeysDeep(formData),
         examFormData: sortKeysDeep(examFormData),
         examFormDataByInstance: sortKeysDeep(examFormDataByInstance),
+        layouts: layoutTabs.filter(isPersistableLayoutTab).map(tab => ({ id: tab.id, layout_id: tab.layout_id, layout_data: tab.layout_data })),
       }),
-    [formData, examFormData, examFormDataByInstance],
+    [formData, examFormData, examFormDataByInstance, layoutTabs],
   );
 
   const {
     hasUnsavedChanges,
+    checkDirty,
     showUnsavedDialog,
     isSaveInFlight,
     setIsSaveInFlight,
@@ -919,7 +916,11 @@ export default function ExamDetailPage({
   });
 
   // Save hook
-  const { handleSave } = useExamSave({
+  const { handleSave, saveState } = useExamSave({
+    hasUnsavedChanges,
+    checkDirty,
+    onCreated: id => { reconciledExamId.current = id; setCreatedExamId(id); },
+    onReconcile: () => { preserveSaveScroll.current = true; },
     formRef,
     isSaveInFlight,
     setIsSaveInFlight,
@@ -1109,6 +1110,7 @@ export default function ExamDetailPage({
   }, [setSidebarActiveTab, config.sidebarTab]);
 
   useEffect(() => {
+    if (reconciledExamId.current && Number(examId) === reconciledExamId.current) return;
     baselineInitializedRef.current = false;
     setHasImportedExamData(false);
     setSoftopticTab(null);
@@ -1117,13 +1119,13 @@ export default function ExamDetailPage({
       try {
         // A prefetched exam (e.g. the next OptiTech tab) swaps in place instead of blanking the page.
         const pageDataKey = examPageDataQueryKey(Number(examId));
-        const prefetched = examId && !isNewMode ? queryClient.getQueryData(pageDataKey) : undefined;
-        if (prefetched) queryClient.removeQueries({ queryKey: pageDataKey, exact: true });
-        else setLoading(true);
+        const prefetched = examId && !isNewMode && !queryClient.getQueryState(pageDataKey)?.isInvalidated ? queryClient.getQueryData(pageDataKey) : undefined;
+        if (!prefetched) setLoading(true);
         setClipboardContentType(getClipboardContentType());
         if (examId && !isNewMode) {
           const pageData = prefetched ?? (await getExamPageData(Number(examId)));
           if (pageData) {
+            queryClient.setQueryData(pageDataKey, pageData);
             const {
               exam: examData,
               instances,
@@ -1422,6 +1424,7 @@ export default function ExamDetailPage({
     config.dbType,
     currentClinic?.id,
     layoutIdFromSearch,
+    reloadVersion,
   ]);
 
   useLayoutEffect(() => {
@@ -1733,10 +1736,10 @@ export default function ExamDetailPage({
   const detailPropsWithOverrides: DetailProps = {
     ...detailProps,
     softopticView: Boolean(softopticTabs),
-    isEditing: detailProps.isEditing,
+    isEditing: detailProps.isEditing && !isSaveInFlight,
     coverTestTabs: computedCoverTestTabs,
     availableExamLayouts: availableLayouts,
-    onSelectLayout: handleSelectLayoutOption,
+    onSelectLayout: id => {if (!isSaveInFlight) {setIsEditing(true); return handleSelectLayoutOption(id)}},
     isLayoutSelectionLoading: isAddingLayouts,
   };
 
@@ -1882,6 +1885,7 @@ export default function ExamDetailPage({
           {t("cancel")}
         </Button>
       )}
+      <SaveStatus state={saveState} onRetry={() => void handleSave()} onReload={() => handleNavigationAttempt(() => { reconciledExamId.current = null; queryClient.removeQueries({queryKey: examPageDataQueryKey(Number(examId)), exact:true}); setReloadVersion(value => value + 1); })}/>
       <Button
         variant={isEditing ? "outline" : "default"}
         className="h-9 px-4"
@@ -1951,9 +1955,9 @@ export default function ExamDetailPage({
             <ExamLayoutTabs
               layoutTabs={layoutTabs}
               activeInstanceId={activeInstanceId}
-              onTabClick={handleLayoutTabChange}
-              onTabDrop={handleLayoutTabDrop}
-              onFullDataClick={handleActivateFullDataTab}
+              onTabClick={id => {if (!isSaveInFlight) handleLayoutTabChange(id)}}
+              onTabDrop={(id,index) => {if (!isSaveInFlight) {setIsEditing(true); void handleLayoutTabDrop(id,index)}}}
+              onFullDataClick={() => {if (!isSaveInFlight) handleActivateFullDataTab()}}
               hasTabData={(tab) =>
                 Object.entries(
                   tab.id === activeInstanceId
@@ -1961,7 +1965,7 @@ export default function ExamDetailPage({
                     : examFormDataByInstance[tab.id] || {},
                 ).some(([key, value]) => isNonEmptyComponent(key, value))
               }
-              onRemoveTab={handleRemoveLayoutTab}
+              onRemoveTab={id => {if (!isSaveInFlight) {setIsEditing(true); void handleRemoveLayoutTab(id)}}}
               actions={headerActions}
               tabsSlot={
                 isOptitechExam ? (
@@ -1973,9 +1977,9 @@ export default function ExamDetailPage({
               addLayoutAction={!isNewMode && !isOptitechExam ? (
                 <LayoutSelectorDropdown
                   availableLayouts={availableLayouts}
-                  onSelectLayout={handleSelectLayoutOption}
+                  onSelectLayout={id => {if (!isSaveInFlight) {setIsEditing(true); return handleSelectLayoutOption(id)}}}
                   onRequestLayouts={handleRequestLayouts}
-                  isLoading={isAddingLayouts}
+                  isLoading={isAddingLayouts || isSaveInFlight}
                   iconOnly
                 />
               ) : undefined}
@@ -1988,14 +1992,14 @@ export default function ExamDetailPage({
               className="no-scrollbar h-full overflow-y-auto overscroll-contain rounded-[inherit]"
               style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
             >
-              <form ref={formRef} className="flex min-h-full flex-col">
+              <form ref={formRef} className="flex min-h-full flex-col" aria-busy={isSaveInFlight} onSubmit={event => {event.preventDefault(); void handleSave();}}><fieldset disabled={isSaveInFlight} className="contents">
                 <ExamLayoutRenderer
                   cardRows={displayedLayout.rows}
                   customWidths={displayedLayout.customWidths}
                   gridItems={displayedLayout.items}
                   rowWidths={rowWidths}
                   rowRefs={rowRefs}
-                  isEditing={isEditing}
+                  isEditing={isEditing && !isSaveInFlight}
                   detailProps={detailPropsWithOverrides}
                   clipboardContentType={clipboardContentType}
                   activeCoverTestTabs={activeCoverTestTabs}
@@ -2014,7 +2018,7 @@ export default function ExamDetailPage({
                   onCopy={handleCopy}
                   onPaste={handlePaste}
                 />
-              </form>
+              </fieldset></form>
             </div>
           </div>
         </div>

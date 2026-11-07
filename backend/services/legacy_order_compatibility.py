@@ -99,6 +99,13 @@ def _lines(db, billing, incoming, *, replace):
         # Provenance belongs to the workspace, not the legacy billing form.
         patch = {k: v for k, v in patch.items() if k not in {"source_entry_id", "source_slot", "manually_edited", "billings_id"}}
         line = {**existing.get(key, {}), **patch}
+        # Old clients only understand fixed deductions. A financial edit deliberately
+        # switches to that mode; metadata-only saves retain the percentage.
+        if key and patch.get("discount_percent", existing[key].get("discount_percent")) == existing[key].get("discount_percent") and any(
+            field in patch and patch[field] != existing[key].get(field)
+            for field in ("price", "quantity", "discount")
+        ):
+            line["discount_percent"] = None
         if not key or any(existing[key].get(k) != v for k, v in patch.items() if k not in {"id", "currency", "compatibility_token"}):
             line["manually_edited"] = True
         result.append(line)

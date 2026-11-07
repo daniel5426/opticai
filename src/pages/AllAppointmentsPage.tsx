@@ -1,3 +1,4 @@
+import { affectsFamily } from "@/lib/record-changes";
 import { TableExportProvider } from "@/components/table-export/context";
 import { CompanyClinicToolbarProvider } from "@/components/CompanyClinicFilter"
 import { useCompanyClinicFilter } from "@/hooks/client/useCompanyClinicFilter"
@@ -92,10 +93,10 @@ export default function AllAppointmentsPage() {
     return () => clearTimeout(t);
   }, [navigate, search.q, searchInput]);
 
-  const loadData = async () => {
+  const loadData = async (background = false) => {
     const canCommit = startSearchRequest(search.q);
     try {
-      setLoading(true);
+      if (!background) setLoading(true);
       setTotal(null);
       const offset = (search.page - 1) * pageSize;
       const paginationOptions = {
@@ -188,7 +189,7 @@ export default function AllAppointmentsPage() {
   };
 
   useEffect(() => {
-    const refresh = () => { void loadData() }
+    const refresh = (event: Event) => { if (affectsFamily(event, "appointments")) void loadData(true) }
     window.addEventListener("prysm:client-records-changed", refresh)
     return () => window.removeEventListener("prysm:client-records-changed", refresh)
   }, [loadData])

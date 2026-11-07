@@ -1,10 +1,14 @@
+import { hasOpticPlusLayout } from "@/lib/opticplus-cards";
+import { flushSync } from "react-dom";
+import { useTranslation } from "react-i18next";
+import { useSaveController } from "@/hooks/shared/useSaveController";
+import { saveExamWorkspace, stableSaveJson, type ExamWorkspaceResponse } from "@/lib/exam-workspace";
+import { getExamPageData } from "@/lib/db/exams-db";
 import { useCallback, useRef, useLayoutEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { examPageDataQueryKey } from "@/lib/db/exams-db";
 import { toast } from "sonner";
 import { OpticalExam } from "@/lib/db/schema-interface";
-import { updateExam, createExam } from "@/lib/db/exams-db";
-import { addLayoutToExam } from "@/lib/db/exam-layouts-db";
 import { examComponentRegistry } from "@/lib/exam-component-registry";
 import { LayoutTab } from "@/pages/exam-detail/types";
 import { inputSyncManager } from "@/components/exam/shared/OptimizedInputs";
@@ -32,6 +36,10 @@ interface ExamPageConfig {
 }
 
 interface UseExamSaveParams {
+  hasUnsavedChanges?: boolean;
+  checkDirty?: () => boolean;
+  onCreated?: (id: number) => void;
+  onReconcile?: () => void;
   formRef: React.RefObject<HTMLFormElement | null>;
   isSaveInFlight: boolean;
   setIsSaveInFlight: (value: boolean) => void;
@@ -65,6 +73,10 @@ interface UseExamSaveParams {
 }
 
 export function useExamSave({
+  hasUnsavedChanges = true,
+  checkDirty,
+  onCreated,
+  onReconcile,
   formRef,
   isSaveInFlight,
   setIsSaveInFlight,
@@ -93,6 +105,12 @@ export function useExamSave({
   onSave,
 }: UseExamSaveParams) {
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
+  const controller = useSaveController({ dirty: hasUnsavedChanges, identity: clientId });
+  const creationKey = useRef(crypto.randomUUID());
+  const pendingCreation = useRef<any>(null);
+  const saveRoute = useRef(clientId);
+  saveRoute.current = clientId;
 
   // Use refs to ensure handleSave (which is a stable callback) can access the
   // MOST RECENT data even after calling inputSyncManager.flush().
@@ -115,10 +133,12 @@ export function useExamSave({
   }, [layoutTabs]);
 
   const handleSave = useCallback(async () => {
-    if (!formRef.current || isSaveInFlight) return;
+    if (isSaveInFlight || controller.busy.current) return;
 
     // Flush any pending updates from optimized components
-    inputSyncManager.flush();
+    flushSync(() => inputSyncManager.flush());
+    if (!isNewMode && !(checkDirty ? checkDirty() : hasUnsavedChanges)) return;
+    if (formRef.current && !formRef.current.reportValidity()) return;
 
     // After flush, we MUST read from the refs because the local state variables
     // (formData, examFormData, etc.) still hold the "old" values from the previous render.
@@ -209,163 +229,112 @@ export function useExamSave({
       }
     });
 
+    const identity = clientId;
     setIsSaveInFlight(true);
-
     try {
-      if (isNewMode) {
-        setIsEditing(false);
-        const examData = {
-          client_id: Number(clientId),
-          exam_date:
-            currentFormData.exam_date || new Date().toISOString().split("T")[0],
-          test_name: currentFormData.test_name || "",
-          clinic_id: currentClinic?.id,
-          user_id: currentFormData.user_id || currentUser?.id,
-          dominant_eye: currentFormData.dominant_eye || null,
-          type: currentFormData.type || config.dbType,
-        };
-
-        const newExam = await createExam(examData);
-
-        if (!newExam || !newExam.id) {
-          toast.error(config.saveErrorNew);
-          setIsEditing(true);
-          return;
+      await controller.run(async () => {
+        const originalPage = exam?.id ? queryClient.getQueryData<any>(examPageDataQueryKey(exam.id)) : undefined;
+        const originalInstances = new Map<number, any>((originalPage?.instances || []).map((row: any) => [Number(row.instance.id), row]));
+        const metadataFields = ['client_id', 'clinic_id', 'user_id', 'exam_date', 'test_name', 'dominant_eye', 'type'] as const;
+        const metadata: Record<string, any> = {};
+        for (const field of metadataFields) {
+          const value = currentFormData[field] ?? (field === 'type' ? config.dbType : null);
+          if (isNewMode || stableSaveJson(value) !== stableSaveJson(originalPage?.exam?.[field] ?? null)) metadata[field] = value;
         }
-
-        setExam(newExam);
-        setFormData({ ...newExam });
-        toast.success(config.saveSuccessNew);
-        if (onSave) onSave(newExam);
-
-        const activeTempTab = tabsToPersist.find((t) => t.isActive);
-        if (
-          activeTempTab &&
-          activeInstanceId != null &&
-          activeTempTab.id === activeInstanceId
-        ) {
-          setExamFormDataByInstance(saveBuckets);
+        if (isNewMode) {
+          metadata.client_id = Number(clientId);
+          metadata.clinic_id = currentClinic?.id;
+          metadata.user_id = currentFormData.user_id || currentUser?.id;
+          metadata.exam_date ||= new Date().toISOString().split('T')[0];
         }
-
-        const tempIdToRealId: Record<number, number> = {};
+        const presentIds = new Set(realLayoutTabs.filter(tab => tab.id > 0).map(tab => tab.id));
+        // Layout-less imported instances do not appear in the template tab strip.
+        const removed = [...originalInstances.keys()].filter(id => {
+          const original = originalInstances.get(id);
+          return (original?.instance.layout_id != null || hasOpticPlusLayout(original || {})) && !presentIds.has(id);
+        });
+        const instanceIds = new Set<number>([...realLayoutTabs.map(tab => tab.id), ...Object.keys(saveBuckets).map(Number)]);
+        const instances: any[] = [];
+        for (const id of instanceIds) {
+          if (!Number.isFinite(id) || isVirtualFullDataTabId(id) || removed.includes(id)) continue;
+          const tab = realLayoutTabs.find(item => item.id === id);
+          const original = originalInstances.get(id);
+          const data = examComponentRegistry.prepareData(id, saveBuckets[id] || {});
+          const originalData = original ? examComponentRegistry.prepareData(id, original.exam_data || {}) : undefined;
+          if (id > 0 && !original) continue;
+          if (id > 0 && stableSaveJson(data) === stableSaveJson(originalData) && (!tab || tab.layout_data === (original.instance.layout_data || original.layout?.layout_data))) continue;
+          instances.push({ ...(id > 0 ? { id } : {}), client_key: String(id),
+            ...(tab?.layout_id ? { layout_id: tab.layout_id } : {}),
+            ...(tab?.layout_data ? { layout_data: tab.layout_data } : {}), exam_data: data });
+        }
+        const orderedIds = [...realLayoutTabs.map(tab => String(tab.id)), ...[...originalInstances.keys()]
+          .filter(id => !removed.includes(id) && !presentIds.has(id)).map(String)];
+        const originalOrder = [...originalInstances.values()].sort((a, b) => (a.instance.order || 0) - (b.instance.order || 0) || a.instance.id - b.instance.id).map(row => String(row.instance.id));
+        const payload: any = { exam: metadata, instances, removed_instance_ids: removed,
+          ...(originalPage?.save_token ? { save_token: originalPage.save_token } : {}),
+          ...(isNewMode || stableSaveJson(orderedIds) !== stableSaveJson(originalOrder) ? { instance_order: orderedIds } : {}),
+          ...(currentActiveInstanceId != null && !isVirtualFullDataTabId(currentActiveInstanceId) ? { active_client_key: String(currentActiveInstanceId) } : {}) };
+        if (!isNewMode && !Object.keys(metadata).length && !instances.length && !removed.length && !payload.instance_order) { setBaseline(); return; }
+        if (isNewMode) pendingCreation.current ||= payload;
+        const submitted = isNewMode ? pendingCreation.current : payload;
+        let saved: ExamWorkspaceResponse;
         try {
-          for (const tab of tabsToPersist) {
-            const instance = await addLayoutToExam(
-              Number(newExam.id),
-              Number(tab.layout_id || 0),
-              tab.isActive,
-            );
-            if (!instance || instance.id == null)
-              throw new Error("failed to create instance");
-            tempIdToRealId[tab.id] = Number(instance.id);
-            const dataBucket = saveBuckets[tab.id] || {};
-            await examComponentRegistry.saveAllData(
-              Number(instance.id),
-              dataBucket,
-            );
-          }
-
-          const remappedTabs = tabsToPersist.map((tab) => ({
-            ...tab,
-            id:
-              tempIdToRealId[tab.id] !== undefined
-                ? tempIdToRealId[tab.id]
-                : tab.id,
-          }));
-          setLayoutTabs(remappedTabs);
-
-          if (
-            activeTempTab &&
-            Object.prototype.hasOwnProperty.call(
-              tempIdToRealId,
-              activeTempTab.id,
-            )
-          ) {
-            const realId = Number(tempIdToRealId[activeTempTab.id]);
-            setActiveInstanceId(realId);
-            setExamFormData(saveBuckets[activeTempTab.id] || {});
-          }
-        } catch (error) {
-          toast.error(config.saveErrorNewData);
-          setIsEditing(true);
-          return;
+          saved = await saveExamWorkspace(exam?.id, submitted, creationKey.current);
+        } catch (reason) {
+          const status = (reason as Error & { status?: number }).status;
+          if (status || !exam?.id) throw reason;
+          // Resolve a lost acknowledgement before allowing another update.
+          const latest = await getExamPageData(exam.id);
+          if (!latest || latest.save_token === originalPage?.save_token) throw reason;
+          const matches = Object.entries(metadata).every(([field, value]) => stableSaveJson(latest.exam[field] ?? null) === stableSaveJson(value)) &&
+            instances.every(item => { const row = latest.instances.find((candidate: any) => candidate.instance.id === item.id); return row && stableSaveJson(examComponentRegistry.prepareData(item.id, row.exam_data)) === stableSaveJson(item.exam_data); }) &&
+            removed.every(id => !latest.instances.some((row: any) => row.instance.id === id)) &&
+            (!payload.instance_order || stableSaveJson([...latest.instances].sort((a: any,b: any) => (a.instance.order || 0)-(b.instance.order || 0)).map((row: any) => String(row.instance.id))) === stableSaveJson(payload.instance_order));
+          if (!matches) throw new Error('exam_save_conflict');
+          saved = { ...latest, removed_instance_ids: removed, client_keys: Object.fromEntries(latest.instances.map((row: any) => [String(row.instance.id), row.instance.id])) };
         }
-
-        setBaseline({
-          formData: { ...newExam },
-          examFormData: currentExamFormData,
-          examFormDataByInstance: saveBuckets,
+        if (saveRoute.current !== identity) return;
+        const newerCreationDraft = isNewMode && stableSaveJson(submitted) !== stableSaveJson(payload);
+        const remap = (id: number | string) => saved.client_keys[String(id)] ?? Number(id);
+        const buckets: Record<number | string, Record<string, any>> = {};
+        for (const [key, value] of Object.entries(saveBuckets)) if (!removed.includes(Number(key))) buckets[remap(key)] = value;
+        if (!newerCreationDraft) for (const row of saved.instances) buckets[row.instance.id] = row.exam_data;
+        const tabs = realLayoutTabs.map(tab => ({ ...tab, id: remap(tab.id), clientKey: (tab as any).clientKey || String(tab.id) }));
+        const nextActive = currentActiveInstanceId != null ? remap(currentActiveInstanceId) : null;
+        const nextData = isVirtualFullDataTabId(currentActiveInstanceId) ? currentExamFormData : buckets[nextActive!] || currentExamFormData;
+        const pageInstances = new Map(originalInstances);
+        for (const id of saved.removed_instance_ids) pageInstances.delete(id);
+        for (const row of saved.instances) pageInstances.set(row.instance.id, { ...originalInstances.get(row.instance.id), ...row });
+        queryClient.setQueryData(examPageDataQueryKey(saved.exam.id!), { ...originalPage, exam: saved.exam, instances: [...pageInstances.values()], save_token: saved.save_token, chosen_active_instance_id: nextActive });
+        onReconcile?.();
+        flushSync(() => {
+          setExam(saved.exam);
+          setFormData(newerCreationDraft ? { ...currentFormData, id: saved.exam.id } : { ...saved.exam });
+          setExamFormDataByInstance(buckets); setLayoutTabs(tabs);
+          setActiveInstanceId(nextActive); setExamFormData(nextData); setIsEditing(true);
         });
-        syncSavedClientExam(queryClient, newExam, config.dbType);
-        allowNavigationRef.current = true;
-        navigate({
-          to: "/clients/$clientId",
-          params: { clientId: String(clientId) },
-          search: { tab: config.sidebarTab },
-        });
-        setTimeout(() => {
+        if (!newerCreationDraft) setBaseline();
+        syncSavedClientExam(queryClient, saved.exam, config.dbType);
+        pendingCreation.current = null;
+        onSave?.(saved.exam);
+        if (isNewMode) {
+          onCreated?.(saved.exam.id!);
+          allowNavigationRef.current = true;
+          await navigate({ to: '/clients/$clientId/exams/$examId', params: { clientId: String(clientId), examId: String(saved.exam.id) }, replace: true });
           allowNavigationRef.current = false;
-        }, 0);
-      } else {
-        const prevExam = exam;
-        try {
-          const updatedExam = await updateExam(currentFormData as OpticalExam);
-
-          setExamFormDataByInstance(saveBuckets);
-
-          const instanceIdsToSave = new Set<number>();
-          tabsToPersist.forEach((tab) => {
-            if (tab.id > 0) instanceIdsToSave.add(tab.id);
-          });
-          Object.keys(saveBuckets).forEach((instanceId) => {
-            const numericInstanceId = Number(instanceId);
-            if (
-              Number.isFinite(numericInstanceId) &&
-              numericInstanceId > 0 &&
-              !isVirtualFullDataTabId(numericInstanceId)
-            ) {
-              instanceIdsToSave.add(numericInstanceId);
-            }
-          });
-
-          for (const instanceId of instanceIdsToSave) {
-            const bucket = saveBuckets[instanceId] || {};
-            await examComponentRegistry.saveAllData(instanceId, bucket);
-          }
-
-          if (updatedExam) {
-            setExam(updatedExam);
-            setFormData({ ...updatedExam });
-            const localExamData = { ...currentExamFormData };
-            if (onSave) onSave(updatedExam, ...Object.values(localExamData));
-            setBaseline({
-              formData: { ...updatedExam },
-              examFormData: currentExamFormData,
-              examFormDataByInstance: saveBuckets,
-            });
-            syncSavedClientExam(queryClient, updatedExam, config.dbType);
-            if (updatedExam.id) queryClient.removeQueries({ queryKey: examPageDataQueryKey(updatedExam.id), exact: true });
-
-            toast.success(config.saveSuccessUpdate);
-            setIsEditing(false);
-          } else {
-            throw new Error("update failed");
-          }
-        } catch (error) {
-          console.error("Save error:", error);
-          toast.error("לא הצלחנו לשמור את השינויים");
-          setIsEditing(true);
-          if (prevExam) {
-            setExam(prevExam);
-            setFormData({ ...prevExam });
-          }
         }
+      });
+    } catch (reason) {
+      if (saveRoute.current === identity) {
+        if (isNewMode && (reason as any)?.status && (reason as any).status < 500) pendingCreation.current = null;
+        toast.error(t(/conflict|409/.test(String(reason)) ? 'saveStatus.conflict' : 'saveStatus.error'));
       }
-    } finally {
-      setIsSaveInFlight(false);
-    }
+    } finally { if (saveRoute.current === identity) setIsSaveInFlight(false); }
+
   }, [
     formRef,
+    hasUnsavedChanges,
+    onCreated,
     isSaveInFlight,
     setIsSaveInFlight,
     isNewMode,
@@ -394,5 +363,5 @@ export function useExamSave({
     queryClient,
   ]);
 
-  return { handleSave };
+  return { handleSave, saveState: controller.state };
 }

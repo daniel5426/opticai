@@ -57,7 +57,7 @@ export function syncSavedClientOrder(queryClient: QueryClient, order: Order) {
     sortByDateDesc(items, (item) => item.order_date),
   )
 
-  void queryClient.invalidateQueries({ queryKey: ordersKey })
+  void queryClient.invalidateQueries({ queryKey: ordersKey, refetchType: 'none' })
   void queryClient.invalidateQueries({
     queryKey: clientQueryKeys.ordersContext(clientId),
   })
@@ -76,7 +76,7 @@ export function syncSavedClientExam(
     sortByDateDesc(items, (item) => item.exam_date),
   )
 
-  void queryClient.invalidateQueries({ queryKey: examsKey })
+  void queryClient.invalidateQueries({ queryKey: examsKey, refetchType: 'none' })
   void queryClient.invalidateQueries({
     queryKey: clientQueryKeys.ordersContext(clientId),
   })
@@ -95,7 +95,7 @@ export function syncSavedClientReferral(
     sortByDateDesc(items, (item) => item.date),
   )
 
-  void queryClient.invalidateQueries({ queryKey: referralsKey })
+  void queryClient.invalidateQueries({ queryKey: referralsKey, refetchType: 'none' })
 }
 
 export function syncSavedClientAppointment(
@@ -112,7 +112,7 @@ export function syncSavedClientAppointment(
     ),
   )
 
-  void queryClient.invalidateQueries({ queryKey: appointmentsKey })
+  void queryClient.invalidateQueries({ queryKey: appointmentsKey, refetchType: 'none' })
 }
 
 export function syncSavedClientFile(queryClient: QueryClient, file: File) {

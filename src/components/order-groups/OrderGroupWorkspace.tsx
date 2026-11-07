@@ -1,3 +1,5 @@
+import { SaveStatus } from "@/components/SaveStatus";
+import { useSaveController } from "@/hooks/shared/useSaveController";
 import { recalculateLineBilling } from "@/lib/discounts";
 import { importedOrderName } from "@/lib/opticplus-cards";
 import { createPortal, flushSync } from "react-dom";
@@ -26,7 +28,7 @@ import { useClientSidebar } from '@/contexts/ClientSidebarContext';
 import { useUser } from '@/contexts/UserContext';
 import { getClientById } from '@/lib/db/clients-db';
 import { inputSyncManager } from '@/components/exam/shared/OptimizedInputs';
-import { groupRequest, applySuggestion, type OrderGroup, type GroupEntry, type GroupLineItem, type EntryHandle, type OrderKind } from '@/lib/order-groups';
+import { groupRequest, applySuggestion, applySourcePrice, type OrderGroup, type GroupEntry, type GroupLineItem, type EntryHandle, type OrderKind } from '@/lib/order-groups';
 import type { Billing, BillingPayment, Client } from '@/lib/db/schema-interface';
 import { printOrderGroup } from '@/lib/order-docx/print-order-group';
 import { cn } from '@/utils/tailwind';
@@ -34,13 +36,15 @@ import { toast } from 'sonner';
 
 interface DraftEntry extends GroupEntry { key: string; client: Client }
 const roundMoney=(value:number)=>Math.round(value*100)/100;
+const workspaceColumnClassName='mx-auto flex min-h-0 min-w-0 w-full max-w-[1024px] flex-1 flex-col overflow-hidden p-4 lg:p-5';
+const workspaceSurfaceClassName='no-scrollbar flex min-h-0 w-full shrink flex-col overflow-y-auto rounded-xl border-0 bg-card shadow-sm';
 
 function LoadingShell() {
  const {t}=useTranslation();const {direction}=useAppLocale();const noop=()=>{};
- return <><SiteHeader title={t('clients')} backLink="/clients" tabs={{activeTab:'orders',onTabChange:noop}}/><ClientSpaceLayout><div className="flex min-h-0 flex-1 flex-col p-4 lg:p-5" dir={direction}>
+ return <><SiteHeader title={t('clients')} backLink="/clients" tabs={{activeTab:'orders',onTabChange:noop}}/><ClientSpaceLayout><div className="relative flex h-full min-h-0 flex-1" dir={direction}><div className={workspaceColumnClassName}>
  <div className="flex shrink-0 items-end gap-3"><div className="flex min-w-0 flex-1 items-end"><Skeleton className="h-10 w-44 rounded-b-none"/></div><OrderGroupToolbar direction={direction} printDisabled printing={false} onPrint={noop} billingOpen={false} billingDisabled onToggleBilling={noop} editing={false} saving={false} editDisabled onEditOrSave={noop}/></div>
- <div className="min-h-0 flex-1 rounded-xl rounded-ss-none bg-card shadow-sm"><OrderGroupPanelSkeleton/></div>
- </div></ClientSpaceLayout></>;
+ <div data-order-surface className={cn(workspaceSurfaceClassName,'rounded-ss-none')} style={{scrollbarWidth:'none'}}><OrderGroupPanelSkeleton/></div>
+ </div></div></ClientSpaceLayout></>;
 }
 
 export function OrderGroupGate(props: OrderDetailPageProps) {
@@ -54,8 +58,7 @@ export function OrderGroupGate(props: OrderDetailPageProps) {
 export function OrderGroupWorkspace(props: OrderDetailPageProps) {
  const params=useParams({strict:false}) as {clientId?:string;orderId?:string};
  const search=useSearch({strict:false}) as {type?:string};
- const routeKey=JSON.stringify([props.clientId||params.clientId,props.orderId||params.orderId,search.type]);
- return <OrderGroupWorkspaceContent key={routeKey} {...props}/>;
+ return <OrderGroupWorkspaceContent {...props}/>;
 }
 
 function OrderGroupWorkspaceContent(props: OrderDetailPageProps) {
@@ -70,7 +73,7 @@ function OrderGroupWorkspaceContent(props: OrderDetailPageProps) {
  const [editing,setEditing]=useState(props.mode==='new');const [loading,setLoading]=useState(true);const [error,setError]=useState('');
  const billingOpen=clientSidebarOpen&&panelMode==='billing';
  const [pendingKind,setPendingKind]=useState<OrderKind|null>(null);const [removing,setRemoving]=useState<DraftEntry|null>(null);
- const [generation,setGeneration]=useState(0);const [printing,setPrinting]=useState(false);const [activeHeaderTab,setActiveHeaderTab]=useState('orders');
+ const [printing,setPrinting]=useState(false);const [activeHeaderTab,setActiveHeaderTab]=useState('orders');
  const handles=useRef(new Map<string,EntryHandle>());const initialKey=useRef(crypto.randomUUID());const pendingBaseline=useRef(false);const stateRef=useRef({group,entries,billing,lines,snapshots,payerId});stateRef.current={group,entries,billing,lines,snapshots,payerId};
  const suppressed=useRef(new Set<string>());
  const savedBilling=useRef('');
@@ -81,20 +84,26 @@ function OrderGroupWorkspaceContent(props: OrderDetailPageProps) {
  const serialized=useCallback(()=>JSON.stringify({payer:stateRef.current.payerId,entries:stateRef.current.entries.map(entry=>({key:entry.key,id:entry.id,order:stateRef.current.snapshots[entry.key]||entry.order})),billing:paymentOffset.current?{...stateRef.current.billing,prepayment_amount:roundMoney((Number(stateRef.current.billing.prepayment_amount)||0)-paymentOffset.current)}:stateRef.current.billing,lines:stateRef.current.lines,removed}),[contextClientId,removed]);
  const billingDirty=JSON.stringify({billing,lines})!==savedBilling.current;
  const guard=useUnsavedChanges({getSerializedState:serialized,isEditing:editing||billingDirty,isNewMode:!group});
+ const saveController=useSaveController({dirty:guard.hasUnsavedChanges,identity:contextClientId});
  const editable=(currentUser?.role_level||1)>=2;
  useEffect(()=>{if(!billing.id&&!lines.length&&company?.default_currency)setBilling(previous=>previous.currency===company.default_currency?previous:{...previous,currency:company.default_currency})},[company?.default_currency,billing.id,lines.length]);
 
- const hydrate=useCallback((value:OrderGroup,preferEntry?:number)=>{
-  const next=value.entries.map(entry=>({ ...entry,key:`entry:${entry.id}`,client:value.clients.find(client=>client.id===entry.order.client_id)! }));
+ const hydrate=useCallback((value:OrderGroup,preferEntry?:number,preserve=false)=>{
+  const previous=stateRef.current.entries;
+  const next=value.entries.map(entry=>{const existing=preserve?previous.find(item=>item.id===entry.id||value.client_keys?.[item.key]===entry.id):undefined;return{...entry,key:existing?.key||`entry:${entry.id}`,client:value.clients.find(client=>client.id===entry.order.client_id)!}});
+  if(preserve)for(const entry of next)handles.current.get(entry.key)?.applySaved?.(entry);
   paymentOffset.current=0;setGroup(value);setPayerId(value.payer_client_id);setEntries(next);setRemoved([]);setSnapshots({});setBilling(value.billing||({currency:company?.default_currency||'ILS'} as Billing));
-  const hydratedLines=value.line_items.map(item=>({...item,source_client_key:item.source_entry_id?`entry:${item.source_entry_id}`:undefined}));
+  const hydratedLines=value.line_items.map(item=>({...item,source_client_key:item.source_entry_id?next.find(entry=>entry.id===item.source_entry_id)?.key:undefined}));
   setLines(hydratedLines);savedBilling.current=JSON.stringify({billing:value.billing||{currency:company?.default_currency||'ILS'},lines:hydratedLines});
   const requested=next.find(entry=>entry.id===preferEntry)||next.find(entry=>entry.order.client_id===contextClientId)||next[0];setActive(requested?.key||'');
-  setGeneration(value=>value+1);guard.baselineInitializedRef.current=false;pendingBaseline.current=true;
+  guard.baselineInitializedRef.current=false;pendingBaseline.current=true;
  },[contextClientId]);
  const loadGeneration=useRef(0);
- const load=useCallback(async()=>{
+ const load=useCallback(async(force=false)=>{
+  if(!force&&stateRef.current.group&&routeOrder===`group-${stateRef.current.group.id}`&&stateRef.current.entries.some(entry=>entry.client.id===contextClientId))return;
   const request=++loadGeneration.current;const stale=()=>request!==loadGeneration.current;
+  setEntries([]);setGroup(null);setSnapshots({});setRemoved([]);
+  guard.baselineInitializedRef.current=false;
   setLoading(true);setError('');
   try{
    if(routeOrder && routeOrder!=='new'){
@@ -127,6 +136,11 @@ function OrderGroupWorkspaceContent(props: OrderDetailPageProps) {
   if(currency!==current.billing.currency)setBilling(previous=>({...previous,currency}));
   setLines(previous=>{try{return applySuggestion(previous,key,slot,variant,quantity,currency)}catch{toast.error(t('cannotMixCurrencies'));return previous}});
  },[t]);
+ const setPrice=useCallback((key:string,slot:any,value:number,description:string)=>{
+  if(!Number.isFinite(value)||value<0)return;
+  suppressed.current.delete(`${key}:${slot}`);
+  setLines(previous=>applySourcePrice(previous,key,slot,value,description,stateRef.current.billing.currency||'ILS'));
+ },[]);
  const financialLines=JSON.stringify(lines.map(item=>[item.id,item.price,item.quantity,item.discount,item.line_total]));
  const priorFinancialLines=useRef(financialLines);
  useEffect(()=>{
@@ -135,22 +149,25 @@ function OrderGroupWorkspaceContent(props: OrderDetailPageProps) {
   const baseline=savedBilling.current?JSON.parse(savedBilling.current):{billing:{},lines:[]};
   setBilling(previous=>recalculateLineBilling(previous,lines,baseline.billing,baseline.lines));
  },[financialLines,loading]);
- const entryWorkspaces=useMemo(()=>new Map(entries.map(entry=>[entry.key,{key:entry.key,kind:entry.kind,record:entry.order,client:entry.client,active:entry.key===active,editing,register,onChange,suggest}])),[entries,active,editing,register,onChange,suggest]);
+ const entryWorkspaces=useMemo(()=>new Map(entries.map(entry=>[entry.key,{key:entry.key,kind:entry.kind,record:entry.order,client:entry.client,active:entry.key===active,editing:editing&&!guard.isSaveInFlight,register,onChange,suggest,setPrice,lines}])),[entries,active,editing,guard.isSaveInFlight,register,onChange,suggest,setPrice,lines]);
  const metadata=(entry:DraftEntry)=>{const snapshot=snapshots[entry.key];if(!snapshot)return entry.order;const data=JSON.parse(snapshot);return entry.kind==='regular'?data.formData:data.contactFormData};
  const save=async()=>{
-  flushSync(()=>inputSyncManager.flush());if(guard.isSaveInFlight||billingSaveInFlight.current||loading||(!group&&Boolean(error)))return;
+  flushSync(()=>inputSyncManager.flush());if(guard.isSaveInFlight||saveController.busy.current||billingSaveInFlight.current||loading||(!group&&Boolean(error)))return;
+  if(group&&!guard.checkDirty())return;
   if(entries.some(entry=>!handles.current.get(entry.key)?.ready)){toast.error(t("orderGroupWait"));return;}
   const drafts=entries.map((entry,index)=>{const handle=handles.current.get(entry.key);if(!handle?.ready)throw new Error('orderGroupWait');return{...handle.serialize(),id:entry.id,position:index}});
   if(drafts.some(entry=>!entry.order.type)){toast.error(t('orderGroupChooseType'));return}
+  const requestGeneration=loadGeneration.current;
   guard.setIsSaveInFlight(true);setError('');
-  try{
-   const payload={clinic_id:group?.clinic_id||currentClinic?.id,payer_client_id:payerId,revision:group?.revision,entries:drafts,removed_entry_ids:removed,...((billing.id||lines.length||billing.prepayment_amount||billing.discount_amount||billing.discount_percent)&&(JSON.stringify({billing,lines})!==savedBilling.current||lines.some(item=>item.source_client_key&&!item.source_client_key.startsWith('entry:')))?{billing,line_items:lines}:{})};
+  try{await saveController.run(async()=>{
+   const payload={clinic_id:group?.clinic_id||currentClinic?.id,payer_client_id:payerId,revision:group?.revision,entries:drafts,removed_entry_ids:removed,...((billing.id||lines.length||billing.prepayment_amount||billing.discount_amount||billing.discount_percent)&&(JSON.stringify({billing,lines})!==savedBilling.current||lines.some(item=>item.source_client_key&&!entries.find(entry=>entry.key===item.source_client_key)?.id))?{billing,line_items:lines}:{})};
    const value=await groupRequest<OrderGroup>(group?`/${group.id}`:'',{method:group?'PUT':'POST',headers:group?undefined:{'Idempotency-Key':initialKey.current},body:JSON.stringify(payload)});
-   const activeId=value.client_keys?.[active];hydrate(value,activeId);setEditing(false);
-   await queryClient.invalidateQueries({predicate:query=>query.queryKey[0]==='client'||query.queryKey[0]==='order-groups'||query.queryKey[0]==='orders'});
+   if(requestGeneration!==loadGeneration.current)return;
+   const activeId=value.client_keys?.[active];flushSync(()=>hydrate(value,activeId,true));setEditing(true);
+   queryClient.setQueryData(['order-group',value.id],value);
    toast.success(t('orderGroupSaved'));
    if(!group){guard.allowNavigationRef.current=true;await navigate({to:'/clients/$clientId/orders/$orderId',params:{clientId:String(contextClientId),orderId:`group-${value.id}`},replace:true});}
-  }catch(reason){const message=reason instanceof Error?reason.message:'';setError(message);toast.error(t(message.includes('order_group_conflict')?'orderGroupConflict':'orderGroupSaveError'))}finally{guard.setIsSaveInFlight(false)}
+  });}catch(reason){const message=reason instanceof Error?reason.message:'';setError(message);toast.error(t(message.includes('order_group_conflict')?'orderGroupConflict':'orderGroupSaveError'))}finally{guard.setIsSaveInFlight(false)}
  };
  useKeyboardSave({enabled:editing&&!loading,isSaving:guard.isSaveInFlight,canSave:editable,onSave:save});
  const addClient=async(clientId:number)=>{
@@ -200,7 +217,7 @@ function OrderGroupWorkspaceContent(props: OrderDetailPageProps) {
    if(!itemsChanged&&!Object.keys(changedBilling).length&&payer===group.payer_client_id)return true;
    const value=await groupRequest<Pick<OrderGroup,'id'|'revision'|'payer_client_id'|'billing'>&{line_items?:GroupLineItem[]}>(`/${group.id}/billing`,{method:'PATCH',body:JSON.stringify(payload)});
    if(requestGeneration!==loadGeneration.current)return false;
-   const hydratedLines=value.line_items?value.line_items.map((item,index)=>({...item,source_client_key:item.source_entry_id?`entry:${item.source_entry_id}`:items[index]?.source_client_key})):items;
+   const hydratedLines=value.line_items?value.line_items.map((item,index)=>({...item,source_client_key:item.source_entry_id?entries.find(entry=>entry.id===item.source_entry_id)?.key:items[index]?.source_client_key})):items;
    rememberRemoved();setGroup(previous=>previous?{...previous,...value}:previous);setBilling(value.billing!);setLines(hydratedLines);setPayerId(value.payer_client_id);
    savedBilling.current=JSON.stringify({billing:value.billing,lines:hydratedLines});paymentOffset.current=0;
    if(workspaceBaseline.current){workspaceBaseline.current={...workspaceBaseline.current,billing:value.billing,lines:hydratedLines,payer:value.payer_client_id};guard.setBaseline(workspaceBaseline.current);}
@@ -210,23 +227,23 @@ function OrderGroupWorkspaceContent(props: OrderDetailPageProps) {
   finally{billingSaveInFlight.current=false;setBillingSaving(false)}
  };
  const paymentAdapter={create:async(payment:{amount:number;paid_at:string;kind:'payment'})=>{const response=await groupRequest<{payment:BillingPayment;group:OrderGroup}>(`/${group!.id}/payments?revision=${group!.revision}`,{method:'POST',body:JSON.stringify(payment)});applyPaymentResult(response.group);return response.payment},remove:async(paymentId:number)=>{try{applyPaymentResult(await groupRequest<OrderGroup>(`/${group!.id}/payments/${paymentId}?revision=${group!.revision}`,{method:'DELETE'}));return true}catch{toast.error(t('orderGroupConflict'));return false}}};
- const print=async(all:boolean)=>{if(!group)return;setPrinting(true);try{const chosen=all?group.entries:group.entries.filter(entry=>`entry:${entry.id}`===active);const result=await printOrderGroup(chosen);if(!result.success)throw new Error(result.error)}catch{toast.error(t('orderGroupPrintError'))}finally{setPrinting(false)}};
+ const print=async(all:boolean)=>{if(!group)return;setPrinting(true);try{const chosen=all?group.entries:group.entries.filter(entry=>entries.find(draft=>draft.key===active)?.id===entry.id);const result=await printOrderGroup(chosen);if(!result.success)throw new Error(result.error)}catch{toast.error(t('orderGroupPrintError'))}finally{setPrinting(false)}};
  const reorder=(from:string,to:string)=>{setEntries(previous=>{const next=[...previous];const index=next.findIndex(entry=>entry.key===from);const target=next.findIndex(entry=>entry.key===to);if(index<0||target<0)return previous;const [entry]=next.splice(index,1);next.splice(target,0,entry);return next})};
  const tabEntries=entries.map(entry=>({key:entry.key,client:entry.client,label:importedOrderName(t,metadata(entry).type)||t(entry.kind==='regular'?'orderGroupGlasses':'orderGroupContact'),values:metadata(entry)}));
  const payerOptions=Array.from(new Map([...(group?.clients||[]),...otherPayers,...entries.map(entry=>entry.client)].map(client=>[client.id,client])).values());
- const errorKey=error.includes('order_group_conflict')?'orderGroupConflict':error==='orderGroupImportPending'?'orderGroupImportPending':'orderGroupLoadError';
+ const errorKey=error.includes('order_group_conflict')?'orderGroupConflict':error==='orderGroupImportPending'?'orderGroupImportPending':saveController.state==='error'?'orderGroupSaveError':'orderGroupLoadError';
  const removeLine=(id:number)=>setLines(previous=>{const line=previous.find(item=>item.id===id);if(line?.source_client_key&&line.source_slot)suppressed.current.add(`${line.source_client_key}:${line.source_slot}`);return previous.filter(item=>item.id!==id)});
 
  return <><SiteHeader title={t('clients')} backLink="/clients" clientBackLink={`/clients/${contextClientId}`} examInfo={<span>{t('orderGroupTitle')}</span>} hasUnsavedChanges={guard.hasUnsavedChanges} tabs={{activeTab:activeHeaderTab,onTabChange:setActiveHeaderTab}}/>
  <ClientSpaceLayout><div className="relative flex h-full min-h-0 flex-1" dir={direction}>
- <div className="mx-auto flex min-h-0 min-w-0 w-full max-w-[1024px] flex-1 flex-col overflow-hidden p-4 lg:p-5">
+ <div className={workspaceColumnClassName}>
  <div className="flex shrink-0 items-end gap-3">
- <OrderGroupTabs entries={tabEntries} activeKey={active} editing={editing} addDisabled={loading||!editable} direction={direction} onSelect={setActive} onReorder={reorder} onRemove={key=>setRemoving(entries.find(entry=>entry.key===key)||null)} onMetadataChange={(key,patch)=>handles.current.get(key)?.setMetadata(patch as Record<string, unknown>)} onAdd={setPendingKind}/>
- <OrderGroupToolbar direction={direction} printDisabled={!group||guard.hasUnsavedChanges||!entries.length} printing={printing} onPrint={all=>void print(all)} billingOpen={billingOpen} billingDisabled={loading} onToggleBilling={()=>{if(billingOpen)closeSidebar();else openBillingPanel()}} editing={editing} saving={guard.isSaveInFlight} editDisabled={loading||!editable||(editing&&billingSaving)||(!group&&Boolean(error))} onEditOrSave={()=>{if(editing)void save();else setEditing(true)}}/>
+ <OrderGroupTabs entries={tabEntries} activeKey={active} editing={editing&&!guard.isSaveInFlight} addDisabled={loading||!editable||guard.isSaveInFlight} direction={direction} onSelect={setActive} onReorder={reorder} onRemove={key=>setRemoving(entries.find(entry=>entry.key===key)||null)} onMetadataChange={(key,patch)=>handles.current.get(key)?.setMetadata(patch as Record<string, unknown>)} onAdd={setPendingKind}/>
+ <SaveStatus state={saveController.state} onRetry={()=>void save()} onReload={()=>guard.handleNavigationAttempt(()=>void load(true))}/><OrderGroupToolbar direction={direction} printDisabled={!group||guard.hasUnsavedChanges||!entries.length} printing={printing} onPrint={all=>void print(all)} billingOpen={billingOpen} billingDisabled={loading} onToggleBilling={()=>{if(billingOpen)closeSidebar();else openBillingPanel()}} editing={editing} saving={guard.isSaveInFlight} editDisabled={loading||!editable||(editing&&billingSaving)||(!group&&Boolean(error))} onEditOrSave={()=>{if(editing)void save();else setEditing(true)}}/>
  </div>
- <div data-order-surface className={cn('no-scrollbar flex min-h-0 w-full shrink flex-col overflow-y-auto rounded-xl border-0 bg-card shadow-sm',entries[0]?.key===active&&'rounded-ss-none')} style={{scrollbarWidth:'none'}}>
- {error&&<div role="alert" className="flex shrink-0 items-center justify-between gap-3 border-b border-destructive/20 bg-destructive/5 px-4 py-2 text-sm text-destructive"><span>{t(errorKey)}</span><Button variant="ghost" size="sm" onClick={()=>guard.handleNavigationAttempt(()=>void load())}>{t('orderGroupReload')}</Button></div>}
- {loading?<OrderGroupPanelSkeleton/>:entries.length?entries.map(entry=><div key={`${entry.key}:${generation}`} hidden={active!==entry.key} id={`order-panel-${entry.key}`} aria-labelledby={`order-tab-${entry.key}`} role="tabpanel">
+ <div data-order-surface className={cn(workspaceSurfaceClassName,entries[0]?.key===active&&'rounded-ss-none')} style={{scrollbarWidth:'none'}}>
+ {error&&<div role="alert" className="flex shrink-0 items-center justify-between gap-3 border-b border-destructive/20 bg-destructive/5 px-4 py-2 text-sm text-destructive"><span>{t(errorKey)}</span><Button variant="ghost" size="sm" onClick={()=>guard.handleNavigationAttempt(()=>void load(true))}>{t('orderGroupReload')}</Button></div>}
+ {loading?<OrderGroupPanelSkeleton/>:entries.length?entries.map(entry=><div key={entry.key} hidden={active!==entry.key} id={`order-panel-${entry.key}`} aria-labelledby={`order-tab-${entry.key}`} role="tabpanel">
  <LegacyOrderDetailPage mode={entry.order.id?'view':'new'} clientId={String(entry.client.id)} orderId={entry.order.id?.toString()} examId={entry.key==='initial'?props.examId:undefined} workspace={entryWorkspaces.get(entry.key)!}/>
  </div>):<div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center"><span className="flex size-11 items-center justify-center rounded-full bg-muted text-muted-foreground"><Plus className="size-5"/></span><p className="text-sm text-muted-foreground">{t('orderGroupEmpty')}</p></div>}
  </div></div>

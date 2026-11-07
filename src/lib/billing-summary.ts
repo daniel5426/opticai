@@ -39,5 +39,5 @@ export function editBillingLineTotal(item: OrderLineItem, total: number): OrderL
   let price = Number(item.price) || 0;
   if (money(price * quantity) < target) price = Math.ceil((target + (Number(item.discount) || 0)) / quantity * 100) / 100;
   const discount = Math.max(0, money(price * quantity - target));
-  return { ...item, quantity, price, discount, line_total: target, manually_edited: true };
+  return { ...item, quantity, price, discount, discount_percent: null, line_total: target, manually_edited: true };
 }

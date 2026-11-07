@@ -1,6 +1,6 @@
 # Agent consumer tests
 
-Last Updated: 2026-11-03
+Last Updated: 2026-11-05
 
 ## Shared relay consumer regression — 2026-10-22
 
@@ -86,3 +86,11 @@ Final post-approval reload restored the committed “2 items applied” receipt;
 Initial thinking and provider/external waiting render in the assistant timeline, not above the composer. The last Tool group displays its trailing model-planning phase while preserving disclosure state; earlier chunks do not retain the current activity. Hidden node/Tool notes do not suppress fallback. Pending approvals remain inline and do not receive a generic waiting label. Command against the canonical packed development train in the isolated consumer: `npm exec -- vitest run src/tests/unit/agent/tool-activity.test.tsx src/tests/unit/agent/submission.test.tsx` — **49 passed**, including he/en/fr initial/planning activity, capacity wait, terminal clearing and external-work versus approval behavior. No provider limits, historical holds, backend calls or prompts changed.
 
 Public-package acceptance: installed `@agents24/react@0.2.28` and `@agents24/chat-react@0.5.42`; the same focused command passed **49 tests** (1.58 s). `npm run build:web` passed (9.61 s; existing chunk warnings); generated public release inputs were prepared and checked successfully. Local DevDesk clinic stack reached readiness after restart. Browser acceptance is blocked before chat by the initial navigation `Maximum update depth exceeded` loop; this repair does not alter authentication/routing. Production Agents24 playground smoke passed. No database migration.
+
+## Selective voice transcript display — 2026-11-05
+
+Public SDKs: client 0.2.24, React 0.2.30, chat-react 0.5.46; release provenance regenerated. Canonical scoped `node scripts/devdesk-check.mjs --fast --files src/services/agent-outputs.ts,src/services/use-agent-transcript.ts,src/components/agent/TranscriptMessage.tsx,src/components/agent/AgentChatPanel.tsx,src/services/agent-client.ts,src/contexts/PrysmAgentContext.tsx,src/tests/unit/agent/transcript.test.tsx` — **239 passed** across 25 related test files. Web build passed with existing chunk-size warnings. Focused TypeScript validation for the output adapter and hook passes.
+
+New coverage: initial/queued selection, default-off text, immediate lazy retrieval before stream completion, he/en/fr real SDK message rendering, duplicate replay, pagination/history, attach snapshots, unrelated runs, capture failure/expiry, attachment/text preservation and no reads for non-audio messages. Real running web fixtures on port 5126 verify filename replacement while the Agent remains running, without page errors, in Hebrew RTL and English/French LTR. Screenshots and fixture scripts are protected under `.agent-data/transcript-*`.
+
+The hosted Agent draft export is applied and validates. A synthetic hosted draft audio stream emitted `workflow.output.available` before terminal completion, and its processed-text result remained retrievable afterward. Published-Agent acceptance is pending the existing draft publication decision; this does not claim an OpticAI application deployment.

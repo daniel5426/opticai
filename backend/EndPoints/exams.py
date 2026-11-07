@@ -1,6 +1,6 @@
 from services.imported_client_history import clinical_exam_filter
 from security.scope import record_filter
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Header, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from sqlalchemy import func
@@ -8,7 +8,7 @@ from sqlalchemy import and_, or_
 from typing import List, Optional
 from database import get_db
 from models import OpticalExam, User, Client, Clinic
-from schemas import OpticalExam as OpticalExamSchema, OpticalExamCreate
+from schemas import OpticalExam as OpticalExamSchema, OpticalExamCreate, ExamWorkspaceSave, ExamWorkspaceSaved
 from auth import get_current_user
 from .exam_layouts import build_layout_tree
 from services.prism_axis_compatibility import normalize_prism_axis_exam_data
@@ -182,6 +182,21 @@ def create_exam(
         db.rollback()
         raise HTTPException(status_code=422, detail=f"Error creating exam: {str(e)}")
 
+@router.post("/workspace", response_model=ExamWorkspaceSaved)
+def create_exam_workspace(payload: ExamWorkspaceSave, request: Request,
+                          idempotency_key: str = Header(...), db: Session = Depends(get_db),
+                          current_user: User = Depends(get_current_user)):
+    from services.exam_workspace import save_workspace
+    return save_workspace(db, current_user, payload, request, creation_key=idempotency_key)
+
+
+@router.patch("/{exam_id}/workspace", response_model=ExamWorkspaceSaved)
+def update_exam_workspace(exam_id: int, payload: ExamWorkspaceSave, request: Request,
+                          db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from services.exam_workspace import save_workspace
+    return save_workspace(db, current_user, payload, request, exam_id=exam_id)
+
+
 @router.get("/{exam_id}", response_model=OpticalExamSchema)
 def get_exam(
     exam_id: int,
@@ -244,7 +259,7 @@ def get_exam_page_data(
     current_user: User = Depends(get_current_user)
 ):
     from models import ExamLayoutInstance, ExamLayout
-    exam = db.query(OpticalExam).filter(OpticalExam.id == exam_id).first()
+    exam = db.query(OpticalExam).filter(OpticalExam.id == exam_id).with_for_update(read=True).first()
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
     assert_record_scope(db, current_user, exam)
@@ -297,7 +312,9 @@ def get_exam_page_data(
     available_layout_tree = build_layout_tree(available_layouts)
 
     # Trim payload to only fields used by the page
+    from services.exam_workspace import save_token
     result = {
+        "save_token": save_token(exam, layout_instances),
         "exam": {
             "id": exam.id,
             "client_id": exam.client_id,
@@ -333,7 +350,8 @@ def update_exam(
     current_user: User = Depends(get_current_user)
 ):
     """Update an existing exam"""
-    db_exam = db.query(OpticalExam).filter(OpticalExam.id == exam_id).first()
+    from services.exam_workspace import lock_exam
+    db_exam = lock_exam(db, current_user, exam_id)
     if not db_exam:
         raise HTTPException(status_code=404, detail="Exam not found")
     
@@ -356,7 +374,7 @@ def update_exam(
         for field, value in update_fields.items():
             setattr(db_exam, field, value)
         
-        db.commit()
+        # bump client_updated_date in the same transaction
         # bump client_updated_date
         try:
             if db_exam.client_id:
@@ -366,7 +384,7 @@ def update_exam(
                     db.commit()
         except Exception:
             pass
-        db.refresh(db_exam)
+        db.commit()
         return db_exam
     except Exception as e:
         db.rollback()

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { ChevronDown, Plus } from "lucide-react";
+import { useAppLocale } from "@/localization/use-app-locale";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +15,7 @@ interface RefractionTabsHeaderProps {
   tabCount: number;
   activeTab: number;
   tabTypes: Array<string | undefined>;
+  emptyTabLabel?: string;
   isEditing: boolean;
   onTabChange: (index: number) => void;
   onAddTab: (type: string) => void;
@@ -30,6 +32,7 @@ export function RefractionTabsHeader({
   tabCount,
   activeTab,
   tabTypes,
+  emptyTabLabel,
   isEditing,
   onTabChange,
   onAddTab,
@@ -40,6 +43,7 @@ export function RefractionTabsHeader({
   tabLabel,
 }: RefractionTabsHeaderProps) {
   const [menuIndex, setMenuIndex] = useState<number | null>(null);
+  const { direction } = useAppLocale();
 
   if (hideTabs) {
     return (
@@ -54,8 +58,8 @@ export function RefractionTabsHeader({
   return (
     <div className="relative flex items-center" style={{ minHeight: 24 }}>
       <div
-        className="bg-accent absolute left-0 flex items-center justify-start gap-0 rounded-md pr-1"
-        style={{ direction: "rtl" }}
+        className="bg-accent absolute left-0 flex items-center justify-start gap-0 rounded-md pe-1"
+        style={{ direction }}
       >
         {Array.from({ length: tabCount })
           .map((_, index) => tabCount - 1 - index)
@@ -71,20 +75,28 @@ export function RefractionTabsHeader({
                 onOpenChange={(open) => {
                   if (!open) setMenuIndex(null);
                 }}
-                dir="rtl"
+                dir={direction}
                 modal={false}
               >
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
                     className={`rounded border-none px-2 text-xs font-bold transition-all duration-150 ${activeTab === index ? "bg-secondary text-primary" : "text-muted-foreground hover:bg-accent bg-transparent"}`}
-                    onClick={() => onTabChange(index)}
+                    onClick={() => {
+                      onTabChange(index);
+                      if (!currentType && emptyTabLabel && isEditing) {
+                        setMenuIndex(index);
+                      }
+                    }}
                     onContextMenu={(event) => {
                       event.preventDefault();
                       if (isEditing) setMenuIndex(index);
                     }}
                   >
-                    {currentType || index + 1}
+                    {currentType || emptyTabLabel || index + 1}
+                    {!currentType && emptyTabLabel && isEditing && (
+                      <ChevronDown className="ms-1 inline-block" size={12} aria-hidden="true" />
+                    )}
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="center" sideOffset={4}>
@@ -130,7 +142,7 @@ export function RefractionTabsHeader({
               </DropdownMenu>
             );
           })}
-        <DropdownMenu dir="rtl" modal={false}>
+        <DropdownMenu dir={direction} modal={false}>
           <DropdownMenuTrigger asChild>
             <button
               type="button"

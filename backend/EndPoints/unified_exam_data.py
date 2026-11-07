@@ -7,6 +7,7 @@ from models import ExamLayoutInstance
 from auth import get_current_user
 from models import User, OpticalExam
 from security.scope import assert_record_scope
+from services.exam_workspace import lock_instance_exam
 from services.prescription_search_index import rebuild_exam_instance_index
 from services.legacy_exam_compatibility import preserve_unrepresented_components
 from services.prism_axis_compatibility import (
@@ -77,34 +78,27 @@ async def save_exam_data(
     """
     Save all exam data for a specific layout instance
     """
-    print(f"DEBUG: Received request to save exam data for layout_instance_id: {layout_instance_id}")
     
     # Parse the request body manually
     try:
-        body = await request.body()
-        print(f"DEBUG: Raw request body: {body}")
         
         exam_data = await request.json()
         if not isinstance(exam_data, dict):
             raise ValueError("Body must be a JSON object")
-        print(f"DEBUG: Parsed exam data: {exam_data}")
-        print(f"DEBUG: Exam data type: {type(exam_data)}")
     except Exception as e:
-        print(f"DEBUG: Error parsing request body: {e}")
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Invalid JSON in request body: {str(e)}"
         )
     
     # Verify the layout instance exists and user has access
+    lock_instance_exam(db, current_user, layout_instance_id)
     layout_instance = db.query(ExamLayoutInstance).populate_existing().with_for_update().filter(
         ExamLayoutInstance.id == layout_instance_id
     ).first()
     
-    print(f"DEBUG: Layout instance found: {layout_instance is not None}")
     
     if not layout_instance:
-        print(f"DEBUG: Layout instance not found for ID: {layout_instance_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Layout instance not found"
@@ -117,7 +111,6 @@ async def save_exam_data(
     rebuild_exam_instance_index(db, layout_instance)
     db.commit()
     db.refresh(layout_instance)
-    print(f"DEBUG: Upserted exam data on instance")
     return {"success": True, "message": "Exam data saved successfully"}
 
 @router.delete("/{layout_instance_id}")
@@ -131,6 +124,7 @@ async def delete_exam_data(
     Delete all exam data for a specific layout instance
     """
     # Verify the layout instance exists and user has access
+    lock_instance_exam(db, current_user, layout_instance_id)
     layout_instance = db.query(ExamLayoutInstance).populate_existing().with_for_update().filter(
         ExamLayoutInstance.id == layout_instance_id
     ).first()
@@ -195,7 +189,8 @@ async def save_exam_component_data(
     Save specific exam component data
     """
     # Verify the layout instance exists and user has access
-    layout_instance = db.query(ExamLayoutInstance).filter(
+    lock_instance_exam(db, current_user, layout_instance_id)
+    layout_instance = db.query(ExamLayoutInstance).populate_existing().with_for_update().filter(
         ExamLayoutInstance.id == layout_instance_id
     ).first()
     

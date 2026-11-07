@@ -1,3 +1,4 @@
+import { withTranscriptOutputs } from './agent-outputs';
 import { submissionPageContext } from '@/lib/agent-page-context';
 import { createBffAgentClient } from '@agents24/client/bff';
 import type { FetchLike } from '@agents24/client';
@@ -57,7 +58,7 @@ export function scopedFetch(scope: AgentScope): typeof fetch {
 }
 
 export function createAgentClient(scope: AgentScope) {
-  return createBffAgentClient({ basePath: '/api/agents24', assistantPreview: true, fetch: scopedFetch(scope) as FetchLike });
+  return withTranscriptOutputs(createBffAgentClient({ basePath: '/api/agents24', assistantPreview: true, fetch: scopedFetch(scope) as FetchLike }));
 }
 
 export async function agentJson<T>(scope: AgentScope, path: string, options?: RequestInit): Promise<T> {

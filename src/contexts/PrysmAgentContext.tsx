@@ -7,7 +7,7 @@ import { useUser } from '@/contexts/UserContext';
 import { useClientSidebar } from '@/contexts/ClientSidebarContext';
 import { capturePageContext, setAgentPageContext } from '@/lib/agent-page-context';
 
-type Workspace = { available: boolean; pending: boolean; runtime: AgentChatRuntime | null; scope: AgentScope | null; chatOpen: boolean; chatVisible: boolean; expandChat: () => void;
+type Workspace = { client: ReturnType<typeof createAgentClient> | null; available: boolean; pending: boolean; runtime: AgentChatRuntime | null; scope: AgentScope | null; chatOpen: boolean; chatVisible: boolean; expandChat: () => void;
   fullPageHost: HTMLDivElement | null; setFullPageHost: (host: HTMLDivElement | null) => void;
   jobActivityKey: number; resetJobActivity: () => void;
   openPatientChat: (patientId: number) => void; closePatientChat: () => void; openClinicChat: () => void; openChat: () => void; captureContext: typeof capturePageContext };
@@ -66,7 +66,7 @@ export function PrysmAgentProvider({ children }: { children: React.ReactNode }) 
     if (preservePageChat.current) preservePageChat.current = false;
     else { runtime.newThread(); resetJobActivity(); }
   }, [pathname, scopeKey, runtime, resetJobActivity]);
-  const value: Workspace = { available, pending, scope, runtime, chatOpen: available && chatOpen, chatVisible: available && (chatOpen || pathname === '/ai-assistant'),
+  const value: Workspace = { client, available, pending, scope, runtime, chatOpen: available && chatOpen, chatVisible: available && (chatOpen || pathname === '/ai-assistant'),
     expandChat: () => { preservePageChat.current = true; setChatOpen(false); }, fullPageHost, setFullPageHost, jobActivityKey, resetJobActivity,
     captureContext: capturePageContext, openChat: () => setChatOpen(true),
     openPatientChat: _id => { resetPanelMode(); setChatOpen(true); }, closePatientChat: () => setChatOpen(false),

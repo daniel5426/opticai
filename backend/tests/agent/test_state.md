@@ -1,6 +1,6 @@
 # Clinic agent tests
 
-Last Updated: 2026-11-03
+Last Updated: 2026-11-05
 
 ## Shared local workers across clinics — 2026-11-02
 
@@ -140,3 +140,9 @@ Official resource apply/publish refreshed the typed Artifact manifest and assist
 Migration note: No schema migration. Existing jobs, receipts and inventory remain intact; deploy the compatible consumer backend/Artifact contract and host UI together. No Prysm production application deployment or SDK publication was performed.
 
 Final post-approval reload restored the committed “2 items applied” receipt; a second read-only staging audit confirmed exactly two variants and unchanged stock 2/3 (no replay). Screenshot: `/tmp/prysm-supply-verification/excel-approved-restored.jpg`.
+
+## Named transcript output integration — 2026-11-05
+
+Python `agents24[fastapi]==0.7.27` supplies the scoped output routes; no local proxy implementation is added. `node scripts/devdesk-check.mjs --fast --files backend/tests/agent/test_workflow_outputs.py --tests backend/tests/agent/test_workflow_outputs.py` — **5 passed**. Tests cover additive/idempotent graph configuration, preserved unrelated draft data/exports, conflicting or missing producers, both BFF result routes with server-owned principal/clinic scope despite hostile query parameters, and unauthenticated denial before result access. Existing request-authorization tests own the clinic/user isolation policy.
+
+`backend/.venv/bin/python scripts/configure-agent-outputs.py --apply` applied the single programmatic transcript mapping to the configured hosted Agent and validation passed. It preserved pre-existing speech-model/canvas draft edits. No database schema changes, migration, historical backfill, application deployment or unrelated resource publication.

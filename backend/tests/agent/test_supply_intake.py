@@ -133,3 +133,22 @@ def test_pagination_and_aggregates_include_more_than_one_thousand_items(clinic):
     assert len(last['items']) == 1 and not last['has_more']
     summary = inventory_summary(clinic_id=auth.clinic_id, db=db, current_user=auth.user)
     assert summary['on_hand'] == summary['variant_count'] == 1001
+
+
+def test_spectacle_lens_receipt_preserves_specs_stock_and_retail_price(clinic):
+    db, auth, *_ = clinic
+    proposal = prepare(db, auth, 'receipt', [{
+        'source': {'sheet': 'Lenses', 'row': 2},
+        'values': {'category': 'spectacle_lens', 'model': 'Single vision',
+                   'preferred_supplier': 'Lens Lab', 'material': '1.6',
+                   'coating': 'AR', 'color': 'Clear', 'diameter': 70,
+                   'default_retail': 150, 'currency': 'ILS', 'quantity': 2}}])
+    assert not proposal['rows'][0]['errors']
+    result = commit(db, auth, proposal['job_id'], proposal['revision'])
+    assert result['status'] == 'committed'
+    variant = db.query(CatalogVariant).one()
+    assert variant.product.category == 'spectacle_lens'
+    assert variant.product.preferred_supplier == 'Lens Lab'
+    assert variant.attributes == {'coating': 'AR', 'color': 'Clear', 'diameter': 70}
+    assert variant.default_retail == 150
+    assert db.query(InventoryBalance).one().on_hand == 2

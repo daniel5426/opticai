@@ -798,3 +798,42 @@ def test_barcode_lookup_is_exact_before_pagination_and_keeps_leading_zeros():
             assert client.get("/api/v1/inventory/variants", params={"clinic_id": ids["clinic"], "barcode": "012345", "limit": 1}).json()["items"] == []
     finally:
         app.dependency_overrides.clear()
+
+
+def test_spectacle_lenses_support_catalog_supplier_order_and_per_eye_stock():
+    factory = _session_factory()
+    ids = _seed(factory)
+    with _client(factory, ids['worker']) as client:
+        response = client.post('/api/v1/inventory/catalog', json={
+            'clinic_id': ids['clinic'], 'category': 'spectacle_lens',
+            'product': {'model': 'Single vision', 'material': '1.6', 'preferred_supplier': 'Lens Lab'},
+            'variant': {'attributes': {'coating': 'AR', 'color': 'Clear', 'diameter': 70},
+                        'default_retail': 150, 'is_stockable': True}})
+        assert response.status_code == 200, response.text
+        variant = response.json()
+        listed = client.get(f"/api/v1/inventory/variants?clinic_id={ids['clinic']}&category=spectacle_lens")
+        assert [item['id'] for item in listed.json()['items']] == [variant['id']]
+        adjusted = client.post(f"/api/v1/inventory/balances/{variant['id']}/adjust",
+            json={'clinic_id': ids['clinic'], 'on_hand_delta': 2, 'reason': 'Opening stock'})
+        assert adjusted.status_code == 200, adjusted.text
+        payload = _frame_order_payload(ids, variant['id'])
+        lens = payload['order']['order_data']['lens_frame_tabs'][0]['lens']
+        for side in ('right', 'left'):
+            lens.update({f'{side}_model': 'Single vision', f'{side}_coating': 'AR', f'{side}_diameter': '70'})
+        payload['inventory_selections'] = [
+            {'component': 'lens_right', 'variant_id': variant['id'], 'quantity': 1, 'fulfillment_source': 'inventory'},
+            {'component': 'lens_left', 'variant_id': variant['id'], 'quantity': 1, 'fulfillment_source': 'supplier_ordered'}]
+        created = client.post('/api/v1/orders/upsert-full', json=payload)
+        assert created.status_code == 200, created.text
+        assert {row['component']:row['lifecycle_state'] for row in created.json()['inventory_allocations']} == {
+            'lens_right':'reserved', 'lens_left':'supplier_ordered'}
+        # Older clients omit selections; unchanged lenses remain allocated on delivery.
+        payload['order']['id'] = created.json()['order']['id']
+        payload['order']['order_data']['details']['order_status'] = 'נמסר ללקוח'
+        del payload['inventory_selections']
+        delivered = client.post('/api/v1/orders/upsert-full', json=payload)
+        assert delivered.status_code == 200, delivered.text
+    with factory() as db:
+        balance = db.query(InventoryBalance).one()
+        assert (balance.on_hand, balance.reserved) == (1, 0)
+        assert {row.lifecycle_state for row in db.query(OrderInventoryAllocation)} == {'consumed'}

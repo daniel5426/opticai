@@ -662,3 +662,36 @@ def test_discount_patch_matches_full_save_for_imported_totals(context):
         patch = patch_group_billing(db, user, groups[1]['id'], {'revision': current[1]['revision'], 'billing': changes})
         for field in ('total_before_discount', 'total_after_discount', 'line_subtotal_offset', 'line_total_offset'):
             assert patch['billing'][field] == full['billing'][field]
+
+
+def test_item_percentage_discount_reprices_and_fixed_amount_can_replace_it(context):
+    db, user, clinic, clients = context
+    request = payload(clinic, clients)
+    request['billing'] = {'currency': 'ILS'}
+    request['line_items'] = [{'description': 'Frame', 'price': 120, 'quantity': 2, 'discount_percent': 12.5}]
+    first = save_group(db, user, request, creation_key='item-percent')
+    line = first['line_items'][0]
+    assert (line['discount_percent'], line['discount'], line['line_total']) == (12.5, 30, 210)
+    second = save_group(db, user, {'revision': first['revision'], 'billing': first['billing'],
+        'line_items': [{**line, 'price': 200}]}, group_id=first['id'])
+    line = second['line_items'][0]
+    assert (line['discount'], line['line_total']) == (50, 350)
+    third = save_group(db, user, {'revision': second['revision'], 'billing': second['billing'],
+        'line_items': [{**line, 'discount_percent': None, 'discount': 10}]}, group_id=first['id'])
+    assert third['line_items'][0]['line_total'] == 390
+
+
+def test_legacy_financial_edit_switches_percent_to_fixed_but_metadata_preserves_it(context):
+    from services.legacy_order_compatibility import _lines
+    db, user, clinic, clients = context
+    request = payload(clinic, clients)
+    request['line_items'][0].update(discount_percent=10)
+    first = save_group(db, user, request, creation_key='old-percent-editor')
+    line = first['line_items'][0]
+    bill = db.get(Billing, first['billing']['id'])
+    metadata = _lines(db, bill, [{'id': line['id'], 'description': 'Renamed'}], replace=True)
+    assert metadata[0]['discount_percent'] == 10
+    financial = _lines(db, bill, [{'id': line['id'], 'price': 250, 'discount': 15}], replace=True)
+    assert financial[0]['discount_percent'] is None
+    echoed = _lines(db, bill, [{**line, 'discount': 15}], replace=True)
+    assert echoed[0]['discount_percent'] is None

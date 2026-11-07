@@ -69,6 +69,10 @@ describe.each(['he', 'en', 'fr'] as const)('payments during editing in %s', loca
     expect(screen.getByTestId('dirty')).toHaveTextContent(String(changed));
     expect(vi.mocked(groupRequest).mock.calls.some(([path]) => path === '/1/payments/9?revision=2')).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: i18n.t('orderGroupSave') }));
+    if (!changed) {
+      expect(vi.mocked(groupRequest).mock.calls.some(([, options]) => options?.method === 'PUT')).toBe(false);
+      return;
+    }
     await waitFor(() => expect(vi.mocked(groupRequest).mock.calls.some(([, options]) => options?.method === 'PUT')).toBe(true));
     const payload = JSON.parse(vi.mocked(groupRequest).mock.calls.find(([, options]) => options?.method === 'PUT')![1]!.body as string);
     expect(payload.revision).toBe(3);

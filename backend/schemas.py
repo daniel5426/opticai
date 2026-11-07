@@ -811,6 +811,7 @@ class OrderLineItemBase(BaseModel):
     price: Optional[float] = None
     quantity: Optional[float] = None
     discount: Optional[float] = None
+    discount_percent: Optional[float] = Field(None, ge=0, le=100, allow_inf_nan=False)
     line_total: Optional[float] = None
     currency: Optional[str] = None
 
@@ -831,6 +832,7 @@ class OrderLineItemUpdate(BaseModel):
     price: Optional[float] = None
     quantity: Optional[float] = None
     discount: Optional[float] = None
+    discount_percent: Optional[float] = Field(None, ge=0, le=100, allow_inf_nan=False)
     line_total: Optional[float] = None
     currency: Optional[str] = None
 
@@ -951,6 +953,33 @@ class OpticalExamCreate(OpticalExamBase):
 
 class OpticalExamUpdate(OpticalExamBase):
     client_id: Optional[int] = None
+
+
+class ExamWorkspaceInstanceSave(BaseModel):
+    model_config = {"extra": "forbid"}
+    id: Optional[int] = Field(None, gt=0)
+    client_key: str = Field(min_length=1, max_length=128)
+    layout_id: Optional[int] = Field(None, gt=0)
+    layout_data: Optional[str] = None
+    exam_data: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ExamWorkspaceSave(BaseModel):
+    model_config = {"extra": "forbid"}
+    exam: OpticalExamUpdate
+    save_token: Optional[str] = Field(None, min_length=64, max_length=64)
+    instances: List[ExamWorkspaceInstanceSave] = Field(default_factory=list, max_length=100)
+    removed_instance_ids: List[int] = Field(default_factory=list, max_length=100)
+    instance_order: Optional[List[str]] = Field(None, max_length=100)
+    active_client_key: Optional[str] = Field(None, max_length=128)
+
+
+class ExamWorkspaceSaved(BaseModel):
+    exam: Dict[str, Any]
+    instances: List[Dict[str, Any]]
+    removed_instance_ids: List[int]
+    client_keys: Dict[str, int]
+    save_token: str
 
 class OpticalExam(OpticalExamBase):
     clinic_name: Optional[str] = None

@@ -2,12 +2,6 @@ import { startTransition, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { ExamLayout, ExamLayoutInstance } from "@/lib/db/schema-interface";
 import { CardItem } from "@/components/exam/ExamCardRenderer";
-import {
-  addLayoutToExam,
-  setActiveExamLayoutInstance,
-  deleteExamLayoutInstance,
-  reorderExamLayoutInstances,
-} from "@/lib/db/exam-layouts-db";
 import { examComponentRegistry } from "@/lib/exam-component-registry";
 import { CardRow, LayoutTab } from "@/pages/exam-detail/types";
 import {
@@ -394,11 +388,7 @@ export function useLayoutTabs({
           }
         });
 
-        if (exam && exam.id && !isNewMode && isPersistableLayoutTab(selectedTab)) {
-          setActiveExamLayoutInstance(exam.id, tabId).catch((error) => {
-            console.error("Error saving active layout tab:", error);
-          });
-        }
+
       } catch (error) {
         console.error("Error changing layout tab:", error);
         toast.error("שגיאה בהחלפת לשונית פריסה");
@@ -440,23 +430,7 @@ export function useLayoutTabs({
       const nextTabs = [...newTabs, ...hiddenTabs];
 
       setLayoutTabs(nextTabs);
-      if (!exam || !exam.id || isNewMode) {
-        return;
-      }
-      const reorderItems = newTabs
-        .filter((tab) => tab.id > 0)
-        .map((tab, newIndex) => ({
-          id: Number(tab.id),
-          order: newIndex,
-        }));
-      if (reorderItems.length === 0) {
-        return;
-      }
-      try {
-        await reorderExamLayoutInstances(Number(exam.id), reorderItems);
-      } catch (error) {
-        console.error("Error saving layout tab order:", error);
-      }
+
     },
     [layoutTabs, exam, isNewMode, setLayoutTabs],
   );
@@ -479,43 +453,7 @@ export function useLayoutTabs({
         }
         return { added: false, existed: true };
       }
-      if (exam && exam.id && !isNewMode) {
-        const newLayoutInstance = await addLayoutToExam(
-          exam.id,
-          layout.id,
-          activate,
-        );
-        if (!newLayoutInstance) {
-          toast.error("שגיאה בהוספת לשונית פריסה");
-          return { added: false, existed: false };
-        }
-        setLayoutTabs((prev) => {
-          const base = activate
-            ? prev.map((tab) => ({ ...tab, isActive: false }))
-            : prev;
-          return [
-            ...base,
-            {
-              id: newLayoutInstance.id || 0,
-              layout_id: layout.id,
-              name: layout.name || "",
-              layout_data: layout.layout_data || "",
-              isActive: activate,
-            },
-          ];
-        });
-        if (activate) {
-          setActiveInstanceId(newLayoutInstance.id || null);
-          applyParsedLayout(newLayoutInstance.id || 0, layout.layout_data);
-          if (newLayoutInstance.id) {
-            await loadExamComponentData(
-              newLayoutInstance.id,
-              layout.layout_data,
-              true,
-            );
-          }
-        }
-      } else {
+
         tempLayoutIdCounterRef.current += 1;
         const tempId = -Date.now() - tempLayoutIdCounterRef.current;
         setLayoutTabs((prev) => {
@@ -538,7 +476,6 @@ export function useLayoutTabs({
           setActiveInstanceId(tempId);
           applyParsedLayout(tempId, layout.layout_data);
         }
-      }
       return { added: true, existed: false };
     },
     [
@@ -685,38 +622,7 @@ export function useLayoutTabs({
       });
       toast.success("לשונית הפריסה הוסרה");
 
-      // Perform API calls in the background
-      try {
-        if (exam && exam.id && !isNewMode) {
-          // Chain the operations to avoid server-side concurrency issues (StaleDataError)
-          // where set-active tries to update a row that is being deleted
-          const deletePromise =
-            tabId > 0 ? deleteExamLayoutInstance(tabId) : Promise.resolve(true);
 
-          deletePromise
-            .then((success) => {
-              if (tabId > 0 && !success) {
-                console.error("Failed to delete layout instance from DB");
-                toast.error("שגיאה במחיקת פריסה מהשרת");
-              }
-
-              if (
-                isActive &&
-                newActiveTabId !== null &&
-                !isVirtualFullDataTabId(newActiveTabId)
-              ) {
-                // Return this promise so it can be caught by the chain if needed,
-                // though we mainly just want it to execute sequentially
-                return setActiveExamLayoutInstance(exam.id, newActiveTabId);
-              }
-            })
-            .catch((err) => {
-              console.error("Error in background layout updates:", err);
-            });
-        }
-      } catch (error) {
-        console.error("Error in background layout removal API calls:", error);
-      }
     },
     [
       layoutTabs,

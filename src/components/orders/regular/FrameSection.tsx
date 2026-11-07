@@ -3,7 +3,8 @@ import { useSupplyRevision } from '@/lib/inventory-events';
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { X } from "lucide-react";
+import { SelectedCatalogProduct } from "@/components/inventory/SelectedCatalogProduct";
+import { Input } from "@/components/ui/input";
 import { FastInput } from "@/components/exam/shared/OptimizedInputs";
 import {
   canCreateFrameCatalogProduct,
@@ -36,6 +37,9 @@ interface FrameSectionProps {
   clinicId?: number;
   orderId?: number;
   frame: Frame;
+  price?: number;
+  currency?: string;
+  onPriceChange?: (value: string) => void;
   isEditing: boolean;
   onFrameFieldChange: (field: keyof Frame, value: string) => void;
   selectedInventory?: InventorySelection | null;
@@ -77,7 +81,7 @@ const useFrameCatalog = (clinicId?: number, orderId?: number) => {
 };
 
 export function FrameSection({
-  frame,
+  frame, price, currency, onPriceChange,
   clinicId: recordClinicId,
   orderId,
   isEditing,
@@ -126,6 +130,8 @@ export function FrameSection({
           height: frame.height,
         },
         is_stockable: true,
+        default_retail: price,
+        currency,
       },
     });
     if (response.error || !response.data) {
@@ -148,39 +154,15 @@ export function FrameSection({
       }
     : undefined;
 
-  const catalogBadge = selectedInventory?.variant ? (
-    <span className="bg-muted inline-flex h-7 max-w-full min-w-0 items-center gap-1.5 rounded-md ps-2.5 pe-1 text-xs">
-      <span className="truncate font-medium">{selectedInventory.variant.display_name}</span>
-      <span className="text-muted-foreground shrink-0">
-        {selectedInventory.fulfillment_source === "inventory"
-          ? t("orderWorkspace.catalogAvailable", {
-              count: selectedInventory.variant.balance?.available || 0,
-            })
-          : t("orderWorkspace.catalogSupplierOrder")}
-      </span>
-      {isEditing && !consumed ? (
-        <button
-          type="button"
-          onClick={onInventoryClear}
-          aria-label={t("orderWorkspace.catalogClear")}
-          className="text-muted-foreground hover:bg-card hover:text-foreground focus-visible:ring-ring/50 rounded-sm p-1 outline-none focus-visible:ring-2"
-        >
-          <X aria-hidden="true" className="size-3" />
-        </button>
-      ) : (
-        <span className="w-1" />
-      )}
-    </span>
-  ) : null;
 
   return (
     <OrderSection
       title={t("orderWorkspace.frame")}
-      start={<div className="flex min-w-0 flex-wrap items-center gap-2">{catalogBadge}<ProductBarcodeScan
+      start={<ProductBarcodeScan
         clinicId={clinicId} category="frame" orderId={orderId} orderKind="regular" stockableOnly
         disabled={!isEditing || consumed || frame.supplied_by === SUPPLIED_BY_CUSTOMER}
         onSelect={variant => onInventorySelect(variant, (variant.balance?.available || 0) > 0 ? "inventory" : "supplier_ordered")}
-      /></div>}
+      />}
       end={
         <OrderSegmented
           dir={direction}
@@ -195,8 +177,11 @@ export function FrameSection({
         />
       }
     >
+      {selectedInventory?.variant && <div className="mb-3 min-w-0">
+        <SelectedCatalogProduct variant={selectedInventory.variant} onClear={isEditing && !consumed ? onInventoryClear : undefined} />
+      </div>}
       <div className="grid grid-cols-2 gap-3">
-        {CATALOG_FIELDS.map(({ field, label, lookupType, lookupLabel }) => (
+        {CATALOG_FIELDS.slice(0, 2).map(({ field, label, lookupType, lookupLabel }) => (
           <OrderField key={field} label={t(`orderWorkspace.${label}`)}>
             <FrameCatalogCombobox
               field={field}
@@ -214,6 +199,21 @@ export function FrameSection({
             />
           </OrderField>
         ))}
+      </div>
+      <div className="mt-3 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_6rem] gap-3" dir={direction}>
+        {CATALOG_FIELDS.slice(2).map(({ field, label, lookupType, lookupLabel }) => (
+          <OrderField key={field} label={t(`orderWorkspace.${label}`)}>
+            <FrameCatalogCombobox field={field} value={frame[field] || ""} values={frame}
+              variants={variants} loadingCatalog={loading} onChange={value => onFrameFieldChange(field, value)}
+              lookupType={lookupType} lookupLabel={t(`orderWorkspace.${lookupLabel}`)} placeholder=""
+              disabled={!isEditing || consumed} onSelectProduct={onInventorySelect} createProduct={productAction} />
+          </OrderField>
+        ))}
+        <OrderField label={`${t("orderGroupPrice")} (${currency || "ILS"})`}>
+          <Input name="frame_price" aria-label={t("orderWorkspace.framePrice")} type="number" dir="ltr" min={0} step={0.01}
+            value={price == null ? "" : String(price)} onChange={event => onPriceChange?.(event.target.value)}
+            disabled={!isEditing || frame.supplied_by === SUPPLIED_BY_CUSTOMER} />
+        </OrderField>
       </div>
       <div className="mt-3 grid grid-cols-4 gap-3" dir={direction}>
         {MEASUREMENT_FIELDS.map(({ field, label }) => (

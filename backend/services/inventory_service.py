@@ -113,8 +113,8 @@ def can_view_cost(current_user: User) -> bool:
 
 
 def validate_product_data(category: str, data: dict[str, Any]) -> dict[str, Any]:
-    if category not in {"frame", "contact_lens"}:
-        raise HTTPException(status_code=422, detail="category must be frame or contact_lens")
+    if category not in {"frame", "contact_lens", "spectacle_lens"}:
+        raise HTTPException(status_code=422, detail="category must be frame, contact_lens or spectacle_lens")
     cleaned = {
         "brand": str(data.get("brand") or "").strip() or None,
         "model": str(data.get("model") or "").strip(),
@@ -127,7 +127,7 @@ def validate_product_data(category: str, data: dict[str, Any]) -> dict[str, Any]
         raise HTTPException(status_code=422, detail="Product model is required")
     if category == "frame" and not cleaned["brand"]:
         raise HTTPException(status_code=422, detail="Brand or manufacturer is required")
-    if category == "frame":
+    if category != "contact_lens":
         cleaned["replacement_schedule"] = None
     return cleaned
 
@@ -180,7 +180,7 @@ def validate_variant_attributes(
         for field in ("color", "eye_size"):
             if cleaned.get(field) in (None, ""):
                 missing.append(field)
-    else:
+    elif category == "contact_lens":
         missing = contact_variant_missing_fields(product, cleaned)
 
     if requested_stockable and missing:
@@ -701,6 +701,13 @@ def _component_snapshot(order: Order | ContactLensOrder, component: str, *, cont
     if contact:
         side = "right" if component == "contact_right" else "left"
         return snapshot_fingerprint(contact_component_snapshot(order, side))
+    if component.startswith("lens_"):
+        data = order.order_data or {}
+        tabs = data.get("lens_frame_tabs") or []
+        lens = (tabs[0].get("lens") or {}) if tabs else data.get("lens") or {}
+        side = "right" if component == "lens_right" else "left"
+        return snapshot_fingerprint({field: lens.get(f"{side}_{field}") for field in
+                                     ("supplier", "material", "model", "coating", "color", "diameter")})
     return snapshot_fingerprint(regular_component_snapshot(order))
 
 
@@ -737,9 +744,21 @@ def reconcile_order_allocations(
     selections: Iterable[dict[str, Any]] | None,
     contact: bool,
 ) -> list[OrderInventoryAllocation]:
-    allowed_components = {"contact_right", "contact_left"} if contact else {"frame"}
+    allowed_components = {"contact_right", "contact_left"} if contact else {"frame", "lens_right", "lens_left"}
     existing_rows = _allocation_query(db, order, contact=contact).with_for_update().all()
     existing = {row.component: row for row in existing_rows}
+
+    # The editor resubmits its current allocations. Avoid catalog and balance work
+    # when neither the selections, product snapshot nor fulfillment state changed.
+    if selections_present and not is_cancelled(order, contact=contact) and not is_delivered(order, contact=contact):
+        live = {row.component: row for row in existing_rows if row.lifecycle_state in ACTIVE_ALLOCATION_STATES or row.lifecycle_state == "consumed"}
+        incoming = list(selections or [])
+        if len(incoming) == len(live) and len({item.get("component") for item in incoming if isinstance(item, dict)}) == len(incoming):
+            if all(isinstance(item, dict) and item.get("component") in live and
+                   all(item.get(field) == getattr(live[item["component"]], field) for field in ("variant_id", "quantity", "fulfillment_source")) and
+                   live[item["component"]].snapshot_fingerprint == _component_snapshot(order, item["component"], contact=contact)
+                   for item in incoming):
+                return existing_rows
 
     if selections_present:
         selection_map: dict[str, dict[str, Any]] = {}
@@ -785,7 +804,7 @@ def reconcile_order_allocations(
                     )
                 continue
             product = db.query(CatalogProduct).filter(CatalogProduct.id == variant.product_id).one()
-            expected_category = "contact_lens" if contact else "frame"
+            expected_category = "contact_lens" if contact else "spectacle_lens" if component.startswith("lens_") else "frame"
             if product.category != expected_category or variant.archived_at is not None or product.archived_at is not None:
                 raise HTTPException(status_code=409, detail="Catalog variant is not available")
             if source == "inventory" and not variant.is_stockable:

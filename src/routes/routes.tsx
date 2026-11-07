@@ -12,9 +12,7 @@ import ClientsPage from "@/pages/ClientsPage";
 import ClientDetailPage from "@/pages/ClientDetailPage";
 import NewClientPage from "@/pages/NewClientPage";
 import ExamDetailPage from "@/pages/ExamDetailPage";
-import ExamCreatePage from "@/pages/ExamCreatePage";
 import OrderDetailPage from "@/pages/OrderDetailPage";
-import OrderCreatePage from "@/pages/OrderCreatePage";
 import AllReferralsPage from "@/pages/AllReferralsPage";
 import AllAppointmentsPage from "@/pages/AllAppointmentsPage";
 import AllFilesPage from "@/pages/AllFilesPage";
@@ -168,15 +166,7 @@ export const ExamDetailRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/clients/$clientId/exams/$examId",
   component: ExamDetailPage,
-});
-
-export const ExamCreateRoute = createRoute({
-  getParentRoute: () => RootRoute,
-  path: "/clients/$clientId/exams/new",
-  validateSearch: (search: Record<string, unknown>) => ({
-    layoutId: typeof search.layoutId === "string" ? (search.layoutId as string) : undefined,
-  }),
-  component: ExamCreatePage,
+  validateSearch: (search: Record<string, unknown>) => ({ layoutId: typeof search.layoutId === "string" ? search.layoutId : undefined }),
 });
 
 export const OrderDetailRoute = createRoute({
@@ -185,21 +175,9 @@ export const OrderDetailRoute = createRoute({
   component: OrderDetailPage,
 });
 
-export const OrderCreateRoute = createRoute({
-  getParentRoute: () => RootRoute,
-  path: "/clients/$clientId/orders/new",
-  component: OrderCreatePage,
-});
-
 export const ReferralDetailRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/clients/$clientId/referrals/$referralId",
-  component: ReferralDetailPage,
-});
-
-export const ReferralCreateRoute = createRoute({
-  getParentRoute: () => RootRoute,
-  path: "/clients/$clientId/referrals/new",
   component: ReferralDetailPage,
 });
 
@@ -315,19 +293,11 @@ export const ExamLayoutsRoute = createRoute({
   component: ExamLayoutsPage,
 });
 
-export const ExamLayoutEditorRoute = createRoute({
-  getParentRoute: () => RootRoute,
-  path: "/exam-layouts/new",
-  component: ExamLayoutEditorPage,
-  validateSearch: (search: Record<string, unknown>) => ({
-    name: search.name as string,
-  }),
-});
-
 export const ExamLayoutEditorDetailRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/exam-layouts/$layoutId",
   component: ExamLayoutEditorPage,
+  validateSearch: (search: Record<string, unknown>) => ({ name: search.name as string }),
 });
 
 export const WorkerStatsRoute = createRoute({
@@ -383,11 +353,8 @@ export const rootTree = RootRoute.addChildren([
   NewClientRoute,
   ClientDetailRoute,
   ExamDetailRoute,
-  ExamCreateRoute,
   OrderDetailRoute,
-  OrderCreateRoute,
   ReferralDetailRoute,
-  ReferralCreateRoute,
   AllExamsRoute,
   AllOrdersRoute,
   InventoryRoute,
@@ -398,7 +365,6 @@ export const rootTree = RootRoute.addChildren([
   SettingsRoute,
   AIAssistantRoute,
   ExamLayoutsRoute,
-  ExamLayoutEditorRoute,
   ExamLayoutEditorDetailRoute,
   WorkerStatsRoute,
   CampaignsRoute,

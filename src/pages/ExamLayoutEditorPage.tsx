@@ -1,3 +1,7 @@
+import { useKeyboardSave } from "@/hooks/shared/useKeyboardSave";
+import { SaveStatus } from "@/components/SaveStatus";
+import { useSaveController } from "@/hooks/shared/useSaveController";
+import { stableSaveJson } from "@/lib/exam-workspace";
 import { CenteredLayoutWidth } from "@/components/exam/CenteredLayoutWidth";
 import { LayoutEditorHelp } from "@/components/exam/LayoutEditorHelp";
 import React, {
@@ -106,7 +110,7 @@ export function AddComponentDrawer({
           .split("-")
           .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
           .join(" "),
-        description: config?.name || type,
+        description: config?.nameKey ? t(config.nameKey) : config?.name || type,
       };
     });
 
@@ -189,6 +193,9 @@ export default function ExamLayoutEditorPage() {
     search = {};
   }
 
+  const savedLayoutId = useRef<number | null>(null);
+  const savedLayoutSnapshot = useRef('');
+  const saveController = useSaveController();
   const isNewMode = !params.layoutId || params.layoutId === "new";
   const [loading, setLoading] = useState(!isNewMode);
   const [layoutName, setLayoutName] = useState(
@@ -249,12 +256,13 @@ export default function ExamLayoutEditorPage() {
 
   useEffect(() => {
     const loadLayout = async () => {
-      if (isNewMode || !params.layoutId) return;
+      if (isNewMode || !params.layoutId || savedLayoutId.current === Number(params.layoutId)) return;
 
       try {
         setLoading(true);
         const layout = await getExamLayoutById(Number(params.layoutId));
         if (layout) {
+          savedLayoutSnapshot.current = stableSaveJson({clinic_id: layout.clinic_id, name:layout.name, layout_data:layout.layout_data, is_default:layout.is_default, type:layout.type});
           setLayoutName(layout.name);
           setIsDefault(layout.is_default ?? false);
           setLayoutType(layout.type || "global");
@@ -824,7 +832,7 @@ export default function ExamLayoutEditorPage() {
   }, []);
 
   const handleSaveLayout = async () => {
-    if (isSavingRef.current) return;
+    if (isSavingRef.current || saveController.busy.current) return;
     if (!layoutName.trim()) {
       toast.error("נא להזין שם לפריסה");
       return;
@@ -832,9 +840,9 @@ export default function ExamLayoutEditorPage() {
 
     isSavingRef.current = true;
     setIsSaving(true);
-    let shouldResetSaving = true;
 
     try {
+      await saveController.run(async () => {
       const targetClinicId = layoutClinicId ?? currentClinic?.id ?? null;
       const layoutData = {
         ...(targetClinicId !== null ? { clinic_id: targetClinicId } : {}),
@@ -848,33 +856,37 @@ export default function ExamLayoutEditorPage() {
         type: layoutType,
       };
 
+      const snapshot = stableSaveJson(layoutData);
+      if (snapshot === savedLayoutSnapshot.current) return;
       const result =
-        isNewMode || !params.layoutId
+        (isNewMode && !savedLayoutId.current) || !params.layoutId
           ? await createExamLayout(layoutData)
           : await updateExamLayout({
-              id: Number(params.layoutId),
+              id: savedLayoutId.current || Number(params.layoutId),
               ...layoutData,
             });
 
       if (result) {
-        shouldResetSaving = false;
+        savedLayoutSnapshot.current = snapshot;
+        savedLayoutId.current = result.id!;
         toast.success(
           isNewMode ? "פריסה חדשה נוצרה בהצלחה" : "הפריסה עודכנה בהצלחה",
         );
-        navigate({ to: "/exam-layouts" });
+        await navigate({to:"/exam-layouts/$layoutId",params:{layoutId:String(result.id)},replace:true});
       } else {
-        toast.error("שגיאה בשמירת הפריסה");
+        throw new Error('save_failed');
       }
+      });
     } catch (error) {
       console.error("Error saving layout:", error);
       toast.error("שגיאה בשמירת הפריסה");
     } finally {
-      if (shouldResetSaving) {
-        isSavingRef.current = false;
-        setIsSaving(false);
-      }
+      isSavingRef.current = false;
+      setIsSaving(false);
     }
   };
+
+  useKeyboardSave({enabled:!loading, isSaving, onSave:handleSaveLayout});
 
   if (loading) {
     return (
@@ -964,6 +976,7 @@ export default function ExamLayoutEditorPage() {
             >
               ביטול
             </Button>
+            <SaveStatus state={saveController.state} onRetry={() => void handleSaveLayout()}/>
             <Button onClick={handleSaveLayout} disabled={isSaving}>
               {isSaving ? "שומר..." : "שמור פריסה"}
             </Button>
@@ -973,6 +986,7 @@ export default function ExamLayoutEditorPage() {
         <CenteredLayoutWidth layoutWidthPx={layoutWidthPx} sideInsetPx={sideInsetPx} onChange={width => { setLayoutWidthPx(width); setSideInsetPx(0); }}>
         <div
           data-exam-layout-editor
+          inert={isSaving ? true : undefined}
           className="border-border overflow-hidden rounded-md border"
           dir="ltr"
         >

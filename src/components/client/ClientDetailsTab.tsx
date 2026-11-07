@@ -383,7 +383,7 @@ export function ClientDetailsTab({
                   name="file_creation_date"
                   value={formData.file_creation_date}
                   onChange={handleInputChange}
-                  disabled={!showEditableFields}
+                  disabled={!showEditableFields || isSaving}
                 />
               </div>
               <div className="space-y-2">
@@ -392,7 +392,7 @@ export function ClientDetailsTab({
                   name="membership_end"
                   value={formData.membership_end}
                   onChange={handleInputChange}
-                  disabled={!showEditableFields}
+                  disabled={!showEditableFields || isSaving}
                 />
               </div>
               <div className="space-y-2">
@@ -401,7 +401,7 @@ export function ClientDetailsTab({
                   name="service_end"
                   value={formData.service_end}
                   onChange={handleInputChange}
-                  disabled={!showEditableFields}
+                  disabled={!showEditableFields || isSaving}
                 />
               </div>
               <div className="space-y-2">
@@ -411,7 +411,7 @@ export function ClientDetailsTab({
                   name="price_list"
                   value={formData.price_list || ''}
                   onChange={handleInputChange}
-                  disabled={!showEditableFields}
+                  disabled={!showEditableFields || isSaving}
                   className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
                   placeholder={showEditableFields ? "הכנס מחירון" : ""}
                 />
@@ -423,7 +423,7 @@ export function ClientDetailsTab({
                   name="discount_percent"
                   value={formData.discount_percent || ''}
                   onChange={handleInputChange}
-                  disabled={!showEditableFields}
+                  disabled={!showEditableFields || isSaving}
                   className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
                   placeholder={showEditableFields ? "הכנס אחוז הנחה" : ""}
                 />
@@ -435,7 +435,7 @@ export function ClientDetailsTab({
                   name="sorting_group"
                   value={formData.sorting_group || ''}
                   onChange={handleInputChange}
-                  disabled={!showEditableFields}
+                  disabled={!showEditableFields || isSaving}
                   className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
                   placeholder={showEditableFields ? "הכנס קבוצת מיון" : ""}
                 />
@@ -447,7 +447,7 @@ export function ClientDetailsTab({
                   name="referring_party"
                   value={formData.referring_party || ''}
                   onChange={handleInputChange}
-                  disabled={!showEditableFields}
+                  disabled={!showEditableFields || isSaving}
                   className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
                   placeholder={showEditableFields ? "הכנס גורם מפנה" : ""}
                 />
@@ -457,11 +457,11 @@ export function ClientDetailsTab({
                   <div>
                     <ModernLabel>צ'ק חסום</ModernLabel>
                     <Select
-                      disabled={!showEditableFields}
+                      disabled={!showEditableFields || isSaving}
                       value={formData.blocked_checks ? 'true' : 'false'}
                       onValueChange={(value) => handleSelectChange(value === 'true' ? true : false, 'blocked_checks')}
                     >
-                      <SelectTrigger dir={direction} disabled={!showEditableFields}>
+                      <SelectTrigger dir={direction} disabled={!showEditableFields || isSaving}>
                         <SelectValue placeholder="בחר" />
                       </SelectTrigger>
                       <SelectContent dir={direction}>
@@ -473,11 +473,11 @@ export function ClientDetailsTab({
                   <div>
                     <ModernLabel>אשראי חסום</ModernLabel>
                     <Select
-                      disabled={!showEditableFields}
+                      disabled={!showEditableFields || isSaving}
                       value={formData.blocked_credit ? 'true' : 'false'}
                       onValueChange={(value) => handleSelectChange(value === 'true' ? true : false, 'blocked_credit')}
                     >
-                      <SelectTrigger dir={direction} disabled={!showEditableFields}>
+                      <SelectTrigger dir={direction} disabled={!showEditableFields || isSaving}>
                         <SelectValue placeholder="בחר" />
                       </SelectTrigger>
                       <SelectContent dir={direction}>
@@ -509,7 +509,7 @@ export function ClientDetailsTab({
                 <Switch
                   checked={Boolean(formData.send_notifications)}
                   onCheckedChange={(checked) => handleSelectChange(checked, 'send_notifications')}
-                  disabled={!showEditableFields}
+                  disabled={!showEditableFields || isSaving}
                   aria-label={t("clientSendNotifications")}
                   className="shrink-0"
                 />
@@ -523,7 +523,7 @@ export function ClientDetailsTab({
                   onChange={(v) => handleSelectChange(v, 'address_city')}
                   placeholder={showEditableFields ? "בחר או הקלד..." : ''}
                   className="h-9"
-                  disabled={!showEditableFields}
+                  disabled={!showEditableFields || isSaving}
                   dir={direction}
                 />
               </div>
@@ -534,7 +534,7 @@ export function ClientDetailsTab({
                   name="address_street"
                   value={formData.address_street || ''}
                   onChange={handleInputChange}
-                  disabled={!showEditableFields}
+                  disabled={!showEditableFields || isSaving}
                   className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
                   placeholder={showEditableFields ? "הכנס רחוב" : ""}
                 />
@@ -546,7 +546,7 @@ export function ClientDetailsTab({
                   name="postal_code"
                   value={formData.postal_code || ''}
                   onChange={handleInputChange}
-                  disabled={!showEditableFields}
+                  disabled={!showEditableFields || isSaving}
                   className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
                   placeholder={showEditableFields ? "הכנס מיקוד" : ""}
                 />
@@ -558,7 +558,7 @@ export function ClientDetailsTab({
                   name="address_number"
                   value={formData.address_number || ''}
                   onChange={handleInputChange}
-                  disabled={!showEditableFields}
+                  disabled={!showEditableFields || isSaving}
                   className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
                   placeholder={showEditableFields ? "הכנס דירה/מספר בית" : ""}
                 />
@@ -571,7 +571,7 @@ export function ClientDetailsTab({
                   dir="ltr"
                   value={formData.phone_mobile || ''}
                   onChange={handleInputChange}
-                  disabled={!showEditableFields}
+                  disabled={!showEditableFields || isSaving}
                   className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
                   placeholder={showEditableFields ? "הכנס טלפון נייד" : ""}
                 />
@@ -589,14 +589,14 @@ export function ClientDetailsTab({
                 {(['home', 'work'] as const).map(kind => <TabsContent key={kind} value={kind} className="mt-0">
                   <Input type="tel" name={`phone_${kind}`} aria-label={t(`clientContact.${kind}Phone`)} dir="ltr"
                     value={formData[kind === 'home' ? 'phone_home' : 'phone_work'] || ''}
-                    onChange={handleInputChange} disabled={!showEditableFields}
+                    onChange={handleInputChange} disabled={!showEditableFields || isSaving}
                     className={`h-9 text-sm disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`} />
                 </TabsContent>)}
               </Tabs>
               {(showEditableFields || formData.fax) && <div className="space-y-2">
                 <ModernLabel>{t('opticplusCards.fields.fax')}</ModernLabel>
                 <Input type="tel" name="fax" aria-label={t('opticplusCards.fields.fax')} dir="ltr"
-                  value={formData.fax || ''} onChange={handleInputChange} disabled={!showEditableFields}
+                  value={formData.fax || ''} onChange={handleInputChange} disabled={!showEditableFields || isSaving}
                   className={`h-9 text-sm disabled:cursor-default disabled:opacity-100 ${direction === 'rtl' ? 'text-right' : 'text-left'}`} />
               </div>}
               <div className="space-y-2">
@@ -607,7 +607,7 @@ export function ClientDetailsTab({
                   dir="ltr"
                   value={formData.email || ''}
                   onChange={handleInputChange}
-                  disabled={!showEditableFields}
+                  disabled={!showEditableFields || isSaving}
                   className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
                   placeholder={showEditableFields ? "הכנס אימייל" : ""}
                 />
@@ -636,7 +636,7 @@ export function ClientDetailsTab({
                   name="first_name"
                   value={formData.first_name || ''}
                   onChange={handleInputChange}
-                  disabled={!showEditableFields}
+                  disabled={!showEditableFields || isSaving}
                   className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
                   placeholder={showEditableFields ? "הכנס שם פרטי" : ""}
                   required={isNewMode}
@@ -653,7 +653,7 @@ export function ClientDetailsTab({
                   name="last_name"
                   value={formData.last_name || ''}
                   onChange={handleInputChange}
-                  disabled={!showEditableFields}
+                  disabled={!showEditableFields || isSaving}
                   className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
                   placeholder={showEditableFields ? "הכנס שם משפחה" : ""}
                   required={isNewMode}
@@ -662,11 +662,11 @@ export function ClientDetailsTab({
               <div className="space-y-2">
                 <ModernLabel>מגדר</ModernLabel>
                 <Select dir={direction}
-                  disabled={!showEditableFields}
+                  disabled={!showEditableFields || isSaving}
                   value={formData.gender || ''}
                   onValueChange={(value) => handleSelectChange(value, 'gender')}
                 >
-                  <SelectTrigger disabled={!showEditableFields}>
+                  <SelectTrigger disabled={!showEditableFields || isSaving}>
                     <SelectValue placeholder="בחר מגדר" />
                   </SelectTrigger>
                   <SelectContent>
@@ -683,7 +683,7 @@ export function ClientDetailsTab({
                   name="national_id"
                   value={formData.national_id || ''}
                   onChange={handleInputChange}
-                  disabled={!showEditableFields}
+                  disabled={!showEditableFields || isSaving}
                   aria-describedby={duplicateClient ? "national-id-duplicate" : undefined}
                   className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${duplicateClient ? "border-amber-500 focus-visible:ring-amber-500/30" : ""}`}
                   placeholder={showEditableFields ? "הכנס תעודת זהות" : ""}
@@ -707,17 +707,17 @@ export function ClientDetailsTab({
                   name="date_of_birth"
                   value={formData.date_of_birth}
                   onChange={handleInputChange}
-                  disabled={!showEditableFields}
+                  disabled={!showEditableFields || isSaving}
                 />
               </div>
               <div className="space-y-2">
                 <ModernLabel>קופת חולים</ModernLabel>
                 <Select dir={direction}
-                  disabled={!showEditableFields}
+                  disabled={!showEditableFields || isSaving}
                   value={healthFundValue}
                   onValueChange={(value) => handleSelectChange(value, 'health_fund')}
                 >
-                  <SelectTrigger disabled={!showEditableFields}>
+                  <SelectTrigger disabled={!showEditableFields || isSaving}>
                     <SelectValue placeholder="בחר קופת חולים" />
                   </SelectTrigger>
                   <SelectContent>
@@ -734,7 +734,7 @@ export function ClientDetailsTab({
                   name="occupation"
                   value={formData.occupation || ''}
                   onChange={handleInputChange}
-                  disabled={!showEditableFields}
+                  disabled={!showEditableFields || isSaving}
                   className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
                   placeholder={showEditableFields ? "הכנס תעסוקה" : ""}
                 />
@@ -742,11 +742,11 @@ export function ClientDetailsTab({
               <div className="space-y-2">
                 <ModernLabel>סטטוס</ModernLabel>
                 <Select dir={direction}
-                  disabled={!showEditableFields || !healthFundValue}
+                  disabled={!showEditableFields || isSaving || !healthFundValue}
                   value={statusValue}
                   onValueChange={(value) => handleSelectChange(value, 'status')}
                 >
-                  <SelectTrigger disabled={!showEditableFields || !healthFundValue}>
+                  <SelectTrigger disabled={!showEditableFields || isSaving || !healthFundValue}>
                     <SelectValue placeholder={healthFundValue ? "בחר סטטוס" : "בחר קופת חולים תחילה"} />
                   </SelectTrigger>
                   <SelectContent>
@@ -803,7 +803,7 @@ export function ClientDetailsTab({
                           aria-label="משפחה"
                           aria-expanded={isFamilySelectOpen}
                           className="w-full justify-between h-9 text-sm font-normal shadow-none"
-                          disabled={!showEditableFields}
+                          disabled={!showEditableFields || isSaving}
                           dir={direction}
                         >
                           {getSelectedFamilyName()}
@@ -910,11 +910,11 @@ export function ClientDetailsTab({
                   <div className="space-y-2">
                     <ModernLabel>תפקיד במשפחה</ModernLabel>
                     <Select
-                      disabled={!showEditableFields}
+                      disabled={!showEditableFields || isSaving}
                       value={formData.family_role || ''}
                       onValueChange={handleRoleChange}
                     >
-                      <SelectTrigger dir={direction} disabled={!showEditableFields}>
+                      <SelectTrigger dir={direction} disabled={!showEditableFields || isSaving}>
                         <SelectValue placeholder="בחר תפקיד" />
                       </SelectTrigger>
                       <SelectContent dir={direction}>
@@ -999,7 +999,7 @@ export function ClientDetailsTab({
               onChange={(value) => handleSelectChange(value, 'notes')}
               hiddenValue={formData.hidden_note || ''}
               onHiddenChange={(value) => handleSelectChange(value, 'hidden_note')}
-              disabled={!showEditableFields}
+              disabled={!showEditableFields || isSaving}
               height="108px"
               placeholder={showEditableFields ? "הכנס הערות כלליות על הלקוח..." : ""}
             />

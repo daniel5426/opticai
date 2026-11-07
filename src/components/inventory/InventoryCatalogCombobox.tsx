@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { Check, ChevronDown, Loader2, PackageCheck, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -73,6 +73,7 @@ export function rankCatalogLookupOptions(
 export function InventoryCatalogCombobox({
   lookupType,
   lookupLabel,
+  ariaLabel,
   value,
   placeholder,
   catalogOptions,
@@ -89,6 +90,7 @@ export function InventoryCatalogCombobox({
 }: {
   lookupType: string;
   lookupLabel: string;
+  ariaLabel?: string;
   value: string;
   placeholder?: string;
   catalogOptions: string[];
@@ -147,9 +149,9 @@ export function InventoryCatalogCombobox({
       const created = await createItem(createValue);
       if (!created) throw new Error("Lookup creation failed");
       chooseOption(created.name);
-      toast.success(`${created.name} נוסף לרשימת ${lookupLabel}`);
+      toast.success(t("orderWorkspace.lookupAdded", {name: created.name, list: lookupLabel}));
     } catch {
-      toast.error(`לא ניתן להוסיף את ${createValue} לרשימת ${lookupLabel}`);
+      toast.error(t("orderWorkspace.lookupAddError", {name: createValue, list: lookupLabel}));
     }
   };
 
@@ -190,6 +192,7 @@ export function InventoryCatalogCombobox({
       <PopoverPrimitive.Anchor asChild>
         <div className={`relative ${className}`} dir={direction}>
           <Input
+            aria-label={ariaLabel}
             value={value}
             onChange={(event) => {
               onChange(event.target.value);
@@ -210,7 +213,7 @@ export function InventoryCatalogCombobox({
             className="absolute end-0 top-0 h-full w-8 hover:bg-transparent"
             onClick={toggleDropdown}
             disabled={disabled}
-            aria-label={`פתח אפשרויות ${lookupLabel}`}
+            aria-label={t("orderWorkspace.openOptions", {label: lookupLabel})}
           >
             <ChevronDown
               aria-hidden="true"
@@ -254,7 +257,7 @@ export function InventoryCatalogCombobox({
               ))
             ) : (
               <p className="text-muted-foreground px-2 py-3 text-center text-xs">
-                לא נמצאו אפשרויות מתאימות
+                {t("orderWorkspace.noLookupOptions")}
               </p>
             )}
             {createValue && !exactOption ? (
@@ -270,7 +273,7 @@ export function InventoryCatalogCombobox({
                   <Plus aria-hidden="true" className="size-4" />
                 )}
                 <span className="min-w-0 truncate">
-                  הוסף “{createValue}” לרשימת {lookupLabel}
+                  {t("orderWorkspace.addLookup", {name: createValue, list: lookupLabel})}
                 </span>
               </button>
             ) : null}
@@ -280,7 +283,7 @@ export function InventoryCatalogCombobox({
 
           <section
             className="catalog-dropdown-scroll max-h-[188px] shrink-0 touch-pan-y overflow-y-auto overscroll-contain p-1.5"
-            aria-label="הצעות מהקטלוג"
+            aria-label={t("orderWorkspace.catalogSuggestions")}
           >
             {loadingCatalog ? (
               <div className="flex h-20 items-center justify-center">
@@ -318,14 +321,14 @@ export function InventoryCatalogCombobox({
                       variant={available > 0 ? "outline" : "secondary"}
                       className="shrink-0"
                     >
-                      {available > 0 ? `${available} זמין` : "הזמנה מספק"}
+                      {available > 0 ? t("orderWorkspace.catalogAvailable", {count: available}) : t("orderWorkspace.catalogSupplierOrder")}
                     </Badge>
                   </button>
                 );
               })
             ) : (
               <p className="text-muted-foreground px-2 py-6 text-center text-xs">
-                אין מוצרי קטלוג מתאימים
+                {t("orderWorkspace.noCatalogOptions")}
               </p>
             )}
             {createProduct ? (

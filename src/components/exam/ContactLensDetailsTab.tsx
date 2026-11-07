@@ -1,5 +1,6 @@
 import { useBarcodeScanner } from "@/hooks/use-barcode-scanner";
 import { ProductBarcodeScan } from "@/components/inventory/BarcodeScanButton";
+import { useAppLocale } from "@/localization/use-app-locale";
 import { useTranslation } from "react-i18next";
 import React, { useState, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -41,6 +42,7 @@ interface ContactLensDetailsTabProps {
     value: string,
   ) => void;
   isEditing: boolean;
+  hideQuantity?: boolean;
   hideEyeLabels?: boolean;
   needsMiddleSpacer?: boolean;
   inventoryCatalog?: ContactLensInventoryCatalogProps;
@@ -50,11 +52,13 @@ export function ContactLensDetailsTab({
   contactLensDetailsData,
   onContactLensDetailsChange,
   isEditing,
+  hideQuantity = false,
   hideEyeLabels = false,
   needsMiddleSpacer = false,
   inventoryCatalog,
 }: ContactLensDetailsTabProps) {
   const { t } = useTranslation();
+  const { direction } = useAppLocale();
   const { enabled: scannerEnabled } = useBarcodeScanner();
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
@@ -67,7 +71,7 @@ export function ContactLensDetailsTab({
     { key: "supplier", config: EXAM_FIELDS.CONTACT_LENS_SUPPLIER },
     { key: "material", config: EXAM_FIELDS.CONTACT_LENS_MATERIAL },
     { key: "color", config: EXAM_FIELDS.CONTACT_LENS_COLOR },
-    { key: "quantity", config: EXAM_FIELDS.CONTACT_LENS_QUANTITY },
+    ...(!hideQuantity ? [{ key: "quantity", config: EXAM_FIELDS.CONTACT_LENS_QUANTITY }] : []),
     { key: "dx", config: EXAM_FIELDS.CONTACT_LENS_DX },
   ];
 
@@ -91,12 +95,12 @@ export function ContactLensDetailsTab({
   };
 
   const lookupLabels: Record<ContactLensCatalogField, string> = {
-    type: "סוגי עדשות",
-    manufacturer: "יצרנים",
-    model: "דגמי עדשות מגע",
-    supplier: "ספקים",
-    material: "חומרים",
-    color: "צבעים",
+    type: t("contactLensDetails.type"),
+    manufacturer: t("contactLensDetails.manufacturer"),
+    model: t("contactLensDetails.model"),
+    supplier: t("contactLensDetails.supplier"),
+    material: t("contactLensDetails.material"),
+    color: t("contactLensDetails.color"),
   };
 
   const renderLookup = (
@@ -108,6 +112,8 @@ export function ContactLensDetailsTab({
       return (
         <LookupSelect
           disabled={!isEditing}
+          dir={direction}
+          ariaLabel={`${t(`contactLensDetails.${field}`)} ${eye}`}
           value={getFieldValue(eye, field)}
           onChange={(value) => handleChange(eye, field, value)}
           lookupType={lookupType}
@@ -182,18 +188,19 @@ export function ContactLensDetailsTab({
               onSelect={variant => inventoryCatalog.onSelect(side, variant, (variant.balance?.available || 0) > 0 ? "inventory" : "supplier_ordered")}
             />)}
           </div>}
-          <div className="text-center">
-            <h3 className="text-muted-foreground font-medium">פרטי ההזמנה</h3>
+          <div className="text-center" dir={direction}>
+            <h3 className="text-muted-foreground font-medium">{t("contactLensDetails.title")}</h3>
           </div>
 
           <div
-            className={`grid ${hideEyeLabels ? "grid-cols-[2fr_2fr_2fr_2fr_2fr_1fr_1fr]" : "grid-cols-[20px_2fr_2fr_2fr_2fr_2fr_1fr_1fr]"} items-center gap-2`}
+            className="grid items-center gap-2"
+            style={{ gridTemplateColumns: `${hideEyeLabels ? "" : "20px "}repeat(5, minmax(0, 2fr)) ${hideQuantity ? "" : "minmax(0, 1fr) "}minmax(0, 1fr)` }}
           >
             {!hideEyeLabels && <div></div>}
-            {columns.map(({ key, config }) => (
+            {columns.map(({ key }) => (
               <div key={key} className="flex h-4 items-center justify-center">
-                <span className="text-muted-foreground text-xs font-medium">
-                  {config.label}
+                <span dir={direction} className="text-muted-foreground text-xs font-medium">
+                  {t(`contactLensDetails.${key}`)}
                 </span>
               </div>
             ))}
@@ -205,7 +212,7 @@ export function ContactLensDetailsTab({
                   onMouseEnter={() => setHoveredEye("R")}
                   onMouseLeave={() => setHoveredEye(null)}
                   onClick={() => copyFromOtherEye("L")}
-                  title="Click to copy from L eye"
+                  title={t("contactLensDetails.copyFromLeft")}
                 >
                   {hoveredEye === "L" ? <ChevronDown size={16} /> : "R"}
                 </span>
@@ -221,6 +228,7 @@ export function ContactLensDetailsTab({
                   )
                 ) : (
                   <FastInput
+                    aria-label={`${t(`contactLensDetails.${key}`)} R`}
                     type={config.type as any}
                     step={config.step}
                     min={config.min}
@@ -250,7 +258,7 @@ export function ContactLensDetailsTab({
                   onMouseEnter={() => setHoveredEye("L")}
                   onMouseLeave={() => setHoveredEye(null)}
                   onClick={() => copyFromOtherEye("R")}
-                  title="Click to copy from R eye"
+                  title={t("contactLensDetails.copyFromRight")}
                 >
                   {hoveredEye === "R" ? <ChevronUp size={16} /> : "L"}
                 </span>
@@ -266,6 +274,7 @@ export function ContactLensDetailsTab({
                   )
                 ) : (
                   <FastInput
+                    aria-label={`${t(`contactLensDetails.${key}`)} L`}
                     type={config.type as any}
                     step={config.step}
                     min={config.min}

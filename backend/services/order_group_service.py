@@ -250,7 +250,7 @@ def write_group_billing(db, group, billing_data, line_items, client_keys=None, r
                 raise HTTPException(422, "Invalid or duplicate billing item")
             line = existing_lines[item_id]
             sent_ids.add(item_id)
-            amounts_changed = any(item.get(field, getattr(line, field)) != getattr(line, field) for field in ("price", "quantity", "discount"))
+            amounts_changed = any(item.get(field, getattr(line, field)) != getattr(line, field) for field in ("price", "quantity", "discount", "discount_percent"))
             if amounts_changed:
                 financial_changed = True
             elif line.line_total is not None:
@@ -269,7 +269,7 @@ def write_group_billing(db, group, billing_data, line_items, client_keys=None, r
             source_entry = db.query(OrderGroupEntry).filter(OrderGroupEntry.id == source, OrderGroupEntry.group_id == group.id).first()
             if not source_entry or not entry_order(db, source_entry):
                 raise HTTPException(422, "Invalid suggestion source")
-        for field in ("sku", "description", "supplied_by", "supplied", "price", "quantity", "discount", "source_slot", "manually_edited"):
+        for field in ("sku", "description", "supplied_by", "supplied", "price", "quantity", "discount", "discount_percent", "source_slot", "manually_edited"):
             if field in item:
                 setattr(line, field, item[field])
         line.source_entry_id = source
@@ -282,6 +282,12 @@ def write_group_billing(db, group, billing_data, line_items, client_keys=None, r
         price, quantity, discount = (Decimal(str(getattr(line, key) or 0)) for key in ("price", "quantity", "discount"))
         if not all(value.is_finite() for value in (price, quantity, discount)) or min(price, quantity, discount) < 0:
             raise HTTPException(422, "Invalid billing amounts")
+        percent = Decimal(str(line.discount_percent or 0))
+        if not percent.is_finite() or percent < 0 or percent > 100:
+            raise HTTPException(422, "Invalid billing discount")
+        if percent:
+            discount = (price * quantity * percent / 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            line.discount = float(discount)
         # A line without a price is a discount line: its discount lowers the deal total.
         computed_amount = max(Decimal("0"), price * quantity - discount) if price * quantity else Decimal("0") - discount
         amount = retained_amount if retained_amount is not None else computed_amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
@@ -310,7 +316,7 @@ def save_group(db, user, payload, group_id=None, creation_key=None, *, commit=Tr
     if (user.role_level or 1) < 2:
         raise HTTPException(403, "Editing permission is required")
     from EndPoints.orders import _prepare_model_payload, _prepare_update_payload, _default_currency_for_clinic
-    from services.inventory_service import reconcile_order_allocations
+    from services.inventory_service import reconcile_order_allocations, allocation_dict
     from services.prescription_search_index import rebuild_order_index, rebuild_contact_lens_order_index
     from services.trash_service import move_to_trash
     if group_id is None:
@@ -341,6 +347,7 @@ def save_group(db, user, payload, group_id=None, creation_key=None, *, commit=Tr
         if not removed.issubset(entries):
             raise HTTPException(422, "Removed entry does not belong to this group")
         client_keys = {}
+        saved_allocations = {}
         seen = set()
         for index, incoming in enumerate(payload.get("entries", [])):
             kind = incoming.get("kind")
@@ -363,6 +370,7 @@ def save_group(db, user, payload, group_id=None, creation_key=None, *, commit=Tr
                 if data.get("id") not in (None, order.id) or data.get("client_id") != order.client_id:
                     raise HTTPException(422, "Order identity cannot change")
                 updates = _prepare_update_payload(db, user, order, model, data)
+                index_changed = any(key in updates and updates[key] != getattr(order, key) for key in ("order_data", "order_date", "client_id"))
                 for key, value in updates.items():
                     if key not in {"id", "clinic_id", "client_id", "deleted_at", "deleted_by_user_id", "trash_item_id"}:
                         setattr(order, key, value)
@@ -371,6 +379,7 @@ def save_group(db, user, payload, group_id=None, creation_key=None, *, commit=Tr
                     raise HTTPException(422, "Existing orders cannot be attached through creation")
                 data = {**data, "clinic_id": group.clinic_id}
                 data = {key: value for key, value in data.items() if key not in {"deleted_at", "deleted_by_user_id", "trash_item_id"}}
+                index_changed = True
                 order = model(**_prepare_model_payload(db, user, model, data))
                 db.add(order)
                 db.flush()
@@ -383,10 +392,12 @@ def save_group(db, user, payload, group_id=None, creation_key=None, *, commit=Tr
                 if incoming["client_key"] in client_keys:
                     raise HTTPException(422, "Duplicate draft key")
                 client_keys[incoming["client_key"]] = entry.id
-            reconcile_order_allocations(db, order=order, current_user=user, company_id=resolve_company_id(db, user),
+            allocations = reconcile_order_allocations(db, order=order, current_user=user, company_id=resolve_company_id(db, user),
                                         selections_present="inventory_selections" in incoming,
                                         selections=incoming.get("inventory_selections"), contact=kind == "contact")
-            (rebuild_order_index if kind == "regular" else rebuild_contact_lens_order_index)(db, order)
+            saved_allocations[entry.id] = [allocation_dict(row) for row in allocations]
+            if index_changed:
+                (rebuild_order_index if kind == "regular" else rebuild_contact_lens_order_index)(db, order)
             client = db.query(Client).filter(Client.id == order.client_id).first()
             client.client_updated_date = datetime.now(timezone.utc)
         if removed:
@@ -409,12 +420,14 @@ def save_group(db, user, payload, group_id=None, creation_key=None, *, commit=Tr
                 billing.contact_lens_id = live_entries[0].contact_lens_id
         if group_id:
             group.revision += 1
+        db.flush()
+        result = group_dicts(db, [group])[0]
+        result["client_keys"] = client_keys
+        for entry in result["entries"]:
+            if entry["id"] in saved_allocations:
+                entry["inventory_selections"] = saved_allocations[entry["id"]]
         if commit:
             db.commit()
-        else:
-            db.flush()
-    result = group_dict(db, group)
-    result["client_keys"] = client_keys
     return result
 
 

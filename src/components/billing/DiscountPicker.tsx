@@ -14,7 +14,7 @@ export function DiscountPicker({ open, onClose, clinicId, currency, onSelect, di
 }) {
   const { t } = useTranslation();
   const { locale, direction } = useAppLocale();
-  const query = useQuery({ queryKey: ['discounts', clinicId], enabled: open && Boolean(clinicId), queryFn: () => discountRequest<DiscountDefinition[]>(clinicId!) });
+  const query = useQuery({ queryKey: ['discounts', clinicId], enabled: Boolean(clinicId) && !disabled, staleTime: 60_000, queryFn: () => discountRequest<DiscountDefinition[]>(clinicId!) });
   const [search, setSearch] = useState('');
   useEffect(() => { if (open) setSearch(''); }, [open]);
   const needle = search.trim().toLocaleLowerCase(locale);

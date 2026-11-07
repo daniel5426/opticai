@@ -1,29 +1,37 @@
-# Google verification reply — hold for production verification
+# Google verification reply
 
-Status: prepared, not sent. Do not use completed-action wording until rollout.md gates are complete and https://prysm.co.il/privacy is published. Confirm actual API retention settings before sending. No new demo is claimed.
+Working text prepared for the August 10, 2026 email. The owner confirmed sending the
+reply on November 7. This is the draft source, not a copy of the sent message.
+The updated privacy policy was published on November 7, 2026.
 
-Existing Gmail thread: 19b4e014a6c8d460
+Thread: `19b4e014a6c8d460`
+
+To: `api-oauth-dev-verification-reply+1cqmpeejxqqyp1d@google.com`
+
 Subject: Re: [Action Needed] OAuth Verification Request Acknowledgement
-To: api-oauth-dev-verification-reply+1cqmpeejxqqyp1d@google.com
-Project: opticai-465420 / 507617691117
 
 ---
 
 Hello Third-Party Data Safety Team,
 
-Thank you for your August 10 request regarding project opticai-465420 (507617691117). Please find our responses below.
+Thank you for your August 10 email regarding project opticai-465420 (507617691117).
 
-**AI provider and service tier:** Prysm uses OpenAI’s paid API service across its existing application plans. Optional sharing of API data for model training is disabled. We use `gpt-6.1-sol` for the clinic assistant and client insights, and `gpt-6-luna` for campaign generation and WhatsApp replies.
+Prysm has AI features, but they are separate from our Google integrations. We do not send data obtained through our Google sign-in or Calendar integrations to OpenRouter or any AI model provider. This includes Google account/profile information, profile photos, OAuth credentials, Calendar API data, and derived Google integration data.
 
-**Gateways and other models:** Requests go directly from our backend to OpenAI. We do not use OpenRouter, other model aggregators, or self-hosted/offline AI models.
+Google data is used only for authentication, account linking and authorized Calendar functionality. Our AI agents have no Google API connections and do not access Google Photos, Gmail or Drive. AI processes independently entered clinic records and content submitted by clinic staff. When a Prysm appointment is also exported to Google Calendar, AI uses the original clinic record, not data retrieved from Google.
 
-**Google data isolation:** Our automatic AI inputs exclude Google OAuth credentials, Google account/profile data, Calendar API responses, event identifiers, and derived integration metadata. Google data is used for account authentication and authorized Calendar functionality. Clinic-entered records processed by AI are collected independently of Google APIs, including appointment details independently exported to Calendar. Arbitrary text users type or paste cannot be reliably classified by origin; our isolation claim applies to automatic integration inputs.
+AI providers and models:
 
-**Training and storage controls:** API training data sharing is disabled, and our Responses requests set `store=false`. We do not use Google Workspace API data to create, train, or improve generalized AI/ML models. We do not represent `store=false` as Zero Data Retention.
+- Our internal Agents24 backend uses OpenRouter API access as an external model gateway. Agents24 is our own application backend.
+- Configured models include OpenAI GPT-6 Luna for clinic assistance, Mistral PDF Parser for OCR (the gateway integration has also used OpenAI gpt-5.4-mini as its transport model), OpenAI text-embedding-3-large for document search, and ElevenLabs Scribe v2 for speech recognition.
+- Separate direct OpenAI API features use gpt-6-luna for campaigns and WhatsApp replies. The retained direct assistant and insights use gpt-6.1-sol when Agents24 is disabled.
+- Service plans/tiers: [insert the OpenRouter plan/tier and any separately used OpenAI/ElevenLabs API plans].
 
-**Public disclosure:** Our updated policy at https://prysm.co.il/privacy describes collection, use, storage, retention, deletion, infrastructure processors and separate AI processing, and includes our affirmative commitment to Google’s Limited Use requirements. The policy is available in Hebrew, English and French.
+Google integration data stays outside AI requests and tool results. We do not use, transfer or sell raw, aggregated, anonymized or derived Google user data to create, train or improve foundational or generalized AI/ML models. Direct OpenAI Responses requests additionally use store=false and background=false; we do not claim Zero Data Retention.
 
-Please continue the verification review and let us know if any specific requirement remains outstanding.
+Our privacy policy at https://prysm.co.il/privacy includes our affirmative commitment to the Google API Services User Data Policy and Google Workspace API User Data and Developer Policy, including the Limited Use requirements.
+
+Please let us know if any further clarification is needed.
 
 Kind regards,
 Daniel Benassaya

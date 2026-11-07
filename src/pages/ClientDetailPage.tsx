@@ -1,3 +1,5 @@
+import { useKeyboardSave } from "@/hooks/shared/useKeyboardSave"
+import { SaveStatus } from "@/components/SaveStatus"
 import { CompanyClinicToolbarProvider } from "@/components/CompanyClinicFilter"
 import { ClientHistoryClinicContext, useCompanyClinicFilter } from "@/hooks/client/useCompanyClinicFilter"
 import React, { useState, useRef, useEffect, useCallback } from "react"
@@ -144,12 +146,15 @@ export default function ClientDetailPage() {
   const handleSave = async () => {
     const updated = await editor.saveDraft()
     if (updated) {
+      setBaseline()
       updateCurrentClient(updated)
       toast.success("פרטי הלקוח עודכנו בהצלחה")
     } else {
       toast.error("לא הצלחנו לשמור את השינויים")
     }
   }
+
+  useKeyboardSave({enabled:activeTab === 'details' && editor.isEditing, isSaving:editor.isSaving, onSave:handleSave})
 
   const handleStartEdit = () => {
     editor.startEdit()
@@ -198,7 +203,7 @@ export default function ClientDetailPage() {
                   </Button>
                 </div>
               ) : (
-                <ClientDetailsTab
+                <><div className="flex justify-end px-4"><SaveStatus state={editor.saveState} onRetry={() => void handleSave()}/></div><ClientDetailsTab
                   draft={editor.draftClient || {} as Client}
                   isEditing={editor.isEditing}
                   isLoading={isDetailsLoading}
@@ -208,7 +213,7 @@ export default function ClientDetailPage() {
                   onStartEdit={handleStartEdit}
                   onCancelEdit={editor.cancelEdit}
                   onSave={handleSave}
-                />
+                /></>
               )}
             </TabsContent>
 

@@ -43,6 +43,26 @@ async def test_signed_manifest_and_context_use_public_sdk(app, clinic):
 
 
 @pytest.mark.asyncio
+async def test_signed_context_and_patient_tools_exclude_google_integration_data(app, clinic):
+    from datetime import date
+    from models import Appointment
+    db, auth, patients, _ = clinic
+    db.add(Appointment(client_id=patients[0].id, clinic_id=auth.clinic_id, user_id=auth.user.id,
+        date=date(2026, 11, 5), exam_name='Independent eye exam', google_calendar_event_id='GOOGLE_EVENT_MARKER'))
+    auth.user.google_account_email = 'GOOGLE_ACCOUNT_MARKER'
+    auth.user.google_access_token = 'GOOGLE_TOKEN_MARKER'
+    db.commit()
+    context = {'external_session_id': auth.context_id, 'embed_metadata': {'app.page': {
+        'path': '/appointments', 'drafts': {'googleProfile': {'name': 'GOOGLE_PROFILE_MARKER'}, 'note': 'Clinic note'}}}}
+    history = (await call(app, 'patient_history', {'client_id': patients[0].id}, context)).json()
+    current = (await call(app, 'clinic_context', {}, context)).json()
+    assert history['status'] == current['status'] == 'completed'
+    assert 'GOOGLE_' not in json.dumps([history, current])
+    assert 'Independent eye exam' in json.dumps(history)
+    assert current['result']['page_context']['drafts'] == {'note': 'Clinic note'}
+
+
+@pytest.mark.asyncio
 async def test_bad_signature_never_reaches_database(app, monkeypatch):
     def forbidden():
         pytest.fail('Invalid signature reached clinic authorization')

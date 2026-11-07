@@ -15,7 +15,7 @@ import { apiClient } from '@/lib/api-client';
 type Row = { id: string; source: unknown; values: Record<string, string | number | boolean | null>; variant_id?: number | null; selected: boolean; errors: string[]; action: string; before?: Record<string, any> };
 type Proposal = { status: string; operation: string; revision: string; rows: Row[]; applied?: {variant_id: number}[]; platform_failure?: { code: string; failure_id: string; retryable: boolean } };
 type Job = { id: string; title?: string; status: string; result?: Proposal };
-const fields = ['category','brand','model','preferred_supplier','sku','barcode','color','eye_size','bridge','temple_length','height','sph','bc','dia','cyl','axis','add','pack_size','replacement_schedule','product_type','material','design','currency','default_cost','default_retail','quantity'];
+const fields = ['category','brand','model','preferred_supplier','sku','barcode','color','coating','diameter','eye_size','bridge','temple_length','height','sph','bc','dia','cyl','axis','add','pack_size','replacement_schedule','product_type','material','design','currency','default_cost','default_retail','quantity'];
 function Match({ row, disabled, onChange }: { row: Row; disabled?: boolean; onChange: (id: number | null) => void }) {
   const workspace = usePrysmAgent(); const { t } = useTranslation(); const [search, setSearch] = React.useState('');
   const [items, setItems] = React.useState<{id: number; display_name: string}[]>([]);
@@ -26,7 +26,7 @@ function Match({ row, disabled, onChange }: { row: Row; disabled?: boolean; onCh
   }, [search, workspace?.scope?.clinicId]);
   return <div className="space-y-2">
     <p className="text-sm">{row.before?.display_name || t('supply.newItem')}</p>
-    <ProductBarcodeScan disabled={disabled} clinicId={workspace?.scope?.clinicId} category={row.values.category === 'frame' || row.values.category === 'contact_lens' ? row.values.category : undefined} onSelect={variant => { onChange(variant.id); setSearch(''); }} />
+    <ProductBarcodeScan disabled={disabled} clinicId={workspace?.scope?.clinicId} category={row.values.category === 'frame' || row.values.category === 'contact_lens' || row.values.category === 'spectacle_lens' ? row.values.category : undefined} onSelect={variant => { onChange(variant.id); setSearch(''); }} />
     <Input aria-label={t('supply.findMatch')} placeholder={t('supply.findMatch')} value={search} onChange={event => setSearch(event.target.value)} />
     {search && items.slice(0, 10).map(item => <Button key={item.id} variant="ghost" size="sm" onClick={() => { onChange(item.id); setSearch(''); }}>{item.display_name}</Button>)}
     {row.variant_id && <Button variant="ghost" size="sm" onClick={() => onChange(null)}>{t('supply.newItem')}</Button>}
@@ -91,11 +91,11 @@ function SupplyReviewContent({ jobId, onApplied }: { jobId: string; onApplied?: 
           <label className="flex items-center gap-2"><input type="checkbox" checked={row.selected} onChange={event => edit(index, {selected: event.target.checked})} />{t('supply.include')}</label>
           <Match row={row} disabled={busy} onChange={variant_id => edit(index, {variant_id})} />
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {fields.filter(field => field in row.values || ['category', 'brand', 'model', 'sku', 'barcode', 'quantity', 'default_retail', ...(row.values.category === 'contact_lens' ? ['sph','bc','dia','pack_size'] : ['color','eye_size'])].includes(field)).map(field => {
+            {fields.filter(field => field in row.values || ['category', 'brand', 'model', 'sku', 'barcode', 'quantity', 'default_retail', ...(row.values.category === 'contact_lens' ? ['sph','bc','dia','pack_size'] : row.values.category === 'spectacle_lens' ? ['material','coating','color','diameter'] : ['color','eye_size'])].includes(field)).map(field => {
               const before = row.before?.[field] ?? row.before?.product?.[field] ?? row.before?.attributes?.[field] ?? (field === 'quantity' ? row.before?.balance?.on_hand : undefined);
               return <div key={field} className="space-y-1"><Label htmlFor={`${jobId}-${index}-${field}`}>{t(`supply.field.${field}`)}</Label>
                 {field === 'barcode' && <BarcodeScanButton disabled={busy} onScan={code => { edit(index, {values: {...row.values, barcode: code}}); }} />}
-                {field === 'category' ? <select id={`${jobId}-${index}-${field}`} className="bg-background h-9 w-full rounded-md border px-3" value={String(row.values[field] || '')} onChange={event => edit(index, {values:{...row.values, [field]:event.target.value}})}><option value="">—</option><option value="frame">{t('supply.categoryFrame')}</option><option value="contact_lens">{t('supply.categoryContact')}</option></select> : <Input id={`${jobId}-${index}-${field}`} dir={['sku','barcode','quantity','default_cost','default_retail','currency','sph','bc','dia','cyl','axis','add','pack_size','eye_size','bridge','height','temple_length'].includes(field) ? 'ltr' : undefined} value={String(row.values[field] ?? '')} onChange={event => edit(index, {values: {...row.values, [field]: event.target.value}})} />}
+                {field === 'category' ? <select id={`${jobId}-${index}-${field}`} className="bg-background h-9 w-full rounded-md border px-3" value={String(row.values[field] || '')} onChange={event => edit(index, {values:{...row.values, [field]:event.target.value}})}><option value="">—</option><option value="frame">{t('supply.categoryFrame')}</option><option value="contact_lens">{t('supply.categoryContact')}</option><option value="spectacle_lens">{t('orderWorkspace.spectacleLenses')}</option></select> : <Input id={`${jobId}-${index}-${field}`} dir={['sku','barcode','quantity','default_cost','default_retail','currency','sph','bc','dia','cyl','axis','add','pack_size','diameter','eye_size','bridge','height','temple_length'].includes(field) ? 'ltr' : undefined} value={String(row.values[field] ?? '')} onChange={event => edit(index, {values: {...row.values, [field]: event.target.value}})} />}
                 {before != null && <p className="text-xs text-muted-foreground">{t('supply.before')}: {String(before)}</p>}
               </div>;
             })}

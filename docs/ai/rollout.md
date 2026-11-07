@@ -1,5 +1,10 @@
 # AI upgrade and Google review readiness
 
+Historical October 6 direct-OpenAI rollout record. The current Agents24 architecture,
+provider inventory, verification blockers and rollout requirements are maintained in
+[Google verification](google-verification.md). Do not use the historical provider-only
+claims below for a current Google submission.
+
 Implementation date: October 6, 2026. Changes are local; production deployment, public publication and account-settings verification remain pending.
 
 ## Routing and boundary

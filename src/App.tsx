@@ -1,3 +1,4 @@
+import { invalidateRecordQueries } from "@/lib/record-changes";
 import React, { useEffect, Suspense, ReactNode } from "react";
 import { ThemeProvider } from "@/components/theme-provider";
 import { useTranslation } from "react-i18next";
@@ -106,7 +107,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const invalidate = () => { void queryClient.invalidateQueries() }
+    const invalidate = (event: Event) => invalidateRecordQueries(queryClient, event, authService.getSession()?.user?.company_id)
     window.addEventListener("prysm:client-records-changed", invalidate)
     let previousCompany = authService.getSession()?.user?.company_id
     const unsubscribe = authService.subscribe((_state, session) => {

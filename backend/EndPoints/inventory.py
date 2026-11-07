@@ -443,7 +443,18 @@ def update_catalog_entry(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return _update_catalog_entry(db, current_user, variant_id, payload)
+    if "policy" not in payload:
+        return _update_catalog_entry(db, current_user, variant_id, payload)
+    try:
+        result = _update_catalog_entry(db, current_user, variant_id, payload, commit=False)
+        if not isinstance(payload["policy"], dict):
+            raise HTTPException(422, "Invalid reorder policy")
+        result["balance"] = _update_balance_policy(db, current_user, variant_id, payload["policy"], commit=False)
+        _commit_or_conflict(db)
+        return result
+    except Exception:
+        db.rollback()
+        raise
 
 
 def _update_catalog_entry(db, current_user, variant_id, payload, *, commit=True):
@@ -667,6 +678,10 @@ def update_balance_policy(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    return _update_balance_policy(db, current_user, variant_id, payload)
+
+
+def _update_balance_policy(db, current_user, variant_id, payload, *, commit=True):
     require_inventory_write(current_user)
     company_id = resolve_company_id(db, current_user)
     clinic_id = normalize_clinic_id_for_company(db, current_user, payload.get("clinic_id"))
@@ -678,6 +693,8 @@ def update_balance_policy(
         variant_id=variant_id,
         lock=True,
     )
+    if payload.get("expected_version") is not None and payload["expected_version"] != balance.version:
+        raise HTTPException(409, "inventory_policy_conflict")
     try:
         reorder_point = int(payload.get("reorder_point", balance.reorder_point))
         target_quantity = int(payload.get("target_quantity", balance.target_quantity))
@@ -688,9 +705,11 @@ def update_balance_policy(
     balance.reorder_point = reorder_point
     balance.target_quantity = target_quantity
     balance.version += 1
-    db.commit()
-    db.refresh(balance)
-    return balance_dict(balance)
+    db.flush()
+    result = balance_dict(balance)
+    if commit:
+        db.commit()
+    return result
 
 
 @router.post("/counts")
@@ -1022,7 +1041,7 @@ def confirm_discovery_candidates(
 
 def _csv_row_to_payload(row: dict[str, Any]) -> dict[str, Any]:
     category_raw = str(row.get("category") or row.get("type") or "").strip().casefold()
-    category = "contact_lens" if category_raw in {"contact", "contact_lens", "contacts", "עדשות מגע"} else "frame" if category_raw in {"frame", "frames", "מסגרת"} else category_raw
+    category = "contact_lens" if category_raw in {"contact", "contact_lens", "contacts", "עדשות מגע"} else "frame" if category_raw in {"frame", "frames", "מסגרת"} else "spectacle_lens" if category_raw in {"spectacle_lens", "spectacle lenses", "עדשות משקפיים"} else category_raw
     product = {
         "brand": row.get("brand") or row.get("manufacturer"),
         "model": row.get("model"),
@@ -1032,7 +1051,7 @@ def _csv_row_to_payload(row: dict[str, Any]) -> dict[str, Any]:
         "replacement_schedule": row.get("replacement_schedule"),
     }
     attribute_fields = (
-        "color", "eye_size", "bridge", "temple_length", "height",
+        "color", "coating", "diameter", "eye_size", "bridge", "temple_length", "height",
         "sph", "bc", "dia", "pack_size", "cyl", "axis", "add", "design",
     )
     attributes = {field: row.get(field) for field in attribute_fields if row.get(field) not in (None, "")}
@@ -1206,7 +1225,7 @@ def _validated_import_rows(
 def _import_error_detail(error: str) -> dict[str, str]:
     """Stable localized diagnostics for file previews; legacy errors remain intact."""
     exact = {
-        "category must be frame or contact_lens": "category",
+        "category must be frame, contact_lens or spectacle_lens": "category",
         "Product model is required": "model",
         "Brand or manufacturer is required": "brand",
         "Variant is missing required stock fields": "stockFields",
@@ -1403,6 +1422,8 @@ def export_inventory(
     output = io.StringIO()
     attribute_fields = [
         "color",
+        "coating",
+        "diameter",
         "eye_size",
         "bridge",
         "temple_length",
@@ -1510,14 +1531,14 @@ def inventory_insights(
     demand: dict[int, int] = defaultdict(int)
     previous_demand: dict[int, int] = defaultdict(int)
     category_by_variant = {variant.id: product.category for variant, product, _ in rows}
-    demand_series = empty_series(window, ("consumed", "frame", "contact_lens"))
+    demand_series = empty_series(window, ("consumed", "frame", "contact_lens", "spectacle_lens"))
     for event in events:
         event_date = event["date"]
         if window.start_date <= event_date <= window.end_date:
             demand[event["variant_id"]] += event["quantity"]
             add_to_series(demand_series, window, event_date, "consumed", event["quantity"])
             category = category_by_variant.get(event["variant_id"])
-            if category in {"frame", "contact_lens"}:
+            if category in {"frame", "contact_lens", "spectacle_lens"}:
                 add_to_series(demand_series, window, event_date, category, event["quantity"])
         elif window.previous_start <= event_date <= window.previous_end:
             previous_demand[event["variant_id"]] += event["quantity"]

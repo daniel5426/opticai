@@ -1,6 +1,6 @@
 # Agents24 integration feedback
 
-Last Updated: 2026-11-03
+Last Updated: 2026-11-05
 
 ## Supply acceptance resolution — 2026-11-03
 
@@ -314,3 +314,25 @@ Verification question: with Python SDK 0.7.25 and CLI 0.3.35, `agents.validate` 
 # Sent user attachments align opposite RTL bubbles — 2026-11-05
 
 Confirmed with `@agents24/chat-react` 0.5.42: render `AgentChatMessage` with `dir="rtl"`, user text and a file/audio attachment. The bubble uses logical flex-end (physical left), but `.a24-chat-attachments[dir="rtl"]` changes the attachment row to flex-start (physical right). This splits one user's message across opposite edges. Prysm scopes a logical flex-end override to sent user attachment rows; composer previews and assistant attachments are untouched. Browser measurements confirm matching left edges in Hebrew and matching right edges in English/French. Upstream should align sent attachments with their bubble and add an RTL layout regression; remove the host override once the published component provides that behavior.
+
+## Selective workflow outputs in consumer chat — 2026-11-05
+
+Verified against public client 0.2.24, React 0.2.30, chat-react 0.5.46, CLI 0.3.37 and Python 0.7.27. Core SDK `chat.stream` and queued `threads.messages.submit` expose `requestedOutputs`, but the public React submit/runtime hooks do not forward that option or expose workflow-output events. Prysm decorates the public AgentClient to select `transcript` for attachment submissions and subscribe to stream/attach events. It keeps SDK lifecycle ownership intact and fetches values only in mounted audio rows. Please expose per-submit output selection and event observation in maintained React hooks.
+
+Workflow YAML v1's compiler rejects an `exports` field and never populates `workflow_contract.exports`. Until the portable authoring schema supports it, `config/agents24-outputs.json` and `scripts/configure-agent-outputs.py` configure the existing graph through public Python SDK methods. Run this after any package apply; a later package apply otherwise removes the programmatic export. Please round-trip named exports in portable packages. No package internals or hidden platform API writes were copied.
+
+The configured hosted Agent has pre-existing unpublished speech-model and builder-layout changes. Export configuration preserves those changes; publishing them requires an explicit decision.
+
+
+## 2026-11-05 — Google verification needs managed-provider evidence
+
+Verification gap, not a confirmed platform defect: the hosted installation status and
+public model candidate catalog establish published bindings and display names, but do
+not establish exact billing tiers, downstream OCR transport/models, training opt-outs,
+gateway privacy settings or retention exceptions. Prysm's inventory records those fields
+as unverified rather than treating catalog health as privacy evidence. The official
+provider documentation describes offering/invocation evidence; obtain the actual managed
+account settings and snapshots through supported account/admin access before replying
+to Google. Suggested improvement: an authorized, secret-free export of the complete
+model/provider route, commercial tier and effective data controls for verification reviews.
+No guessed SDK/YAML privacy flags or provider bypass was added.

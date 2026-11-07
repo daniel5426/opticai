@@ -41,6 +41,8 @@ requires:
     speech:
       required: true
       capability: speech_to_text
+      match:
+        name: Scribe v2
   secrets:
     artifact-signing:
       required: true

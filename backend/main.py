@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import ORJSONResponse
 from services.agent_transport import ClinicGZipMiddleware
+from services.agent_privacy import AgentPrivacyMiddleware
 import logging
 from fastapi.middleware.cors import CORSMiddleware
 import config
@@ -57,6 +58,8 @@ app = FastAPI(
     default_response_class=ORJSONResponse,
     lifespan=lifespan,
 )
+
+app.add_middleware(AgentPrivacyMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

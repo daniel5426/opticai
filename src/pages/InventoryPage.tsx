@@ -1,3 +1,7 @@
+import { useKeyboardSave } from "@/hooks/shared/useKeyboardSave";
+import { SaveStatus } from "@/components/SaveStatus";
+import { useSaveController } from "@/hooks/shared/useSaveController";
+import { stableSaveJson } from "@/lib/exam-workspace";
 import { BarcodeScanButton, ProductBarcodeScan } from "@/components/inventory/BarcodeScanButton";
 import { useSupplyRevision } from '@/lib/inventory-events';
 import { ManualInventoryImportDialog } from '@/components/inventory/ManualInventoryImport';
@@ -162,6 +166,8 @@ const emptyCatalogForm = {
   preferred_supplier: "",
   replacement_schedule: "",
   color: "",
+  coating: "",
+  diameter: "",
   sph: "",
   bc: "",
   dia: "",
@@ -251,7 +257,7 @@ function CatalogDialog({
   onOpenChange,
   clinicId,
   defaultCurrency,
-  editing,
+  editing: initialEditing,
   initialSupplier,
   canViewCost,
   onSelectCatalogVariant,
@@ -267,6 +273,12 @@ function CatalogDialog({
   onSelectCatalogVariant: (variant: CatalogVariant) => void;
   onSaved: () => void;
 }) {
+  const [savedVariant, setSavedVariant] = useState<CatalogVariant | null>(null);
+  const editing = savedVariant || initialEditing;
+  const saveController = useSaveController({identity: open ? initialEditing?.id || 'new' : 'closed'});
+  const savedForm = useRef('');
+  const policyVersion = useRef<number | undefined>();
+  useEffect(() => { if (!open) {setSavedVariant(null); savedForm.current = ''; policyVersion.current = undefined;} }, [open]);
   const supplyRevision = useSupplyRevision();
   const [form, setForm] = useState({ ...emptyCatalogForm });
   useAgentDraft("catalog", () => open ? form : null);
@@ -282,11 +294,12 @@ function CatalogDialog({
     null,
   );
 
+  const loadForm = (value: typeof form) => { savedForm.current = stableSaveJson(value); setForm(value); };
   useEffect(() => {
     if (!open) return;
     if (!editing) {
       setLegacyContactAttributes({});
-      setForm({
+      loadForm({
         ...emptyCatalogForm,
         preferred_supplier: initialSupplier || "",
         currency: defaultCurrency,
@@ -303,7 +316,7 @@ function CatalogDialog({
           )
         : {},
     );
-    setForm({
+    loadForm({
       ...emptyCatalogForm,
       category: editing.product.category,
       brand: editing.product.brand || "",
@@ -313,6 +326,8 @@ function CatalogDialog({
       preferred_supplier: editing.product.preferred_supplier || "",
       replacement_schedule: editing.product.replacement_schedule || "",
       color: String(attributes.color || ""),
+      coating: String(attributes.coating || ""),
+      diameter: String(attributes.diameter || ""),
       sph: String(attributes.sph ?? ""),
       bc: String(attributes.bc ?? ""),
       dia: String(attributes.dia ?? ""),
@@ -364,6 +379,7 @@ function CatalogDialog({
     setForm((current) => ({ ...current, [field]: value }));
 
   const save = async () => {
+    if (saving || saveController.busy.current || stableSaveJson(form) === savedForm.current) return;
     if (!form.brand.trim() || !form.model.trim()) {
       toast.error("יש למלא מותג ודגם");
       return;
@@ -388,6 +404,7 @@ function CatalogDialog({
               : undefined,
             height: form.height ? Number(form.height) : undefined,
           }
+        : form.category === "spectacle_lens" ? { color: form.color, coating: form.coating, diameter: form.diameter }
         : {
             ...legacyContactAttributes,
             color: form.color,
@@ -422,22 +439,16 @@ function CatalogDialog({
         form.category === "frame" ? true : editing?.is_stockable ?? true,
     };
     try {
+      await saveController.run(async () => {
+      let saved: CatalogVariant | undefined;
       if (editing) {
         const response = await apiClient.updateCatalogEntry(editing.id, {
           product,
           variant,
+          policy: {clinic_id: clinicId, reorder_point:Number(form.reorder_point || 0), target_quantity:Number(form.target_quantity || 0), expected_version:policyVersion.current ?? editing.balance?.version ?? 1},
         });
         if (response.error) throw new Error(String(response.error));
-        const policyResponse = await apiClient.updateInventoryPolicy(
-          editing.id,
-          {
-            clinic_id: clinicId,
-            reorder_point: Number(form.reorder_point || 0),
-            target_quantity: Number(form.target_quantity || 0),
-            expected_version: editing.balance?.version ?? 1,
-          },
-        );
-        if (policyResponse.error) throw new Error(String(policyResponse.error));
+        saved = response.data as CatalogVariant;
       } else {
         const response = await apiClient.createCatalogEntry({
           clinic_id: clinicId,
@@ -446,16 +457,21 @@ function CatalogDialog({
           variant,
         });
         if (response.error) throw new Error(String(response.error));
+        saved = response.data as CatalogVariant;
       }
+      if (saved) { setSavedVariant(saved); policyVersion.current = saved.balance?.version; }
+      savedForm.current = stableSaveJson(form);
       toast.success(editing ? "הפריט עודכן" : "הפריט נוסף לקטלוג");
-      onOpenChange(false);
       onSaved();
+      });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "שמירת הפריט נכשלה");
     } finally {
       setSaving(false);
     }
   };
+
+  useKeyboardSave({enabled:open, isSaving:saving, onSave:save});
 
   const field = (
     name: keyof typeof form,
@@ -594,14 +610,14 @@ function CatalogDialog({
   );
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={value => {if (!saving) onOpenChange(value)}}>
       <DialogContent
         ref={setDialogContent}
         className="overflow-visible text-start [&_label]:whitespace-nowrap [&_label]:font-normal sm:!max-w-[650px]"
         dir={direction}
       >
         <div className="no-scrollbar max-h-[calc(88vh-3rem)] overflow-y-auto pe-1">
-          <div className="space-y-4">
+          <fieldset disabled={saving} className="space-y-4">
         <DialogHeader>
           <DialogTitle>
             {editing ? "עריכת פריט קטלוג" : "הוספת פריט לקטלוג"}
@@ -622,6 +638,7 @@ function CatalogDialog({
               <SelectContent>
                 <SelectItem value="frame">מסגרת</SelectItem>
                 <SelectItem value="contact_lens">עדשות מגע</SelectItem>
+                <SelectItem value="spectacle_lens">{t("orderWorkspace.spectacleLenses")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -656,6 +673,13 @@ function CatalogDialog({
                 "בחר או הקלד ספק...",
                 "lg:col-span-3",
               )}
+            </>
+          ) : form.category === "spectacle_lens" ? (
+            <>
+              {field("brand", t("orderWorkspace.brand"), "text", "lg:col-span-3")}
+              {field("model", t("orderWorkspace.model"), "text", "lg:col-span-3")}
+              {field("material", t("orderWorkspace.material"), "text", "lg:col-span-3")}
+              {field("preferred_supplier", t("orderWorkspace.supplier"), "text", "lg:col-span-3")}
             </>
           ) : (
             <>
@@ -739,6 +763,12 @@ function CatalogDialog({
                 ) : null}
               </div>
             </div>
+          ) : form.category === "spectacle_lens" ? (
+            <div className="grid gap-4 sm:grid-cols-3">
+              {field("coating", t("orderWorkspace.coating"))}
+              {field("color", t("orderWorkspace.color"))}
+              {field("diameter", t("orderWorkspace.diameter"), "number")}
+            </div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
               {frameCatalogField(
@@ -792,6 +822,7 @@ function CatalogDialog({
           </div>
         ) : null}
         <DialogFooter>
+          <SaveStatus state={saveController.state} onRetry={() => void save()}/>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             ביטול
           </Button>
@@ -800,7 +831,7 @@ function CatalogDialog({
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           </Button>
         </DialogFooter>
-          </div>
+          </fieldset>
         </div>
       </DialogContent>
     </Dialog>
@@ -2171,6 +2202,7 @@ export default function InventoryPage() {
                     { value: "all", label: "כל הקטגוריות" },
                     { value: "frame", label: "מסגרות" },
                     { value: "contact_lens", label: "עדשות מגע" },
+                    { value: "spectacle_lens", label: t("orderWorkspace.spectacleLenses") },
                   ],
                 },
               ]}
@@ -2406,6 +2438,7 @@ export default function InventoryPage() {
                         name="מסגרות"
                         fill="hsl(var(--primary))"
                       />
+                      <Bar dataKey="spectacle_lens" stackId="demand" name={t("orderWorkspace.spectacleLenses")} fill="hsl(var(--chart-3))" />
                       <Bar
                         dataKey="contact_lens"
                         stackId="demand"
@@ -3083,7 +3116,7 @@ function InventoryProductsTable({
   const categoryLabel = (category: InventoryCategory) =>
     category === "frame"
       ? t("inventoryFrames")
-      : t("inventoryContactLenses");
+      : category === "spectacle_lens" ? t("orderWorkspace.spectacleLenses") : t("inventoryContactLenses");
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">

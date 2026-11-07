@@ -1,0 +1,10 @@
+{
+  "transcript": {
+    "source": {
+      "namespace": "node_output",
+      "node_id": "speech_to_text",
+      "key": "references"
+    },
+    "representation": "processed_text"
+  }
+}

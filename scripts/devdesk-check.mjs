@@ -82,7 +82,7 @@ async function main() {
    if(focused.length)jobs.push(()=>execute(['node','--experimental-strip-types','--test','--test-concurrency=4',...focused]));
   }
  } else if(isOptic) {
-  if(selection.has('backend'))jobs.push(()=>execute([python,'-m','pytest',...(tests.length?tests:['backend/tests/test_ai_responses.py','backend/tests/test_production_hardening.py','backend/tests/test_files_api.py','backend/tests/test_default_exam_layout_seeds.py','backend/tests/test_migration_helpers.py','backend/tests/test_softoptic_migration_service.py'])],{PYTHONPATH:root+path.delimiter+path.join(root,'backend'),DATABASE_URL:'sqlite:///:memory:',SECRET_KEY:'local-ci-check-only'}));
+  if(selection.has('backend'))jobs.push(()=>execute([python,'-m','pytest',...(tests.length?tests:['backend/tests/test_ai_responses.py','backend/tests/agent/test_google_ai_isolation.py','backend/tests/agent/test_artifact_contract.py','backend/tests/agent/test_transport.py','backend/tests/test_production_hardening.py','backend/tests/test_files_api.py','backend/tests/test_default_exam_layout_seeds.py','backend/tests/test_migration_helpers.py','backend/tests/test_softoptic_migration_service.py'])],{PYTHONPATH:root+path.delimiter+path.join(root,'backend'),DATABASE_URL:'sqlite:///:memory:',SECRET_KEY:'local-ci-check-only'}));
   if(selection.has('web')){jobs.push(()=>execute(['npm','test','--','--run']));jobs.push(()=>execute(['npm','run','build:web']));}
  } else {
   // Next build already checks TypeScript; do not repeat tsc in this path.

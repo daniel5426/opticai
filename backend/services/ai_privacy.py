@@ -1,6 +1,8 @@
 """Explicit clinic-data projections. Google integration objects never enter AI context."""
 from datetime import date, datetime
 from decimal import Decimal
+import json
+import re
 
 CLIENT_FIELDS = frozenset('id clinic_id first_name last_name gender national_id date_of_birth health_fund address_city address_street address_number postal_code phone_home phone_work phone_mobile fax email service_center occupation status notes family_id family_role price_list discount_percent blocked_checks blocked_credit file_creation_date membership_end service_end'.split())
 RECORD_FIELDS = {
@@ -18,8 +20,9 @@ TOOL_FIELDS = frozenset().union(*RECORD_FIELDS.values(), frozenset('status data 
 
 
 def is_private_key(key):
-    key = str(key).lower()
-    return any(part in key for part in ('google', 'oauth', 'token', 'calendar_event', 'credential', 'password', 'secret', 'auth_provider')) or key.startswith('ai_') or key in {'profile', 'profile_picture', 'username', 'full_name', 'user_info', 'userinfo'}
+    key = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', str(key)).lower()
+    compact = re.sub(r'[^a-z0-9]', '', key)
+    return any(part in compact for part in ('google', 'oauth', 'token', 'calendarevent', 'credential', 'password', 'secret', 'authprovider', 'apikey', 'smtp', 'entrypin')) or key.startswith('ai_') or compact in {'profile', 'profilepicture', 'username', 'fullname', 'userinfo'}
 
 
 def clean_nested(value):
@@ -33,6 +36,20 @@ def clean_nested(value):
     if isinstance(value, Decimal):
         return float(value)
     return value
+
+
+def clean_json_text(text):
+    """Filter host-serialized context before admission, including saved job prompts.
+
+    This is structural filtering, not provenance detection for arbitrary prose.
+    """
+    try:
+        value = json.loads(text)
+    except (ValueError, TypeError):
+        return text
+    if not isinstance(value, (dict, list)):
+        return text
+    return json.dumps(clean_nested(value), ensure_ascii=False)
 
 
 def project_record(record, kind):

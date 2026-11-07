@@ -1,0 +1,41 @@
+{
+  "en": {
+    "title": "Contact lens details",
+    "type": "Type",
+    "manufacturer": "Manufacturer",
+    "model": "Model",
+    "supplier": "Supplier",
+    "material": "Material",
+    "color": "Color",
+    "quantity": "Quantity",
+    "dx": "DX",
+    "copyFromLeft": "Copy from left eye",
+    "copyFromRight": "Copy from right eye"
+  },
+  "he": {
+    "title": "פרטי עדשות מגע",
+    "type": "סוג",
+    "manufacturer": "יצרן",
+    "model": "דגם",
+    "supplier": "ספק",
+    "material": "חומר",
+    "color": "צבע",
+    "quantity": "כמות",
+    "dx": "DX",
+    "copyFromLeft": "העתק מעין שמאל",
+    "copyFromRight": "העתק מעין ימין"
+  },
+  "fr": {
+    "title": "Détails des lentilles",
+    "type": "Type",
+    "manufacturer": "Fabricant",
+    "model": "Modèle",
+    "supplier": "Fournisseur",
+    "material": "Matériau",
+    "color": "Couleur",
+    "quantity": "Quantité",
+    "dx": "DX",
+    "copyFromLeft": "Copier depuis l’œil gauche",
+    "copyFromRight": "Copier depuis l’œil droit"
+  }
+}

@@ -24,7 +24,7 @@ test('switching from All Data to an imported instance restores its own tab, layo
   expect(props.setActiveInstanceId).toHaveBeenLastCalledWith(17);
   expect(props.setExamFormData).toHaveBeenLastCalledWith(bucket);
   expect(props.setGridItems).toHaveBeenLastCalledWith([expect.objectContaining({id:'measure'})]);
-  expect(setActiveExamLayoutInstance).toHaveBeenCalledWith(42,17);
+  expect(setActiveExamLayoutInstance).not.toHaveBeenCalled();
 });
 
 test('legacy layout-less sources still open All Data',()=>{

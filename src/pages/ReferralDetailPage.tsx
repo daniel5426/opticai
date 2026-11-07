@@ -1,3 +1,6 @@
+import { flushSync } from "react-dom";
+import { SaveStatus } from "@/components/SaveStatus";
+import { useSaveController } from "@/hooks/shared/useSaveController";
 import React, {
   useState,
   useEffect,
@@ -75,9 +78,8 @@ export default function ReferralDetailPage() {
   const [isEditing, setIsEditing] = useState(isNewReferral);
 
   // Get params for nested referral routes
-  const routeParams = isNewReferral
-    ? useParams({ from: "/clients/$clientId/referrals/new" })
-    : useParams({ from: "/clients/$clientId/referrals/$referralId" });
+  const routeParams = useParams({ strict: false }) as {clientId?: string; referralId?: string};
+  const savedReferralId = useRef<number | null>(null);
   const clientIdFromRoute = routeParams.clientId as string | undefined;
   const referralId = isNewReferral
     ? undefined
@@ -128,6 +130,7 @@ export default function ReferralDetailPage() {
 
   const {
     hasUnsavedChanges,
+    checkDirty,
     showUnsavedDialog,
     isSaveInFlight,
     setIsSaveInFlight,
@@ -142,6 +145,9 @@ export default function ReferralDetailPage() {
     isEditing,
     isNewMode: isNewReferral,
   });
+
+  const saveController = useSaveController({dirty: hasUnsavedChanges, identity: clientIdFromRoute});
+  const formDataRef = useRef(formData); formDataRef.current = formData;
 
   const getExamFormData = useCallback(
     () => ({ [type]: compactPrescriptionFormDataRef.current }),
@@ -213,6 +219,7 @@ export default function ReferralDetailPage() {
   const { currentClient } = useClientSidebar();
 
   useEffect(() => {
+    if (savedReferralId.current && Number(referralId) === savedReferralId.current) return;
     const loadReferralData = async () => {
       try {
         setLoading(true);
@@ -348,35 +355,39 @@ export default function ReferralDetailPage() {
   };
 
   const handleSave = async () => {
-    if (isSaveInFlight) return;
+    if (isSaveInFlight || saveController.busy.current) return;
+    flushSync(() => inputSyncManager.flush());
+    if (!isNewReferral && !checkDirty()) return;
+    const currentForm = formDataRef.current;
+    const currentPrescription = compactPrescriptionFormDataRef.current;
 
     try {
       setIsSaveInFlight(true);
+      await saveController.run(async () => {
 
       // Flush any pending updates from optimized components
       inputSyncManager.flush();
 
-      if (!formData.date?.trim()) {
+      if (!currentForm.date?.trim()) {
         setFieldErrors((prev) => ({
           ...prev,
           date: "תאריך הוא שדה חובה",
         }));
-        setIsSaveInFlight(false);
-        return;
+        throw new Error('validation_failed');
       }
 
       // Prepare the referral_data by merging current clinical findings with current prescription form data
       const finalReferralData = {
-        ...(formData.referral_data || {}),
-        "compact-prescription": { ...compactPrescriptionFormData },
+        ...(currentForm.referral_data || {}),
+        "compact-prescription": { ...currentPrescription },
       };
 
       const basePayload = {
-        ...formData,
+        ...currentForm,
         referral_data: finalReferralData,
         date:
-          formData.date && formData.date.trim() !== ""
-            ? formData.date
+          currentForm.date && currentForm.date.trim() !== ""
+            ? currentForm.date
             : undefined,
       };
 
@@ -391,7 +402,7 @@ export default function ReferralDetailPage() {
         if (created && created.id) {
           syncSavedClientReferral(queryClient, created);
           toast.success("ההפניה נשמרה בהצלחה");
-          setIsEditing(false);
+          setIsEditing(true);
           allowNavigationRef.current = true;
           setBaseline({
             formData: sortKeysDeep(created),
@@ -399,22 +410,20 @@ export default function ReferralDetailPage() {
               finalReferralData["compact-prescription"],
             ),
           });
-          if (clientIdFromRoute) {
-            navigate({
-              to: `/clients/${clientIdFromRoute}`,
-              search: { tab: "referrals" },
-            });
-          }
+          savedReferralId.current = created.id;
+          flushSync(() => setFormData(created));
+          if (clientIdFromRoute) await navigate({to:'/clients/$clientId/referrals/$referralId', params:{clientId:String(clientIdFromRoute), referralId:String(created.id)}, replace:true});
+          allowNavigationRef.current = false;
         } else {
-          toast.error("לא הצלחנו ליצור את ההפניה");
+          throw new Error('save_failed');
         }
       } else {
         const savedReferral = await updateReferral(basePayload as any);
         if (savedReferral) {
-          setFormData(savedReferral);
+          flushSync(() => setFormData(savedReferral));
           syncSavedClientReferral(queryClient, savedReferral);
           toast.success("ההפניה נשמרה בהצלחה");
-          setIsEditing(false);
+          setIsEditing(true);
           setBaseline({
             formData: sortKeysDeep(savedReferral),
             compactPrescriptionFormData: sortKeysDeep(
@@ -422,9 +431,10 @@ export default function ReferralDetailPage() {
             ),
           });
         } else {
-          toast.error("שגיאה בשמירת ההפניה");
+          throw new Error('save_failed');
         }
       }
+      });
     } catch (error) {
       console.error("Error in handleSave:", error);
       toast.error("שגיאה בשמירת ההפניה");
@@ -704,6 +714,7 @@ export default function ReferralDetailPage() {
                     </DropdownMenu>
                   </>
                 )}
+                <SaveStatus state={saveController.state} onRetry={() => void handleSave()}/>
                 <Button
                   variant={isEditing ? "outline" : "default"}
                   onClick={handleEditButtonClick}
@@ -733,7 +744,7 @@ export default function ReferralDetailPage() {
                     name="date"
                     value={formData.date || ""}
                     onChange={handleInputChange}
-                    disabled={!isEditing}
+                    disabled={!isEditing || isSaveInFlight}
                     className={`h-9 text-sm ${fieldErrors.date ? "border-destructive focus-visible:ring-destructive" : ""} ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
                   />
                   {fieldErrors.date && isEditing && (
@@ -750,7 +761,7 @@ export default function ReferralDetailPage() {
                     value={formData.type || ""}
                     onChange={handleInputChange}
                     placeholder="סוג ההפניה"
-                    disabled={!isEditing}
+                    disabled={!isEditing || isSaveInFlight}
                     className={`h-9 text-sm ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
                   />
                 </div>
@@ -762,7 +773,7 @@ export default function ReferralDetailPage() {
                     onValueChange={(value) =>
                       setFormData((prev) => ({ ...prev, urgency_level: value }))
                     }
-                    disabled={!isEditing}
+                    disabled={!isEditing || isSaveInFlight}
                   >
                     <SelectTrigger
                       className={`h-9 text-sm ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
@@ -784,7 +795,7 @@ export default function ReferralDetailPage() {
                     value={formData.recipient || ""}
                     onChange={handleInputChange}
                     placeholder="נמען ההפניה"
-                    disabled={!isEditing}
+                    disabled={!isEditing || isSaveInFlight}
                     className={`h-9 text-sm ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
                   />
                 </div>
@@ -834,7 +845,7 @@ export default function ReferralDetailPage() {
                           )
                         }
                         placeholder="למשל: חשד לגלאוקומה, קטרקט..."
-                        disabled={!isEditing}
+                        disabled={!isEditing || isSaveInFlight}
                         className={`h-9 text-sm ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
                       />
                     </div>
@@ -856,7 +867,7 @@ export default function ReferralDetailPage() {
                           handleClinicalFindingsChange("r_iop", e.target.value)
                         }
                         suffix="mmHg"
-                        disabled={!isEditing}
+                        disabled={!isEditing || isSaveInFlight}
                         className={`h-9 text-sm ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
                       />
                     </div>
@@ -878,7 +889,7 @@ export default function ReferralDetailPage() {
                           handleClinicalFindingsChange("l_iop", e.target.value)
                         }
                         suffix="mmHg"
-                        disabled={!isEditing}
+                        disabled={!isEditing || isSaveInFlight}
                         className={`h-9 text-sm ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
                       />
                     </div>
@@ -898,11 +909,11 @@ export default function ReferralDetailPage() {
                         value,
                       )
                     }
-                    isEditing={isEditing}
+                    isEditing={isEditing && !isSaveInFlight}
                   />
                   {isEditing && (
                     <ExamToolbox
-                      isEditing={isEditing}
+                      isEditing={isEditing && !isSaveInFlight}
                       mode="detail"
                       currentCard={currentCard}
                       allRows={allRows}
@@ -928,7 +939,7 @@ export default function ReferralDetailPage() {
                   onChange={(value) =>
                     setFormData((prev) => ({ ...prev, referral_notes: value }))
                   }
-                  disabled={!isEditing}
+                  disabled={!isEditing || isSaveInFlight}
                   placeholder="הערות להפניה..."
                   height="293px"
                 />

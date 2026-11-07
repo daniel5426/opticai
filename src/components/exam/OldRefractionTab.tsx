@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent } from "@/components/ui/card";
 import { OldRefractionExam } from "@/lib/db/schema-interface";
 import { ChevronUp, ChevronDown } from "lucide-react";
@@ -56,6 +57,7 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
   allTabsData = [],
   hideTabs = false,
 }: OldRefractionTabProps) {
+  const { t } = useTranslation();
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
   const { fieldWarnings, handleAxisChange, handleAxisBlur } = useAxisWarning(
     oldRefractionData,
@@ -240,6 +242,7 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
         <div className="space-y-3">
           <RefractionTabsHeader
             title="Old Refraction"
+            emptyTabLabel={t("refractionSelectType")}
             tabCount={tabCount}
             activeTab={activeTab}
             tabTypes={allTabsData.map(

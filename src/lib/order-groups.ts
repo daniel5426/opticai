@@ -6,8 +6,8 @@ export type OrderKind = 'regular' | 'contact';
 export interface GroupEntry { id?: number; client_key?: string; position: number; kind: OrderKind; order: Record<string, any>; inventory_selections?: InventorySelection[] }
 export interface OrderGroup { legacy_order?: {kind: OrderKind; id: number}; id: number; clinic_id: number; payer_client_id: number; revision: number; opened_date?: string; entries: GroupEntry[]; clients: Client[]; billing: Billing | null; line_items: GroupLineItem[]; client_keys?: Record<string, number> }
 export type GroupLineItem = OrderLineItem & { source_entry_id?: number | null; source_client_key?: string; source_slot?: string | null; manually_edited?: boolean };
-export interface EntryHandle { serialize: () => GroupEntry; setMetadata: (patch: Record<string, unknown>) => void; ready: boolean }
-export interface EntryWorkspace { key: string; kind: OrderKind; client: Client; record: Record<string, any>; active?: boolean; editing: boolean; register: (key: string, handle: EntryHandle | null) => void; onChange: (key: string, snapshot: string) => void; suggest: (key: string, slot: InventoryComponent, variant: CatalogVariant | null, quantity: number) => void }
+export interface EntryHandle { serialize: () => GroupEntry; setMetadata: (patch: Record<string, unknown>) => void; ready: boolean; applySaved?: (entry: GroupEntry) => void }
+export interface EntryWorkspace { key: string; kind: OrderKind; client: Client; record: Record<string, any>; active?: boolean; editing: boolean; register: (key: string, handle: EntryHandle | null) => void; onChange: (key: string, snapshot: string) => void; lines?: GroupLineItem[]; setPrice?: (key: string, slot: InventoryComponent, value: number, description: string) => void; suggest: (key: string, slot: InventoryComponent, variant: CatalogVariant | null, quantity: number) => void }
 
 export async function groupRequest<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await apiClient.orderGroupRequest<T>(path, options);
@@ -45,3 +45,14 @@ export function applySuggestion(lines: GroupLineItem[], key: string, slot: strin
 // A line without a price is a discount line: its discount lowers the deal total.
 export const groupLineTotal = (price: number, quantity: number, discount: number) =>
   price * quantity ? Math.max(0, price * quantity - discount) : 0 - discount;
+
+// An explicit order-card price edits the same line shown by the billing sidebar.
+export function applySourcePrice(lines: GroupLineItem[], key: string, slot: string, price: number, description: string, currency: OrderLineItem['currency']): GroupLineItem[] {
+  const index = lines.findIndex(item => item.source_client_key === key && item.source_slot === slot);
+  if (index < 0 && !price) return lines;
+  const original = index >= 0 ? lines[index] : { id: -(Date.now() + Math.floor(Math.random() * 1000)), billings_id: 0, source_client_key: key, source_slot: slot, description, currency, quantity: 1 };
+  const quantity = original.quantity ?? 1;
+  const discount = original.discount_percent ? Math.round(price * quantity * original.discount_percent) / 100 : original.discount || 0;
+  const item = { ...original, price, discount, line_total: Math.round(groupLineTotal(price, quantity, discount) * 100) / 100, manually_edited: true };
+  return index < 0 ? [...lines, item] : lines.map((line, i) => i === index ? item : line);
+}

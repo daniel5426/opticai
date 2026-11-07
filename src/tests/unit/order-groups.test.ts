@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import { applySuggestion, serializeEntry, type EntryWorkspace, type GroupLineItem } from '@/lib/order-groups';
+import { applySourcePrice, applySuggestion, serializeEntry, type EntryWorkspace, type GroupLineItem } from '@/lib/order-groups';
 import type { CatalogVariant } from '@/lib/inventory';
 
 const variant = {id: 1,sku:'shared-sku',display_name:'Frame',default_retail:100,currency:'ILS'} as CatalogVariant;
@@ -31,4 +31,13 @@ describe('order group drafts and independent billing',()=>{
  test('rejects mixing currencies without changing the displayed bill',()=>{
   expect(()=>applySuggestion([],'entry:1','frame',{...variant,currency:'EUR'},1,'ILS')).toThrow('cannotMixCurrencies');
  });
+});
+
+test('order card prices update a single linked line and preserve its item discount', () => {
+ const first=applySourcePrice([], 'entry:1', 'frame', 100, 'Frame', 'ILS');
+ const discounted=[{...first[0],discount_percent:10,discount:10,line_total:90}];
+ const next=applySourcePrice(discounted,'entry:1','frame',250,'Changed frame','ILS');
+ expect(next).toHaveLength(1);
+ expect(next[0]).toMatchObject({id:first[0].id,description:'Frame',price:250,discount:25,line_total:225,manually_edited:true});
+ expect(applySourcePrice(next,'entry:2','frame',80,'Other frame','ILS')).toHaveLength(2);
 });

@@ -152,7 +152,9 @@
     "supply.field.reorder_point": "Reorder point",
     "supply.field.target_quantity": "Target stock",
     "supply.manual.chooseFile": "Choose CSV / Excel file",
-    "supply.manual.retryPreview": "Retry preview"
+    "supply.manual.retryPreview": "Retry preview",
+    "supply.field.coating": "Coating",
+    "supply.field.diameter": "Diameter"
   },
   "he": {
     "agent.expand": "פתח שיחה מלאה",
@@ -307,7 +309,9 @@
     "supply.field.reorder_point": "נקודת הזמנה",
     "supply.field.target_quantity": "מלאי יעד",
     "supply.manual.chooseFile": "בחירת קובץ CSV / Excel",
-    "supply.manual.retryPreview": "טעינת תצוגה מקדימה מחדש"
+    "supply.manual.retryPreview": "טעינת תצוגה מקדימה מחדש",
+    "supply.field.coating": "ציפוי",
+    "supply.field.diameter": "קוטר"
   },
   "fr": {
     "agent.expand": "Ouvrir la conversation complète",
@@ -462,6 +466,8 @@
     "supply.field.reorder_point": "Seuil de réapprovisionnement",
     "supply.field.target_quantity": "Stock cible",
     "supply.manual.chooseFile": "Choisir un fichier CSV / Excel",
-    "supply.manual.retryPreview": "Réessayer l’aperçu"
+    "supply.manual.retryPreview": "Réessayer l’aperçu",
+    "supply.field.coating": "Traitement",
+    "supply.field.diameter": "Diamètre"
   }
 }

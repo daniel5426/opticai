@@ -34,6 +34,12 @@ interface RegularOrderTabProps {
   lensFrameTab: LensFrameTab;
   onLensFieldChange: (field: keyof OrderLens, value: string) => void;
   onFrameFieldChange: (field: keyof Frame, value: string) => void;
+  framePrice?: number;
+  billingCurrency?: string;
+  onFramePriceChange?: (value: string) => void;
+  lensInventory?: InventorySelection[];
+  onLensInventorySelect?: (side: "right" | "left" | "both", variant: CatalogVariant, source: FulfillmentSource) => void;
+  onLensInventoryClear?: (side: "right" | "left" | "both") => void;
   selectedFrameInventory?: InventorySelection | null;
   onFrameInventorySelect: (variant: CatalogVariant, source: FulfillmentSource) => void;
   onFrameInventoryClear: () => void;
@@ -62,7 +68,7 @@ export default function RegularOrderTab({
   lensFrameTab,
   onLensFieldChange,
   onFrameFieldChange,
-  selectedFrameInventory,
+  selectedFrameInventory, framePrice, billingCurrency, onFramePriceChange, lensInventory, onLensInventorySelect, onLensInventoryClear,
   onFrameInventorySelect,
   onFrameInventoryClear,
   orderDetailsFormData,
@@ -129,6 +135,8 @@ export default function RegularOrderTab({
 
         <OrderSheetRow className="lg:grid-cols-2">
           <LensSection
+            clinicId={formData.clinic_id} orderId={formData.id}
+            selections={lensInventory} onInventorySelect={onLensInventorySelect} onInventoryClear={onLensInventoryClear}
             lens={lens}
             layoutKey={lensFrameTab?.id || ""}
             isEditing={isEditing}
@@ -138,6 +146,7 @@ export default function RegularOrderTab({
             clinicId={formData.clinic_id}
             orderId={formData.id}
             frame={frame}
+            price={framePrice} currency={billingCurrency} onPriceChange={onFramePriceChange}
             isEditing={isEditing}
             onFrameFieldChange={onFrameFieldChange}
             selectedInventory={selectedFrameInventory}

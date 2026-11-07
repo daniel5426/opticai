@@ -1,6 +1,7 @@
-export type InventoryCategory = "frame" | "contact_lens";
+import i18n from "@/localization/i18n";
+export type InventoryCategory = "frame" | "contact_lens" | "spectacle_lens";
 export type FulfillmentSource = "inventory" | "supplier_ordered";
-export type InventoryComponent = "frame" | "contact_right" | "contact_left";
+export type InventoryComponent = "frame" | "contact_right" | "contact_left" | "lens_right" | "lens_left";
 
 export interface CatalogProduct {
   id: number;
@@ -172,7 +173,7 @@ export function filterInventoryVariantsBySupplier(
 }
 
 export const inventoryCategoryLabel = (category: InventoryCategory) =>
-  category === "frame" ? "מסגרות" : "עדשות מגע";
+  category === "frame" ? "מסגרות" : category === "spectacle_lens" ? i18n.t("orderWorkspace.spectacleLenses") : "עדשות מגע";
 
 export const inventoryVariantDescription = (variant: CatalogVariant) => {
   const attributes = variant.attributes || {};
@@ -180,6 +181,9 @@ export const inventoryVariantDescription = (variant: CatalogVariant) => {
     return [attributes.color, attributes.eye_size, attributes.bridge && "גשר " + attributes.bridge]
       .filter(Boolean)
       .join(" · ");
+  }
+  if (variant.product.category === "spectacle_lens") {
+    return [variant.product.material, attributes.coating, attributes.color, attributes.diameter].filter(Boolean).join(" · ");
   }
   const contactParameters = [
     attributes.sph != null && `SPH ${attributes.sph}`,

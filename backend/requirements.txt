@@ -20,7 +20,7 @@ rapidfuzz==3.14.2
 websockets==12.0
 tiktoken==0.11.0
 openai==3.24.0
-agents24[fastapi]==0.7.25
+agents24[fastapi]==0.7.27
 PyYAML==6.0.2
 openpyxl==3.1.5
 

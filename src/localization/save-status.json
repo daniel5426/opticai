@@ -1,0 +1,38 @@
+{
+  "en": {
+    "dirty": "Unsaved changes",
+    "saving": "Saving…",
+    "saved": "Saved",
+    "error": "Could not save. Your changes are preserved.",
+    "conflict": "This record changed elsewhere. Your changes are preserved.",
+    "retry": "Retry",
+    "reload": "Reload record",
+    "save": "Save",
+    "required": "Complete the required fields.",
+    "simulateFailure": "Simulate save failure"
+  },
+  "he": {
+    "dirty": "שינויים שלא נשמרו",
+    "saving": "שומר…",
+    "saved": "נשמר",
+    "error": "השמירה נכשלה. השינויים שלך נשמרו בטופס.",
+    "conflict": "הרשומה השתנתה במקום אחר. השינויים שלך נשמרו בטופס.",
+    "retry": "נסה שוב",
+    "reload": "טען רשומה מחדש",
+    "save": "שמור",
+    "required": "יש למלא את שדות החובה.",
+    "simulateFailure": "הדמיית כשל בשמירה"
+  },
+  "fr": {
+    "dirty": "Modifications non enregistrées",
+    "saving": "Enregistrement…",
+    "saved": "Enregistré",
+    "error": "Échec de l’enregistrement. Vos modifications sont conservées.",
+    "conflict": "Cette fiche a été modifiée ailleurs. Vos modifications sont conservées.",
+    "retry": "Réessayer",
+    "reload": "Recharger la fiche",
+    "save": "Enregistrer",
+    "required": "Veuillez remplir les champs obligatoires.",
+    "simulateFailure": "Simuler un échec"
+  }
+}

@@ -123,7 +123,7 @@ describe("client tab optimistic cache helpers", () => {
       { id: 1, client_id: 8, order_date: "2026-01-04", type: "updated" },
       { id: 2, client_id: 8, order_date: "2026-01-03", type: "latest" },
     ])
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey })
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey, refetchType: 'none' })
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: clientQueryKeys.ordersContext(8),
     })
@@ -162,7 +162,7 @@ describe("client tab optimistic cache helpers", () => {
       { id: 2, client_id: 8, exam_date: "2026-01-03", test_name: "new" },
       { id: 1, client_id: 8, exam_date: "2026-01-01", test_name: "old" },
     ])
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey })
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey, refetchType: 'none' })
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: clientQueryKeys.ordersContext(8),
     })

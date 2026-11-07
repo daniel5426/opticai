@@ -786,6 +786,8 @@ export interface OrderLineItem {
   supplied?: boolean;
   price?: number;
   quantity?: number;
+  discount_percent?: number | null;
+  manually_edited?: boolean;
   discount?: number;
   line_total?: number;
   currency?: "ILS" | "USD" | "EUR";

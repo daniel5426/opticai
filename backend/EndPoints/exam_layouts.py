@@ -1,3 +1,4 @@
+from services.exam_workspace import lock_exam, lock_instance_exam
 from security.scope import assert_record_scope
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func
@@ -469,7 +470,7 @@ def create_exam_layout_instance(
 ):
     from models import OpticalExam
     
-    exam = db.query(OpticalExam).filter(OpticalExam.id == instance_data.get('exam_id')).first()
+    exam = lock_exam(db, current_user, instance_data.get('exam_id'))
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
     
@@ -477,8 +478,7 @@ def create_exam_layout_instance(
     
     instance = ExamLayoutInstance(**instance_data)
     db.add(instance)
-    db.commit()
-    db.refresh(instance)
+    db.flush()
     rebuild_exam_instance_index(db, instance)
     db.commit()
     return {
@@ -503,7 +503,7 @@ def reorder_exam_layout_instances(
     if not request.items:
         return {"updated": 0}
 
-    exam = db.query(OpticalExam).filter(OpticalExam.id == request.exam_id).first()
+    exam = lock_exam(db, current_user, request.exam_id)
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
 
@@ -630,6 +630,7 @@ def update_exam_layout_instance(
 ):
     from models import OpticalExam
     
+    lock_instance_exam(db, current_user, instance_id)
     instance = db.query(ExamLayoutInstance).populate_existing().with_for_update().filter(ExamLayoutInstance.id == instance_id).first()
     if not instance:
         raise HTTPException(status_code=404, detail="Exam layout instance not found")
@@ -674,7 +675,8 @@ def delete_exam_layout_instance(
 ):
     from models import OpticalExam
     
-    instance = db.query(ExamLayoutInstance).filter(ExamLayoutInstance.id == instance_id).first()
+    lock_instance_exam(db, current_user, instance_id)
+    instance = db.query(ExamLayoutInstance).populate_existing().with_for_update().filter(ExamLayoutInstance.id == instance_id).first()
     if not instance:
         raise HTTPException(status_code=404, detail="Exam layout instance not found")
     
@@ -694,7 +696,7 @@ def set_active_exam_layout_instance(
 ):
     from models import OpticalExam
     
-    exam = db.query(OpticalExam).filter(OpticalExam.id == exam_id).first()
+    exam = lock_exam(db, current_user, exam_id)
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
     

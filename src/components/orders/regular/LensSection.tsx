@@ -1,6 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { LookupSelect } from "@/components/ui/lookup-select";
+import { LensCatalogCombobox, lensCatalogSuggestions } from "@/components/inventory/LensCatalogCombobox";
+import { apiClient } from "@/lib/api-client";
+import { useSupplyRevision } from "@/lib/inventory-events";
+import { useUser } from "@/contexts/UserContext";
+import { toast } from "sonner";
+import { SelectedCatalogProduct } from "@/components/inventory/SelectedCatalogProduct";
+import type { CatalogVariant, FulfillmentSource, InventorySelection } from "@/lib/inventory";
 import { FastInput } from "@/components/exam/shared/OptimizedInputs";
 import { useAppLocale } from "@/localization/use-app-locale";
 import { OrderField, OrderSection, OrderSegmented } from "../layout/OrderSheet";
@@ -40,6 +46,11 @@ const rowsMatch = (lens: OrderLens) =>
   );
 
 interface LensSectionProps {
+  clinicId?: number;
+  orderId?: number;
+  selections?: InventorySelection[];
+  onInventorySelect?: (side: LensSide | "both", variant: CatalogVariant, source: FulfillmentSource) => void;
+  onInventoryClear?: (side: LensSide | "both") => void;
   lens: OrderLens;
   layoutKey: string;
   isEditing: boolean;
@@ -48,15 +59,32 @@ interface LensSectionProps {
 
 export function LensSection({
   lens,
+  clinicId: recordClinicId, orderId, selections = [], onInventorySelect, onInventoryClear,
   layoutKey,
   isEditing,
   onLensFieldChange,
 }: LensSectionProps) {
   const { t } = useTranslation();
   const { direction } = useAppLocale();
+  const { currentClinic } = useUser();
+  const clinicId = recordClinicId ?? currentClinic?.id;
+  const revision = useSupplyRevision();
+  const [variants, setVariants] = useState<CatalogVariant[]>([]);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    let active = true;
+    if (!clinicId) { setVariants([]); setLoading(false); return; }
+    setLoading(true);
+    void apiClient.getInventoryVariants(clinicId, { category: "spectacle_lens", stockableOnly: true, ...(orderId ? { orderId, orderKind: "regular" as const } : {}) })
+      .then(result => { if (result.error) throw new Error(String(result.error)); if (active) setVariants(result.data?.items || []); })
+      .catch(() => { if (active) { setVariants([]); toast.error(t("orderWorkspace.catalogLoadError")); } })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [clinicId, orderId, revision, t]);
   const [mode, setMode] = useState<LayoutMode>("auto");
   const [mergeError, setMergeError] = useState("");
-  const equal = rowsMatch(lens);
+  const selection = (side: LensSide) => selections.find(item => item.component === `lens_${side}`);
+  const equal = rowsMatch(lens) && (!selection("right") || !selection("left") || selection("right")?.variant_id === selection("left")?.variant_id);
   const isSplit = mode === "split" || (mode === "auto" && !equal);
 
   useEffect(() => {
@@ -87,16 +115,14 @@ export function LensSection({
       setMode("combined");
       return;
     }
-    if (isEditing) {
-      LENS_FIELDS.forEach(({ key }) =>
-        onLensFieldChange(fieldName("left", key), valueOf("right", key)),
-      );
-    }
     setMode("split");
   };
 
   const renderControl = (side: LensSide | "both", key: LensFieldSuffix, lookupType?: string, ariaLabel?: string) => {
     const source = side === "both" ? "right" : side;
+    const consumed = side === "both"
+      ? selections.some(item => item.component.startsWith("lens_") && item.lifecycle_state === "consumed")
+      : selection(source)?.lifecycle_state === "consumed";
     if (!lookupType) {
       return (
         <FastInput
@@ -107,25 +133,52 @@ export function LensSection({
           aria-label={ariaLabel}
           value={valueOf(source, key)}
           onInput={(value) => handleChange(side, key, value)}
-          disabled={!isEditing}
+          disabled={!isEditing || consumed}
         />
       );
     }
     return (
-      <LookupSelect
+      <LensCatalogCombobox
+        field={key}
         ariaLabel={ariaLabel}
-        dir={direction}
+        values={Object.fromEntries(LENS_FIELDS.map(({ key }) => [key, valueOf(source, key)]))}
+        variants={variants}
+        loadingCatalog={loading}
+        lookupLabel={t(`orderWorkspace.${key}`)}
+        onSelectProduct={(variant, fulfillment) => onInventorySelect?.(side, variant, fulfillment)}
+        createProduct={onInventorySelect && currentClinic?.id === clinicId && valueOf(source, "model").trim() && !lensCatalogSuggestions(variants, Object.fromEntries(LENS_FIELDS.map(({ key }) => [key, valueOf(source, key)]))).length ? {
+          name: valueOf(source, "model"),
+          onCreate: async () => {
+            const result = await apiClient.createCatalogEntry({ clinic_id: clinicId!, category: "spectacle_lens",
+              product: { model: valueOf(source, "model"), material: valueOf(source, "material"), preferred_supplier: valueOf(source, "supplier") },
+              variant: { attributes: { coating: valueOf(source, "coating"), color: valueOf(source, "color"), diameter: valueOf(source, "diameter") }, is_stockable: true } });
+            if (result.error || !result.data) throw new Error(String(result.error || "Catalog creation failed"));
+            setVariants(previous => [...previous.filter(item => item.id !== result.data!.id), result.data!]);
+            onInventorySelect(side, result.data, "supplier_ordered");
+            toast.success(t("inventoryProductCreated", { name: result.data.display_name }));
+          },
+        } : undefined}
         value={valueOf(source, key)}
         onChange={(value) => handleChange(side, key, value)}
         lookupType={lookupType}
-        placeholder=""
-        disabled={!isEditing}
+        disabled={!isEditing || consumed}
       />
     );
   };
 
   const eyeLabel = (side: LensSide) =>
     t(side === "right" ? "orderGroupRightEye" : "orderGroupLeftEye");
+
+  const selectedProduct = (side: LensSide | "both") => {
+    const selected = side === "both" ? selection("right") || selection("left") : selection(side);
+    if (!selected?.variant) return null;
+    const consumed = side === "both"
+      ? selections.some(item => item.component.startsWith("lens_") && item.lifecycle_state === "consumed")
+      : selected.lifecycle_state === "consumed";
+    return <SelectedCatalogProduct variant={selected.variant}
+      onClear={isEditing && !consumed ? () => onInventoryClear?.(side) : undefined}
+      clearLabel={side === "both" ? undefined : `${t("orderWorkspace.catalogClear")} ${eyeLabel(side)}`} />;
+  };
 
   return (
     <OrderSection
@@ -161,6 +214,12 @@ export function LensSection({
               {eyeLabel(side)}
             </span>
           ))}
+          {(selection("right")?.variant || selection("left")?.variant) && <>
+            <span />
+            {(["right", "left"] as LensSide[]).map(side => (
+              <div key={side} className="min-w-0" role="group" aria-label={eyeLabel(side)}>{selectedProduct(side)}</div>
+            ))}
+          </>}
           {LENS_FIELDS.map(({ key, lookupType }) => (
             <React.Fragment key={key}>
               <span className="text-muted-foreground min-w-14 text-xs">
@@ -180,6 +239,8 @@ export function LensSection({
           ))}
         </div>
       ) : (
+        <>
+        {(selection("right")?.variant || selection("left")?.variant) && <div className="mb-3 min-w-0">{selectedProduct("both")}</div>}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {LENS_FIELDS.map(({ key, lookupType }) => (
             <OrderField key={key} label={t(`orderWorkspace.${key}`)}>
@@ -187,6 +248,7 @@ export function LensSection({
             </OrderField>
           ))}
         </div>
+        </>
       )}
     </OrderSection>
   );

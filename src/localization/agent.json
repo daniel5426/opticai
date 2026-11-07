@@ -427,7 +427,10 @@
     "agent.data.displayedTotal": "Displayed total",
     "agent.data.downloadNamed": "Download {{name}}",
     "agent.data.reportAttachments": "Report downloads",
-    "agent.data.chartUnavailable": "This chart cannot be drawn from the recorded values. The report data is still available."
+    "agent.data.chartUnavailable": "This chart cannot be drawn from the recorded values. The report data is still available.",
+    "agent.transcript.pending": "Transcribing…",
+    "agent.transcript.unavailable": "Transcript unavailable",
+    "agent.transcript.empty": "No speech detected"
   },
   "he": {
     "agent.dailyBrief": "תקציר יומי",
@@ -862,7 +865,10 @@
     "agent.data.displayedTotal": "סך הערכים המוצגים",
     "agent.data.downloadNamed": "הורד את {{name}}",
     "agent.data.reportAttachments": "הורדת דוחות",
-    "agent.data.chartUnavailable": "לא ניתן להציג תרשים מהערכים המתועדים. נתוני הדוח עדיין זמינים."
+    "agent.data.chartUnavailable": "לא ניתן להציג תרשים מהערכים המתועדים. נתוני הדוח עדיין זמינים.",
+    "agent.transcript.pending": "מתמלל…",
+    "agent.transcript.unavailable": "התמלול אינו זמין",
+    "agent.transcript.empty": "לא זוהה דיבור"
   },
   "fr": {
     "agent.dailyBrief": "Brief quotidien",
@@ -1292,6 +1298,9 @@
     "agent.data.displayedTotal": "Total affiché",
     "agent.data.downloadNamed": "Télécharger {{name}}",
     "agent.data.reportAttachments": "Téléchargement des rapports",
-    "agent.data.chartUnavailable": "Ce graphique ne peut pas être tracé à partir des valeurs enregistrées. Les données du rapport restent disponibles."
+    "agent.data.chartUnavailable": "Ce graphique ne peut pas être tracé à partir des valeurs enregistrées. Les données du rapport restent disponibles.",
+    "agent.transcript.pending": "Transcription…",
+    "agent.transcript.unavailable": "Transcription indisponible",
+    "agent.transcript.empty": "Aucune parole détectée"
   }
 }

@@ -1,3 +1,7 @@
+import { useKeyboardSave } from "@/hooks/shared/useKeyboardSave";
+import { SaveStatus } from "@/components/SaveStatus";
+import { useSaveController } from "@/hooks/shared/useSaveController";
+import { stableSaveJson } from "@/lib/exam-workspace";
 import { tableLoadingRowCount } from "@/lib/table-loading";
 import { ClinicTableHead, ClinicTableCell } from "@/components/RecordClinicColumn"
 import React, { useRef, useState } from "react";
@@ -235,6 +239,8 @@ export function AppointmentsTable({
     useState(false);
   const [isSavingAppointment, setIsSavingAppointment] = useState(false);
   const isSavingAppointmentRef = useRef(false);
+  const appointmentSave = useSaveController({identity: isAppointmentDialogOpen ? editingAppointment?.id || 'new' : 'closed'});
+  const savedAppointment = useRef('');
   const examTypeFilter = externalExamTypeFilter ?? selectedExamType;
   const dateScopeFilter = externalDateScopeFilter ?? selectedDateScope;
   const activeSort = sort ?? localSort;
@@ -586,7 +592,7 @@ export function AppointmentsTable({
 
   const openEditDialog = (appointment: Appointment) => {
     setEditingAppointment(appointment);
-    setAppointmentFormData({
+    const draft = {
       client_id: appointment.client_id,
       user_id: appointment.user_id || currentUser?.id,
       date: appointment.date || "",
@@ -595,7 +601,9 @@ export function AppointmentsTable({
       exam_name: appointment.exam_name || "",
       exam_layout_id: appointment.exam_layout_id || null,
       note: appointment.note || "",
-    });
+    };
+    savedAppointment.current = stableSaveJson(draft);
+    setAppointmentFormData(draft);
     setIsAppointmentDialogOpen(true);
   };
 
@@ -619,11 +627,12 @@ export function AppointmentsTable({
   };
 
   const handleSaveAppointment = async () => {
-    if (isSavingAppointmentRef.current) return;
+    if (isSavingAppointmentRef.current || appointmentSave.busy.current) return;
+    if (editingAppointment && savedAppointment.current === stableSaveJson(appointmentFormData)) return;
 
-    console.log("handleSaveAppointment", appointmentFormData);
     let optimisticAppointmentId: number | null = null;
     try {
+      await appointmentSave.run(async () => {
       const dateStr = appointmentFormData.date;
       const userId = appointmentFormData.user_id;
       if (isVacation(userId, dateStr)) {
@@ -643,9 +652,10 @@ export function AppointmentsTable({
         if (result) {
           onAppointmentChange(result);
           toast.success("התור עודכן בהצלחה");
-          closeAllDialogs();
+          setEditingAppointment(result);
+          savedAppointment.current = stableSaveJson(appointmentFormData);
         } else {
-          toast.error("שגיאה בעדכון התור");
+          throw new Error('save_failed');
         }
       } else {
         const examinerName = (() => {
@@ -729,6 +739,7 @@ export function AppointmentsTable({
           toast.error("שגיאה ביצירת התור");
         }
       }
+      });
     } catch (error) {
       if (optimisticAppointmentId !== null) {
         setOptimisticAppointments((prev) =>
@@ -742,6 +753,8 @@ export function AppointmentsTable({
       setIsSavingAppointment(false);
     }
   };
+
+  useKeyboardSave({enabled:isAppointmentDialogOpen, isSaving:isSavingAppointment, onSave:handleSaveAppointment});
 
   const checkForExistingClients = async () => {
     if (
@@ -1078,7 +1091,7 @@ export function AppointmentsTable({
         }
         className="w-md"
       >
-        <div className="grid gap-4">
+        <fieldset disabled={isSavingAppointment} className="grid gap-4">
           {selectedClient && (
             <div className="rounded-md bg-gray-50 p-3 dark:bg-gray-800">
               <div className="text-sm font-medium">פרטי לקוח:</div>
@@ -1112,7 +1125,7 @@ export function AppointmentsTable({
             autoDefaultToCurrentUser={!editingAppointment}
             idPrefix="appointments-page"
           />
-        </div>
+        </fieldset>
         <div className="mt-4 flex justify-start gap-2">
           {editingAppointment ? (
             <Button
@@ -1129,6 +1142,7 @@ export function AppointmentsTable({
               <Play className="h-4 w-4 -scale-x-100" />
             </Button>
           ) : null}
+          <SaveStatus state={appointmentSave.state} onRetry={() => void handleSaveAppointment()}/>
           <Button
             onClick={handleSaveAppointment}
             disabled={isSavingAppointment}

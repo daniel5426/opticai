@@ -1,6 +1,6 @@
 import React from 'react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import i18n from '@/localization/i18n';
 import { apiClient } from '@/lib/api-client';
@@ -75,14 +75,20 @@ describe.each(['he', 'en', 'fr'])('discount flow in %s', locale => {
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
     expect(persisted.items).toHaveLength(1);
     await waitFor(() => expect(screen.getByRole('button', { name: /Loyalty/ })).toBeEnabled());
+    expect(draft.items).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: /Loyalty/ }));
     await waitFor(() => expect(persisted.items).toHaveLength(2));
     expect(persisted.items[1].discount).toBe(25);
     expect(persisted.bill.total_after_discount).toBe(83);
+    expect(screen.queryByLabelText(i18n.t('orderGroupDescription'))).toBeNull();
+    fireEvent.click(screen.getAllByRole('button', { name: i18n.t('orderWorkspace.editItem') }).at(-1)!);
     fail = true;
     expect(await screen.findByLabelText(i18n.t('orderGroupDescription'))).toHaveValue('Loyalty');
     // Discount editor exposes the deduction, not product quantity/price/supply controls.
     expect(screen.queryByLabelText(i18n.t('orderGroupPrice'))).toBeNull();
+    const row = within(screen.getByLabelText(i18n.t('orderGroupDescription')).closest('li')!);
+    expect(row.queryByText(i18n.t('discounts.rowLabel'))).toBeNull();
+    expect(row.getByLabelText(i18n.t('orderGroupDiscount')).parentElement!.parentElement).toHaveTextContent('25');
     fireEvent.change(screen.getByLabelText(i18n.t('orderGroupDiscount')), { target: { value: '30' } });
     fireEvent.click(screen.getByRole('button', { name: i18n.t('orderWorkspace.doneEditing') }));
     await waitFor(() => expect(save).toHaveBeenCalledTimes(3));
@@ -111,6 +117,35 @@ describe.each(['he', 'en', 'fr'])('discount flow in %s', locale => {
     await waitFor(() => expect(persisted.items).toHaveLength(1));
     expect(persisted.bill.total_after_discount).toBe(108);
     expect(request).toHaveBeenCalledWith(expect.stringContaining('clinic_id=1'), expect.anything());
+  });
+
+  test('prefetches definitions and shows a selected discount in view mode before saving finishes', async () => {
+    await i18n.changeLanguage(locale);
+    const request = vi.spyOn(apiClient, 'discountRequest').mockResolvedValue({ data: [template] } as any);
+    let finish!: (value: boolean) => void;
+    const save = vi.fn(() => new Promise<boolean>(resolve => { finish = resolve; }));
+    let draftItems: OrderLineItem[] = [];
+    function Panel() {
+      const [bill, setBill] = React.useState(originalBill);
+      const [items, setItems] = React.useState(originalItems);
+      draftItems = items;
+      return <BillingTab compact discountClinicId={1} billingFormData={bill} setBillingFormData={setBill}
+        orderLineItems={items} setOrderLineItems={setItems} isEditing onSaveBilling={save} handleDeleteOrderLineItem={vi.fn()} />;
+    }
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><Panel /></QueryClientProvider>);
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('orderWorkspace.editItem') }));
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('discounts.newDiscount') }));
+    fireEvent.click(await screen.findByRole('button', { name: /Loyalty/ }));
+    expect(draftItems).toHaveLength(2);
+    expect(screen.getByText('Loyalty')).toBeInTheDocument();
+    expect(screen.queryByLabelText(i18n.t('orderGroupDescription'))).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(save).toHaveBeenCalledTimes(1);
+    await act(async () => { finish(true); });
+    expect(draftItems).toHaveLength(2);
+    expect(screen.queryByLabelText(i18n.t('orderGroupDescription'))).toBeNull();
+    expect(request).toHaveBeenCalledTimes(1);
   });
 
   test.each(['regular', 'contact'] as const)('%s print includes a labeled negative discount and retained balances', async kind => {

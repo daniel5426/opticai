@@ -1,3 +1,5 @@
+import { SaveStatus } from "@/components/SaveStatus";
+import { useSaveController } from "@/hooks/shared/useSaveController";
 import { OpticPlusMigrationCard } from "@/components/exam/OpticPlusMigrationCard";
 import React, { useEffect, useState } from "react";
 import { I18nextProvider, useTranslation } from "react-i18next";
@@ -110,6 +112,29 @@ function ListFixture({ inventory = false, loading = false }: { inventory?: boole
   </div>;
 }
 
+function SaveFixture() {
+  const {t} = useTranslation();
+  const [value,setValue] = useState('Synthetic');
+  const [saved,setSaved] = useState('Synthetic');
+  const [fail,setFail] = useState(false);
+  const controller = useSaveController({dirty:value!==saved});
+  const save = async () => {
+    if(value===saved)return;
+    try { await controller.run(async()=>{
+      const snapshot=value;
+      await new Promise(resolve=>setTimeout(resolve,150));
+      if(fail)throw new Error('synthetic_failure');
+      setSaved(snapshot);
+    }); } catch { /* Demonstrate inline recovery, retaining the draft. */ }
+  };
+  return <Card data-testid="save-fixture"><CardHeader><CardTitle>{t('saveStatus.save')}</CardTitle></CardHeader><CardContent className="flex flex-wrap items-center gap-3">
+    <Input aria-label={t('appearanceField')} value={value} onChange={event=>setValue(event.target.value)} disabled={controller.isSaving} className="max-w-sm"/>
+    <Button onClick={()=>void save()} disabled={controller.isSaving}>{t('saveStatus.save')}</Button>
+    <SaveStatus state={controller.state} onRetry={()=>void save()}/>
+    <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={fail} onChange={event=>setFail(event.target.checked)}/>{t('saveStatus.simulateFailure')}</label>
+  </CardContent></Card>;
+}
+
 function GalleryContent({ locale, onLocaleChange }: { locale: AppLocale; onLocaleChange: (locale: AppLocale) => void }) {
   const { t } = useTranslation();
   const direction = getDirection(locale);
@@ -149,7 +174,7 @@ function GalleryContent({ locale, onLocaleChange }: { locale: AppLocale; onLocal
           <ListPageHeader title={t(surface)} actions={<Button variant="outline" onClick={() => setLoading(value => !value)}>{t("appearanceLoading")}</Button>} />
           {surface === "appearanceMenu" ? <div className="max-w-2xl"><AppearanceTab persistMode={false} /></div> : null}
           {surface === "clients" || surface === "inventory" ? <ListFixture inventory={surface === "inventory"} loading={loading} /> : null}
-          {surface === "exams" || surface === "orders" || surface === "appearanceWorkspace" ? <><Tabs defaultValue="details" dir={direction}><TabsList><TabsTrigger value="details">{t("clientDetails")}</TabsTrigger><TabsTrigger value="exams">{t("exams")}</TabsTrigger><TabsTrigger value="orders">{t("orders")}</TabsTrigger></TabsList></Tabs><ClinicalFixture />{surface === "exams" ? <OpticPlusFixture /> : null}<Card className="gap-3 py-4"><CardHeader><CardTitle>{t("appearanceSampleClient")}</CardTitle></CardHeader><CardContent className="grid gap-4 sm:grid-cols-3"><Input aria-label={t("appearanceField")} defaultValue={t("appearanceSampleClient")} dir={direction} /><Input aria-label={t("appearanceDisabled")} value="+972 50 123 4567" disabled dir="ltr" /><Input aria-label={t("appearanceInvalid")} type="number" defaultValue="450" aria-invalid /></CardContent></Card></> : null}
+          {surface === "exams" || surface === "orders" || surface === "appearanceWorkspace" ? <><Tabs defaultValue="details" dir={direction}><TabsList><TabsTrigger value="details">{t("clientDetails")}</TabsTrigger><TabsTrigger value="exams">{t("exams")}</TabsTrigger><TabsTrigger value="orders">{t("orders")}</TabsTrigger></TabsList></Tabs><ClinicalFixture /><SaveFixture />{surface === "exams" ? <OpticPlusFixture /> : null}<Card className="gap-3 py-4"><CardHeader><CardTitle>{t("appearanceSampleClient")}</CardTitle></CardHeader><CardContent className="grid gap-4 sm:grid-cols-3"><Input aria-label={t("appearanceField")} defaultValue={t("appearanceSampleClient")} dir={direction} /><Input aria-label={t("appearanceDisabled")} value="+972 50 123 4567" disabled dir="ltr" /><Input aria-label={t("appearanceInvalid")} type="number" defaultValue="450" aria-invalid /></CardContent></Card></> : null}
           {surface === "calendar" ? <div className="overflow-hidden rounded-md border bg-card"><CalendarHeader currentDate={calendarDate} view={calendarView} onToday={() => setCalendarDate(fixedDate)} onNavigate={navigateCalendar} onViewChange={setCalendarView} />
             {calendarView === "month" ? <MonthView visibleDates={monthDates} currentDate={calendarDate} currentUser={null} holidaysByDate={{}} getAppointmentsForDate={() => []} onDateClick={setCalendarDate} onViewChange={setCalendarView} /> : (
               <Table elevated={false} containerClassName="mt-4"><TableHeader><TableRow><TableHead />{calendarDates.map(date => <TableHead key={date.toISOString()} className="text-center"><span dir="ltr">{format(date, "dd/MM")}</span></TableHead>)}</TableRow></TableHeader>

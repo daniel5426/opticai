@@ -32,6 +32,7 @@ const normalizeComponentFieldValue = (previous: unknown, rawValue: string): unkn
 
 export interface ExamComponentConfig {
   name: string
+  nameKey?: string
   component: () => Promise<any>
   icon?: string
   order?: number
@@ -121,8 +122,7 @@ export class ExamComponentRegistry {
     }
   }
 
-  async saveAllData(layoutInstanceId: number, formData: Record<string, unknown>): Promise<Record<string, unknown>> {
-    try {
+  prepareData(layoutInstanceId: number, formData: Record<string, unknown>): Record<string, unknown> {
       const dataToSave: Record<string, unknown> = {}
       const canonicalFormData = canonicalizeExamData(formData as Record<string, unknown>)
       
@@ -189,25 +189,20 @@ export class ExamComponentRegistry {
               }
             }
             if (componentType === 'diopter-adjustment-panel') {
-              console.log(`DiopterAdjustmentPanel: Saving data for key ${key}:`, fixedData)
             }
             dataToSave[key] = fixedData
           }
         }
       }
 
-      console.log('DEBUG: Saving exam data with layoutInstanceId:', layoutInstanceId)
-      console.log('DEBUG: Data to save:', dataToSave)
-      console.log('DEBUG: Data to save type:', typeof dataToSave)
-
-      const response = await apiClient.saveUnifiedExamData(layoutInstanceId, dataToSave)
-      // Return the original data that was saved, not the API response
-      // This ensures the UI state remains consistent
       return dataToSave
-    } catch (error) {
-      console.error('Error saving exam data:', error)
-      throw error
-    }
+  }
+
+  async saveAllData(layoutInstanceId: number, formData: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const data = this.prepareData(layoutInstanceId, formData)
+    const response = await apiClient.saveUnifiedExamData(layoutInstanceId, data)
+    if (response.error) throw new Error(response.error)
+    return data
   }
 }
 
@@ -337,9 +332,10 @@ examComponentRegistry.register('contact-lens-diameters', {
 
 examComponentRegistry.register('contact-lens-details', {
   name: 'פרטי עדשות מגע',
+  nameKey: 'contactLensDetails.title',
   component: () => import('../components/exam/ContactLensDetailsTab'),
   order: 20,
-  showInLayoutEditor: false
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('keratometer-contact-lens', {

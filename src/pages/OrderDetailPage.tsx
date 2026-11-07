@@ -1,6 +1,6 @@
 import { findExamComponentData } from "@/lib/exam-component-data";
 import { OrderGroupGate } from "@/components/order-groups/OrderGroupWorkspace";
-import { serializeEntry, type EntryWorkspace } from "@/lib/order-groups";
+import { applySourcePrice, serializeEntry, type EntryWorkspace } from "@/lib/order-groups";
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   useParams,
@@ -240,7 +240,7 @@ export function LegacyOrderDetailPage({
   }
 
   const clientId = workspace ? String(workspace.client.id) : propClientId || routeClientId;
-  const orderId = workspace ? workspace.record.id?.toString() : propOrderId || routeOrderId;
+  const orderId = workspace ? workspace.record.id?.toString() : propOrderId || (routeOrderId === "new" ? undefined : routeOrderId);
 
   let searchTypeParam: string | undefined,
     examIdFromSearch: string | null = null,
@@ -320,7 +320,7 @@ export function LegacyOrderDetailPage({
   const currentClient = workspace?.client || sidebarClient;
   const [orderIdForData, setOrderIdForData] = useState<number | null>(null);
 
-  const isNewMode = mode === "new";
+  const isNewMode = mode === "new" || (!orderId && !workspace?.record.id);
   const [isEditing, setIsEditing] = useState(isNewMode);
   const [activeTab, setActiveTab] = useState("orders");
 
@@ -627,7 +627,10 @@ export function LegacyOrderDetailPage({
     }
   };
 
+  const loadedWorkspaceKey = useRef<string>();
   useEffect(() => {
+    if (workspace && loadedWorkspaceKey.current === workspace.key) return;
+    if (workspace) loadedWorkspaceKey.current = workspace.key;
     baselineInitializedRef.current = false;
     const loadData = async () => {
       try {
@@ -1185,6 +1188,47 @@ export function LegacyOrderDetailPage({
     commitInventorySelection("frame", variant, fulfillmentSource, 1);
   };
 
+  const handleLensInventorySelect = (side: "right" | "left" | "both", variant: CatalogVariant, source: FulfillmentSource) => {
+    const sides = side === "both" ? ["right", "left"] as const : [side];
+    if (sides.some(eye => inventorySelectionsRef.current.some(item => item.component === `lens_${eye}` && item.lifecycle_state === "consumed"))) {
+      toast.error(t("orderWorkspace.consumedLens")); return;
+    }
+    let available = variant.balance?.available || 0;
+    for (const eye of sides) {
+      const attributes = variant.attributes || {};
+      setLensFrameTab(current => ({ ...current, lens: { ...current.lens,
+        [`${eye}_supplier`]: variant.product.preferred_supplier || "",
+        [`${eye}_material`]: variant.product.material || "",
+        [`${eye}_model`]: variant.product.model,
+        [`${eye}_coating`]: String(attributes.coating || ""),
+        [`${eye}_color`]: String(attributes.color || ""),
+        [`${eye}_diameter`]: String(attributes.diameter || ""),
+      } }));
+      const fulfillment = source === "inventory" && available < 1 ? "supplier_ordered" : source;
+      commitInventorySelection(`lens_${eye}`, variant, fulfillment, 1);
+      if (fulfillment === "inventory") available--;
+    }
+  };
+
+  const handleLensInventoryClear = (side: "right" | "left" | "both") => {
+    const sides = side === "both" ? ["right", "left"] as const : [side];
+    if (sides.some(eye => inventorySelectionsRef.current.some(item => item.component === `lens_${eye}` && item.lifecycle_state === "consumed"))) {
+      toast.error(t("orderWorkspace.consumedLens")); return;
+    }
+    for (const eye of sides) clearInventorySelection(`lens_${eye}`);
+  };
+
+  const frameBillingLines = workspace?.lines || orderLineItems;
+  const frameBillingLine = frameBillingLines.find((item: any) => item.source_slot === "frame" && (!workspace || item.source_client_key === workspace.key));
+  const handleFramePriceChange = (value: string) => {
+    const price = value === "" ? 0 : Number(value);
+    if (!Number.isFinite(price) || price < 0) return;
+    const frame = lensFrameTab.frame;
+    const description = [frame.manufacturer, frame.model, frame.color].filter(Boolean).join(" ") || t("orderWorkspace.frame");
+    if (workspace?.setPrice) workspace.setPrice(workspace.key, "frame", price, description);
+    else setOrderLineItems(current => applySourcePrice(current, "standalone", "frame", price, description, billingFormData.currency || "ILS"));
+  };
+
   const handleContactInventorySelect = (
     side: "right" | "left",
     variant: CatalogVariant,
@@ -1308,6 +1352,10 @@ export function LegacyOrderDetailPage({
   };
 
   const handleLensFieldChange = (field: keyof OrderLens, value: string) => {
+    const side = field.startsWith("right_") ? "right" : field.startsWith("left_") ? "left" : null;
+    const selection = side && inventorySelectionsRef.current.find(item => item.component === `lens_${side}`);
+    if (selection?.lifecycle_state === "consumed") { toast.error(t("orderWorkspace.consumedLens")); return; }
+    if (side && selection && String(lensFrameTab.lens[field] ?? "") !== String(value ?? "")) clearInventorySelection(`lens_${side}`);
     setLensFrameTab((prev) => ({
       ...prev,
       lens: {
@@ -2056,6 +2104,8 @@ export function LegacyOrderDetailPage({
     }
   };
 
+  const workspaceRef = useRef(workspace);
+  workspaceRef.current = workspace;
   useEffect(() => {
     if (workspace) setIsEditing(workspace.editing);
   }, [workspace?.editing]);
@@ -2072,7 +2122,25 @@ export function LegacyOrderDetailPage({
     });
     workspace.register(workspace.key, {
       ready: !loading && !workspaceLoadFailed,
-      serialize: () => serializeEntry(workspace, snapshot()),
+      serialize: () => serializeEntry(workspaceRef.current!, snapshot()),
+      applySaved: entry => {
+        const saved = entry.order;
+        const data = saved.order_data || {};
+        if (isContactMode) {
+          setContactFormData(previous => ({ ...previous, ...saved }));
+          setContactLensExamData(previous => ({ ...previous, ...(data['contact-lens-exam'] || {}) }));
+          setContactLensDetailsData(previous => ({ ...previous, ...(data['contact-lens-details'] || {}) }));
+          setKeratoCLData(previous => ({ ...previous, ...(data['keratometer-contact-lens'] || {}) }));
+          setSchirmerData(previous => ({ ...previous, ...(data['schirmer-test'] || {}) }));
+          setDiametersData(previous => ({ ...previous, ...(data['contact-lens-diameters'] || {}) }));
+        } else {
+          setOrder(saved as Order);
+          if (data['final-prescription']) setFinalPrescription(data['final-prescription']);
+          if (data.lens_frame_tabs?.[0]) setLensFrameTab(hydrateLensFrameTab(data.lens_frame_tabs[0], saved.id));
+          if (data.details) setOrderDetailsFormData(normalizeOrderDetails(data.details, saved.id));
+        }
+        if (entry.inventory_selections) applySavedInventoryAllocations(entry.inventory_selections);
+      },
       setMetadata: patch => {
         if (isContactMode) setContactFormData((previous: any) => ({ ...previous, ...patch }));
         else setFormData(previous => ({ ...previous, ...patch }));
@@ -2135,6 +2203,9 @@ export function LegacyOrderDetailPage({
                   lensFrameTab={lensFrameTab}
                   onLensFieldChange={handleLensFieldChange}
                   onFrameFieldChange={handleFrameFieldChange}
+                  framePrice={frameBillingLine?.price} billingCurrency={workspace?.lines?.[0]?.currency || billingFormData.currency || "ILS"}
+                  onFramePriceChange={handleFramePriceChange}
+                  lensInventory={inventorySelections} onLensInventorySelect={handleLensInventorySelect} onLensInventoryClear={handleLensInventoryClear}
                   selectedFrameInventory={selectionFor("frame")}
                   onFrameInventorySelect={handleFrameInventorySelect}
                   onFrameInventoryClear={() => clearInventorySelection("frame")}
@@ -2435,6 +2506,9 @@ export function LegacyOrderDetailPage({
                   lensFrameTab={lensFrameTab}
                   onLensFieldChange={handleLensFieldChange}
                   onFrameFieldChange={handleFrameFieldChange}
+                  framePrice={frameBillingLine?.price} billingCurrency={workspace?.lines?.[0]?.currency || billingFormData.currency || "ILS"}
+                  onFramePriceChange={handleFramePriceChange}
+                  lensInventory={inventorySelections} onLensInventorySelect={handleLensInventorySelect} onLensInventoryClear={handleLensInventoryClear}
                   selectedFrameInventory={selectionFor("frame")}
                   onFrameInventorySelect={handleFrameInventorySelect}
                   onFrameInventoryClear={() => clearInventorySelection("frame")}

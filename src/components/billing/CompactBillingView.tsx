@@ -62,6 +62,12 @@ export function CompactBillingView({
   const { t } = useTranslation();
   const { direction } = useAppLocale();
   const discount = Number(billing.discount_amount) || 0;
+  const itemDiscounts = Math.round(items.reduce((sum, item) => {
+    if (!(Number(item.discount) > 0)) return sum;
+    const before = (Number(item.price) || 0) * (Number(item.quantity) || 0);
+    const deduction = item.line_total == null ? Number(item.discount) : before - item.line_total;
+    return sum + Math.max(0, deduction);
+  }, 0) * 100) / 100;
   const total = Number(billing.total_after_discount) || 0;
   const settled = total > 0 && balanceDue <= 0;
 
@@ -123,7 +129,7 @@ export function CompactBillingView({
           <h3 className="min-w-0 truncate text-sm font-medium">{t("orderGroupBillingItems")}</h3>
           {isEditing && (
             <div className="flex shrink-0 items-center gap-1">
-            {onAddDiscount && <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 bg-primary/10 px-2 text-xs text-primary hover:bg-primary/20 hover:text-primary" onClick={() => { addingItem.current = true; onAddDiscount(); }}><span>{t("discounts.newDiscount")}</span><Plus className="size-3.5" /></Button>}
+            {onAddDiscount && <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 bg-primary/10 px-2 text-xs text-primary hover:bg-primary/20 hover:text-primary" onClick={() => { addingItem.current = false; setOpenItemId(null); onAddDiscount(); }}><span>{t("discounts.newDiscount")}</span><Plus className="size-3.5" /></Button>}
             <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 bg-primary/10 px-2 text-xs text-primary hover:bg-primary/20 hover:text-primary" onClick={() => { addingItem.current = true; onAddItem(); }}>
               <span>{t("orderGroupAddItem")}</span>
               <Plus className="size-3.5" />
@@ -158,9 +164,12 @@ export function CompactBillingView({
         <SummaryRow label={t("orderWorkspace.subtotal")}>
           {summaryValueView("total_before_discount", t("orderWorkspace.subtotal"), billing.total_before_discount)}
         </SummaryRow>
-        {discount > 0 && <SummaryRow label={t("orderGroupDiscount")}>
-          {summaryValueView("discount_amount", t("orderGroupDiscount"), discount)}
+        {itemDiscounts > 0 && <SummaryRow label={t("orderWorkspace.itemDiscountsIncluded")}>
+          <span dir={direction}>{formatCurrency(itemDiscounts)}</span>
         </SummaryRow>}
+        <SummaryRow label={t("orderGroupDiscount")}>
+          {summaryValueView("discount_amount", t("orderGroupDiscount"), discount)}
+        </SummaryRow>
         <SummaryRow label={t("orderWorkspace.total")} className="font-medium">
           {summaryValueView("total_after_discount", t("orderWorkspace.total"), total)}
         </SummaryRow>

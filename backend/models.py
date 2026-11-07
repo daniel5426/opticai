@@ -644,6 +644,9 @@ class MedicalLog(SoftDeletableMixin, Base):
 
 class OpticalExam(SoftDeletableMixin, Base):
     __tablename__ = "optical_exams"
+    __table_args__ = (Index("uq_exam_company_creation_key", "company_id", "creation_key", unique=True),)
+    creation_key = Column(String(64), nullable=True)
+    creation_request_hash = Column(String(64), nullable=True)
     
     id = Column(Integer, primary_key=True, index=True)
     client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -786,6 +789,7 @@ class OrderLineItem(Base):
     price = Column(Float)
     quantity = Column(Float)
     discount = Column(Float)
+    discount_percent = Column(Float)
     line_total = Column(Float)
     currency = Column(String(3), nullable=False, default="ILS", server_default="ILS")
     source_entry_id = Column(Integer, ForeignKey("order_group_entries.id", ondelete="SET NULL"), nullable=True, index=True)
@@ -865,7 +869,7 @@ class CatalogProduct(Base):
     __tablename__ = "catalog_products"
     __table_args__ = (
         UniqueConstraint("company_id", "category", "normalized_key", name="uq_catalog_products_company_category_key"),
-        CheckConstraint("category IN ('frame', 'contact_lens')", name="ck_catalog_products_category"),
+        CheckConstraint("category IN ('frame', 'contact_lens', 'spectacle_lens')", name="ck_catalog_products_category"),
     )
 
     id = Column(Integer, primary_key=True, index=True)

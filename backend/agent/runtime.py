@@ -17,6 +17,7 @@ from .config import setting
 from .authority import resolve_request, register_principal
 from .failures import PlatformOperationFailed
 from .relay import relay_client_id
+from services.ai_privacy import clean_nested, clean_json_text
 
 
 @lru_cache(maxsize=1)
@@ -128,7 +129,7 @@ def run_text(resource_id, text, *, subject, session_id=None, scope=None, request
     thread_id = existing_thread_id
     if not run_id:
         selected = relay_client_id()
-        result = sdk.embed.start_agent_run(resource_id, {**access, 'input': text, 'metadata': metadata or {},
+        result = sdk.embed.start_agent_run(resource_id, {**access, 'input': clean_json_text(text), 'metadata': clean_nested(metadata or {}),
             **({'relay_client_id': selected} if selected else {})},
             options={'idempotency_key': request_key} if request_key else None)
         run_id = result['run_id']
@@ -181,6 +182,6 @@ def run_text(resource_id, text, *, subject, session_id=None, scope=None, request
 
 
 async def structured(resource_id, data, schema, language, subject):
-    text = json.dumps({'locale': language, 'records': data, 'required_output_schema': schema}, ensure_ascii=False)
+    text = json.dumps({'locale': language, 'records': clean_nested(data), 'required_output_schema': schema}, ensure_ascii=False)
     result = await asyncio.to_thread(run_text, resource_id, text, subject=subject)
     return json.loads(result)

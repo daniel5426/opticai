@@ -1,3 +1,4 @@
+import { affectsFamily } from "@/lib/record-changes";
 import { TableExportProvider } from "@/components/table-export/context";
 import { CompanyClinicToolbarProvider } from "@/components/CompanyClinicFilter"
 import { useCompanyClinicFilter } from "@/hooks/client/useCompanyClinicFilter"
@@ -90,10 +91,10 @@ export default function AllFilesPage() {
     return () => clearTimeout(t);
   }, [navigate, search.q, searchInput]);
 
-  const loadFiles = async () => {
+  const loadFiles = async (background = false) => {
     const canCommit = startSearchRequest(search.q);
     try {
-      setLoading(true);
+      if (!background) setLoading(true);
       setTotal(null);
       const offset = (search.page - 1) * pageSize;
       const paginationOptions = {
@@ -178,7 +179,7 @@ export default function AllFilesPage() {
   };
 
   useEffect(() => {
-    const refresh = () => { void loadFiles() }
+    const refresh = (event: Event) => { if (affectsFamily(event, "files")) void loadFiles(true) }
     window.addEventListener("prysm:client-records-changed", refresh)
     return () => window.removeEventListener("prysm:client-records-changed", refresh)
   }, [loadFiles])

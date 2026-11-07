@@ -1,3 +1,5 @@
+import saveStatusTranslations from "./save-status.json";
+import contactLensDetailsTranslations from "./contact-lens-details.json";
 import clientContactTranslations from "./client-contact.json";
 import examPreviewTranslations from "./exam-preview.json";
 import discountTranslations from "./discounts.json";
@@ -33,6 +35,7 @@ i18n.use(initReactI18next).init({
       translation: {
         appName: "Prysm",
         loading: "Loading…",
+        refractionSelectType: "Select type",
         navigationError: "Navigation error",
         navigationErrorDescription: "There was a problem loading this page.",
         tryAgain: "Try again",
@@ -446,6 +449,7 @@ i18n.use(initReactI18next).init({
       translation: {
         appName: "Prysm",
         loading: "טוען…",
+        refractionSelectType: "בחר סוג",
         navigationError: "שגיאת ניווט",
         navigationErrorDescription: "אירעה בעיה בטעינת העמוד.",
         tryAgain: "נסה שוב",
@@ -857,6 +861,7 @@ i18n.use(initReactI18next).init({
       translation: {
         appName: "Prysm",
         loading: "Chargement…",
+        refractionSelectType: "Choisir le type",
         navigationError: "Erreur de navigation",
         navigationErrorDescription:
           "Un problème est survenu lors du chargement de cette page.",
@@ -1356,4 +1361,12 @@ for (const [language, translations] of Object.entries(examPreviewTranslations)) 
 
 for (const [language, translations] of Object.entries(clientContactTranslations)) {
   i18n.addResourceBundle(language, "translation", { clientContact: translations }, true, true);
+}
+
+for (const [language, translations] of Object.entries(contactLensDetailsTranslations)) {
+  i18n.addResourceBundle(language, "translation", { contactLensDetails: translations }, true, true);
+}
+
+for (const [language, translations] of Object.entries(saveStatusTranslations)) {
+  i18n.addResourceBundle(language, "translation", { saveStatus: translations }, true, true);
 }

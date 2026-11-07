@@ -2256,6 +2256,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
           >
             {toolbox}
             <ContactLensDetailsTab
+              hideQuantity
               contactLensDetailsData={
                 getExamData(
                   "contact-lens-details",

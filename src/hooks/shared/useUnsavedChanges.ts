@@ -16,6 +16,8 @@ export const useUnsavedChanges = ({ getSerializedState, isEditing, isNewMode, en
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
   const [isSaveInFlight, setIsSaveInFlight] = useState(false)
   const pendingNavigationRef = useRef<(() => void) | null>(null)
+  const stateReaderRef = useRef(getSerializedState)
+  stateReaderRef.current = getSerializedState
   const baselineRef = useRef<string>('')
   const baselineInitializedRef = useRef(false)
   const allowNavigationRef = useRef(false)
@@ -25,7 +27,7 @@ export const useUnsavedChanges = ({ getSerializedState, isEditing, isNewMode, en
   const checkDirty = useCallback(() => {
     if (!enabled || !baselineInitializedRef.current) return false
     if (!isEditing && !isNewMode) return false
-    return inputSyncManager.hasPendingChanges() || getSerializedState() !== baselineRef.current
+    return inputSyncManager.hasPendingChanges() || stateReaderRef.current() !== baselineRef.current
   }, [getSerializedState, isEditing, isNewMode, enabled])
 
   const hasUnsavedChanges = checkDirty()
@@ -33,7 +35,7 @@ export const useUnsavedChanges = ({ getSerializedState, isEditing, isNewMode, en
   const setBaseline = useCallback((overrideState?: any) => {
     const serialized = overrideState
       ? JSON.stringify(overrideState)
-      : getSerializedState()
+      : stateReaderRef.current()
     baselineRef.current = serialized
     baselineInitializedRef.current = true
   }, [getSerializedState])
@@ -116,6 +118,7 @@ export const useUnsavedChanges = ({ getSerializedState, isEditing, isNewMode, en
 
   return {
     hasUnsavedChanges,
+    checkDirty,
     showUnsavedDialog,
     isSaveInFlight,
     setIsSaveInFlight,

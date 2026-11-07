@@ -1,12 +1,13 @@
 import { useNavigate } from '@tanstack/react-router';
 import { supplyComposerContract, useAgentSubmission } from '@/services/agent-submission';
 import React from 'react';
-import { AgentChatComposer, AgentChatMessage, type AgentChatComposerHandle } from '@agents24/chat-react/ui';
+import { AgentChatComposer, type AgentChatComposerHandle } from '@agents24/chat-react/ui';
 import { Maximize2, ArrowUpRight, FileSpreadsheet, Search, ChartNoAxesCombined, HeartPulse, History, Wallet } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { StickToBottom } from 'use-stick-to-bottom';
 import { usePrysmAgent } from '@/contexts/PrysmAgentContext';
 import { Button } from '@/components/ui/button';
+import { TranscriptMessage } from './TranscriptMessage';
 import { ApprovalTimeline } from './ApprovalTimeline';
 import { DailyBrief } from './DailyBrief';
 import { AgentChatActions } from './AgentChatActions';
@@ -71,7 +72,7 @@ export function AgentChatPanel({ compact = false }: { compact?: boolean }) {
       <StickToBottom className={`agent-workspace__messages min-h-0 flex-1 overflow-hidden ${empty && !compact ? 'hidden' : ''}`} resize="smooth" initial="instant">
       <StickToBottom.Content className="agent-workspace__message-content mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 pb-6 pt-5">
         {controller.hasOlderTurns && <Button variant="ghost" size="sm" onClick={() => void controller.loadOlder()}>{t('agent.more')}</Button>}
-        {controller.messages.map(message => <AgentChatMessage key={message.id} message={message} dir={direction} Timeline={ApprovalTimeline}
+        {controller.messages.map(message => <TranscriptMessage key={message.id} message={message} dir={direction} Timeline={ApprovalTimeline}
           contentClassName={compact && message.role === 'user' ? 'bg-canvas' : undefined}
           userMessageShowMoreLabel={t('agent.timeline.message.more')} userMessageShowLessLabel={t('agent.timeline.message.less')}
           streamingMessageId={controller.streamingMessageId} getHitlActionState={runtime.getHitlActionState}

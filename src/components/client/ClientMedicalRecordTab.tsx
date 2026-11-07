@@ -1,3 +1,6 @@
+import { useKeyboardSave } from "@/hooks/shared/useKeyboardSave";
+import { SaveStatus } from "@/components/SaveStatus";
+import { useSaveController } from "@/hooks/shared/useSaveController";
 import { TableFiltersBar } from "@/components/table-filters-bar"
 import { RecordClinicLabel } from "@/components/RecordClinicLabel"
 import { ImportedSourceDataDialog } from "@/components/migration/ImportedSourceDataDialog";
@@ -33,6 +36,7 @@ const EMPTY_MEDICAL_LOGS: MedicalLog[] = [];
 
 type MedicalRecord = MedicalLog & {
   isEditing?: boolean;
+  uiKey?: number;
 };
 
 interface ClientMedicalRecordTabProps {
@@ -81,6 +85,8 @@ export const ClientMedicalRecordTab = ({
   const recordsClientRef = useRef(clientIdNum);
   const savingRecords = useRef(new Set<number>());
   const [savingRecordIds, setSavingRecordIds] = useState<number[]>([]);
+  const saveController = useSaveController({identity:clientIdNum});
+  const [statusRecordId, setStatusRecordId] = useState<number | null>(null);
 
   useEffect(() => {
     const sameClient = recordsClientRef.current === clientIdNum;
@@ -99,6 +105,12 @@ export const ClientMedicalRecordTab = ({
       const savedIds = new Set(sortedLogs.map(log => log.id));
       const retainedDrafts = drafts.filter(record => !savedIds.has(record.id));
       const normalizedSaved = sortedLogs.map(log => draftById.get(log.id) || { ...log, isEditing: false });
+      if (sameClient && prev.length) {
+        const incoming = new Map(normalizedSaved.map(record => [record.id, record]));
+        const existing = new Set(prev.map(record => record.id));
+        return [...prev.filter(record => record.isEditing || incoming.has(record.id)).map(record => record.isEditing ? record : {...incoming.get(record.id)!, uiKey:record.uiKey}),
+          ...normalizedSaved.filter(record => !existing.has(record.id))];
+      }
       return [...retainedDrafts, ...normalizedSaved];
     });
   }, [medicalLogs, clientIdNum]);
@@ -130,11 +142,15 @@ export const ClientMedicalRecordTab = ({
 
   const saveRecord = async (id: number) => {
     const record = records.find((r) => r.id === id);
-    if (!record || savingRecords.current.has(id)) return;
+    if (!record || savingRecords.current.has(id) || saveController.busy.current) return;
+    const original = medicalLogs.find(row => row.id === id);
+    if (id > 0 && original?.log === record.log && original?.log_date === record.log_date) return;
+    setStatusRecordId(id);
     savingRecords.current.add(id);
     setSavingRecordIds([...savingRecords.current]);
 
     try {
+      await saveController.run(async () => {
       if (id < 0) {
         const newLog = await createMedicalLogApi({
           client_id: Number(clientId),
@@ -146,30 +162,20 @@ export const ClientMedicalRecordTab = ({
         if (newLog) {
           setRecords((prev) => {
             const replaced = prev.map((r) =>
-              r.id === id ? { ...newLog, isEditing: false } : r,
+              r.id === id ? { ...newLog, uiKey: record.uiKey ?? id, isEditing: true } : r,
             );
-            const temps = replaced.filter((r) => (r.id || 0) < 0);
-            const saved = replaced
-              .filter((r) => (r.id || 0) > 0)
-              .sort((a, b) => {
-                const dateA = new Date(a.log_date || "").getTime();
-                const dateB = new Date(b.log_date || "").getTime();
-                if (dateB !== dateA) {
-                  return dateB - dateA;
-                }
-                return (b.id || 0) - (a.id || 0);
-              });
-            return [...temps, ...saved];
+            return replaced;
           });
           queryClient.setQueryData<MedicalLog[]>(queryKey, (current) =>
             upsertQueryItemById(current, newLog),
           );
+          setStatusRecordId(newLog.id!);
           toast.success("הרשומה נשמרה בהצלחה");
         } else {
           setRecords((prev) =>
             prev.map((r) => (r.id === id ? { ...r, isEditing: true } : r)),
           );
-          toast.error("שגיאה בשמירת הרשומה");
+          throw new Error('save_failed');
         }
       } else {
         const updatedLog = await updateMedicalLogApi({
@@ -182,20 +188,9 @@ export const ClientMedicalRecordTab = ({
         if (updatedLog) {
           setRecords((prev) => {
             const updatedList = prev.map((r) =>
-              r.id === id ? { ...updatedLog, isEditing: false } : r,
+              r.id === id ? { ...updatedLog, uiKey: record.uiKey, isEditing: true } : r,
             );
-            const temps = updatedList.filter((r) => (r.id || 0) < 0);
-            const saved = updatedList
-              .filter((r) => (r.id || 0) > 0)
-              .sort((a, b) => {
-                const dateA = new Date(a.log_date || "").getTime();
-                const dateB = new Date(b.log_date || "").getTime();
-                if (dateB !== dateA) {
-                  return dateB - dateA;
-                }
-                return (b.id || 0) - (a.id || 0);
-              });
-            return [...temps, ...saved];
+            return updatedList;
           });
           queryClient.setQueryData<MedicalLog[]>(queryKey, (current) =>
             replaceQueryItemById(current, updatedLog),
@@ -205,9 +200,10 @@ export const ClientMedicalRecordTab = ({
           setRecords((prev) =>
             prev.map((r) => (r.id === id ? { ...r, isEditing: true } : r)),
           );
-          toast.error("שגיאה בעדכון הרשומה");
+          throw new Error('save_failed');
         }
       }
+      });
     } catch (error) {
       setRecords((prev) =>
         prev.map((r) => (r.id === id ? { ...r, isEditing: true } : r)),
@@ -218,6 +214,12 @@ export const ClientMedicalRecordTab = ({
       setSavingRecordIds([...savingRecords.current]);
     }
   };
+
+  useKeyboardSave({enabled:enabled && records.some(record=>record.isEditing), isSaving:saveController.isSaving, onSave:()=>{
+    const focused = document.activeElement?.closest<HTMLElement>('[data-medical-record-id]');
+    const id = focused?.dataset.medicalRecordId;
+    if (id) return saveRecord(Number(id));
+  }});
 
   const editRecord = (id: number) => {
     setRecords(
@@ -337,6 +339,7 @@ export const ClientMedicalRecordTab = ({
                     <RecordClinicLabel clinicId={record.clinic_id} />
                     <div className="ms-1 flex gap-1">
                       {!record.isEditing && <ImportedSourceDataDialog recordType="medical_log" recordId={record.id} />}
+                      {statusRecordId === record.id && <SaveStatus state={saveController.state} onRetry={() => void saveRecord(record.id!)}/>}
                       {record.isEditing ? (
                         <Button
                           size="sm"
