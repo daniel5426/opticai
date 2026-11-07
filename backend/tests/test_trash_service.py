@@ -178,3 +178,49 @@ def test_exam_deletion_hides_dependent_exam_cards():
 
         restore_item(db, worker, item.id)
         assert db.query(ExamLayoutInstance).filter(ExamLayoutInstance.id == instance.id).one()
+
+
+def test_trash_counts_group_items_by_type_and_match_list_filters():
+    from EndPoints.trash import count_trash_by_type, list_trash
+
+    SessionLocal = _session_factory()
+    with SessionLocal() as db:
+        _company, clinic, worker, client = _seed(db)
+        exams = [OpticalExam(client_id=client.id, clinic_id=clinic.id, test_name=f"Exam {index}") for index in range(2)]
+        order = Order(client_id=client.id, clinic_id=clinic.id, order_data={})
+        db.add_all([*exams, order])
+        db.commit()
+        for exam in exams:
+            move_to_trash(db, worker, "exam", exam.id)
+        restored = move_to_trash(db, worker, "order", order.id)
+        restore_item(db, worker, restored.id)
+
+        filters = dict(clinic_id=clinic.id, deleted_by_user_id=None, deleted_from=None, deleted_to=None, db=db, current_user=worker)
+        assert count_trash_by_type(search=None, **filters) == {"exam": 2}
+        page = list_trash(entity_type="exam", search=None, limit=25, offset=0, **filters)
+        assert page["total"] == 2
+        assert {row["root_entity_type"] for row in page["items"]} == {"exam"}
+        assert count_trash_by_type(search="no-such-item", **filters) == {}
+
+
+def test_overlapping_delete_with_stale_preloaded_row_reuses_trash_item():
+    SessionLocal = _session_factory()
+    with SessionLocal() as setup:
+        _company, clinic, worker, client = _seed(setup)
+        exam = OpticalExam(client_id=client.id, clinic_id=clinic.id, test_name="Checkup")
+        setup.add(exam)
+        setup.commit()
+        exam_id, worker_id = exam.id, worker.id
+
+    # The second request loaded the exam (as delete endpoints do) before the first one trashed it.
+    with SessionLocal(expire_on_commit=False) as late, SessionLocal() as early:
+        stale_exam = late.get(OpticalExam, exam_id)
+        late_worker = late.get(User, worker_id)
+        late.commit()
+        assert stale_exam.deleted_at is None
+
+        first = move_to_trash(early, early.get(User, worker_id), "exam", exam_id)
+        second = move_to_trash(late, late_worker, "exam", exam_id)
+
+        assert second.id == first.id
+        assert late.query(TrashItem).count() == 1

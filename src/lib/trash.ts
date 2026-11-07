@@ -40,3 +40,5 @@ export interface TrashPage {
   limit: number
   offset: number
 }
+
+export type TrashCounts = Partial<Record<TrashEntityType, number>>

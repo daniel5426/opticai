@@ -85,7 +85,8 @@ def _entity(db: Session, entity_type: str, entity_id: int, *, lock: bool = False
         raise HTTPException(status_code=404, detail="Unsupported Trash record type")
     query = _include_deleted(db.query(model)).filter(model.id == entity_id)
     if lock:
-        query = query.with_for_update()
+        # Refresh rows the caller already loaded so overlapping deletes see the committed deleted_at.
+        query = query.with_for_update().populate_existing()
     row = query.first()
     if not row:
         raise HTTPException(status_code=404, detail="Record not found")
@@ -306,7 +307,7 @@ def _move_to_trash(db: Session, current_user: User, entity_type: str, entity_id:
 def _scoped_item(db: Session, current_user: User, item_id: int, *, lock: bool = False) -> TrashItem:
     query = db.query(TrashItem).filter(TrashItem.id == item_id)
     if lock:
-        query = query.with_for_update()
+        query = query.with_for_update().populate_existing()
     item = query.first()
     if not item:
         raise HTTPException(status_code=404, detail="Trash item not found")
