@@ -61,7 +61,8 @@ def old_form(s, contact=False):
 def test_old_full_editor_preserves_siblings_invoice_and_provenance(setup, contact):
     s = setup
     path, payload = old_form(s, contact)
-    sibling = deepcopy(s.group['entries'][not contact])
+    # Compare persisted entries on both sides; save responses also include allocation receipts.
+    sibling = deepcopy(group_dict(s.db, s.db.get(OrderGroup, s.group['id']))['entries'][not contact])
     payload['order']['type'] = 'Edited by v1.0.79'
     payload['billing']['notes'] = 'Edited notes'
     response = s.http.post('/api/v1' + path + '/upsert-full', json=payload)
