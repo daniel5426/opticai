@@ -348,7 +348,8 @@ def parse_visual_acuity(value: Optional[str]) -> Optional[Any]:
     # SoftOptic stores meter VA as a denominator without the displayed ``6/``
     # prefix (for example ``9+2`` means ``6/9+2``).  Do not mistake these
     # values for decimal VA in the shared UI.
-    match = re.fullmatch(r"(\d+(?:\.\d+)?)([+-]\d+)?", cleaned)
+    # Suffixes can be bare or doubled (``6-``, ``6.5+-``), as SoftOptic's contact lens screen shows them.
+    match = re.fullmatch(r"(\d+(?:\.\d+)?)([+-]{1,2}\d*)?", cleaned)
     if not match:
         return cleaned
     raw_number = match.group(1)
@@ -500,9 +501,10 @@ def normalize_j_value(value: Optional[str]) -> Optional[str]:
         return None
     if re.fullmatch(r"(?i)j\d+\+?", s):
         return "J" + s[1:]
-    if re.fullmatch(r"\d+", s):
+    if re.fullmatch(r"\d+\+?", s):
         return f"J{s}"
     return s
+
 
 
 def to_iso_date_string(value: Optional[str]) -> Optional[str]:

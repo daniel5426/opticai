@@ -11,7 +11,7 @@ import React, {
 import { useParams, useNavigate, useSearch } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/site-header";
 import { examPageDataQueryKey, getExamPageData } from "@/lib/db/exams-db";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getOrdersByClientId } from "@/lib/db/orders-db";
 import { OpticalExam, Client, ExamLayout } from "@/lib/db/schema-interface";
 import { getAllExamLayouts, getExamLayoutById } from "@/lib/db/exam-layouts-db";
@@ -92,7 +92,9 @@ import {
 import { ExamLayoutTabs } from "@/components/exam/ExamLayoutTabs";
 import { OptitechExamTabs } from "@/components/exam/OptitechExamTabs";
 import { SoftopticExamTabs } from "@/components/exam/SoftopticExamTabs";
-import { buildSoftopticTabs, defaultSoftopticTab, oldRefTabId, softopticGridSlotCardId, type SoftopticTabKey } from "@/lib/softoptic-exam-tabs";
+import { buildSoftopticTabs, defaultSoftopticTab, oldRefTabId, SOFTOPTIC_CONTACT_LENS_TAB, softopticGridSlotCardId, type SoftopticTabKey } from "@/lib/softoptic-exam-tabs";
+import { sameDayContactLensOrders } from "@/lib/softoptic-contact-lens";
+import { SoftopticContactLensTab } from "@/components/exam/SoftopticContactLensTab";
 import { packSoftopticCards } from "@/lib/softoptic-exam-layout";
 import { optitechExamKind } from "@/lib/optitech-exam-tabs";
 import { ExamLayoutRenderer } from "@/components/exam/ExamLayoutRenderer";
@@ -570,8 +572,18 @@ export default function ExamDetailPage({
 
   // An imported SoftOptic exam's data view is split into OpticSoft's tabs. It only filters which of the
   // loaded cards are on screen; handlers, tab state and saving still work on all of them.
+  const isSoftopticView = hasImportedExamData && activeInstanceId === VIRTUAL_FULL_DATA_TAB_ID && !optitechExamKind(exam);
+  const { data: clientContactLensOrders } = useQuery({
+    queryKey: ["softoptic-exam-contact-lens-orders", exam?.client_id],
+    queryFn: async () => (await apiClient.getContactLensOrdersByClient(exam!.client_id!)).data || [],
+    enabled: Boolean(isSoftopticView && exam?.client_id),
+  });
+  const examDayContactLensOrders = useMemo(
+    () => sameDayContactLensOrders(clientContactLensOrders || [], exam?.exam_date),
+    [clientContactLensOrders, exam?.exam_date],
+  );
   const softopticTabs = useMemo(() => {
-    if (!hasImportedExamData || activeInstanceId !== VIRTUAL_FULL_DATA_TAB_ID || optitechExamKind(exam)) return null;
+    if (!isSoftopticView) return null;
     const tabs = buildSoftopticTabs(cardRows.flatMap((row) => row.cards), (card) =>
       card.type === "old-refraction-extension"
         ? computedOldRefractionExtensionTabs[card.id]
@@ -579,8 +591,10 @@ export default function ExamDetailPage({
           ? computedOldRefractionTabs[card.id]
           : undefined,
     );
+    // An exam with the day's contact lens prescription is a contact lens exam: OpticSoft shows just that screen.
+    if (examDayContactLensOrders.length) return [{ key: SOFTOPTIC_CONTACT_LENS_TAB, cards: [] }] as typeof tabs;
     return tabs.length ? tabs : null;
-  }, [hasImportedExamData, activeInstanceId, exam, cardRows, computedOldRefractionTabs, computedOldRefractionExtensionTabs]);
+  }, [isSoftopticView, cardRows, computedOldRefractionTabs, computedOldRefractionExtensionTabs, examDayContactLensOrders]);
   const activeSoftopticTab = softopticTabs?.find((tab) => tab.key === softopticTab) ?? softopticTabs?.find((tab) => tab.key === defaultSoftopticTab(softopticTabs));
   const displayedLayout = useMemo(() => {
     if (!activeSoftopticTab) return { rows: cardRows, customWidths, items: gridItems };
@@ -1993,6 +2007,9 @@ export default function ExamDetailPage({
               style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
             >
               <form ref={formRef} className="flex min-h-full flex-col" aria-busy={isSaveInFlight} onSubmit={event => {event.preventDefault(); void handleSave();}}><fieldset disabled={isSaveInFlight} className="contents">
+                {activeSoftopticTab?.key === SOFTOPTIC_CONTACT_LENS_TAB ? (
+                  <SoftopticContactLensTab orders={examDayContactLensOrders} />
+                ) : (
                 <ExamLayoutRenderer
                   cardRows={displayedLayout.rows}
                   customWidths={displayedLayout.customWidths}
@@ -2018,6 +2035,7 @@ export default function ExamDetailPage({
                   onCopy={handleCopy}
                   onPaste={handlePaste}
                 />
+                )}
               </fieldset></form>
             </div>
           </div>

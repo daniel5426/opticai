@@ -38,6 +38,10 @@ def test_visual_acuity_normalizes_softoptic_bare_meter_denominators():
     assert migration.parse_visual_acuity("7.5+2") == "6/7.5+2"
     assert migration.parse_visual_acuity("24") == "6/24"
     assert migration.parse_visual_acuity("2") == "6/2"
+    # OpticSoft's contact lens screen also keeps bare and doubled suffixes.
+    assert migration.parse_visual_acuity("6-") == "6/6-"
+    assert migration.parse_visual_acuity("6.5+-") == "6/6.5+-"
+    assert migration.normalize_j_value("1+") == "J1+"
     assert migration.parse_visual_acuity("1") == "6/1"
     assert migration.parse_visual_acuity("6765") == "6/6765"
     assert migration.parse_visual_acuity("1.0+2") == "1.0+2"

@@ -12,6 +12,7 @@
       "bioMicroscopy": "Bio Microscopy",
       "bino": "Bino",
       "subjective": "Subjective",
+      "contactLens": "Contact lenses",
       "more": "More data",
       "label": "SoftOptic exam sections"
     },
@@ -73,6 +74,11 @@
         "eyeColor": "Eye color",
         "eyelidTension": "Eyelid tension"
       }
+    },
+    "contactLens": {
+      "type": "Type",
+      "remarks": "Remarks",
+      "notes": "Notes"
     }
   },
   "he": {
@@ -88,6 +94,7 @@
       "bioMicroscopy": "Bio Microscopy",
       "bino": "Bino",
       "subjective": "Subjective",
+      "contactLens": "עדשות מגע",
       "more": "נתונים נוספים",
       "label": "מקטעי בדיקת SoftOptic"
     },
@@ -149,6 +156,11 @@
         "eyeColor": "צבע עיניים",
         "eyelidTension": "מתח עפעף"
       }
+    },
+    "contactLens": {
+      "type": "סוג",
+      "remarks": "הערות לספק",
+      "notes": "הערות"
     }
   },
   "fr": {
@@ -164,6 +176,7 @@
       "bioMicroscopy": "Bio Microscopy",
       "bino": "Bino",
       "subjective": "Subjective",
+      "contactLens": "Lentilles de contact",
       "more": "Autres données",
       "label": "Sections de l'examen SoftOptic"
     },
@@ -225,6 +238,11 @@
         "eyeColor": "Couleur des yeux",
         "eyelidTension": "Tension palpébrale"
       }
+    },
+    "contactLens": {
+      "type": "Type",
+      "remarks": "Remarques",
+      "notes": "Notes"
     }
   }
 }

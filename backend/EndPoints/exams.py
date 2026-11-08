@@ -40,7 +40,7 @@ def exam_list_query(db, current_user, clinic_id, search, test_name, type, order,
 
     # Apply filters
     if type:
-        base_query = base_query.filter(OpticalExam.type == type)
+        base_query = base_query.filter(exam_type_filter(type))
     if test_name and test_name != "all":
         base_query = base_query.filter(OpticalExam.test_name == test_name)
 
@@ -92,6 +92,14 @@ def exam_list_query(db, current_user, clinic_id, search, test_name, type, order,
 
     # Pagination
     return base_query
+
+
+# SoftOptic contact lens fits are imported as "contact_fit"; they are eye exams and list with them.
+EXAM_LIST_TYPES = {"exam": ("exam", "contact_fit")}
+
+
+def exam_type_filter(exam_type: str):
+    return OpticalExam.type.in_(EXAM_LIST_TYPES.get(exam_type, (exam_type,)))
 
 
 @router.get("/enriched")
@@ -149,7 +157,7 @@ def get_exams(
     
     # Apply filters
     if type:
-        query = query.filter(OpticalExam.type == type)
+        query = query.filter(exam_type_filter(type))
     
     return query.all()
 
@@ -420,7 +428,7 @@ def get_exams_by_client(
     
     # Apply filters
     if type:
-        query = query.filter(OpticalExam.type == type)
+        query = query.filter(exam_type_filter(type))
     
     rows = query.order_by(OpticalExam.exam_date.desc().nulls_last(), OpticalExam.id.desc()).all()
     for exam, clinic_name in rows:
