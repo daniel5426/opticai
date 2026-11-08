@@ -1,5 +1,6 @@
 import { SaveStatus } from "@/components/SaveStatus";
 import { useLayoutWidth } from "@/hooks/exam/useLayoutWidth";
+import { useExamContentZoom } from "@/hooks/exam/useExamContentZoom";
 import React, {
   useState,
   useRef,
@@ -272,6 +273,7 @@ export default function ExamDetailPage({
   const [isEditing, setIsEditing] = useState(isNewMode);
   const [activeTab, setActiveTab] = useState(config.sidebarTab);
   const layoutContentRef = useRef<HTMLDivElement>(null);
+  const examContentZoom = useExamContentZoom(layoutContentRef);
 
   useEffect(() => {
     const content = layoutContentRef.current;
@@ -1992,7 +1994,7 @@ export default function ExamDetailPage({
               className="no-scrollbar h-full overflow-y-auto overscroll-contain rounded-[inherit]"
               style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
             >
-              <form ref={formRef} className="flex min-h-full flex-col" aria-busy={isSaveInFlight} onSubmit={event => {event.preventDefault(); void handleSave();}}><fieldset disabled={isSaveInFlight} className="contents">
+              <form ref={formRef} className="flex min-h-full flex-col" style={{ zoom: examContentZoom }} aria-busy={isSaveInFlight} onSubmit={event => {event.preventDefault(); void handleSave();}}><fieldset disabled={isSaveInFlight} className="contents">
                 <ExamLayoutRenderer
                   cardRows={displayedLayout.rows}
                   customWidths={displayedLayout.customWidths}
