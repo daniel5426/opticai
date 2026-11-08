@@ -53,7 +53,8 @@ def available(db, clinic_id, user_id, day, at, duration, exclude=None, lock=Fals
     return conflict_free(db, clinic_id, user_id, day, at, duration, exclude=exclude)
 
 
-def conflict_free(db, clinic_id, user_id, day, at, duration, exclude=None, lock=False):
+def find_conflict(db, clinic_id, user_id, day, at, duration, exclude=None, lock=False):
+    """The examiner's existing appointment that overlaps the requested time, if any."""
     if lock:
         db.query(Clinic).filter_by(id=clinic_id).with_for_update().one()
     if isinstance(day, datetime):
@@ -62,10 +63,32 @@ def conflict_free(db, clinic_id, user_id, day, at, duration, exclude=None, lock=
     query = db.query(Appointment).filter(Appointment.deleted_at.is_(None), Appointment.clinic_id == clinic_id, Appointment.user_id == user_id, Appointment.date == day)
     if exclude:
         query = query.filter(Appointment.id != exclude)
-    for row in query:
+    for row in query.order_by(Appointment.time):
         if row.time and start < minute(row.time) + (row.duration or 30) and end > minute(row.time):
-            return False
-    return True
+            return row
+    return None
+
+
+def conflict_free(db, clinic_id, user_id, day, at, duration, exclude=None, lock=False):
+    return find_conflict(db, clinic_id, user_id, day, at, duration, exclude=exclude, lock=lock) is None
+
+
+def overlap_error(db, conflict):
+    """A 409 that tells the calendar which appointment is already booked there."""
+    from models import Client
+    client = db.get(Client, conflict.client_id)
+    user = db.get(User, conflict.user_id) if conflict.user_id else None
+    end = minute(conflict.time) + (conflict.duration or 30)
+    return HTTPException(409, {
+        'code': 'agent.slotUnavailable',
+        'conflict': {
+            'id': conflict.id,
+            'time': conflict.time,
+            'end_time': f'{end // 60:02d}:{end % 60:02d}',
+            'client_name': ' '.join(filter(None, [client and client.first_name, client and client.last_name])) or None,
+            'user_name': user.full_name or user.username if user else None,
+        },
+    })
 
 
 def find_slots(db, authority, start_date, end_date, user_id=None, duration=30, limit=20):

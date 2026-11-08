@@ -1,5 +1,8 @@
 import * as React from "react";
 import { Clock } from "lucide-react";
+import { useTranslation } from "react-i18next";
+
+import { Button } from "@/components/ui/button";
 
 import { Input } from "@/components/ui/input";
 import {
@@ -87,6 +90,7 @@ export function TimeInput({
   disabled,
   ...props
 }: TimeInputProps) {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = React.useState(false);
   const [textValue, setTextValue] = React.useState(value ?? "");
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -169,8 +173,21 @@ export function TimeInput({
           </button>
         </PopoverTrigger>
       </div>
-      <PopoverContent align="start" className="w-56 p-2">
-        <div className="grid grid-cols-2 gap-2">
+      <PopoverContent
+        align="start"
+        className="w-56 p-2"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          // Bring the current hour and minute into view.
+          requestAnimationFrame(() =>
+            (event.target as HTMLElement | null)
+              ?.querySelectorAll<HTMLElement>("[data-selected]")
+              .forEach((item) => item.scrollIntoView({ block: "center" })),
+          );
+        }}
+      >
+        {/* Times read left to right (HH:MM) in every language. */}
+        <div dir="ltr" className="grid grid-cols-2 gap-2">
           <div>
             <div className="text-muted-foreground mb-1 text-center text-xs font-medium">
               HH
@@ -181,6 +198,7 @@ export function TimeInput({
                   <button
                     key={hour}
                     type="button"
+                    data-selected={selectedHour === hour || undefined}
                     className={cn(
                       "hover:bg-accent hover:text-accent-foreground h-8 rounded-sm text-sm tabular-nums",
                       selectedHour === hour &&
@@ -204,6 +222,7 @@ export function TimeInput({
                   <button
                     key={minute}
                     type="button"
+                    data-selected={selectedMinute === minute || undefined}
                     className={cn(
                       "hover:bg-accent hover:text-accent-foreground h-8 rounded-sm text-sm tabular-nums",
                       selectedMinute === minute &&
@@ -218,6 +237,14 @@ export function TimeInput({
             </ScrollArea>
           </div>
         </div>
+        <Button
+          type="button"
+          size="sm"
+          className="mx-auto mt-2 flex h-7 px-4 text-xs"
+          onClick={() => setIsOpen(false)}
+        >
+          {t("timePickerSave")}
+        </Button>
       </PopoverContent>
     </Popover>
   );

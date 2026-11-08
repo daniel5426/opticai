@@ -12,7 +12,14 @@ import {
 import { CalendarHoliday } from "@/lib/clinic-holidays";
 import { User, Client, Appointment } from "@/lib/db/schema-interface";
 import { AppointmentBlock, DragPosition, ResizeData, DragData } from "./types";
-import { formatAppointmentTime, getAppointmentTimeRange } from "./utils";
+import { formatAppointmentTime, getAppointmentTimeRange, minutesToTime } from "./utils";
+import {
+  DEFAULT_HOUR_HEIGHT,
+  QUARTER_LABELS_MIN_HOUR_HEIGHT,
+  hourHeightForDrag,
+} from "./calendar-zoom";
+
+const QUARTERS = [15, 30, 45];
 
 const STACKED_APPOINTMENT_CONTENT_MIN_HEIGHT = 36;
 // Stacked lines are 12px each; a 30-minute card (~47px) fits time, name and phone.
@@ -94,6 +101,8 @@ function AppointmentCardContent({
 }
 
 interface WeekDayViewProps {
+  hourHeight: number;
+  onHourHeightChange: (height: number) => void;
   visibleDates: Date[];
   timeSlots: { time: string; startMinutes: number; durationMinutes: number }[];
   totalWorkMinutes: number;
@@ -131,6 +140,8 @@ interface WeekDayViewProps {
 }
 
 export function WeekDayView({
+  hourHeight,
+  onHourHeightChange,
   visibleDates,
   timeSlots,
   totalWorkMinutes,
@@ -158,7 +169,43 @@ export function WeekDayView({
   const { locale } = useAppLocale();
   const { t } = useTranslation();
   const dateLocale = getDateLocale(locale);
-  const calendarHeight = (totalWorkMinutes / 60) * 95;
+  const calendarHeight = (totalWorkMinutes / 60) * hourHeight;
+  const showQuarters = hourHeight >= QUARTER_LABELS_MIN_HOUR_HEIGHT;
+  const toPx = (minutes: number) => (minutes / 60) * hourHeight;
+
+  // With quarter hours on screen, a click books the quarter it lands on.
+  const slotTimeAt = (
+    slot: WeekDayViewProps["timeSlots"][number],
+    yInSlot: number,
+  ) => {
+    if (!showQuarters) return slot.time;
+    const quarter = Math.floor(((yInSlot / hourHeight) * 60) / 15) * 15;
+    return minutesToTime(
+      slot.startMinutes +
+        Math.max(0, Math.min(slot.durationMinutes - 15, quarter)),
+    );
+  };
+
+  const handleZoomStart = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const grabY = event.clientY - event.currentTarget.getBoundingClientRect().top;
+    const startY = event.clientY;
+    const startHeight = hourHeight;
+    const handleMove = (moveEvent: MouseEvent) =>
+      onHourHeightChange(
+        hourHeightForDrag(startHeight, grabY, moveEvent.clientY - startY),
+      );
+    const handleUp = () => {
+      document.body.style.cursor = "";
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+    };
+    document.body.style.cursor = "ns-resize";
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+  };
+
   const handleMoveModeColumnClick = (
     event: React.MouseEvent<HTMLDivElement>,
     date: Date,
@@ -167,10 +214,12 @@ export function WeekDayView({
     const rect = event.currentTarget.getBoundingClientRect();
     const y = Math.max(0, event.clientY - rect.top);
     let offset = 0;
+    let yInSlot = 0;
     const clickedSlot =
       timeSlots.find((slot) => {
-        const height = (slot.durationMinutes / 60) * 95;
+        const height = toPx(slot.durationMinutes);
         const isMatch = y >= offset && y < offset + height;
+        if (isMatch) yInSlot = y - offset;
         offset += height;
         return isMatch;
       }) || timeSlots[timeSlots.length - 1];
@@ -178,7 +227,7 @@ export function WeekDayView({
     if (!clickedSlot) return;
     event.preventDefault();
     event.stopPropagation();
-    handleTimeSlotClick(date, clickedSlot.time, event);
+    handleTimeSlotClick(date, slotTimeAt(clickedSlot, yInSlot), event);
   };
 
   return (
@@ -250,19 +299,36 @@ export function WeekDayView({
         style={{ scrollbarWidth: "none" }}
       >
         <div className="flex" style={{ height: `${calendarHeight}px` }}>
-          {/* Time column */}
-          <div className="w-16">
+          {/* Time column: drag up/down to resize the hours, double-click to reset */}
+          <div
+            className="w-16 cursor-ns-resize select-none"
+            title={t("calendarZoomHint")}
+            onMouseDown={handleZoomStart}
+            onDoubleClick={() => onHourHeightChange(DEFAULT_HOUR_HEIGHT)}
+          >
             {timeSlots.map((slot, index) => (
               <div
                 key={slot.time}
-                className={`flex items-start justify-center border-l pt-1 ${
+                className={`relative flex items-start justify-center border-l pt-1 ${
                   index === timeSlots.length - 1 ? "" : "border-b"
                 }`}
-                style={{ height: `${(slot.durationMinutes / 60) * 95}px` }}
+                style={{ height: `${toPx(slot.durationMinutes)}px` }}
               >
                 <span className="text-muted-foreground text-xs">
                   {slot.time}
                 </span>
+                {showQuarters &&
+                  QUARTERS.filter((minutes) => minutes < slot.durationMinutes).map(
+                    (minutes) => (
+                      <span
+                        key={minutes}
+                        className="text-muted-foreground/70 absolute inset-x-0 pt-1 text-center text-[10px] leading-3 tabular-nums"
+                        style={{ top: `${toPx(minutes)}px` }}
+                      >
+                        {minutesToTime(slot.startMinutes + minutes)}
+                      </span>
+                    ),
+                  )}
               </div>
             ))}
           </div>
@@ -293,10 +359,29 @@ export function WeekDayView({
                           dateIndex < visibleDates.length - 1 ? "border-l" : ""
                         } ${slotIndex === timeSlots.length - 1 ? "" : "border-b"}`}
                         style={{
-                          height: `${(slot.durationMinutes / 60) * 95}px`,
+                          height: `${toPx(slot.durationMinutes)}px`,
                         }}
-                        onClick={(e) => handleTimeSlotClick(date, slot.time, e)}
+                        onClick={(e) =>
+                          handleTimeSlotClick(
+                            date,
+                            slotTimeAt(
+                              slot,
+                              e.clientY - e.currentTarget.getBoundingClientRect().top,
+                            ),
+                            e,
+                          )
+                        }
                       >
+                        {showQuarters &&
+                          QUARTERS.filter(
+                            (minutes) => minutes < slot.durationMinutes,
+                          ).map((minutes) => (
+                            <div
+                              key={minutes}
+                              className="pointer-events-none absolute inset-x-0 border-t border-dashed border-border"
+                              style={{ top: `${toPx(minutes)}px` }}
+                            />
+                          ))}
                         {/* Current time indicator */}
                         {isToday(date) &&
                           (() => {
@@ -310,9 +395,9 @@ export function WeekDayView({
                               currentMinutes >= slot.startMinutes &&
                               currentMinutes < slotEndMinutes
                             ) {
-                              const topOffset =
-                                ((currentMinutes - slot.startMinutes) / 60) *
-                                95;
+                              const topOffset = toPx(
+                                currentMinutes - slot.startMinutes,
+                              );
                               return (
                                 <div
                                   className="absolute right-0 left-0 z-10 h-0.5 bg-red-500"
@@ -558,7 +643,7 @@ export function WeekDayView({
                           className="absolute rounded-md border text-xs text-white shadow-lg"
                           style={{
                             top: `${dragPosition.y}px`,
-                            height: `${(getAppointmentDuration(draggedData.appointment) / 60) * 95}px`,
+                            height: `${toPx(getAppointmentDuration(draggedData.appointment))}px`,
                             left: "0%",
                             width: "100%",
                             zIndex: 45,
@@ -570,11 +655,9 @@ export function WeekDayView({
                           }}
                         >
                           <AppointmentCardContent
-                            height={
-                              (getAppointmentDuration(draggedData.appointment) /
-                                60) *
-                              95
-                            }
+                            height={toPx(
+                              getAppointmentDuration(draggedData.appointment),
+                            )}
                             timeRange={getAppointmentTimeRange(
                               dragPosition.time,
                               getAppointmentDuration(draggedData.appointment),
