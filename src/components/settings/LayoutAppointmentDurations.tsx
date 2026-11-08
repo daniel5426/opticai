@@ -61,12 +61,12 @@ export function LayoutAppointmentDurations({ defaultDuration }: { defaultDuratio
           תור שנקבע עם הפריסה או הקבוצה יקבל את המשך שהוגדר כאן
         </p>
       </div>
-      <div className="grid grid-cols-1 gap-x-4 gap-y-2 md:grid-cols-2">
+      <div className="divide-y rounded-md border">
         {layouts.map((layout) => {
           const selectId = `layout-duration-${layout.id}`;
           return (
-            <div key={layout.id} className="flex items-center justify-between gap-3">
-              <Label htmlFor={selectId} className="truncate text-start font-normal">
+            <div key={layout.id} className="flex items-center justify-between gap-4 px-3 py-2">
+              <Label htmlFor={selectId} className="min-w-0 flex-1 text-start leading-snug font-normal break-words">
                 {layout.name}
               </Label>
               <Select
