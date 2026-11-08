@@ -141,8 +141,12 @@ jobs:
             local deployments
             local deployment_id=""
             local status=""
+            local -a source_args=()
+            if [[ -n "${3:-}" ]]; then
+              source_args=("$3" --path-as-root)
+            fi
 
-            railway up \
+            railway up "${source_args[@]}" \
               --detach \
               --project "$RAILWAY_PROJECT_ID" \
               --environment production \
@@ -201,6 +205,14 @@ jobs:
           retry_health https://api.prysm.co.il/health
           retry_health https://api.prysm.co.il/health/database
 
+          # Use the verified backend source and the billing service's configured
+          # command; the API's auto-detected manifest would start uvicorn instead.
+          billing_source="$(mktemp -d)"
+          git archive "$RELEASE_SHA" backend | tar -x -C "$billing_source"
+          rm "$billing_source/backend/railway.json"
+          deploy_and_wait allpay-billing-worker-production billing-worker "$billing_source" &
+          billing_worker_pid=$!
+
           deploy_and_wait softoptic-migration-worker-Z2hA worker
           railway logs \
             --service softoptic-migration-worker-Z2hA \
@@ -209,6 +221,8 @@ jobs:
             --json || true
 
           deploy_and_wait prysm-web web
+          wait "$billing_worker_pid"
+          rm -rf "$billing_source"
 
       - name: Record promoted release
         env:

@@ -2,6 +2,17 @@
 
 Paid self-service checkout charges immediately; trials are never granted automatically. New workspaces can request a free trial at checkout for explicit owner review. Essential/Growth/Network cost ₪430/₪999/₪1,890 **including VAT** per month. Existing trials keep their remaining trial dates. Billing records are independent of clinic order payments.
 
+## Production activation — 2026-11-08
+
+- Production owner is application user `20`, `daniel.benassayag@agents24.dev`. The active account uses Google sign-in; production `OWNER_USER_IDS=20`. Staging retains its independent owner ID.
+- The production API and dedicated `allpay-billing-worker-production` use the existing Allpay integration, `ALLPAY_TEST_MODE=false`, `ALLPAY_LIVE_PAYMENTS_ENABLED=true`, and `BILLING_CHARGING_ENABLED=true`. `API_PUBLIC_URL=https://api.prysm.co.il` supplies the signed webhook destination; `SITE_URL=https://prysm.co.il` supplies return links. Worker secrets/configuration reference the production API rather than duplicating credentials.
+- Hosted Fields was already enabled with `prysm.co.il` allowlisted. Keep the merchant integration's default test mode enabled for staging: API v15's explicit per-request `test_mode=0` enables production while staging continues sending `1`.
+- API build `cac6a4109e1ed7bffbba07850e272122b76933ae` was already successfully staged and promoted; its existing image was reused for the configuration change. The billing worker uses that same verified backend source, direct service settings (`python -m workers.billing_worker`, IPv6 egress, one Europe replica), and no API manifest. Promotion now uploads this worker after API health succeeds, overlapping its independent deployment with the existing migration-worker/web sequence and requiring both paths to succeed. Do not upload the dirty local checkout or let `backend/railway.json` replace the worker command.
+- Verification: Hebrew owner console opened successfully; Allpay accepted a short-lived live checkout request and loaded PayMe card fields without entering card details or submitting a charge; the deployed worker completed an iteration; 48 isolated billing/subscription tests passed. Before activation there were no saved cards, payment attempts, or due renewals. No customer was charged during qualification.
+- Accounting integrations remain unconfigured in Allpay. Payment history is available, but automatic tax-document issuance requires the separate merchant accounting setup. A completed live payment, webhook settlement, and issued receipt were not claimed as verified.
+
+Migration note: Not needed; configuration and worker deployment only. Existing production Alembic revision `0057_exam_workspace_save` and customer records are preserved.
+
 ## Configuration and credentials
 
 - Allpay credentials belong only in the ignored `backend/.env` locally and backend/worker secret variables in production: `ALLPAY_API_LOGIN`, `ALLPAY_API_KEY`. Never put them in Next.js, desktop bundles, screenshots, or logs.
