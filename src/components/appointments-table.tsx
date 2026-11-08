@@ -1069,6 +1069,7 @@ export function AppointmentsTable({
               ...current,
               exam_layout_id: layout?.id || null,
               exam_name: layout?.name || current.exam_name || "",
+              duration: layout?.appointment_duration || APPOINTMENT_DURATION,
             }));
             return;
           }
@@ -1114,6 +1115,7 @@ export function AppointmentsTable({
                   ...current,
                   exam_layout_id: layout?.id || null,
                   exam_name: layout?.name || current.exam_name || "",
+                  duration: layout?.appointment_duration || APPOINTMENT_DURATION,
                 }));
                 return;
               }

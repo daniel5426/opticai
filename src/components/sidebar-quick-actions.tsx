@@ -848,6 +848,7 @@ export function SidebarQuickActions({
                   ...current,
                   exam_layout_id: layout?.id || null,
                   exam_name: layout?.name || current.exam_name || "",
+                  duration: layout?.appointment_duration || appointmentDuration,
                 }));
                 return;
               }
@@ -902,6 +903,7 @@ export function SidebarQuickActions({
               ...current,
               exam_layout_id: layout?.id || null,
               exam_name: layout?.name || current.exam_name || "",
+              duration: layout?.appointment_duration || appointmentDuration,
             }));
             return;
           }
