@@ -9,6 +9,7 @@ interface UseAppointmentBlocksProps {
   workStartMinutes: number
   getAppointmentDuration: (appointment: Appointment) => number
   resizeData: any
+  hourHeight: number
 }
 
 export function useAppointmentBlocks({
@@ -16,13 +17,14 @@ export function useAppointmentBlocks({
   clientsMap,
   workStartMinutes,
   getAppointmentDuration,
-  resizeData
+  resizeData,
+  hourHeight
 }: UseAppointmentBlocksProps) {
   const getAppointmentBlocks = useCallback((date: Date): AppointmentBlock[] => {
     const dayAppointments = getAppointmentsForDate(date)
     if (!dayAppointments.length) return []
     
-    const HOUR_HEIGHT = 95
+    const HOUR_HEIGHT = hourHeight
     const blocks: AppointmentBlock[] = []
 
     dayAppointments.forEach(appointment => {
@@ -163,7 +165,7 @@ export function useAppointmentBlocks({
     })
 
     return blocks
-  }, [getAppointmentsForDate, resizeData, workStartMinutes, clientsMap, getAppointmentDuration])
+  }, [getAppointmentsForDate, resizeData, workStartMinutes, clientsMap, getAppointmentDuration, hourHeight])
 
   return { getAppointmentBlocks }
 }

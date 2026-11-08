@@ -29,7 +29,7 @@ import {
 import { SidebarMenuAction } from "@/components/ui/sidebar";
 import { useUser } from "@/contexts/UserContext";
 import { useSettings } from "@/hooks/useSettings";
-import { createAppointment } from "@/lib/db/appointments-db";
+import { appointmentSaveErrorMessage, createAppointment } from "@/lib/db/appointments-db";
 import {
   createClient,
   getAllClients,
@@ -299,7 +299,7 @@ export function SidebarQuickActions({
         clinic_id: currentClinic?.id,
       });
       if (!appointment) {
-        toast.error("שגיאה ביצירת התור");
+        toast.error(appointmentSaveErrorMessage("שגיאה ביצירת התור"));
         return false;
       }
       window.dispatchEvent(

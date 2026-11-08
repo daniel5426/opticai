@@ -4,6 +4,7 @@ import { Appointment } from "@/lib/db/schema-interface"
 import { DragData, DragPosition, ResizeData } from "./types"
 import { timeToMinutes, minutesToTime, getAppointmentEndTime } from "./utils"
 import { toast } from "sonner"
+import { appointmentSaveErrorMessage } from "@/lib/db/appointments-db"
 
 interface UseDragAndResizeProps {
   calendarRef: React.RefObject<HTMLDivElement | null>
@@ -14,6 +15,7 @@ interface UseDragAndResizeProps {
   visibleDates: Date[]
   updateAppointment: (appointment: Appointment) => Promise<Appointment | null>
   setAppointments: React.Dispatch<React.SetStateAction<Appointment[]>>
+  hourHeight: number
 }
 
 export function useDragAndResize({
@@ -24,7 +26,8 @@ export function useDragAndResize({
   isUserOnVacation,
   visibleDates,
   updateAppointment,
-  setAppointments
+  setAppointments,
+  hourHeight
 }: UseDragAndResizeProps) {
   const [draggedData, setDraggedData] = useState<DragData | null>(null)
   const [draggedBlockId, setDraggedBlockId] = useState<number | null>(null)
@@ -100,7 +103,7 @@ export function useDragAndResize({
     const dayIndex = Math.max(0, Math.min(visibleDates.length - 1, visibleDates.length - 1 - rawDayIndex))
     const targetDate = visibleDates[dayIndex]
 
-    const HOUR_HEIGHT = 95
+    const HOUR_HEIGHT = hourHeight
     const totalMinutesFromTop = Math.max(0, (y / HOUR_HEIGHT) * 60)
     const snappedMinutes = Math.round(totalMinutesFromTop / 15) * 15
 
@@ -121,7 +124,7 @@ export function useDragAndResize({
       date: targetDate,
       time: newTime
     }
-  }, [calendarRef, draggedData, visibleDates, workStartMinutes, workEndMinutes, getAppointmentDuration])
+  }, [calendarRef, draggedData, visibleDates, workStartMinutes, workEndMinutes, getAppointmentDuration, hourHeight])
 
   const calculateResizePosition = useCallback((e: MouseEvent) => {
     if (!calendarRef.current || !resizeData) return null
@@ -139,7 +142,7 @@ export function useDragAndResize({
     }
 
     const y = e.clientY - gridRect.top + scrollTop
-    const HOUR_HEIGHT = 95
+    const HOUR_HEIGHT = hourHeight
     const totalMinutesFromTop = Math.max(0, (y / HOUR_HEIGHT) * 60)
     const snappedMinutes = Math.round(totalMinutesFromTop / 5) * 5
 
@@ -165,7 +168,7 @@ export function useDragAndResize({
     }
 
     return null
-  }, [calendarRef, resizeData, workStartMinutes, workEndMinutes])
+  }, [calendarRef, resizeData, workStartMinutes, workEndMinutes, hourHeight])
 
   const handleMouseMove = (e: MouseEvent) => {
     if (calendarRef.current && !resizeData) {
@@ -269,7 +272,7 @@ export function useDragAndResize({
         if (result) {
           toast.success("התור הועבר בהצלחה")
         } else {
-          toast.error("שגיאה בהעברת התור")
+          toast.error(appointmentSaveErrorMessage("שגיאה בהעברת התור"))
           setAppointments(prev => prev.map(apt =>
             apt.id === originalAppointment.id ? originalAppointment : apt
           ))
@@ -337,7 +340,7 @@ export function useDragAndResize({
             if (result) {
               toast.success("התור עודכן בהצלחה")
             } else {
-              toast.error("שגיאה בעדכון התור")
+              toast.error(appointmentSaveErrorMessage("שגיאה בעדכון התור"))
             }
           } catch (error) {
             console.error('Error resizing appointment:', error)
