@@ -477,6 +477,11 @@ def test_micropay_wire_response_and_ambiguous_timeout(state,micropay,monkeypatch
 
 def test_micropay_run_charges_frozen_units_and_dlr_is_idempotent(state,micropay,monkeypatch):
     s=state
+    # Exercise one purchased unit spanning two Unicode transport segments,
+    # independently of a developer's callback hostname or CI's localhost default.
+    monkeypatch.setattr(settings,'CAMPAIGN_PUBLIC_URL','https://api.prysm.co.il')
+    s.c.sms_content='א'*50
+    s.db.commit()
     monkeypatch.setattr(type(micropay),'send',lambda *a,**k:providers.Outcome('submitted','42'))
     q=engine.preview(s.db,s.c,s.user)
     run=engine.create_run(s.db,s.c,s.user,'sms-units',q['quote'])
