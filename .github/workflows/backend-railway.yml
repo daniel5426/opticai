@@ -53,7 +53,7 @@ jobs:
       - name: Run backend release-gate tests
         env:
           PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/backend
-          DATABASE_URL: sqlite:///:memory:
+          DATABASE_URL: "sqlite:///:memory:"
           AGENTS24_ENABLED: "false"
           PRYSM_AGENT_SERVICES_MANAGED: "1"
           SCANNER_ENABLED: "false"
