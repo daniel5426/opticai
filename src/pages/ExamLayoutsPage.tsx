@@ -18,7 +18,7 @@ export default function ExamLayoutsPage() {
   const [searchInput, setSearchInput] = useState(search.q)
 
   useEffect(() => {
-    setSearchInput(search.q)
+    setSearchInput((current) => (current.trim() === search.q ? current : search.q))
   }, [search.q])
 
   const buildSearchState = (overrides?: Partial<{ q: string; type: string }>) =>
@@ -36,7 +36,7 @@ export default function ExamLayoutsPage() {
 
   useEffect(() => {
     const t = setTimeout(() => {
-      if (searchInput === search.q) return
+      if (searchInput.trim() === search.q) return
       navigate({
         to: "/exam-layouts",
         search: buildSearchState({ q: searchInput.trim() }),
