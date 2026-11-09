@@ -218,15 +218,17 @@ export function DateInput({
         <Input
           ref={inputRef}
           type="text"
+          id={name}
           name={name}
           aria-label={ariaLabel}
-          dir={dir}
+          dir={dir ?? "ltr"}
+          center
           value={textValue}
           onChange={handleTextChange}
           onBlur={handleTextBlur}
           disabled={disabled}
           style={{ scrollbarWidth: "none" }}
-          className={`h-9 pr-10 text-sm ${disabled ? "bg-accent/50" : "bg-field"} disabled:cursor-default disabled:opacity-100 ${className || ""}`}
+          className={`h-9 px-9 text-sm ${disabled ? "bg-accent/50" : "bg-field"} disabled:cursor-default disabled:opacity-100 ${className || ""}`}
           placeholder=""
         />
         <PopoverTrigger asChild>

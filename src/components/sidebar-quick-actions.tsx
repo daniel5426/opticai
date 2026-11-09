@@ -1,3 +1,4 @@
+import { ScannerHistoryButton } from "@/components/scanner/ScannerProvider";
 import { NewExamLayoutMenuContent } from "@/components/exam/NewExamLayoutMenuContent";
 import * as React from "react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
@@ -559,7 +560,8 @@ export function SidebarQuickActions({
   const renderQuickAction = React.useCallback(
     (action: SidebarQuickAction) => {
       if (action === "recent-clients") {
-        return (
+        return (<>
+          <ScannerHistoryButton />
           <DropdownMenu
             dir={direction}
             onOpenChange={(open) => open && void loadRecentClients()}
@@ -611,7 +613,7 @@ export function SidebarQuickActions({
                 })
               )}
             </DropdownMenuContent>
-          </DropdownMenu>
+          </DropdownMenu></>
         );
       }
       if (action === "client") {

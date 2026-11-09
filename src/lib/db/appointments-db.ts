@@ -167,6 +167,7 @@ export async function getAppointmentById(id: number): Promise<Appointment | null
 }
 
 export async function createAppointment(appointment: Omit<Appointment, 'id'>): Promise<Appointment | null> {
+  lastSaveError = null;
   try {
     if (!appointment.client_id || appointment.client_id <= 0) {
       console.error('Error creating appointment: Invalid client_id');
@@ -271,6 +272,7 @@ export async function createAppointment(appointment: Omit<Appointment, 'id'>): P
 }
 
 export async function updateAppointment(appointment: Appointment): Promise<Appointment | null> {
+  lastSaveError = null;
   try {
     if (!appointment.id) {
       console.error('Error updating appointment: No appointment ID provided');

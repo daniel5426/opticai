@@ -31,7 +31,7 @@ export async function deleteCampaign(id: number) {
 
 export async function getCampaignClientExecution(campaignId: number, clientId: number) {
   const response = await apiClient.getCampaignClientExecution(campaignId, clientId);
-  return response.data;
+  return Boolean((response.data as {executed?: boolean} | undefined)?.executed);
 }
 
 export async function addCampaignClientExecution(campaignId: number, clientId: number) {

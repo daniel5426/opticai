@@ -1,4 +1,5 @@
-import { createRoute } from "@tanstack/react-router";
+import { createRoute, redirect } from "@tanstack/react-router";
+import { campaignsEnabled } from "@/lib/feature-flags";
 import { lazy } from "react";
 import { RootRoute } from "./__root";
 import HomePage from "../pages/HomePage";
@@ -309,6 +310,8 @@ export const WorkerStatsRoute = createRoute({
 export const CampaignsRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/campaigns",
+  beforeLoad: () => { if (!campaignsEnabled) throw redirect({ to: "/dashboard" }); },
+  validateSearch: (search: Record<string, unknown>) => ({ campaign: Number(search.campaign) > 0 ? Number(search.campaign) : undefined }),
   component: CampaignsPage,
 });
 

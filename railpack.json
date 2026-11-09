@@ -32,7 +32,7 @@
           "dest": "config/desktop-runtime"
         },
         "DEVDESK_RELEASE_BUILD=1 node scripts/devdesk-release-inputs.mjs apply",
-        "ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci"
+        "ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci --no-audit --no-fund"
       ]
     }
   }

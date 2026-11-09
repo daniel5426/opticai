@@ -12,7 +12,7 @@ from agent_dev_stack import run_stack, validate_environment, published_platform
 ROOT = Path(__file__).resolve().parents[1]
 env = {**os.environ, **{key: value for key, value in dotenv_values(ROOT / 'backend/.env').items() if value is not None}}
 env.update(VITE_API_URL='http://localhost:8000/api/v1', PRYSM_RENDERER_URL='http://localhost:5126',
-           PRYSM_AGENT_PACKAGE_DIR=str(ROOT / ('agents24' if published_platform(env) else '.agent-data/clinic-package')))
+           PRYSM_AGENT_PACKAGE_DIR=str(ROOT / ('.agent-data/clinic-campaign-package' if env.get('PRYSM_CLINIC_CAMPAIGN_DRAFT') == 'true' else 'agents24' if published_platform(env) else '.agent-data/clinic-package')))
 node_bin = Path.home() / '.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin'
 if (node_bin / 'node').exists():
     env['PATH'] = str(node_bin) + os.pathsep + env.get('PATH', '')
@@ -36,6 +36,9 @@ elif mode in {'api', 'api-legacy'}:
     env['PRYSM_AGENT_SERVICES_MANAGED'] = '1'
     port = '8000' if mode == 'api' else '8001'
     command = [python, '-m', 'uvicorn', 'main:app', '--host', '127.0.0.1', '--port', port, *arguments]
+elif mode == 'campaign-callbacks':
+    command = [python, str(ROOT / 'scripts/campaign_callbacks.py')]
+    cwd = ROOT
 elif mode in {'relay', 'relay-status'}:
     command = [str(python), '-m', 'agent.relay_host', *(['--status'] if mode == 'relay-status' else []), *arguments]
 elif mode == 'artifact':
@@ -52,7 +55,7 @@ elif mode in {'web', 'browser'}:
     command = ['npm', 'run', 'dev', '--', '--port', '5126', '--strictPort'] if mode == 'web' else ['npm', 'exec', '--', 'vite', '--config', 'vite.renderer.config.mts', '--port', '5126', '--strictPort']
 else:
     raise SystemExit('Unknown clinic development command.')
-if mode in {'api', 'api-legacy', 'artifact', 'relay', 'worker', 'web', 'browser'}:
+if mode in {'api', 'api-legacy', 'artifact', 'relay', 'worker', 'web', 'browser', 'campaign-callbacks'}:
     # The supervisor owns this PID. Do not leave a subprocess.call wrapper
     # that can die independently and orphan the actual service.
     os.chdir(cwd)

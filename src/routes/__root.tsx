@@ -1,3 +1,4 @@
+import { ScannerProvider } from "@/components/scanner/ScannerProvider";
 import React from "react";
 import BaseLayout from "@/layouts/BaseLayout";
 import { Outlet, createRootRoute, useRouterState } from "@tanstack/react-router";
@@ -14,9 +15,9 @@ function Root() {
   });
   const content = (
     <UserProvider>
-      <BaseLayout>
+      <ScannerProvider><BaseLayout>
         <Outlet />
-      </BaseLayout>
+      </BaseLayout></ScannerProvider>
     </UserProvider>
   );
   // The synthetic gallery must remain inspectable when the clinic API is offline.

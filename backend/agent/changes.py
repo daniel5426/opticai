@@ -216,6 +216,9 @@ def commit(db, authority, change_id):
         expiry = expiry.replace(tzinfo=now().tzinfo)
     if expiry <= now():
         raise HTTPException(409, 'agent.expiredChange')
+    if proposal.kind == 'campaigns':
+        from agent.campaigns import commit as commit_campaign
+        return commit_campaign(db, authority, proposal)
     kind, fields, record_id = proposal.kind, proposal.payload['fields'], proposal.payload['record_id']
     if kind != 'clients' and fields.get('client_id'):
         patient(db, authority, fields['client_id'])

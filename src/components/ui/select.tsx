@@ -78,7 +78,7 @@ function SelectTrigger({
   className,
   size = "default",
   children,
-  noBorder = false,
+  noBorder = true,
   hideIcon = false,
   centered = false,
   ...props
@@ -100,10 +100,10 @@ function SelectTrigger({
       className={cn(
         `${props.disabled ? "!bg-accent/50 dark:!bg-accent/50" : "bg-field dark:bg-field"}`,
         "data-[placeholder]:text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 relative m-0 flex w-full items-center gap-2 rounded-md py-2 text-sm whitespace-nowrap transition-[color] outline-none disabled:cursor-default disabled:opacity-100 data-[size=default]:h-9 data-[size=sm]:h-8 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        centered ? "justify-center pr-2 pl-5" : "justify-between pr-2 pl-1",
+        centered ? "justify-center pr-2 pl-5" : "justify-between px-3",
         centered && "*:data-[slot=select-value]:justify-center",
         noBorder
-          ? ""
+          ? "border border-transparent aria-invalid:border-destructive focus-visible:border-ring data-[state=open]:border-ring"
           : "border-input aria-invalid:border-destructive data-[state=open]:border-ring focus:border-ring border ring-0 outline-none focus:outline-none",
         className,
       )}
@@ -115,7 +115,7 @@ function SelectTrigger({
           <ChevronDownIcon
             className={cn(
               "size-3 opacity-50",
-              centered ? "absolute top-1/2 left-1 -translate-y-1/2" : "ml-1",
+              centered ? "absolute top-1/2 left-1 -translate-y-1/2" : "",
             )}
           />
         </SelectPrimitive.Icon>

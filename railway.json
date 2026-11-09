@@ -6,6 +6,7 @@
     "watchPatterns": [
       "src/**",
       "public/**",
+      "scanner/**",
       "index.html",
       "package.json",
       "package-lock.json",

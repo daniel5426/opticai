@@ -1,7 +1,19 @@
 import { describe, expect, test } from "vitest";
 import { sameDayContactLensOrders, softopticContactLensExam } from "@/lib/softoptic-contact-lens";
+import { buildSoftopticTabs, withContactLensTab } from "@/lib/softoptic-exam-tabs";
 
 describe("OpticSoft contact lens screen on the exam", () => {
+  test("a same-day contact order keeps existing eye exam cards accessible", () => {
+    const card = { id: "final", type: "final-subjective" };
+    const tabs = withContactLensTab(buildSoftopticTabs([card], () => []), true);
+    expect(tabs.find((tab) => tab.key === "subjective")?.cards).toContain(card);
+    expect(tabs.at(-1)?.key).toBe("contactLens");
+  });
+
+  test("does not convert decimal visual acuity to a meter denominator", () => {
+    expect(softopticContactLensExam({ r_va: "0.5", l_va: "1.0+2", comb_va: "0.8" }))
+      .toMatchObject({ r_va: "0.5", l_va: "1.0+2", comb_va: "0.8" });
+  });
   test("takes the contact lens orders of the exam's day", () => {
     const orders = [
       { id: 1, order_date: "2026-08-25", order_data: { "keratometer-contact-lens": { r_rh: 7.53 } } },

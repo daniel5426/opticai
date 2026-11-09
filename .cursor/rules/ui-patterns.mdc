@@ -10,6 +10,8 @@ The application uses [shadcn/ui](https://ui.shadcn.com) for UI components with T
 ## Core UI Guidelines
 
 ### RTL Support
+- Hebrew is the primary layout. Current clinics are Hebrew-speaking, so design the Hebrew RTL screen first and then check English and French.
+- Use the width in Hebrew. Do not leave the main work in a narrow start column with an empty panel beside it.
 - Application is in Hebrew and uses RTL layout
 - All components should support RTL direction
 - Use `dir="rtl"` attribute where needed

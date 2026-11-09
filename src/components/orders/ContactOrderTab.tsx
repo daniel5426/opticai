@@ -77,6 +77,7 @@ export default function ContactOrderTab({
   rightInventorySelection,
   leftInventorySelection,
   onInventorySelect,
+  onInventoryClear,
   onInventoryRelevantFieldChange,
   clientOrderIndex,
 }: ContactOrderTabProps) {
@@ -387,6 +388,7 @@ export default function ContactOrderTab({
                     rightDisabled: rightInventorySelection?.lifecycle_state === "consumed",
                     leftDisabled: leftInventorySelection?.lifecycle_state === "consumed",
                     onSelect: onInventorySelect,
+                    onClear: onInventoryClear,
                   }
                 : undefined
             }

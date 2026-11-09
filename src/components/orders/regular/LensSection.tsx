@@ -1,3 +1,7 @@
+import { CatalogProductAction } from "@/components/inventory/CatalogProductAction";
+import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels";
+import { useScanTarget, chooseScan, scanned, provenance, scanMetadata } from "@/lib/scanner";
+import { ScanCardActions } from "@/components/scanner/ScanCardActions";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { LensCatalogCombobox, lensCatalogSuggestions } from "@/components/inventory/LensCatalogCombobox";
@@ -51,6 +55,7 @@ interface LensSectionProps {
   selections?: InventorySelection[];
   onInventorySelect?: (side: LensSide | "both", variant: CatalogVariant, source: FulfillmentSource) => void;
   onInventoryClear?: (side: LensSide | "both") => void;
+  onInventoryUnlink?: (side: LensSide | "both") => void;
   lens: OrderLens;
   layoutKey: string;
   isEditing: boolean;
@@ -59,18 +64,18 @@ interface LensSectionProps {
 
 export function LensSection({
   lens,
-  clinicId: recordClinicId, orderId, selections = [], onInventorySelect, onInventoryClear,
+  clinicId: recordClinicId, orderId, selections = [], onInventorySelect, onInventoryClear, onInventoryUnlink,
   layoutKey,
   isEditing,
   onLensFieldChange,
 }: LensSectionProps) {
   const { t } = useTranslation();
   const { direction } = useAppLocale();
-  const { currentClinic } = useUser();
+  const { currentClinic, currentUser } = useUser();
   const clinicId = recordClinicId ?? currentClinic?.id;
   const revision = useSupplyRevision();
   const [variants, setVariants] = useState<CatalogVariant[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(clinicId));
   useEffect(() => {
     let active = true;
     if (!clinicId) { setVariants([]); setLoading(false); return; }
@@ -118,6 +123,39 @@ export function LensSection({
     setMode("split");
   };
 
+  const clearProduct = (side: LensSide | 'both') => {
+    const sides = side === 'both' ? ['right', 'left'] as const : [side];
+    if (!isEditing || sides.some(eye => selection(eye)?.lifecycle_state === 'consumed')) return;
+    onInventoryClear?.(side);
+    const metadata = scanMetadata(lens);
+    for (const eye of sides) {
+      LENS_FIELDS.forEach(({key}) => onLensFieldChange(fieldName(eye, key), ''));
+      delete metadata[eye];
+    }
+    onLensFieldChange('_scan_provenance' as keyof OrderLens, JSON.stringify(metadata));
+  };
+  const scanRef = useScanTarget({ id: `lenses:${layoutKey}`, category: 'spectacle_lens', kind: 'order', label: t('orderWorkspace.lenses'),
+    canApply: isEditing && !!onInventorySelect && !selections.some(item => item.component.startsWith('lens_') && item.lifecycle_state === 'consumed'),
+    edit: !isEditing && !selections.some(item=>item.component.startsWith('lens_')&&item.lifecycle_state==='consumed') ? () => window.dispatchEvent(new Event('prysm:scan-edit-order')) : undefined,
+    apply: async (variant, scan) => {
+      const side = isSplit ? await chooseScan(t('scanner.choose'), [{label:t('scanner.right'),value:'right'},{label:t('scanner.left'),value:'left'}]) : 'both';
+      if (!side) throw new Error('scanner.rejected');
+      const sides = side === 'both' ? ['right', 'left'] as const : [side as LensSide];
+      if (sides.some(eye => LENS_FIELDS.some(({key}) => valueOf(eye,key)) && selection(eye)?.variant_id !== variant.id)) {
+        if (await chooseScan(t('scanner.replace'), [{label:t('scanner.confirm'),value:'yes'}]) !== 'yes') throw new Error('scanner.rejected');
+      }
+      if (scan.isCurrent && !scan.isCurrent()) throw new Error('scanner.expired');
+      const fields: Record<string, unknown> = {};
+      for (const eye of sides) Object.assign(fields, {
+        [`${eye}_supplier`]: variant.product.preferred_supplier || '', [`${eye}_material`]: variant.product.material || '', [`${eye}_model`]: variant.product.model,
+        [`${eye}_coating`]: variant.attributes.coating || '', [`${eye}_color`]: variant.attributes.color || '', [`${eye}_diameter`]: variant.attributes.diameter || '',
+      });
+      onInventorySelect?.(side as LensSide | 'both', variant, (variant.balance?.available || 0)>0 ? 'inventory' : 'supplier_ordered');
+      let metadata = lens;
+      for (const eye of sides) metadata = {...metadata, _scan_provenance: provenance(metadata, eye, Object.fromEntries(Object.entries(fields).filter(([key])=>key.startsWith(eye+'_'))), variant, scan)} as OrderLens;
+      onLensFieldChange('_scan_provenance' as keyof OrderLens, (metadata as any)._scan_provenance);
+    },
+  });
   const renderControl = (side: LensSide | "both", key: LensFieldSuffix, lookupType?: string, ariaLabel?: string) => {
     const source = side === "both" ? "right" : side;
     const consumed = side === "both"
@@ -146,18 +184,6 @@ export function LensSection({
         loadingCatalog={loading}
         lookupLabel={t(`orderWorkspace.${key}`)}
         onSelectProduct={(variant, fulfillment) => onInventorySelect?.(side, variant, fulfillment)}
-        createProduct={onInventorySelect && currentClinic?.id === clinicId && valueOf(source, "model").trim() && !lensCatalogSuggestions(variants, Object.fromEntries(LENS_FIELDS.map(({ key }) => [key, valueOf(source, key)]))).length ? {
-          name: valueOf(source, "model"),
-          onCreate: async () => {
-            const result = await apiClient.createCatalogEntry({ clinic_id: clinicId!, category: "spectacle_lens",
-              product: { model: valueOf(source, "model"), material: valueOf(source, "material"), preferred_supplier: valueOf(source, "supplier") },
-              variant: { attributes: { coating: valueOf(source, "coating"), color: valueOf(source, "color"), diameter: valueOf(source, "diameter") }, is_stockable: true } });
-            if (result.error || !result.data) throw new Error(String(result.error || "Catalog creation failed"));
-            setVariants(previous => [...previous.filter(item => item.id !== result.data!.id), result.data!]);
-            onInventorySelect(side, result.data, "supplier_ordered");
-            toast.success(t("inventoryProductCreated", { name: result.data.display_name }));
-          },
-        } : undefined}
         value={valueOf(source, key)}
         onChange={(value) => handleChange(side, key, value)}
         lookupType={lookupType}
@@ -171,18 +197,35 @@ export function LensSection({
 
   const selectedProduct = (side: LensSide | "both") => {
     const selected = side === "both" ? selection("right") || selection("left") : selection(side);
-    if (!selected?.variant) return null;
+    if (!selected?.variant) {
+      const source = side === 'both' ? 'right' : side;
+      const values = Object.fromEntries(LENS_FIELDS.map(({key})=>[key,valueOf(source,key)]));
+      const canCreate = isEditing && !loading && !selected && onInventorySelect && Boolean(clinicId) && currentClinic?.id === clinicId &&
+        isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.worker) && valueOf(source,'model').trim() && !lensCatalogSuggestions(variants,values).length;
+      if (!canCreate) return null;
+      return <CatalogProductAction label={t('orderWorkspace.catalogCreateProduct',{name:valueOf(source,'model')})} onAction={async()=>{
+        const result = await apiClient.createCatalogEntry({clinic_id:clinicId!,category:'spectacle_lens',
+          product:{model:valueOf(source,'model'),material:valueOf(source,'material'),preferred_supplier:valueOf(source,'supplier')},
+          variant:{attributes:{coating:valueOf(source,'coating'),color:valueOf(source,'color'),diameter:valueOf(source,'diameter')},is_stockable:true}});
+        if (result.error || !result.data) throw new Error('Catalog creation failed');
+        setVariants(previous=>[...previous.filter(item=>item.id!==result.data!.id),result.data!]);
+        onInventorySelect(side,result.data,'supplier_ordered');
+      }}/>;
+    }
     const consumed = side === "both"
       ? selections.some(item => item.component.startsWith("lens_") && item.lifecycle_state === "consumed")
       : selected.lifecycle_state === "consumed";
     return <SelectedCatalogProduct variant={selected.variant}
-      onClear={isEditing && !consumed ? () => onInventoryClear?.(side) : undefined}
-      clearLabel={side === "both" ? undefined : `${t("orderWorkspace.catalogClear")} ${eyeLabel(side)}`} />;
+      onClear={isEditing && !consumed ? () => (onInventoryUnlink || onInventoryClear)?.(side) : undefined}
+      clearLabel={side === "both" ? undefined : `${t("orderWorkspace.catalogUnlink")} ${eyeLabel(side)}`} />;
   };
 
   return (
-    <OrderSection
+    <div ref={scanRef} className="h-full"><OrderSection
+      className="flex h-full flex-col [&>header]:min-h-8"
+      bodyClassName="flex-1"
       title={t("orderWorkspace.lenses")}
+      start={<ScanCardActions scanned={scanned(lens, 'right') || scanned(lens, 'left')} clear={selection('right') || selection('left') || LENS_FIELDS.some(({key})=>valueOf('right',key)||valueOf('left',key)) ? ()=>clearProduct('both') : undefined} disabled={!isEditing || selections.some(item=>item.component.startsWith('lens_')&&item.lifecycle_state==='consumed')} />}
       end={
         <OrderSegmented
           dir={direction}
@@ -195,13 +238,12 @@ export function LensSection({
           ]}
         />
       }
-      footer={
-        mergeError ? (
-          <p role="alert" className="text-destructive mt-3 text-xs">
-            {mergeError}
-          </p>
-        ) : null
-      }
+      footer={<>
+        {mergeError && <p role="alert" className="text-destructive mt-3 text-xs">{mergeError}</p>}
+        <div className="mt-3 min-h-10" data-product-link-row>
+          {isSplit ? <div className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-x-3"><span className="min-w-14" aria-hidden="true" />{(['right','left'] as LensSide[]).map(side=><div key={side} className="min-w-0" role="group" aria-label={eyeLabel(side)}>{selectedProduct(side)}</div>)}</div> : selectedProduct('both')}
+        </div>
+      </>}
     >
       {isSplit ? (
         <div className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] items-center gap-x-3 gap-y-2">
@@ -214,12 +256,6 @@ export function LensSection({
               {eyeLabel(side)}
             </span>
           ))}
-          {(selection("right")?.variant || selection("left")?.variant) && <>
-            <span />
-            {(["right", "left"] as LensSide[]).map(side => (
-              <div key={side} className="min-w-0" role="group" aria-label={eyeLabel(side)}>{selectedProduct(side)}</div>
-            ))}
-          </>}
           {LENS_FIELDS.map(({ key, lookupType }) => (
             <React.Fragment key={key}>
               <span className="text-muted-foreground min-w-14 text-xs">
@@ -240,7 +276,6 @@ export function LensSection({
         </div>
       ) : (
         <>
-        {(selection("right")?.variant || selection("left")?.variant) && <div className="mb-3 min-w-0">{selectedProduct("both")}</div>}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {LENS_FIELDS.map(({ key, lookupType }) => (
             <OrderField key={key} label={t(`orderWorkspace.${key}`)}>
@@ -250,6 +285,6 @@ export function LensSection({
         </div>
         </>
       )}
-    </OrderSection>
+    </OrderSection></div>
   );
 }

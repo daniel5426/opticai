@@ -32,6 +32,9 @@ class Settings:
     API_V1_STR: str = "/api/v1"
     APP_ENV: str = APP_ENV
     
+    SCANNER_ENABLED: bool = os.getenv("SCANNER_ENABLED", "false").lower() == "true"
+    SCANNER_NOTIFY_DATABASE_URL: str = os.getenv("SCANNER_NOTIFY_DATABASE_URL", "")
+
     # Database
     DATABASE_URL: str = _normalize_database_url(os.getenv("DATABASE_URL", "sqlite:///./opticai.db"))
     
@@ -40,8 +43,8 @@ class Settings:
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
     
     # All features use the same direct provider and privacy boundary.
-    AI_ASSISTANT_MODEL: str = os.getenv("AI_ASSISTANT_MODEL", "gpt-6.1-sol")
-    AI_INSIGHTS_MODEL: str = os.getenv("AI_INSIGHTS_MODEL", "gpt-6.1-sol")
+    AI_ASSISTANT_MODEL: str = os.getenv("AI_ASSISTANT_MODEL", "gpt-6-luna")
+    AI_INSIGHTS_MODEL: str = os.getenv("AI_INSIGHTS_MODEL", "gpt-6-luna")
     AI_CAMPAIGN_MODEL: str = os.getenv("AI_CAMPAIGN_MODEL", "gpt-6-luna")
     AI_WHATSAPP_MODEL: str = os.getenv("AI_WHATSAPP_MODEL", "gpt-6-luna")
     AI_ASSISTANT_REASONING: str = os.getenv("AI_ASSISTANT_REASONING", "low")
@@ -111,6 +114,23 @@ class Settings:
     BILLING_CHARGING_ENABLED: bool = os.getenv("BILLING_CHARGING_ENABLED", "false").lower() == "true"
     OWNER_USER_IDS: str = os.getenv("OWNER_USER_IDS", "")
     WEB_SIGNUP_REQUIRED: bool = os.getenv("WEB_SIGNUP_REQUIRED", "false").strip().lower() in {"1", "true", "yes"}
+
+    CAMPAIGNS_ENABLED: bool = os.getenv("CAMPAIGNS_ENABLED", "false" if APP_ENV == "production" else "true").lower() == "true"
+    CAMPAIGN_SENDING_ENABLED: bool = os.getenv("CAMPAIGN_SENDING_ENABLED", "false").lower() == "true"
+    MICROPAY_TOKEN: str = os.getenv("MICROPAY_TOKEN", "")
+    MICROPAY_SENDER: str = os.getenv("MICROPAY_SENDER", "Prysm")
+    MICROPAY_WEBHOOK_SECRET: str = os.getenv("MICROPAY_WEBHOOK_SECRET", "")
+    MICROPAY_UNIT_TIERS: str = os.getenv("MICROPAY_UNIT_TIERS", "[[134,1]]")
+    CAMPAIGN_EMAIL_FROM: str = os.getenv("CAMPAIGN_EMAIL_FROM", "")
+    MESSAGING_ALLPAY_API_LOGIN: str = os.getenv("MESSAGING_ALLPAY_API_LOGIN", "")
+    MESSAGING_ALLPAY_API_KEY: str = os.getenv("MESSAGING_ALLPAY_API_KEY", "")
+    MESSAGING_ALLPAY_TEST_MODE: bool = os.getenv("MESSAGING_ALLPAY_TEST_MODE", "true").lower() == "true"
+    MESSAGING_ALLPAY_CHECKOUT_MODE: str = os.getenv("MESSAGING_ALLPAY_CHECKOUT_MODE", "hosted_fields")
+    MESSAGING_TOPUPS_ENABLED: bool = os.getenv("MESSAGING_TOPUPS_ENABLED", "false").lower() == "true"
+    MESSAGING_PAYMENT_PUBLIC_URL: str = os.getenv("MESSAGING_PAYMENT_PUBLIC_URL", "").rstrip("/")
+    CAMPAIGN_PUBLIC_URL: str = os.getenv("CAMPAIGN_PUBLIC_URL", "").rstrip("/")
+    CAMPAIGN_RESEND_API_KEY: str = os.getenv("CAMPAIGN_RESEND_API_KEY", "")
+    CAMPAIGN_RESEND_WEBHOOK_SECRET: str = os.getenv("CAMPAIGN_RESEND_WEBHOOK_SECRET", "")
 
     # WhatsApp
     WHATSAPP_ACCESS_TOKEN: str = os.getenv("WHATSAPP_ACCESS_TOKEN", "")

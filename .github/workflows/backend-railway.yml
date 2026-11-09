@@ -53,6 +53,11 @@ jobs:
       - name: Run backend release-gate tests
         env:
           PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/backend
+          DATABASE_URL: sqlite:///:memory:
+          AGENTS24_ENABLED: "false"
+          PRYSM_AGENT_SERVICES_MANAGED: "1"
+          SCANNER_ENABLED: "false"
+          CAMPAIGN_SENDING_ENABLED: "false"
         run: >
           python -m pytest backend/tests/test_ai_responses.py
           backend/tests/agent/test_google_ai_isolation.py
@@ -84,4 +89,8 @@ jobs:
           backend/tests/test_optitech_clinical_coverage.py
           backend/tests/test_optitech_address_split.py
           backend/tests/test_table_search.py
+          backend/tests/test_phone_scanner.py
+          backend/tests/test_campaign_release_gate.py
+          backend/tests/test_campaign_callbacks.py
+          backend/tests/test_campaign_messaging.py
         if: steps.changes.outputs.run == 'true'

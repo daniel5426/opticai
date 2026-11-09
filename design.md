@@ -9,9 +9,11 @@ Prysm uses a restrained, operational interface for optical-clinic workflows. The
 - Use color to communicate state or priority, not as decoration.
 - Add borders, backgrounds, and shadows only when they clarify grouping or elevation.
 - Shared cards, including exam and order cards, use `border-border/50` and `shadow-sm` in both appearance styles. Order cards retain their own padding and gaps; compact sidebar billing keeps its flat grouping.
-- On the exam detail page, cards use the layout editor's `bg-card` surface, subtle border, and `shadow-sm`, keeping their rounded corners and gaps. Fields inside these cards retain their muted backgrounds and visible borders in both modes. The tab panel uses the `#FCFCFC` surface in light mode, shared with the active tab and layout editor to separate the cards from the tinted page canvas. The tab panel and active tabs use the order workspace's borderless `shadow-sm` treatment in both appearance styles.
+- On the exam detail page, cards use the layout editor's `bg-card` surface, subtle border, and `shadow-sm`, keeping their rounded corners and gaps. Fields inside these cards retain their muted backgrounds and transparent borders in both modes; focus and validation remain visible. The tab panel uses the `#FCFCFC` surface in light mode, shared with the active tab and layout editor to separate the cards from the tinted page canvas. The tab panel and active tabs use the order workspace's borderless `shadow-sm` treatment in both appearance styles.
 - Layout editor full-height edge hit areas show a short grip beside the pointer on hover/focus and resize the centered layout symmetrically. Optional `layoutWidthPx` in version 2 layout JSON saves the preferred maximum width. Sidebar and agent panels consume surrounding gaps before the layout shrinks to fit; extra room restores its preferred width. Older `sideInsetPx` settings resolve to a width once on opening, and layouts without either setting fill the available width.
 - Labeled order fields have empty placeholders to avoid repeating their labels. Keep validation and lookup menu feedback visible.
+- Frame and lens catalog links occupy a reserved full-width sidebar-colored row below the product inputs. Product names wrap within that row; selecting or unlinking a product must not move the inputs above it. Unlink removes the catalog association while preserving entered details and price; the separate clear icon empties product fields.
+- Offer catalog creation in that footer row, rather than in field dropdowns. A changed frame price has an explicit catalog-update icon beside unlink; editing or saving the order alone does not change catalog prices. New frame products inherit the entered price, including zero. Keep the order workspace's successful-save text visually hidden while retaining accessible announcements and visible error recovery.
 - General borders use the shared `--border` token in `src/styles/appearance.css`, including sidebar dividers. Tune it per style and mode; input borders and focus rings keep their separate tokens.
 - Preserve the real page shell while data loads; skeletonize only unavailable content.
 
@@ -21,7 +23,7 @@ Prysm uses a restrained, operational interface for optical-clinic workflows. The
 - `src/lib/appearance.ts` owns document appearance and the style/palette registry. The single root `ThemeProvider` exposes its state; legacy helpers delegate to it. Do not set theme classes or appearance variables from pages.
 - Define style tokens in `src/styles/appearance.css`, scoped to the root `data-style` attribute and light/dark mode. A new style needs a registry entry, translated label, and token definitions; selectors derive their choices from the registry.
 - Use `bg-canvas` for application canvas, `bg-field` for controls, existing semantic text/state tokens, and the shared radius scale. Use `shadow-floating` or `shadow-dialog` for elevated overlays; do not tie generic cards to clinical styling.
-- Fields use the same muted `bg-field` surface in view and edit modes. Editable fields show a border; disabled or read-only fields use a transparent border to preserve their size. Explicitly transparent inline controls retain their surrounding surface.
+- Fields use the same muted `bg-field` surface in view and edit modes. General editable fields use a transparent border by default and show a focus or validation border; explicit bordered variants remain available. Clinical card fields also use transparent borders in both view and edit modes. Disabled or read-only fields keep a transparent border to preserve their size. Explicitly transparent inline controls retain their surrounding surface.
 - Shared fields use `--field-scale: 0.9` for height, padding, icons, and font sizes in both modes. Keep textarea minimum heights on spacing utilities and mark plain view-mode field containers with `field-view`. Surrounding labels and layout tracks keep their normal scale.
 - Themes change presentation only. Preserve font metrics, spacing, sizing, grid tracks, and breakpoints. Circular avatars, status indicators, and switch mechanics remain circular in Pro.
 - Style selection is stored per user on the device. Keep existing mode/palette keys and database `theme_preference` compatible; persisted appointment colors are independent.
@@ -32,6 +34,8 @@ Prysm uses a restrained, operational interface for optical-clinic workflows. The
 
 ## RTL behavior
 
+- Hebrew is the primary layout. Design the Hebrew RTL composition first, then confirm English and French. Do not treat LTR as the screen that has to look finished.
+- Use the width. A full-width panel with the controls stacked in a narrow start column and empty space beside them is unfinished, especially in Hebrew. Put the main work on the inline start and supporting context on the inline end.
 - Hebrew application surfaces use `dir="rtl"` at the page or component boundary.
 - Use logical alignment such as `text-start` instead of breakpoint-specific `text-left` or `text-right`.
 - Do not rely on inherited RTL direction to position separate toolbar groups. `TableFiltersBar` uses an explicit spatial layout.
@@ -44,6 +48,7 @@ Prysm uses a restrained, operational interface for optical-clinic workflows. The
 - Use `ListPageHeader` for the title, optional subtitle, and page-level actions so sibling list pages share the same top spacing and hierarchy.
 - Use `TableListPageContent` for list page padding and `TableListLayout` for the toolbar, table, loading rows, empty state, and pagination. Orders and exams share these wrappers; keep spacing, scrolling, and header placement in the wrappers.
 - Use `TableFiltersBar` for search, filters, secondary navigation, and actions. Pass its props through `TableListLayout.toolbar` on shared list pages.
+- Table/card view switches belong in that shared toolbar. Both views retain the same search state and item-opening behavior, and remember the chosen view across visits.
 - Keep search and filters out of a `Card`. Controls that sit on the canvas — search, filter menus, page actions, and pagination — use the shared canvas surface: `rounded-xl`, no border, `bg-card`, and `shadow-sm` in both appearance styles. `canvasSurfaceClassName` and `data-canvas-toolbar` own that treatment.
 - List tables use the same canvas surface on the table container (`elevated`, the default). Do not add a second card shell around them. Nested tables inside an existing panel pass `elevated={false}`.
 - Primary tabs that represent distinct page sections belong in `SiteHeader`, matching the client workspace.
@@ -62,6 +67,8 @@ Prysm uses a restrained, operational interface for optical-clinic workflows. The
 - `DialogHeader`, its title, and its description inherit logical start alignment from the shared dialog component. Do not add page-level RTL alignment overrides.
 - `DialogFooter` handles RTL action order centrally. Keep secondary/cancel actions first and primary actions last in JSX.
 - The close button uses logical placement: right in LTR dialogs and left in RTL dialogs.
+- Scanned-item details use a compact `sm:max-w-sm` dialog, a shared label/value grid aligned to logical start, and small actions in `DialogFooter`. Keep numbers and barcodes inside `bdi`; do not set entire value cells LTR, which moves them to the opposite edge in Hebrew.
+- Selecting a recent scan keeps its dropdown open with a spinner on that item until its details are ready. Close the menu when handing off to the item dialog, confirmation, or screen fields; loading errors remain in the menu for retry.
 - When a dialog contains portal-based comboboxes, keep the dialog surface `overflow-visible` and scroll an inner content wrapper instead. Scope the portal to the dialog so the menu remains interactive, but never let the scroll wrapper clip it.
 
 ## Catalog forms
@@ -81,7 +88,15 @@ Prysm uses a restrained, operational interface for optical-clinic workflows. The
 
 - One clear primary action per page section; secondary actions use outline, secondary, or menu treatments.
 - Keep common controls at the shared 36px height (`h-9`).
+- Build forms with shared `Input`, `Textarea`, `Select`, `DateInput`, and `TimeInput`; do not substitute native selects or browser date/time fields. Dates and times are locally LTR and centered, with symmetric icon clearance. General fields keep comfortable inline padding; clinical cards retain their compact insets. Width classes on `Input` also size its wrapper so numeric steppers and affixes stay inside the control. Use `wrapperClassName` for surrounding layout.
+- Hide visible scrollbars with `no-scrollbar` while retaining scrolling, including nested editor surfaces.
 - Use concise labels. Icons support labels and should not replace them unless the action is universally understood and has an accessible name.
+- Horizontal tab labels stay on one line. Never squeeze them into wrapped words or taller tabs; use concise translations, intrinsic tab widths, and horizontal scrolling when necessary.
+- Settings tabs and their active section's filters/export actions share one toolbar, with tabs at logical start and actions at logical end. Wrap whole groups only when space runs out; keep the table below the toolbar.
+- Settings form labels sit above their inputs in a dedicated field container, with an explicit `htmlFor`/`id` association. Do not nest an input inside the flex-based shared `Label`, which compresses the label beside the control. Rearrange whole fields when space is tight.
+- Keep section headings inside their card padding. Do not use a floating `legend` as a card title; name fieldsets with an internal heading and `aria-labelledby` instead.
+- Small numbers and amounts use compact controls sized at the wrapper and input together (typically `w-28` to `w-36`), with the currency inside the control. They must not stretch to fill the available row.
+- Configuration notices use compact `text-sm` copy, restrained status icons, and close vertical spacing. Group related notices; do not scatter large paragraphs between summary cards and their toolbar.
 - Destructive actions must be visually and verbally explicit.
 - Sent user attachments share the same logical end alignment as user message bubbles: left in Hebrew RTL and right in English/French LTR. Keep attachment filenames locally LTR. The agent sidebar uses the shared panel toggle for closing; do not add a second close arrow in its toolbar.
 - Voice recording uses ElevenLabs LiveWaveform with the recorder's existing microphone stream. The waveform borrows the stream; the recorder owns track cleanup. Keep the floating pill centered and its waveform between Send on the physical left and Cancel on the physical right across locales. Do not add a separate stop-square control. Send reuses the composer's circular up-arrow control. Plain Enter sends active or stopped recordings before a focused editor can submit its own draft; composition confirmation and Shift+Enter remain available to the editor.
@@ -91,6 +106,14 @@ Prysm uses a restrained, operational interface for optical-clinic workflows. The
 - Preserve the same semantic order on smaller screens. Toolbars may stack, with search and filters before navigation/actions.
 - Tables may scroll horizontally or vertically rather than compressing critical values into unreadable layouts.
 - Avoid fixed widths except for predictable controls such as filters, icon actions, and identifiers.
+
+## Campaign workspaces
+
+- Keep four sections: Audience, Content, Review & send, and Results. Scheduling belongs beside the content editor, using the former preview column.
+- Group channel toggles and message language in the composer toolbar. Disabled channels do not get separate cards. Put personalization fields in one insertion menu.
+- Review uses one card with automatic audience/cost calculation, a corner refresh action, and send actions. Save draft edits before calculating; never send or activate a schedule automatically.
+- Test sending uses one dialog with explicit destinations, its own price quote, and an explicit send button. Keep its quote separate from the campaign quote and preserve request keys on uncertain retries.
+- Place a visible Back button at logical start of the footer and Next at logical end. Omit step-count and continuation copy.
 
 ## Analytics surfaces
 

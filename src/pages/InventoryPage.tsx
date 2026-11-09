@@ -1,3 +1,5 @@
+import { InventoryCountDialog as CountDialog } from "@/components/inventory/InventoryCountDialog";
+import { useScanTarget, dispatchBarcode } from "@/lib/scanner";
 import { useKeyboardSave } from "@/hooks/shared/useKeyboardSave";
 import { SaveStatus } from "@/components/SaveStatus";
 import { useSaveController } from "@/hooks/shared/useSaveController";
@@ -838,120 +840,6 @@ function CatalogDialog({
   );
 }
 
-function CountDialog({
-  open,
-  onOpenChange,
-  variants,
-  clinicId,
-  onSaved,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  variants: CatalogVariant[];
-  clinicId: number;
-  onSaved: () => void;
-}) {
-  const { t } = useTranslation();
-  const { direction } = useAppLocale();
-  const [counts, setCounts] = useState<Record<number, string>>({});
-  const [saving, setSaving] = useState(false);
-  useEffect(() => {
-    if (!open) { setCounts({}); return; }
-    setCounts(current =>
-      Object.fromEntries(
-        variants.map((variant) => [
-          variant.id,
-          current[variant.id] ?? "",
-        ]),
-      ),
-    );
-  }, [open, variants]);
-  const entered = variants.filter(variant => counts[variant.id]?.trim());
-  const invalidCount = entered.some(variant => !Number.isSafeInteger(Number(counts[variant.id])) || Number(counts[variant.id]) < (variant.balance?.reserved || 0));
-  const save = async () => {
-    if (!entered.length || invalidCount) { toast.error(t("supply.quantityRequired")); return; }
-    setSaving(true);
-    const response = await apiClient.submitInventoryCount({
-      clinic_id: clinicId,
-      reason: t("supply.count"),
-      idempotency_key: "count-" + Date.now(),
-      items: variants.filter(variant => counts[variant.id]?.trim() !== "").map((variant) => ({
-        variant_id: variant.id,
-        counted_quantity: Number(counts[variant.id]),
-      })),
-    });
-    setSaving(false);
-    if (response.error) {
-      toast.error(String(response.error));
-      return;
-    }
-    toast.success(t("supply.applied"));
-    onOpenChange(false);
-    onSaved();
-  };
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="max-h-[85vh] max-w-2xl overflow-y-auto text-right"
-        dir={direction}
-      >
-        <DialogHeader>
-          <DialogTitle>{t("supply.count")}</DialogTitle>
-          <DialogDescription>
-            {t("supply.countHint")}
-          </DialogDescription>
-        </DialogHeader>
-        <BarcodeScanButton keepOpen disabled={saving} description={t("barcode.countHint")} onScan={code => {
-          const matches = variants.filter(variant => variant.barcode === code);
-          if (!matches.length) throw new Error(t("barcode.outsideCount"));
-          if (matches.length > 1) throw new Error(t("barcode.ambiguous"));
-          const variant = matches[0];
-          setCounts(current => ({ ...current, [variant.id]: String(Number(current[variant.id] || 0) + 1) }));
-        }} />
-        <div className="divide-y rounded-md border">
-          {variants.map((variant) => (
-            <div
-              key={variant.id}
-              className="flex items-center justify-between gap-4 p-3"
-            >
-              <div className="min-w-0">
-                <p className="break-words text-sm font-medium">
-                  {variant.display_name}
-                </p>
-                <p className="text-muted-foreground text-xs">
-                  {inventoryVariantDescription(variant)}
-                </p>
-              </div>
-              <Input
-                className="w-24 text-center"
-                aria-label={variant.display_name}
-                type="number"
-                min={variant.balance?.reserved || 0}
-                value={counts[variant.id] || ""}
-                onChange={(event) =>
-                  setCounts((current) => ({
-                    ...current,
-                    [variant.id]: event.target.value,
-                  }))
-                }
-              />
-            </div>
-          ))}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t("supply.close")}
-          </Button>
-          <Button onClick={save} disabled={saving || invalidCount || !entered.length}>
-            {t("supply.apply")}
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function DiscoveryDialog({
   open,
   onOpenChange,
@@ -1692,6 +1580,13 @@ export default function InventoryPage() {
     ROLE_LEVELS.manager,
   );
   const clinicId = currentClinic?.id;
+  const scanRef = useScanTarget({ id: 'inventory-catalog', kind: 'inventory', label: t('scanner.inventory'), canApply: !countOpen && !catalogOpen && !importOpen && !discoveryOpen,
+    apply: variant => {
+      setActiveTab('stock'); setScannedVariantId(variant.id); setCategory('all'); setVisibility('active');
+      setSelectedSupplier(null); setGroupByProduct(false); setSelectedProductId(null); setViewMode('table'); setSearch(variant.barcode || '');
+      setVariants(current=>current.some(item=>item.id===variant.id) ? current : [...current,variant]);
+    },
+  });
   const displayedViewMode: InventoryViewMode = selectedSupplier
     ? "table"
     : viewMode;
@@ -2089,7 +1984,7 @@ export default function InventoryPage() {
           items: INVENTORY_HEADER_TABS,
         }}
       />
-      <main
+      <main ref={scanRef}
         className="flex h-full min-h-0 flex-1 flex-col gap-5 overflow-hidden p-4 lg:p-6"
         dir="rtl"
       >

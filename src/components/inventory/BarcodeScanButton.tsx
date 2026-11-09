@@ -1,3 +1,4 @@
+import { dispatchBarcode } from "@/lib/scanner";
 import { useEffect, useRef, useState } from "react";
 import { ScanBarcode } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -117,6 +118,7 @@ export function ProductBarcodeScan({ clinicId, category, orderId, orderKind, sto
   const { t } = useTranslation();
   return <BarcodeScanButton {...props} disabled={props.disabled || !clinicId} onScan={async (code, signal) => {
     if (!clinicId) return;
+    if (await dispatchBarcode(code, signal)) return;
     let response: Awaited<ReturnType<typeof apiClient.getInventoryVariants>>;
     try { response = await apiClient.getInventoryVariants(clinicId, { barcode: code, category, orderId, orderKind, stockableOnly }); }
     catch { throw new Error(t("barcode.lookupError")); }

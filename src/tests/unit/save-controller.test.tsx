@@ -36,3 +36,14 @@ it.each(['he','en','fr'])('announces saving and failure with translated retry in
   expect(screen.getByRole('status')).toHaveTextContent(i18n.t('saveStatus.error'));
   expect(screen.getByRole('button',{name:i18n.t('saveStatus.retry')})).toBeInTheDocument();
 });
+
+it('can hide the saved label while retaining announcements and visible error recovery', () => {
+  const retry = vi.fn();
+  const view = render(<SaveStatus hideSaved state="saved" onRetry={retry}/>);
+  expect(screen.getByRole('status')).toHaveClass('sr-only');
+  expect(screen.getByRole('status')).toHaveTextContent(i18n.t('saveStatus.saved'));
+  view.rerender(<SaveStatus hideSaved state="error" onRetry={retry}/>);
+  expect(screen.getByRole('status')).not.toHaveClass('sr-only');
+  fireEvent.click(screen.getByRole('button', { name: i18n.t('saveStatus.retry') }));
+  expect(retry).toHaveBeenCalledOnce();
+});

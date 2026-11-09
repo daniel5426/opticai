@@ -1,3 +1,6 @@
+import { useId } from "react";
+import { useScanTarget, scanned, provenance } from "@/lib/scanner";
+import { ScanCardActions } from "@/components/scanner/ScanCardActions";
 import { useBarcodeScanner } from "@/hooks/use-barcode-scanner";
 import { ProductBarcodeScan } from "@/components/inventory/BarcodeScanButton";
 import { useAppLocale } from "@/localization/use-app-locale";
@@ -18,6 +21,7 @@ import {
 import { CatalogVariant, FulfillmentSource } from "@/lib/inventory";
 
 interface ContactLensInventoryCatalogProps {
+  onClear?: (side: "right" | "left") => void;
   clinicId?: number;
   orderId?: number;
   variants: CatalogVariant[];
@@ -65,6 +69,34 @@ export function ContactLensDetailsTab({
   const dataRef = useRef(contactLensDetailsData);
   dataRef.current = contactLensDetailsData;
 
+  const scanId = useId();
+  const identityFields = ['type', 'model', 'supplier', 'material', 'color'];
+  const clearProduct = () => {
+    if (!isEditing || inventoryCatalog?.rightDisabled || inventoryCatalog?.leftDisabled) return;
+    for (const eye of ['r','l']) identityFields.forEach(field => onContactLensDetailsChange(`${eye}_${field}` as any, ''));
+    inventoryCatalog?.onClear?.('right'); inventoryCatalog?.onClear?.('left');
+    onContactLensDetailsChange('_scan_provenance' as any, '{}');
+  };
+  const scanRef = useScanTarget({ id: `contacts:${scanId}`, category: 'contact_lens', kind: inventoryCatalog ? 'order' : 'exam', label: t('scanner.contacts'),
+    canApply: isEditing && !inventoryCatalog?.rightDisabled && !inventoryCatalog?.leftDisabled,
+    edit: !isEditing && !inventoryCatalog?.rightDisabled && !inventoryCatalog?.leftDisabled ? () => window.dispatchEvent(new Event(inventoryCatalog ? 'prysm:scan-edit-order':'prysm:scan-edit-exam')) : undefined,
+    hasValue: ['r','l'].some(eye=>identityFields.some(field=>Boolean((contactLensDetailsData as any)[`${eye}_${field}`]))),
+    apply: (variant, scan) => {
+      const values = {type:variant.product.product_type || '',model:variant.product.model,supplier:variant.product.preferred_supplier || '',material:variant.product.material || '',color:variant.attributes.color || ''};
+      const fields: Record<string, unknown> = {};
+      for (const eye of ['r','l']) for (const [key,value] of Object.entries(values)) fields[`${eye}_${key}`] = key === 'supplier' ? variant.product.preferred_supplier || (contactLensDetailsData as any)[`${eye}_supplier`] || '' : value;
+      if (inventoryCatalog) {
+        const rightQuantity = Number((contactLensDetailsData as any).r_quantity) || 1;
+        const leftQuantity = Number((contactLensDetailsData as any).l_quantity) || 1;
+        let available = variant.balance?.available || 0;
+        const rightSource = available >= rightQuantity ? 'inventory' : 'supplier_ordered';
+        if (rightSource === 'inventory') available -= rightQuantity;
+        inventoryCatalog.onSelect('right',variant,rightSource);
+        inventoryCatalog.onSelect('left',variant,available >= leftQuantity ? 'inventory':'supplier_ordered');
+      } else for (const [key,value] of Object.entries(fields)) onContactLensDetailsChange(key as any, String(value));
+      onContactLensDetailsChange('_scan_provenance' as any, provenance(contactLensDetailsData,'contacts',fields,variant,scan));
+    },
+  });
   const columns = [
     { key: "type", config: EXAM_FIELDS.CONTACT_LENS_TYPE },
     { key: "model", config: EXAM_FIELDS.CONTACT_LENS_MODEL },
@@ -177,9 +209,10 @@ export function ContactLensDetailsTab({
   };
 
   return (
-    <Card className="examcard w-full pt-3 pb-4" dir="ltr">
+    <div ref={scanRef}><Card className="examcard w-full pt-3 pb-4" dir="ltr">
       <CardContent className="px-4" style={{ scrollbarWidth: "none" }}>
         <div className="space-y-3">
+          <div className="flex justify-end"><ScanCardActions scanned={scanned(contactLensDetailsData,'contacts')} clear={['r','l'].some(eye=>identityFields.some(field=>(contactLensDetailsData as any)[`${eye}_${field}`])) ? clearProduct : undefined} disabled={!isEditing || inventoryCatalog?.rightDisabled || inventoryCatalog?.leftDisabled} /></div>
           {inventoryCatalog && scannerEnabled && <div className="flex flex-wrap justify-center gap-2">
             {(["right", "left"] as const).map(side => <ProductBarcodeScan key={side}
               clinicId={inventoryCatalog.clinicId} category="contact_lens" orderId={inventoryCatalog.orderId} orderKind="contact"
@@ -290,6 +323,6 @@ export function ContactLensDetailsTab({
           </div>
         </div>
       </CardContent>
-    </Card>
+    </Card></div>
   );
 }

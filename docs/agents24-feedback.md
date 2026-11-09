@@ -336,3 +336,60 @@ account settings and snapshots through supported account/admin access before rep
 to Google. Suggested improvement: an authorized, secret-free export of the complete
 model/provider route, commercial tier and effective data controls for verification reviews.
 No guessed SDK/YAML privacy flags or provider bypass was added.
+
+### Campaign draft entry and additive Toolset rollout (2026-11-08)
+
+- Confirmed: installed `@agents24/chat-react` 0.5.46 exposes `setText`, which
+  preserves attachments, but no public whole-draft capture method. Campaign entry
+  therefore opens the general sidebar and appends the editable starter to any
+  existing text instead of switching threads and losing draft attachments.
+  Nothing is submitted automatically. A future host draft export/restore API
+  would allow safe new-conversation shortcuts without DOM text inspection.
+- Confirmed: a new server-advertised Toolset makes the existing published relay
+  manifest stale before the matching resource package is published. Campaign
+  tools have an explicit rollout flag, false by default, preserving the existing
+  published contract. Local signed-manifest and proposal/approval tests qualify
+  the expanded contract; publication is separate release work.
+- Global CLI 0.3.0 rejects existing typed main-workflow inputs; the checkout-local
+  CLI 0.3.37 validates the complete package successfully. Use the local CLI.
+
+### Local campaign rollout: missing Toolset attachments (2026-11-08)
+
+CLI 0.3.37 apply on the local draft platform resolves all four Artifact Toolsets,
+but the saved main Agent graph has `tools=[]` and `toolset_attachments=[]`.
+`status` reports `TOOLSET_ATTACHMENT_MISSING` for campaigns, records, workflow and
+reporting. Expected: the Agent Markdown `tools` entries persist as graph Toolset
+attachments. Impact: the agent cannot use even existing clinic tools after apply.
+Check apply's graph serialization against the platform's accepted config. The
+public SDK graph API is being used to verify the documented attachment shape;
+publication and approval gates must remain intact.
+
+Verification: saving the four declared attachments via the public SDK
+`agents.update_graph` retained them and package status became 4/4 healthy.
+Recheck attachments after future package applies until serialization is fixed.
+
+### Campaign proposal schema correction (2026-11-08)
+
+The original app Tool declared `fields: dict`, leaving the model no writable
+field contract. Observed calls invented `channel`, `message`, `language` and
+`audience_filters` and failed with ARTIFACT_HANDLER_FAILED. Replaced the open
+object with typed campaign fields and typed filter rows, converting filters to
+the existing storage format only at the handler boundary. A signed SDK invocation
+regression now exercises proposal creation, approval and inactive campaign save.
+This was an application Tool contract defect, distinct from relay attachment health.
+
+### Campaign draft bootstrap and consent catalog
+
+A fresh isolated package fork applied its draft Toolsets successfully, but the
+new `commit_change` Tool inherited `always_allow` from the source default. Prysm's
+readiness check correctly blocked startup. The organization key could inspect
+Tool governance but received `AUTHORIZATION_FAILED` when setting the approval
+policy; setting Ask through the official admin UI unblocked the local profile.
+Document this admin-governance bootstrap step explicitly for packages with review
+requirements; CLI apply alone does not establish the required Ask policy. No
+production resource was published or changed for this qualification.
+
+Campaign consent is enforced independently of audience filters. The Agent catalog
+now exposes that policy explicitly, preventing an otherwise reasonable request for
+an unavailable consent filter. This was reproduced with a real local draft run;
+no patient data or message dispatch was involved in the Agent request.

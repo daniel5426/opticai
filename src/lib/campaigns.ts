@@ -1,0 +1,20 @@
+import { apiClient } from './api-client';
+export type Condition = { id: string; field: string; operator: string; value: string; logic?: 'AND' | 'OR' };
+export type CampaignDraft = { id?: number; clinic_id?: number; revision?: number; name: string; subject: string; filters: string;
+  email_enabled: boolean; email_content: string; sms_enabled: boolean; sms_content: string; locale: string; all_clients: boolean;
+  execute_once_per_client: boolean; status?: string; next_run?: string; max_cost?: number; last_error?: string; schedule?: Record<string, unknown> };
+export type Quote = { quote: string; total_cost: number; included: number; emails: number; sms: number; segments: number; billing_units?: number;
+  channels?: Record<'email' | 'sms', {included_units:number;paid_units:number;cost:number}>; errors: string[]; excluded: Record<string, number>; sample: { channel: string; content: string; subject: string; segments: number }[] };
+export type Run = { id: string; campaign_id: number; status: string; created_at: string; counts: Record<string, number>; charged: number; reserved: number; snapshot: {cost: number; test?: boolean} };
+export type ClinicMessaging = { id: number; name: string; budget: number | null; reply_to: string | null; timezone: string };
+export type Included = {limit:number;used:number;reserved:number;remaining:number};
+export type ProviderStatus = {credit_units:number|null;checked_at:string|null;error:string|null;blocked_reason:string|null;blocked_until:string|null;last_callback_at:string|null;usage?:Record<string,{used:number;limit:number|null;resets_at:string}>};
+export type MessagingSummary = { balance: number; available: number; reserved: number; allowance: number; used: number; held: number;
+  included: Record<'email'|'sms', Included>; eligible_clinics:number; per_clinic:Record<'email'|'sms',number>; provider_status:Record<string,ProviderStatus>;
+  period_end: string | null; low_balance: number; packs: number[]; can_pay: boolean; can_manage: boolean; clinics: ClinicMessaging[];
+  email_rate:number|null; sms_rate:number|null; email_ready: boolean; sms_ready: boolean; sending_enabled: boolean; money_scale: number };
+export type UsageRow = { id: string; run_id: string; campaign_id: number; clinic_id: number; channel: string; status: string; cost: number; segments: number; billing_units?: number; error?: string; created_at: string };
+export type Topup = { checkout_mode?:'redirect'|'hosted_fields'; test_mode?:boolean; id: string; amount_minor: number; status: string; payment_url?: string; receipt_url?: string; created_at: string };
+export const campaignApi = async <T,>(path: string, body?: unknown, method?: string) => apiClient.campaignRequest<T>(path, body, method);
+export function money(value: number, locale: string) { return new Intl.NumberFormat(locale, {style:'currency',currency:'ILS', maximumFractionDigits: 2}).format(value / 1_000_000); }
+export const blankCampaign = (locale: string, clinic_id?: number): CampaignDraft => ({name:'',subject:'',filters:'[]',email_enabled:true,email_content:'',sms_enabled:false,sms_content:'',locale,all_clients:false,execute_once_per_client:false,clinic_id});

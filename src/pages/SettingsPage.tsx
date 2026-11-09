@@ -1,3 +1,5 @@
+import { campaignsEnabled } from "@/lib/feature-flags";
+import { MessagingTab } from "@/components/settings/MessagingTab";
 import { getAppearanceStore } from "@/lib/appearance";
 import React, {
   useCallback,
@@ -1118,6 +1120,7 @@ export default function SettingsPage() {
                     />
                   </TabsContent>
 
+                  {campaignsEnabled && <TabsContent value="messaging" className="mt-0 space-y-6"><MessagingTab /></TabsContent>}
                   <TabsContent value="email" className="mt-0 space-y-6">
                     <EmailTab
                       localSettings={localSettings}
@@ -1250,6 +1253,7 @@ export default function SettingsPage() {
                     >
                       {t("notifications")}
                     </TabsTrigger>
+                    {campaignsEnabled && <TabsTrigger value="messaging" className="w-full justify-start text-start">{t("campaign.usageTitle")}</TabsTrigger>}
                     <TabsTrigger
                       value="email"
                       className="w-full justify-start text-start"

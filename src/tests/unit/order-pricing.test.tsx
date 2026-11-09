@@ -30,11 +30,11 @@ describe.each(['he','en','fr'])('order pricing in %s', locale => {
   expect(screen.queryByText(i18n.t('orderWorkspace.catalogSupplierOrder'))).toBeNull();
   expect(screen.queryByText(i18n.t('orderGroupRightEye'))).toBeNull();
   expect(screen.queryByText(i18n.t('orderGroupLeftEye'))).toBeNull();
-  fireEvent.click(screen.getByRole('button',{name:i18n.t('orderWorkspace.catalogClear'),exact:true}));
+  fireEvent.click(screen.getByRole('button',{name:i18n.t('scanner.clear'),exact:true}));
   expect(clear).toHaveBeenCalledWith('both');
   fireEvent.click(screen.getByRole('radio',{name:i18n.t('orderWorkspace.perEye')}));
   expect(screen.getAllByText('Optic ClearView')).toHaveLength(2);
-  fireEvent.click(screen.getByRole('button',{name:`${i18n.t('orderWorkspace.catalogClear')} ${i18n.t('orderGroupLeftEye')}`,exact:true}));
+  fireEvent.click(screen.getByRole('button',{name:`${i18n.t('orderWorkspace.catalogUnlink')} ${i18n.t('orderGroupLeftEye')}`,exact:true}));
   expect(clear).toHaveBeenLastCalledWith('left');
  });
  test('frame selection shows its product name without stock or supplier text', async () => {
@@ -45,6 +45,35 @@ describe.each(['he','en','fr'])('order pricing in %s', locale => {
   expect(screen.getByText('Atlas A101')).toBeInTheDocument();
   expect(screen.queryByText(variant.display_name)).toBeNull();
   expect(screen.queryByText(i18n.t('orderWorkspace.catalogAvailable',{count:5}))).toBeNull();
+ });
+ test('frame link stays below inputs and unlink retains typed details and price', async () => {
+  await i18n.changeLanguage(locale);
+  const variant = {id:8,product:{category:'frame',brand:'Atlas',model:'A101'},display_name:'Atlas A101',attributes:{}} as CatalogVariant;
+  const fields=vi.fn(); const clear=vi.fn(); const unlink=vi.fn();
+  function FrameCard(){const [linked,setLinked]=React.useState(true);return <FrameSection frame={{order_id:1,model:'A101',width:50}} price={101} isEditing onFrameFieldChange={fields} onInventorySelect={vi.fn()} onInventoryClear={clear}
+    onInventoryUnlink={()=>{unlink();setLinked(false);}} selectedInventory={linked ? {component:'frame',variant_id:8,variant,quantity:1,fulfillment_source:'inventory'}:null}/>;}
+  const view=render(<FrameCard/>);
+  const price=screen.getByLabelText(i18n.t('orderWorkspace.framePrice'));
+  const slot=view.container.querySelector('[data-product-link-row]')!;
+  expect(price.compareDocumentPosition(slot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(slot.querySelector('[data-selected-catalog-product]')).toHaveClass('w-full','catalog-product-surface');
+  fireEvent.click(screen.getByRole('button',{name:i18n.t('orderWorkspace.catalogUnlink'),exact:true}));
+  expect(unlink).toHaveBeenCalledOnce();expect(clear).not.toHaveBeenCalled();expect(fields).not.toHaveBeenCalled();
+  expect(Number((price as HTMLInputElement).value)).toBe(101);
+  expect(view.container.querySelector('[data-product-link-row]')).toBe(slot);
+  expect(slot).toHaveClass('min-h-10');expect(slot).toBeEmptyDOMElement();
+ });
+ test('lens link is below controls and unlink keeps both eye details', async () => {
+  await i18n.changeLanguage(locale);
+  const variant = {id:7,product:{category:'spectacle_lens',model:'Very long model name that must wrap without moving the inputs'},attributes:{},display_name:'Lens'} as CatalogVariant;
+  const fields=vi.fn(),clear=vi.fn(),unlink=vi.fn();
+  const view=render(<QueryClientProvider client={new QueryClient()}><LensSection lens={{order_id:1,right_model:variant.product.model,left_model:variant.product.model}} layoutKey="unlink" isEditing onLensFieldChange={fields} onInventoryClear={clear} onInventoryUnlink={unlink}
+    selections={(['right','left'] as const).map(side=>({component:`lens_${side}`,variant_id:7,variant,quantity:1,fulfillment_source:'supplier_ordered'}))}/></QueryClientProvider>);
+  const slot=view.container.querySelector('[data-product-link-row]')!;
+  const lastInput=Array.from(view.container.querySelectorAll('input')).at(-1)!;
+  expect(lastInput.compareDocumentPosition(slot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  fireEvent.click(screen.getByRole('button',{name:i18n.t('orderWorkspace.catalogUnlink'),exact:true}));
+  expect(unlink).toHaveBeenCalledWith('both');expect(clear).not.toHaveBeenCalled();expect(fields).not.toHaveBeenCalled();
  });
  test('accepts a currency price without clinical decimal conversion', async () => {
   await i18n.changeLanguage(locale);

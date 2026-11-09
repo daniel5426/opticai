@@ -61,7 +61,7 @@ if (mode === 'prepare') {
   for (const [name, version] of Object.entries(versions)) { delete input.packages[`node_modules/${name}`]; }
   Object.assign(input.packages[''].dependencies, versions);
   fs.writeFileSync(path.join(temporary, 'package-lock.json'), JSON.stringify(input, null, 2));
-  const npm = spawnSync('npm', ['install', '--package-lock-only', '--ignore-scripts', '--registry=https://registry.npmjs.org', '--userconfig=/dev/null'], { cwd: temporary, stdio: 'inherit' });
+  const npm = spawnSync('npm', ['install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund', '--registry=https://registry.npmjs.org', '--userconfig=/dev/null'], { cwd: temporary, stdio: 'inherit' });
   if (npm.status !== 0) throw new Error('Public release dependency resolution failed');
   // npm may retain an incomplete transitive closure on the first metadata replacement.
   const closure = spawnSync('npm', ['install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--registry=https://registry.npmjs.org', '--userconfig=/dev/null'], { cwd: temporary, stdio: 'inherit' });

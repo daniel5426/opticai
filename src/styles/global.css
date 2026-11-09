@@ -264,6 +264,11 @@
     --text-base: calc(1rem * var(--field-scale));
     --text-lg: calc(1.125rem * var(--field-scale));
   }
+  /* Clinical cards keep their established compact inset. General form fields use
+     the shared Input's roomier inset without changing clinical grid geometry. */
+  [data-exam-card] {
+    --input-text-inset: calc(0.25rem * var(--field-scale));
+  }
   /* Keep field surfaces stable across modes, including legacy per-page colors.
      Explicitly transparent controls belong to inline or composite layouts. */
   :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"], [data-slot="optimized-select"], [data-slot="va-select"]):not(.bg-transparent):not(.\!bg-transparent):not(.bg-card) {
@@ -275,12 +280,10 @@
     box-shadow: none !important;
     opacity: 1 !important;
   }
-  [data-exam-card] :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"], [data-slot="optimized-select"], [data-slot="va-select"], .field-view):not(.bg-transparent):not(.\!bg-transparent) {
-    border-width: 1px !important;
-    border-style: solid !important;
-  }
-  [data-exam-card] :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"], [data-slot="optimized-select"], [data-slot="va-select"], .field-view):is(:disabled, [readonly], [data-disabled], .field-view):not(.bg-transparent):not(.\!bg-transparent) {
-    border-color: hsl(var(--input)) !important;
+  /* Clinical fields keep the same borderless surface in view and edit modes.
+     Transparent borders preserve geometry; focus and invalid states stay visible. */
+  :is([data-exam-card], .order-group-content) :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"], [data-slot="optimized-select"], [data-slot="va-select"], .field-view):not([aria-invalid="true"]):not(:focus-visible):not(:focus-within):not([data-state="open"]) {
+    border-color: transparent !important;
   }
   [data-exam-card] [data-exam-toolbox] {
     opacity: 0;

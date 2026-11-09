@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 from database import get_db
+from config import settings
 from auth import get_current_user
 from models import OpticalExam, Appointment, Order, Referral, File, MedicalLog, User, Campaign
 from schemas import Campaign as CampaignSchema
@@ -80,6 +81,10 @@ async def generate_part_state(client_id: int, part: str, locale: str = 'he', db:
 
 @router.post('/create-campaign-from-prompt')
 async def create_campaign_from_prompt(body: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if not settings.CAMPAIGNS_ENABLED:
+        raise HTTPException(404, detail='Not Found')
+    from services.campaign_engine import manager
+    manager(current_user)
     from services.subscription_service import require_module
     require_module(db, current_user.company_id, "campaigns")
     prompt = body.get('prompt')
@@ -98,6 +103,9 @@ Operators: {json.dumps(OPERATORS)}. No client records or Google data are availab
         raise HTTPException(502, detail='ai.failed') from None
     payload = generated.model_dump()
     payload['filters'] = json.dumps(payload['filters'], ensure_ascii=False)
+    payload['active'] = False
+    from services.campaign_filters import validate_filters
+    validate_filters(payload['filters'])
     db_campaign = Campaign(**payload, clinic_id=clinic_id, active_since=None, mail_sent=False, sms_sent=False, emails_sent_count=0, sms_sent_count=0, last_executed=None)
     db.add(db_campaign)
     db.commit()

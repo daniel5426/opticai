@@ -19,6 +19,7 @@
 ## Internationalization And Direction
 
 - Ship every changed user-visible string in Hebrew (`he`), English (`en`), and French (`fr`) through stable i18n keys.
+- Hebrew is the primary layout. Current clinics are Hebrew-speaking, so compose spacing, columns, toolbars, and empty states for the Hebrew RTL screen first. English and French must stay correct, and a layout that only looks finished in English is not done.
 - Verify affected UI intentionally in Hebrew RTL and English/French LTR. Prefer logical alignment and spacing classes; use physical directions only when the position is truly physical.
 - Keep centered content centered across locales. Keep machine-readable values locally LTR when that improves readability.
 - Pass the active direction to portalled or order-sensitive controls when their layout depends on it.

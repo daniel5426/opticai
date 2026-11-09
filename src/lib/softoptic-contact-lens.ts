@@ -15,6 +15,15 @@ export function sameDayContactLensOrders(orders: ContactLensOrderEntity[], examD
 
 const bareVa = /^\d+(?:\.\d+)?(?:[+-]{1,2}\d*)?$/
 
+function displayedVa(value: unknown) {
+  if (typeof value !== "string" || !bareVa.test(value)) return value
+  const number = value.match(/^\d+(?:\.\d+)?/)![0]
+  const denominator = Number(number)
+  // Match the importer: decimal VA (e.g. 0.5 or 1.0+2) is already a display value.
+  if (number.includes(".") ? denominator < 3 || denominator > 190 : denominator < 1) return value
+  return `6/${value}`
+}
+
 /**
  * Older SoftOptic imports stored the screen's values as OpticSoft keeps them: BC without its point (84 is 8.4),
  * VA without its "6/" and J without its "J". Shown as OpticSoft shows them; the stored order is unchanged.
@@ -28,10 +37,10 @@ export function softopticContactLensExam(exam: Record<string, any> | undefined):
       if (typeof value === "number" && value >= 20) shown[`${eye}_${field}`] = value / 10
     }
     const va = shown[`${eye}_va`]
-    if (typeof va === "string" && bareVa.test(va)) shown[`${eye}_va`] = `6/${va}`
+    shown[`${eye}_va`] = displayedVa(va)
     const j = shown[`${eye}_j`]
     if (typeof j === "string" && /^\d+\+?$/.test(j)) shown[`${eye}_j`] = `J${j}`
   }
-  if (typeof shown.comb_va === "string" && bareVa.test(shown.comb_va)) shown.comb_va = `6/${shown.comb_va}`
+  shown.comb_va = displayedVa(shown.comb_va)
   return shown as ContactLensExam
 }

@@ -100,6 +100,11 @@ export type SoftopticTabView<T extends CardDef = CardDef> = {
   placeholders?: string[]
 }
 
+/** Add the order's prescription without replacing the exam's own clinical cards. */
+export function withContactLensTab<T extends CardDef>(tabs: SoftopticTabView<T>[], hasOrders: boolean): SoftopticTabView<T>[] {
+  return hasOrders ? [...tabs, { key: SOFTOPTIC_CONTACT_LENS_TAB, cards: [] }] : tabs
+}
+
 /**
  * The OpticSoft tabs that have data for this exam, each with its cards in display order.
  * `oldRefTabs` returns an old-refraction card's internal tab ids.

@@ -146,9 +146,20 @@ async def allpay_webhook(request: Request, db: Session = Depends(get_db)):
     if int(request.headers.get("content-length", "0")) > 65536:
         raise HTTPException(413)
     payload = await request.json()
-    if not isinstance(payload, dict) or not allpay.verify(payload):
+    if not isinstance(payload, dict) or not (allpay.verify(payload) or allpay.verify(payload, messaging=True)):
         raise HTTPException(400, detail={"code": "invalid_signature"})
-    attempt = db.get(SubscriptionPaymentAttempt, str(payload.get("order_id", "")))
+    from campaign_models import MessagingTopup
+    from services import messaging_billing
+    topup_id = str(payload.get("order_id", ""))
+    topup = db.get(MessagingTopup, topup_id)
+    if topup:
+        if not allpay.verify(payload, messaging=True, integration_login=topup.provider_login or settings.ALLPAY_API_LOGIN):
+            raise HTTPException(400, detail={'code':'invalid_signature'})
+        messaging_billing.reconcile(db, topup_id, include_reverts=payload.get('type') == 'chargeback_revert')
+        return {"received": True}
+    if not allpay.verify(payload):
+        raise HTTPException(400, detail={'code':'invalid_signature'})
+    attempt = db.get(SubscriptionPaymentAttempt, topup_id)
     if not attempt:
         # Unrelated merchant orders are never mapped to companies by client email.
         return {"received": True, "unmatched": True}

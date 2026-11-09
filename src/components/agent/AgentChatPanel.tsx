@@ -24,7 +24,18 @@ export function AgentChatPanel({ compact = false }: { compact?: boolean }) {
   const { direction } = useAppLocale();
   const [preparing, setPreparing] = React.useState(false);
   const composerRef = React.useRef<AgentChatComposerHandle>(null);
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const appliedPrompt = React.useRef<number | null>(null);
   const runtime = workspace?.runtime;
+  React.useEffect(() => {
+    const request = workspace?.campaignPrompt;
+    if (!request || !runtime?.bootstrap || runtime.isBootstrapping || appliedPrompt.current === request.key) return;
+    const existing = textareaRef.current?.value || '';
+    if (composerRef.current?.setText(existing ? `${existing}\n\n${request.text}` : request.text, {focus:true})) {
+      appliedPrompt.current = request.key;
+      workspace.consumeCampaignPrompt(request.key);
+    }
+  }, [workspace?.campaignPrompt, runtime?.bootstrap, runtime?.isBootstrapping, workspace]);
   if (!runtime || !workspace?.scope) return <section className={`prysm-agent agent-workspace ${compact ? 'agent-workspace--compact' : ''}`} dir={direction}>
     {!compact && <AgentSky />}
     <p role="status" className="relative m-auto p-6 text-center text-sm">{t(workspace?.scope ? 'loading' : 'agent.sessionRequired')}</p>
@@ -91,7 +102,7 @@ export function AgentChatPanel({ compact = false }: { compact?: boolean }) {
         {!runtime.isBootstrapping && <Button variant="ghost" size="sm" onClick={() => void runtime.retryBootstrap().catch(() => undefined)}>{t('agent.retryStartup')}</Button>}
       </div> : runtime.errorMessage && <p role="alert" className="px-4 pb-2 text-xs text-destructive">{t('agent.operationFailed')}</p>}
       <AgentChatComposer key={composerScope} recordingEnabled={false}
-        ref={composerRef} scopeKey={composerScope}
+        ref={composerRef} textareaRef={textareaRef} scopeKey={composerScope}
         inputContract={supplyComposerContract(runtime.inputContract)} disabled={disabled}
         isRunning={running} isCancelling={runtime.state === 'cancelling'}
         placeholder={t('agent.placeholder')} contextWindow={runtime.contextWindow}

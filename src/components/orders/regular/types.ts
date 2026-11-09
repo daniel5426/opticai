@@ -1,4 +1,5 @@
 export type OrderLens = {
+  _scan_provenance?: string;
   order_id: number;
   right_supplier?: string;
   left_supplier?: string;
@@ -22,6 +23,7 @@ export type OrderLens = {
 };
 
 export type Frame = {
+  _scan_provenance?: string;
   order_id: number;
   color?: string;
   supplier?: string;

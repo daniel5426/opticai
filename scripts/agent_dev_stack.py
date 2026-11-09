@@ -167,6 +167,10 @@ class Stack:
         if result.returncode:
             raise RuntimeError(f'Clinic tool binding failed; inspect the protected apply log in {self.logs}.')
 
+    def tools_ready(self):
+        count = 4 if self.env.get('PRYSM_CAMPAIGN_AGENT_ENABLED', 'false').lower() == 'true' else 3
+        return self.status().get('binding_summary') == {'total': count, 'healthy': count, 'unhealthy': 0}
+
     def synchronize_tools(self):
         if published_platform(self.env):
             state = self.status()
@@ -222,7 +226,7 @@ def run_stack(root, env, arguments, profile='synthetic'):
     options = parser.parse_args(arguments)
     stack = Stack(root, env, profile)
     api_port = 8000 if profile == 'clinic' else 8016
-    artifact_port = 4316 if published_platform(env) else 4317 if profile == 'clinic' else 4316
+    artifact_port = 4316 if published_platform(env) or env.get('PRYSM_CLINIC_CAMPAIGN_DRAFT') == 'true' else 4317 if profile == 'clinic' else 4316
     renderer_port = 5126 if profile == 'clinic' else 5136
     lock = open(stack.logs / 'supervisor.lock', 'w')
     try:
@@ -236,6 +240,7 @@ def run_stack(root, env, arguments, profile='synthetic'):
         ports = [api_port, artifact_port] + ([] if options.no_renderer else [renderer_port])
         if profile == 'clinic':
             ports.append(8001)
+            if env.get('PRYSM_CAMPAIGN_CALLBACKS_ENABLED') == 'true': ports.append(8020)
         for port in ports:
             for host in ['127.0.0.1', '::1']:
                 try:
@@ -254,9 +259,19 @@ def run_stack(root, env, arguments, profile='synthetic'):
             stack.synchronize_tools()
         stack.start('relay-host', 'relay')
         stack.wait('Clinic app connection', stack.relay_ready)
-        stack.synchronize_tools()
-        stack.wait('Clinic tools', lambda: stack.status().get('binding_summary') == {'total': 3, 'healthy': 3, 'unhealthy': 0})
+        if not stack.tools_ready() or stack.status().get('synchronization', {}).get('diverged'):
+            stack.synchronize_tools()
+        stack.wait('Clinic tools', stack.tools_ready)
         stack.verify_approval()
+        if profile == 'clinic' and env.get('PRYSM_CAMPAIGN_CALLBACKS_ENABLED') == 'true':
+            callback_state = root / '.agent-data/campaign-callbacks/state.json'
+            callback_start = str(time.time_ns())
+            stack.env['PRYSM_CALLBACK_START_ID'] = callback_start
+            stack.start('campaign-callbacks', 'campaign-callbacks')
+            stack.wait('Campaign email callbacks', lambda: callback_state.exists() and json.loads(callback_state.read_text()).get('start_id') == callback_start)
+            callback_config = json.loads(callback_state.read_text())
+            stack.env.update(CAMPAIGN_PUBLIC_URL=callback_config['origin'],
+                             CAMPAIGN_RESEND_WEBHOOK_SECRET=callback_config['signing_secret'])
         stack.start('api', 'api', '--no-access-log')
         stack.wait('OpticAI API', lambda: '/api/agents24/bootstrap' in read_json(f'http://127.0.0.1:{api_port}/api/v1/openapi.json')['paths'])
         if profile == 'clinic':
@@ -314,9 +329,9 @@ def run_services(root, env, arguments):
             stack.synchronize_tools()
         stack.start('relay-host', 'relay')
         stack.wait('Clinic app connection', stack.relay_ready)
-        if stack.status().get('binding_summary', {}).get('healthy') != 3:
+        if not stack.tools_ready():
             stack.synchronize_tools()
-        stack.wait('Clinic tools', lambda: stack.status().get('binding_summary') == {'total': 3, 'healthy': 3, 'unhealthy': 0})
+        stack.wait('Clinic tools', stack.tools_ready)
         stack.verify_approval()
         stack.start('requested-worker', 'worker', '--queue', 'requested')
         stack.start('summaries-worker', 'worker', '--queue', 'summaries')

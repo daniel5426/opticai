@@ -41,22 +41,51 @@ def signature(data: dict, key: str) -> str:
     return hashlib.sha256(":".join(chunks).encode()).hexdigest()
 
 
-def verify(payload: dict) -> bool:
-    supplied = payload.get("sign")
-    return bool(settings.ALLPAY_API_KEY and isinstance(supplied, str) and hmac.compare_digest(supplied, signature(payload, settings.ALLPAY_API_KEY)))
+def credentials(*, messaging=False, integration_login=None):
+    if not messaging:
+        login, key = settings.ALLPAY_API_LOGIN, settings.ALLPAY_API_KEY
+    elif integration_login:
+        if integration_login == settings.MESSAGING_ALLPAY_API_LOGIN:
+            login, key = integration_login, settings.MESSAGING_ALLPAY_API_KEY
+        elif integration_login == settings.ALLPAY_API_LOGIN:
+            login, key = integration_login, settings.ALLPAY_API_KEY
+        else:
+            raise AllpayError('payment_configuration_changed')
+    else:
+        if bool(settings.MESSAGING_ALLPAY_API_LOGIN) != bool(settings.MESSAGING_ALLPAY_API_KEY):
+            raise AllpayError('billing_not_configured')
+        login = settings.MESSAGING_ALLPAY_API_LOGIN or settings.ALLPAY_API_LOGIN
+        key = settings.MESSAGING_ALLPAY_API_KEY or settings.ALLPAY_API_KEY
+    if not login or not key:
+        raise AllpayError('billing_not_configured')
+    return login, key
 
 
-def request(endpoint: str, data: dict) -> dict:
-    if not settings.ALLPAY_API_LOGIN or not settings.ALLPAY_API_KEY:
-        raise AllpayError("billing_not_configured")
-    if endpoint in {"getpayment", "capturetoken", "refund"} and not settings.BILLING_CHARGING_ENABLED:
+def verify(payload: dict, *, messaging=False, integration_login=None) -> bool:
+    supplied = payload.get('sign')
+    try:
+        if messaging and integration_login:
+            key = credentials(messaging=True, integration_login=integration_login)[1]
+        elif messaging:
+            key = settings.MESSAGING_ALLPAY_API_KEY or settings.ALLPAY_API_KEY
+        else:
+            key = settings.ALLPAY_API_KEY
+    except AllpayError:
+        return False
+    return bool(key and isinstance(supplied, str) and hmac.compare_digest(supplied, signature(payload, key)))
+
+
+def request(endpoint: str, data: dict, *, messaging: bool = False, integration_login=None, test_mode=None) -> dict:
+    login, key = credentials(messaging=messaging, integration_login=integration_login)
+    selected_test_mode = test_mode if test_mode is not None else settings.MESSAGING_ALLPAY_TEST_MODE if messaging else settings.ALLPAY_TEST_MODE
+    if endpoint in {"getpayment", "capturetoken", "refund"} and not (settings.MESSAGING_TOPUPS_ENABLED if messaging else settings.BILLING_CHARGING_ENABLED):
         raise AllpayError("billing_disabled")
-    if endpoint in {"getpayment", "capturetoken", "refund"} and not settings.ALLPAY_TEST_MODE and not settings.ALLPAY_LIVE_PAYMENTS_ENABLED:
+    if endpoint in {"getpayment", "capturetoken", "refund"} and not selected_test_mode and not settings.ALLPAY_LIVE_PAYMENTS_ENABLED:
         raise AllpayError("billing_live_disabled")
-    body = {**data, "login": settings.ALLPAY_API_LOGIN}
+    body = {**data, "login": login}
     if endpoint in {"getpayment", "capturetoken"}:
-        body["test_mode"] = int(settings.ALLPAY_TEST_MODE)
-    body["sign"] = signature(body, settings.ALLPAY_API_KEY)
+        body["test_mode"] = int(selected_test_mode)
+    body["sign"] = signature(body, key)
     try:
         response = httpx.post("https://allpay.to/app/", params={"show": endpoint, "mode": "api15"}, json=body, timeout=25)
         response.raise_for_status()

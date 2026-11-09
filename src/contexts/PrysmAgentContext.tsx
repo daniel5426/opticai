@@ -7,7 +7,7 @@ import { useUser } from '@/contexts/UserContext';
 import { useClientSidebar } from '@/contexts/ClientSidebarContext';
 import { capturePageContext, setAgentPageContext } from '@/lib/agent-page-context';
 
-type Workspace = { client: ReturnType<typeof createAgentClient> | null; available: boolean; pending: boolean; runtime: AgentChatRuntime | null; scope: AgentScope | null; chatOpen: boolean; chatVisible: boolean; expandChat: () => void;
+type Workspace = { campaignPrompt: { key: number; text: string } | null; openCampaignDraft: (text: string) => void; consumeCampaignPrompt: (key: number) => void;  client: ReturnType<typeof createAgentClient> | null; available: boolean; pending: boolean; runtime: AgentChatRuntime | null; scope: AgentScope | null; chatOpen: boolean; chatVisible: boolean; expandChat: () => void;
   fullPageHost: HTMLDivElement | null; setFullPageHost: (host: HTMLDivElement | null) => void;
   jobActivityKey: number; resetJobActivity: () => void;
   openPatientChat: (patientId: number) => void; closePatientChat: () => void; openClinicChat: () => void; openChat: () => void; captureContext: typeof capturePageContext };
@@ -40,6 +40,7 @@ export function PrysmAgentProvider({ children }: { children: React.ReactNode }) 
   const { pathname } = useLocation();
   const params = useParams({ strict: false }) as { clientId?: string };
   const [chatOpen, setChatOpen] = useState(false);
+  const [campaignPrompt, setCampaignPrompt] = useState<{key:number;text:string} | null>(null);
   const [fullPageHost, setFullPageHost] = useState<HTMLDivElement | null>(null);
   const [jobActivityKey, setJobActivityKey] = useState(0);
   const resetJobActivity = useCallback(() => setJobActivityKey(value => value + 1), []);
@@ -47,7 +48,7 @@ export function PrysmAgentProvider({ children }: { children: React.ReactNode }) 
   setAgentPageContext({ path: pathname, recordIds: params });
   const [published, setPublished] = useState<{ key: string; runtime: AgentChatRuntime } | null>(null);
   const publish = useCallback((key: string, runtime: AgentChatRuntime) => setPublished({ key, runtime }), []);
-  useEffect(() => { setChatOpen(false); }, [currentClinic?.id, currentUser?.id]);
+  useEffect(() => { setChatOpen(false); setCampaignPrompt(null); }, [currentClinic?.id, currentUser?.id]);
   const effectivePatient = null;
   const scope = useMemo(() => currentClinic?.id && currentUser?.id ? {
     clinicId: currentClinic.id, patientId: effectivePatient, userId: currentUser.id,
@@ -66,7 +67,9 @@ export function PrysmAgentProvider({ children }: { children: React.ReactNode }) 
     if (preservePageChat.current) preservePageChat.current = false;
     else { runtime.newThread(); resetJobActivity(); }
   }, [pathname, scopeKey, runtime, resetJobActivity]);
-  const value: Workspace = { client, available, pending, scope, runtime, chatOpen: available && chatOpen, chatVisible: available && (chatOpen || pathname === '/ai-assistant'),
+  const value: Workspace = { campaignPrompt,
+    openCampaignDraft: text => { if (runtime?.controller.activeRunId) return; setCampaignPrompt({key:Date.now(),text}); resetPanelMode(); setChatOpen(true); },
+    consumeCampaignPrompt: key => setCampaignPrompt(value => value?.key === key ? null : value), client, available, pending, scope, runtime, chatOpen: available && chatOpen, chatVisible: available && (chatOpen || pathname === '/ai-assistant'),
     expandChat: () => { preservePageChat.current = true; setChatOpen(false); }, fullPageHost, setFullPageHost, jobActivityKey, resetJobActivity,
     captureContext: capturePageContext, openChat: () => setChatOpen(true),
     openPatientChat: _id => { resetPanelMode(); setChatOpen(true); }, closePatientChat: () => setChatOpen(false),

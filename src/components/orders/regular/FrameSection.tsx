@@ -1,3 +1,7 @@
+import { CatalogProductAction } from "@/components/inventory/CatalogProductAction";
+import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels";
+import { useScanTarget, scanned, provenance } from "@/lib/scanner";
+import { ScanCardActions } from "@/components/scanner/ScanCardActions";
 import { ProductBarcodeScan } from "@/components/inventory/BarcodeScanButton";
 import { useSupplyRevision } from '@/lib/inventory-events';
 import React, { useEffect, useState } from "react";
@@ -45,12 +49,13 @@ interface FrameSectionProps {
   selectedInventory?: InventorySelection | null;
   onInventorySelect: (variant: CatalogVariant, source: FulfillmentSource) => void;
   onInventoryClear: () => void;
+  onInventoryUnlink?: () => void;
 }
 
 const useFrameCatalog = (clinicId?: number, orderId?: number) => {
   const supplyRevision = useSupplyRevision();
   const [variants, setVariants] = useState<CatalogVariant[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(clinicId));
 
   useEffect(() => {
     let mounted = true;
@@ -89,13 +94,35 @@ export function FrameSection({
   selectedInventory,
   onInventorySelect,
   onInventoryClear,
+  onInventoryUnlink,
 }: FrameSectionProps) {
   const { t } = useTranslation();
   const { direction } = useAppLocale();
-  const { currentClinic } = useUser();
+  const { currentClinic, currentUser } = useUser();
   const clinicId = recordClinicId ?? currentClinic?.id;
   const { variants, setVariants, loading } = useFrameCatalog(clinicId, orderId);
   const consumed = selectedInventory?.lifecycle_state === "consumed";
+  const productFields = ["manufacturer", "model", "supplier", "color", "width", "bridge", "height", "length"] as const;
+  const hasProduct = productFields.some(key => Boolean(frame[key]));
+  const clearProduct = () => {
+    if (!isEditing || consumed) return;
+    onInventoryClear();
+    productFields.forEach(key => onFrameFieldChange(key, ""));
+    onFrameFieldChange("_scan_provenance" as keyof Frame, "{}");
+  };
+  const scanRef = useScanTarget({ id: `frame:${React.useId()}`, category: 'frame', kind: 'order', label: t('orderWorkspace.frame'),
+    canApply: isEditing && !consumed && frame.supplied_by !== SUPPLIED_BY_CUSTOMER,
+    edit: !isEditing && !consumed && frame.supplied_by !== SUPPLIED_BY_CUSTOMER ? () => window.dispatchEvent(new Event('prysm:scan-edit-order')) : undefined,
+    hasValue: hasProduct, variantId: selectedInventory?.variant_id,
+    apply: (variant, scan) => {
+      const a = variant.attributes || {};
+      const fields = { manufacturer: variant.product.brand || '', model: variant.product.model,
+        supplier: variant.product.preferred_supplier || frame.supplier || '', color: a.color || '',
+        width: a.eye_size || '', bridge: a.bridge || '', height: a.height || '', length: a.temple_length || '' };
+      onInventorySelect(variant, (variant.balance?.available || 0) > 0 ? 'inventory' : 'supplier_ordered');
+      onFrameFieldChange('_scan_provenance' as keyof Frame, provenance(frame, 'frame', fields, variant, scan));
+    },
+  });
   const catalogValues = {
     supplier: frame.supplier,
     manufacturer: frame.manufacturer,
@@ -103,8 +130,23 @@ export function FrameSection({
     color: frame.color,
     width: frame.width,
   };
+  const canWriteCatalog = isEditing && !consumed && clinicId === currentClinic?.id &&
+    frame.supplied_by !== SUPPLIED_BY_CUSTOMER && isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.worker);
+  const linkedVariant = variants.find(item => item.id === selectedInventory?.variant_id) || selectedInventory?.variant;
+  const validPrice = price != null && Number.isFinite(price) && price >= 0;
+  const canUpdatePrice = canWriteCatalog && !!linkedVariant && validPrice &&
+    (currency || 'ILS') === linkedVariant.currency &&
+    (linkedVariant.default_retail == null || Math.abs(price! - linkedVariant.default_retail) >= 0.005);
+  const updateCatalogPrice = async () => {
+    if (!canUpdatePrice || !linkedVariant) return;
+    const response = await apiClient.updateCatalogVariant(linkedVariant.id, { default_retail: price });
+    if (response.error || !response.data) throw new Error('Catalog price update failed');
+    const updated = { ...linkedVariant, ...response.data, balance: linkedVariant.balance };
+    setVariants(previous => [...previous.filter(item => item.id !== updated.id), updated]);
+    window.dispatchEvent(new Event('supply-applied'));
+  };
   const canCreateProduct =
-    Boolean(currentClinic?.id) && clinicId === currentClinic?.id &&
+    canWriteCatalog && !loading && !selectedInventory &&
     canCreateFrameCatalogProduct(catalogValues) &&
     !hasMatchingFrameCatalogVariant(variants, catalogValues);
 
@@ -147,22 +189,28 @@ export function FrameSection({
     toast.success(t("inventoryProductCreated", { name: created.display_name }));
   };
 
-  const productAction = canCreateProduct
-    ? {
-        name: [frame.manufacturer, frame.model].filter(Boolean).join(" "),
-        onCreate: createProduct,
-      }
-    : undefined;
-
-
   return (
-    <OrderSection
+    <div ref={scanRef} className="h-full"><OrderSection
+      className="flex h-full flex-col [&>header]:min-h-8"
+      bodyClassName="flex-1"
+      footer={<div className="mt-3 min-h-10" data-product-link-row>
+        {selectedInventory?.variant && <SelectedCatalogProduct
+          variant={selectedInventory.variant}
+          onClear={isEditing && !consumed ? onInventoryUnlink || onInventoryClear : undefined}
+          actions={canUpdatePrice ? <CatalogProductAction compact
+            label={t('orderWorkspace.catalogUpdatePrice', { price: price?.toFixed(2), currency: currency || 'ILS' })}
+            onAction={updateCatalogPrice}/> : undefined}/>
+        }
+        {canCreateProduct && <CatalogProductAction
+          label={t('orderWorkspace.catalogCreateProduct', { name: [frame.manufacturer, frame.model].filter(Boolean).join(' ') })}
+          onAction={createProduct}/>}
+      </div>}
       title={t("orderWorkspace.frame")}
-      start={<ProductBarcodeScan
+      start={<><ScanCardActions scanned={scanned(frame, 'frame')} clear={hasProduct ? clearProduct : undefined} disabled={!isEditing || consumed} /><ProductBarcodeScan
         clinicId={clinicId} category="frame" orderId={orderId} orderKind="regular" stockableOnly
         disabled={!isEditing || consumed || frame.supplied_by === SUPPLIED_BY_CUSTOMER}
         onSelect={variant => onInventorySelect(variant, (variant.balance?.available || 0) > 0 ? "inventory" : "supplier_ordered")}
-      />}
+      /></>}
       end={
         <OrderSegmented
           dir={direction}
@@ -177,9 +225,6 @@ export function FrameSection({
         />
       }
     >
-      {selectedInventory?.variant && <div className="mb-3 min-w-0">
-        <SelectedCatalogProduct variant={selectedInventory.variant} onClear={isEditing && !consumed ? onInventoryClear : undefined} />
-      </div>}
       <div className="grid grid-cols-2 gap-3">
         {CATALOG_FIELDS.slice(0, 2).map(({ field, label, lookupType, lookupLabel }) => (
           <OrderField key={field} label={t(`orderWorkspace.${label}`)}>
@@ -195,7 +240,6 @@ export function FrameSection({
               placeholder=""
               disabled={!isEditing || consumed}
               onSelectProduct={onInventorySelect}
-              createProduct={productAction}
             />
           </OrderField>
         ))}
@@ -206,7 +250,7 @@ export function FrameSection({
             <FrameCatalogCombobox field={field} value={frame[field] || ""} values={frame}
               variants={variants} loadingCatalog={loading} onChange={value => onFrameFieldChange(field, value)}
               lookupType={lookupType} lookupLabel={t(`orderWorkspace.${lookupLabel}`)} placeholder=""
-              disabled={!isEditing || consumed} onSelectProduct={onInventorySelect} createProduct={productAction} />
+              disabled={!isEditing || consumed} onSelectProduct={onInventorySelect} />
           </OrderField>
         ))}
         <OrderField label={`${t("orderGroupPrice")} (${currency || "ILS"})`}>
@@ -230,6 +274,6 @@ export function FrameSection({
           </OrderField>
         ))}
       </div>
-    </OrderSection>
+    </OrderSection></div>
   );
 }

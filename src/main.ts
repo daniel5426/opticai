@@ -43,7 +43,7 @@ import {
 import os from "os";
 import { emailScheduler } from "./lib/email/email-scheduler";
 import { emailService } from "./lib/email/email-service";
-import { campaignScheduler } from "./lib/campaign-scheduler";
+
 import { apiClient } from "./lib/api-client";
 // Import will be done dynamically to allow hot reload
 
@@ -1789,7 +1789,7 @@ function setupIpcHandlers() {
   // Campaign operations
   ipcMain.handle('campaign-scheduler-status', async () => {
     try {
-      return campaignScheduler.getStatus();
+      return { isRunning: false, nextRun: null };
     } catch (error) {
       console.error('Error getting campaign scheduler status:', error);
       return { isRunning: false, nextRun: null };
@@ -1798,7 +1798,7 @@ function setupIpcHandlers() {
 
   ipcMain.handle('campaign-scheduler-restart', async () => {
     try {
-      campaignScheduler.restart();
+      // Campaign scheduling is owned by the API.
       return true;
     } catch (error) {
       console.error('Error restarting campaign scheduler:', error);
@@ -1808,7 +1808,7 @@ function setupIpcHandlers() {
 
   ipcMain.handle('campaign-execute-test', async (event, campaignId: number) => {
     try {
-      return await campaignScheduler.executeTestCampaign(campaignId);
+      return { success: false, message: 'campaign_upgrade_required' };
     } catch (error) {
       console.error('Error executing test campaign:', error);
       return { 
@@ -1821,7 +1821,7 @@ function setupIpcHandlers() {
 
   ipcMain.handle('campaign-execute-full', async (event, campaignId: number) => {
     try {
-      return await campaignScheduler.executeFullCampaign(campaignId);
+      return { success: false, message: 'campaign_upgrade_required' };
     } catch (error) {
       console.error('Error executing full campaign:', error);
       return { 

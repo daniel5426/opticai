@@ -222,6 +222,21 @@ class ApiClient {
     }
   }
 
+  public scannerRequest<T>(path: string, options?: RequestInit) {
+    return this.request<T>(`/scanner${path}`, options);
+  }
+
+  public async scannerFetch(path: string, options: RequestInit = {}) {
+    const headers = new Headers(options.headers);
+    const perform = () => {
+      if (this.token) headers.set('Authorization', `Bearer ${this.token}`);
+      return fetch(`${this.baseUrl}/scanner${path}`, { ...options, headers, cache: 'no-store' });
+    };
+    let response = await perform();
+    if (response.status === 401 && await this.refreshTokenIfPossible()) response = await perform();
+    return response;
+  }
+
   public discountRequest<T>(path: string, options?: RequestInit) {
     return this.request<T>(`/discounts${path}`, options);
   }
@@ -2391,6 +2406,14 @@ class ApiClient {
     return this.request('/email/scheduler/restart', {
       method: 'POST',
     });
+  }
+
+  async campaignRequest<T = unknown>(path: string, body?: unknown, method?: string) {
+    const response = await this.request<T>(path, body === undefined && !method ? undefined : {
+      method: method || 'POST', ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    if (response.error) throw new Error(String(response.error));
+    return response.data as T;
   }
 
   // Campaign operations

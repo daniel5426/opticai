@@ -1,3 +1,5 @@
+import { campaignsEnabled } from "@/lib/feature-flags";
+import { MessagingTab } from "@/components/settings/MessagingTab";
 import { getAppearanceStore } from "@/lib/appearance";
 import React, { useState, useEffect } from "react"
 import { SiteHeader } from "@/components/site-header"
@@ -1207,6 +1209,7 @@ export default function ControlCenterSettingsPage() {
                     <AboutTab />
                   </TabsContent>
 
+                  {campaignsEnabled && <TabsContent value="messaging" className="space-y-6 mt-0"><MessagingTab company /></TabsContent>}
                   <TabsContent value="subscription" className="space-y-6 mt-0">
                     <SubscriptionTab />
                   </TabsContent>
@@ -1230,6 +1233,7 @@ export default function ControlCenterSettingsPage() {
                     {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo) && (
                       <TabsTrigger value="subscription" className="w-full justify-end text-right">תוכנית ומנוי</TabsTrigger>
                     )}
+                    {campaignsEnabled && <TabsTrigger value="messaging" className="w-full justify-start text-start">{t("campaign.usageTitle")}</TabsTrigger>}
                     <TabsTrigger value="about" className="w-full justify-end text-right">אודות האפליקציה</TabsTrigger>
                   </TabsList>
                 </div>

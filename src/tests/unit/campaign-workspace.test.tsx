@@ -1,0 +1,243 @@
+import React from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import i18n from '@/localization/i18n';
+const mocks=vi.hoisted(()=>({request:vi.fn(),open:vi.fn(),navigate:vi.fn(),role:4,search:{} as {campaign?:number}}));
+vi.mock('@/lib/api-client',()=>({apiClient:{campaignRequest:mocks.request}}));
+vi.mock('@/contexts/UserContext',()=>({useUser:()=>({currentClinic:{id:1},currentUser:{id:1,role_level:mocks.role}})}));
+vi.mock('@/contexts/PrysmAgentContext',()=>({usePrysmAgent:()=>({available:true,pending:false,runtime:{controller:{}},openCampaignDraft:mocks.open})}));
+vi.mock('@tanstack/react-router',()=>({useNavigate:()=>mocks.navigate,useSearch:()=>mocks.search}));
+vi.mock('@/components/site-header',()=>({SiteHeader:({title}:{title:string})=><header>{title}</header>}));
+import CampaignsPage from '@/pages/CampaignsPage';
+import { MessagingTopupDialog } from '@/components/settings/MessagingTopupDialog';
+import { MessagingTab } from '@/components/settings/MessagingTab';
+const draft={id:1,revision:1,name:'Recall',clinic_id:1,subject:'Recall',filters:'[]',email_enabled:true,email_content:'Hello {first_name}',sms_enabled:false,sms_content:'',locale:'en',all_clients:true,execute_once_per_client:true,status:'draft'};
+beforeEach(()=>{mocks.search={};localStorage.removeItem('campaigns.view');mocks.role=4;mocks.open.mockReset();mocks.navigate.mockReset();mocks.request.mockReset();mocks.request.mockImplementation(async(path:string,body:unknown)=>{
+ if(path==='/campaigns/catalog')return {fields:{age:{type:'number'}},operators:{number:['greater_than']},placeholders:['first_name']};
+ if(path.startsWith('/campaigns/?'))return [draft];
+ if(path.endsWith('/runs'))return [];
+ if(path.endsWith('/preview')&&(body as any)?.tests)return {quote:'test-quote',total_cost:20000,included:0,emails:1,sms:0,segments:0,billing_units:0,errors:[],excluded:{},sample:[]};
+ if(path.endsWith('/preview'))return {quote:'quote',total_cost:10000,included:0,emails:1,sms:3,segments:9,billing_units:7,errors:['sending_disabled'],excluded:{opted_out:2},sample:[]};
+ if(path==='/campaigns/1')return {...draft,...body as object,revision:2};
+ if(path==='/campaigns/')return {...draft,...body as object,revision:2};
+ if(path.startsWith('/messaging/summary'))return {balance:100000000,available:90000000,reserved:10000000,allowance:100,used:2,held:1,period_end:'2026-12-01',low_balance:20000000,packs:[10000],can_pay:mocks.role>=4,can_manage:mocks.role>=3,clinics:[],email_ready:false,sms_ready:false,sending_enabled:false};
+ if(path.startsWith('/messaging/usage?'))return {total:0,items:[]};
+ if(path==='/messaging/topups')return [];
+ if(path==='/messaging/ledger')return {items:[]};
+ throw new Error('Unexpected '+path);
+ });});
+afterEach(cleanup);
+
+describe.each(['he','en','fr'])('campaign workspace in %s',locale=>{
+ it('remembers the card view, preserves search across views and opens the same campaign',async()=>{
+  await i18n.changeLanguage(locale);const first=render(<CampaignsPage/>);
+  await screen.findByRole('button',{name:'Recall'});
+  fireEvent.click(screen.getByRole('radio',{name:i18n.t('campaign.cardView')}));
+  expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  first.unmount();render(<CampaignsPage/>);
+  await screen.findByRole('button',{name:'Recall'});
+  expect(screen.getByRole('radio',{name:i18n.t('campaign.cardView')})).toHaveAttribute('aria-checked','true');
+  fireEvent.change(screen.getByRole('textbox',{name:i18n.t('campaign.search')}),{target:{value:'missing'}});
+  expect(screen.getByText(i18n.t('campaign.noMatches'))).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('radio',{name:i18n.t('campaign.tableView')}));
+  expect(screen.getByRole('table')).toBeInTheDocument();
+  expect(screen.getByText(i18n.t('campaign.noMatches'))).toBeInTheDocument();
+  fireEvent.change(screen.getByRole('textbox',{name:i18n.t('campaign.search')}),{target:{value:'Recall'}});
+  fireEvent.click(screen.getByRole('radio',{name:i18n.t('campaign.cardView')}));
+  fireEvent.click(screen.getByRole('button',{name:'Recall'}));
+  expect(mocks.navigate).toHaveBeenCalledWith({to:'/campaigns',search:{campaign:1}});
+  expect(screen.getByRole('tab',{name:i18n.t('campaign.audience')})).toBeInTheDocument();
+  expect(mocks.request.mock.calls.every(([,body,method])=>body===undefined&&method===undefined)).toBe(true);
+ });
+ it('opens the general agent with an editable localized starter instead of the old modal',async()=>{
+  await i18n.changeLanguage(locale);render(<CampaignsPage/>);
+  const button=await screen.findByRole('button',{name:i18n.t('campaign.ai')});fireEvent.click(button);
+  expect(mocks.open).toHaveBeenCalledWith(i18n.t('campaign.prompt'));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+ });
+ it('saves a draft without sending messages',async()=>{
+  await i18n.changeLanguage(locale);render(<CampaignsPage/>);
+  fireEvent.click(await screen.findByRole('button',{name:i18n.t('campaign.new')}));
+  fireEvent.change(screen.getByRole('textbox',{name:i18n.t('campaign.name')}),{target:{value:'New draft'}});
+  fireEvent.click(screen.getByRole('button',{name:i18n.t('campaign.save')}));
+  await waitFor(()=>expect(mocks.request).toHaveBeenCalledWith('/campaigns/',expect.objectContaining({name:'New draft'}),'POST'));
+  expect(mocks.request.mock.calls.some(([path])=>String(path).endsWith('/runs')&&path!==`/campaigns/1/runs`)).toBe(false);
+ });
+ it('shows server exclusions and blocks sending when the provider is disabled',async()=>{
+  await i18n.changeLanguage(locale);render(<CampaignsPage/>);
+  fireEvent.click(await screen.findByRole('button',{name:'Recall'}));
+  fireEvent.mouseDown(screen.getByRole('tab',{name:i18n.t('campaign.review')}),{button:0,ctrlKey:false});
+  expect(await screen.findByText(i18n.t('campaign.sending_disabled'))).toBeInTheDocument();
+  expect(screen.getByRole('button',{name:i18n.t('campaign.send')})).toBeDisabled();
+  expect(screen.getByText(i18n.t('campaign.billingUnits')).parentElement).toHaveTextContent('7');
+ });
+ it('preserves audience conditions when switching between all clients and a focused audience',async()=>{
+  await i18n.changeLanguage(locale);render(<CampaignsPage/>);
+  fireEvent.click(await screen.findByRole('button',{name:'Recall'}));
+  fireEvent.click(screen.getByRole('radio',{name:i18n.t('campaign.filteredAudience')}));
+  fireEvent.click(screen.getByRole('button',{name:i18n.t('campaign.addFilter')}));
+  expect(screen.getByRole('combobox',{name:i18n.t('campaign.field')})).toBeInTheDocument();
+  fireEvent.change(screen.getByRole('textbox',{name:i18n.t('campaign.value')}),{target:{value:'65'}});
+  fireEvent.click(screen.getByRole('radio',{name:i18n.t('campaign.allAudience')}));
+  fireEvent.click(screen.getByRole('radio',{name:i18n.t('campaign.filteredAudience')}));
+  expect(screen.getByRole('textbox',{name:i18n.t('campaign.value')})).toHaveValue('65');
+  fireEvent.click(screen.getByRole('button',{name:i18n.t('campaign.save')}));
+  await waitFor(()=>expect(mocks.request).toHaveBeenCalledWith('/campaigns/1',expect.objectContaining({all_clients:false,filters:expect.stringContaining('65')}),'PUT'));
+ });
+ it('retains the shared date and time values across setup steps without activating a schedule',async()=>{
+  await i18n.changeLanguage(locale);render(<CampaignsPage/>);
+  fireEvent.click(await screen.findByRole('button',{name:'Recall'}));
+  fireEvent.mouseDown(screen.getByRole('tab',{name:i18n.t('campaign.content')}),{button:0,ctrlKey:false});
+  const date=screen.getByRole('textbox',{name:i18n.t('campaign.startDate')});
+  fireEvent.change(date,{target:{value:'14/11/2026'}});fireEvent.blur(date);
+  const time=screen.getByRole('textbox',{name:i18n.t('campaign.startTime')});
+  fireEvent.change(time,{target:{value:'09:45'}});fireEvent.blur(time);
+  fireEvent.mouseDown(screen.getByRole('tab',{name:i18n.t('campaign.audience')}),{button:0,ctrlKey:false});
+  fireEvent.mouseDown(screen.getByRole('tab',{name:i18n.t('campaign.content')}),{button:0,ctrlKey:false});
+  expect(screen.getByRole('textbox',{name:i18n.t('campaign.startDate')})).toHaveValue('14/11/2026');
+  expect(screen.getByRole('textbox',{name:i18n.t('campaign.startTime')})).toHaveValue('09:45');
+  expect(screen.getByRole('button',{name:i18n.t('campaign.activate')})).toBeDisabled();
+  expect(mocks.request.mock.calls.every(([,body,method])=>body===undefined&&method===undefined)).toBe(true);
+ });
+ it('returns to the campaign list when the breadcrumb removes the campaign parameter',async()=>{
+  await i18n.changeLanguage(locale);mocks.search={campaign:1};
+  const page=render(<CampaignsPage/>);
+  await screen.findByRole('textbox',{name:i18n.t('campaign.name')});
+  mocks.search={};page.rerender(<CampaignsPage/>);
+  await screen.findByRole('button',{name:'Recall'});
+  expect(screen.queryByRole('textbox',{name:i18n.t('campaign.name')})).not.toBeInTheDocument();
+ });
+ it('saves current edits and calculates review automatically without sending or scheduling',async()=>{
+  await i18n.changeLanguage(locale);render(<CampaignsPage/>);
+  fireEvent.click(await screen.findByRole('button',{name:'Recall'}));
+  expect(screen.queryByRole('tab',{name:i18n.t('campaign.schedule')})).not.toBeInTheDocument();
+  fireEvent.change(screen.getByRole('textbox',{name:i18n.t('campaign.name')}),{target:{value:'Updated recall'}});
+  fireEvent.mouseDown(screen.getByRole('tab',{name:i18n.t('campaign.review')}),{button:0,ctrlKey:false});
+  await screen.findByText(i18n.t('campaign.sending_disabled'));
+  const calls=mocks.request.mock.calls;
+  const saved=calls.findIndex(([path,,method])=>path==='/campaigns/1'&&method==='PUT');
+  const previewed=calls.findIndex(([path])=>path==='/campaigns/1/preview');
+  expect(saved).toBeGreaterThanOrEqual(0);expect(previewed).toBeGreaterThan(saved);
+  expect(calls.some(([path,body])=>String(path).endsWith('/runs')&&body!==undefined)).toBe(false);
+  expect(calls.some(([path])=>String(path).endsWith('/schedule'))).toBe(false);
+ });
+ it('keeps a single test modal and uses a separate recipient-specific quote',async()=>{
+  await i18n.changeLanguage(locale);render(<CampaignsPage/>);
+  fireEvent.click(await screen.findByRole('button',{name:'Recall'}));
+  fireEvent.mouseDown(screen.getByRole('tab',{name:i18n.t('campaign.review')}),{button:0,ctrlKey:false});
+  await screen.findByText(i18n.t('campaign.sending_disabled'));
+  fireEvent.click(screen.getByRole('button',{name:i18n.t('campaign.test')}));
+  const dialog=screen.getByRole('dialog');
+  expect(screen.getAllByRole('dialog')).toHaveLength(1);
+  expect(within(dialog).queryByRole('textbox',{name:i18n.t('campaign.testSms')})).not.toBeInTheDocument();
+  const send=within(dialog).getByRole('button',{name:i18n.t('campaign.test')});
+  expect(send).toBeDisabled();
+  fireEvent.change(within(dialog).getByRole('textbox',{name:i18n.t('campaign.testEmail')}),{target:{value:'preview@example.com'}});
+  await waitFor(()=>expect(send).toBeEnabled());
+  expect(mocks.request).toHaveBeenCalledWith('/campaigns/1/preview',{tests:[{email:'preview@example.com'}]},undefined);
+  expect(mocks.request.mock.calls.some(([path,body])=>path==='/campaigns/1/runs'&&body!==undefined)).toBe(false);
+  fireEvent.click(send);
+  await waitFor(()=>expect(mocks.request).toHaveBeenCalledWith('/campaigns/1/runs',expect.objectContaining({quote:'test-quote',tests:[{email:'preview@example.com'}]}),undefined));
+  await waitFor(()=>expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  // The campaign quote and its provider guard remain intact after a test.
+  expect(screen.getByText(i18n.t('campaign.billingUnits')).parentElement).toHaveTextContent('7');
+  expect(screen.getByRole('button',{name:i18n.t('campaign.send')})).toBeDisabled();
+ });
+ it('shows a preview failure in the review card and lets the corner refresh recover',async()=>{
+  await i18n.changeLanguage(locale);render(<CampaignsPage/>);
+  fireEvent.click(await screen.findByRole('button',{name:'Recall'}));
+  const normal=mocks.request.getMockImplementation()!;
+  mocks.request.mockImplementation((path:string,...args:unknown[])=>path.endsWith('/preview')?Promise.reject(new Error('unavailable')):normal(path,...args));
+  fireEvent.mouseDown(screen.getByRole('tab',{name:i18n.t('campaign.review')}),{button:0,ctrlKey:false});
+  await screen.findByRole('alert');
+  expect(screen.getByRole('button',{name:i18n.t('campaign.send')})).toBeDisabled();
+  mocks.request.mockImplementation(normal);
+  fireEvent.click(screen.getByRole('button',{name:i18n.t('campaign.refresh')}));
+  await screen.findByText(i18n.t('campaign.sending_disabled'));
+  expect(screen.getByText(i18n.t('campaign.billingUnits')).parentElement).toHaveTextContent('7');
+ });
+ it('activates scheduling from content using a fresh full-audience quote',async()=>{
+  await i18n.changeLanguage(locale);render(<CampaignsPage/>);
+  fireEvent.click(await screen.findByRole('button',{name:'Recall'}));
+  const normal=mocks.request.getMockImplementation()!;
+  mocks.request.mockImplementation(async(path:string,...args:unknown[])=>{
+   if(path==='/campaigns/1/schedule')return {...draft,status:'scheduled',revision:2};
+   const value=await normal(path,...args);return path.endsWith('/preview')?{...value,errors:[]}:value;
+  });
+  fireEvent.mouseDown(screen.getByRole('tab',{name:i18n.t('campaign.content')}),{button:0,ctrlKey:false});
+  const date=screen.getByRole('textbox',{name:i18n.t('campaign.startDate')});
+  fireEvent.change(date,{target:{value:'14/11/2026'}});fireEvent.blur(date);
+  fireEvent.change(screen.getByRole('textbox',{name:i18n.t('campaign.maxCost')}),{target:{value:'1.00'}});
+  fireEvent.click(screen.getByRole('button',{name:i18n.t('campaign.activate')}));
+  await waitFor(()=>expect(mocks.request).toHaveBeenCalledWith('/campaigns/1/schedule',expect.objectContaining({revision:1,quote:'quote',max_cost:1000000,schedule:expect.objectContaining({start:'2026-11-14T09:00',timezone:'Asia/Jerusalem'})}),undefined));
+  expect(mocks.request).toHaveBeenCalledWith('/campaigns/1/preview',{},undefined);
+  expect(mocks.request.mock.calls.some(([path,body])=>String(path).endsWith('/runs')&&body!==undefined)).toBe(false);
+ });
+ it('reuses the test-send request key after an uncertain response',async()=>{
+  await i18n.changeLanguage(locale);render(<CampaignsPage/>);
+  fireEvent.click(await screen.findByRole('button',{name:'Recall'}));
+  fireEvent.mouseDown(screen.getByRole('tab',{name:i18n.t('campaign.review')}),{button:0,ctrlKey:false});
+  await screen.findByText(i18n.t('campaign.sending_disabled'));
+  const normal=mocks.request.getMockImplementation()!;let attempts=0;
+  mocks.request.mockImplementation((path:string,body:unknown,...args:unknown[])=>{
+   if(path==='/campaigns/1/runs'&&body&&++attempts===1)return Promise.reject(new Error('unavailable'));
+   return normal(path,body,...args);
+  });
+  fireEvent.click(screen.getByRole('button',{name:i18n.t('campaign.test')}));
+  const dialog=screen.getByRole('dialog');
+  fireEvent.change(within(dialog).getByRole('textbox',{name:i18n.t('campaign.testEmail')}),{target:{value:'preview@example.com'}});
+  const send=within(dialog).getByRole('button',{name:i18n.t('campaign.test')});
+  await waitFor(()=>expect(send).toBeEnabled());fireEvent.click(send);
+  await waitFor(()=>expect(attempts).toBe(1));
+  await waitFor(()=>expect(send).toBeEnabled());fireEvent.click(send);
+  await waitFor(()=>expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  const requests=mocks.request.mock.calls.filter(([path,body])=>path==='/campaigns/1/runs'&&body);
+  expect(requests).toHaveLength(2);
+  expect(requests[0][1].request_key).toBe(requests[1][1].request_key);
+ });
+ it('shows separate pooled email and SMS allowances with their reservations',async()=>{
+  const normal=mocks.request.getMockImplementation()!;
+  mocks.request.mockImplementation(async(path:string,...args:unknown[])=>{
+   const value=await normal(path,...args);
+   return path.startsWith('/messaging/summary')?{...value,eligible_clinics:2,email_rate:10000,sms_rate:50000,provider_status:{},included:{email:{limit:2000,used:12,reserved:3,remaining:1985},sms:{limit:400,used:20,reserved:4,remaining:376}}}:value;
+  });
+  await i18n.changeLanguage(locale);render(<MessagingTab/>);
+  expect(await screen.findByText('12 / 2000')).toBeInTheDocument();
+  expect(screen.getByText('20 / 400')).toBeInTheDocument();
+  expect(screen.getByText(i18n.t('campaign.includedReserved',{email:3,sms:4}))).toBeInTheDocument();
+  expect(screen.getByRole('tab',{name:i18n.t('campaign.consent')})).toBeInTheDocument();
+ });
+ it('uses hosted card fields and waits for verified settlement before completing a top-up',async()=>{
+  const pay=vi.fn();const paid=vi.fn();const closed=vi.fn();
+  window.AllpayPayment=class {pay=pay;constructor(_options:unknown){}};
+  mocks.request.mockResolvedValue({id:'topup',status:'pending',amount_minor:10000});
+  await i18n.changeLanguage(locale);
+  render(<MessagingTopupDialog payment={{id:'topup',created_at:'2026-11-08T12:00:00Z',status:'pending',amount_minor:10000,payment_url:'https://allpay.to/test-checkout',test_mode:true}} onClose={closed} onPaid={paid}/>);
+  fireEvent.load(screen.getByTitle(i18n.t('campaign.cardDetails')));
+  const submit=screen.getByRole('button',{name:i18n.t('campaign.payTopup')});
+  await waitFor(()=>expect(submit).toBeEnabled());fireEvent.click(submit);
+  expect(pay).toHaveBeenCalledTimes(1);expect(paid).not.toHaveBeenCalled();
+  mocks.request.mockResolvedValue({id:'topup',status:'paid',amount_minor:10000});
+  fireEvent.click(screen.getByRole('button',{name:i18n.t('campaign.reconcile')}));
+  await waitFor(()=>expect(paid).toHaveBeenCalledTimes(1));
+  expect(mocks.request).toHaveBeenCalledWith('/messaging/topups/topup/reconcile',{},undefined);
+  delete window.AllpayPayment;
+ });
+ it('opens redirect checkout without loading hosted fields and verifies settlement',async()=>{
+  const paid=vi.fn();await i18n.changeLanguage(locale);
+  mocks.request.mockResolvedValue({status:'pending'});
+  render(<MessagingTopupDialog payment={{id:'redirect',created_at:'2026-11-08T12:00:00Z',status:'pending',amount_minor:10000,payment_url:'https://allpay.to/test-redirect',test_mode:true,checkout_mode:'redirect'}} onClose={vi.fn()} onPaid={paid}/>);
+  expect(screen.getByRole('link',{name:i18n.t('campaign.continuePayment')})).toHaveAttribute('href','https://allpay.to/test-redirect');
+  expect(screen.queryByTitle(i18n.t('campaign.cardDetails'))).not.toBeInTheDocument();
+  expect(screen.queryByRole('button',{name:i18n.t('campaign.payTopup')})).not.toBeInTheDocument();
+  expect(paid).not.toHaveBeenCalled();mocks.request.mockResolvedValue({status:'paid'});
+  fireEvent.click(screen.getByRole('button',{name:i18n.t('campaign.reconcile')}));
+  await waitFor(()=>expect(paid).toHaveBeenCalledTimes(1));
+ });
+ it('limits billing to CEOs and renders clinic usage for staff',async()=>{
+  mocks.role=2;await i18n.changeLanguage(locale);render(<MessagingTab/>);
+  await waitFor(()=>expect(mocks.request).toHaveBeenCalledWith(expect.stringContaining('/messaging/usage?'),undefined,undefined));
+  expect(screen.queryByRole('tab',{name:i18n.t('campaign.payments')})).not.toBeInTheDocument();
+  expect(screen.queryByRole('tab',{name:i18n.t('campaign.ledger')})).not.toBeInTheDocument();
+ });
+});

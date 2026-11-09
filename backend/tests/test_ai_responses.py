@@ -94,7 +94,7 @@ def test_assistant_direct_request_and_locale(workspace, monkeypatch, language):
     assert result.json() == {'success': True, 'message': 'answer'}
     payload = create.call_args.kwargs
     assert payload['store'] is False and payload['background'] is False
-    assert payload['model'] == 'gpt-6.1-sol' and payload['reasoning'] == {'effort': 'low'}
+    assert payload['model'] == 'gpt-6-luna' and payload['reasoning'] == {'effort': 'low'}
     assert 'GOOGLE_' not in json.dumps(payload)
     assert len(payload['input']) == 1
     assert {'he': 'Hebrew', 'en': 'English', 'fr': 'French'}[language] in payload['instructions']
@@ -170,7 +170,11 @@ def campaign():
 
 
 def test_campaign_validation_and_scope(workspace, monkeypatch):
-    http, sessions, _, _, _, clinic, foreign = workspace
+    http, sessions, user, _, _, clinic, foreign = workspace
+    user.role_level = 3
+    with sessions() as db:
+        db.get(User, user.id).role_level = 3
+        db.commit()
     service, create = mock_service([response(json.dumps(campaign()))])
     monkeypatch.setattr(ai_sidebar, 'get_ai_service', lambda: service)
     assert http.post('/ai/create-campaign-from-prompt', json={'prompt': 'remind', 'clinic_id': foreign.id}).status_code == 403

@@ -40,9 +40,11 @@ interface RegularOrderTabProps {
   lensInventory?: InventorySelection[];
   onLensInventorySelect?: (side: "right" | "left" | "both", variant: CatalogVariant, source: FulfillmentSource) => void;
   onLensInventoryClear?: (side: "right" | "left" | "both") => void;
+  onLensInventoryUnlink?: (side: "right" | "left" | "both") => void;
   selectedFrameInventory?: InventorySelection | null;
   onFrameInventorySelect: (variant: CatalogVariant, source: FulfillmentSource) => void;
   onFrameInventoryClear: () => void;
+  onFrameInventoryUnlink?: () => void;
   orderDetailsFormData: OrderDetails;
   setOrderDetailsFormData: React.Dispatch<React.SetStateAction<OrderDetails>>;
   clientOrderIndex?: number | null;
@@ -68,9 +70,9 @@ export default function RegularOrderTab({
   lensFrameTab,
   onLensFieldChange,
   onFrameFieldChange,
-  selectedFrameInventory, framePrice, billingCurrency, onFramePriceChange, lensInventory, onLensInventorySelect, onLensInventoryClear,
+  selectedFrameInventory, framePrice, billingCurrency, onFramePriceChange, lensInventory, onLensInventorySelect, onLensInventoryClear, onLensInventoryUnlink,
   onFrameInventorySelect,
-  onFrameInventoryClear,
+  onFrameInventoryClear, onFrameInventoryUnlink,
   orderDetailsFormData,
   setOrderDetailsFormData,
   clientOrderIndex,
@@ -136,7 +138,7 @@ export default function RegularOrderTab({
         <OrderSheetRow className="lg:grid-cols-2">
           <LensSection
             clinicId={formData.clinic_id} orderId={formData.id}
-            selections={lensInventory} onInventorySelect={onLensInventorySelect} onInventoryClear={onLensInventoryClear}
+            selections={lensInventory} onInventorySelect={onLensInventorySelect} onInventoryClear={onLensInventoryClear} onInventoryUnlink={onLensInventoryUnlink}
             lens={lens}
             layoutKey={lensFrameTab?.id || ""}
             isEditing={isEditing}
@@ -151,7 +153,7 @@ export default function RegularOrderTab({
             onFrameFieldChange={onFrameFieldChange}
             selectedInventory={selectedFrameInventory}
             onInventorySelect={onFrameInventorySelect}
-            onInventoryClear={onFrameInventoryClear}
+            onInventoryClear={onFrameInventoryClear} onInventoryUnlink={onFrameInventoryUnlink}
           />
         </OrderSheetRow>
 

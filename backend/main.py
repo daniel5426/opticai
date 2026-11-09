@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import config
 from EndPoints import discounts, order_groups, auth, companies, clinics, users, clients, families, appointments, medical_logs, orders, referrals, files, settings, work_shifts, lookups, campaigns, billing, chats, email_logs, exam_layouts, exams, unified_exam_data, ai, ai_sidebar, control_center, dashboard, search, whatsapp_webhook, whatsapp, softoptic_migration, migration, migration_source_data, clinic_data_prune, clinic_holidays, inventory, plans, subscriptions, trash, web_auth
 from EndPoints import agent as prysm_agent
+from EndPoints import messaging
 from EndPoints import table_exports
 from EndPoints import google_oauth
 from agent.config import enabled as agents24_enabled
@@ -39,12 +40,14 @@ def seed_initial_data():
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    from services.scanner_service import scanner_services
+    from workers.campaign_worker import campaign_services
     from workers.table_export_worker import table_export_services
     from agent.local_startup import local_agent_services
     from agent.hosted_services import hosted_agent_services
     from agent.runtime import close_runtime_clients
     try:
-        async with table_export_services(), local_agent_services(), hosted_agent_services():
+        async with scanner_services(), campaign_services(), table_export_services(), local_agent_services(), hosted_agent_services():
             seed_initial_data()
             yield
     finally:
@@ -78,7 +81,7 @@ async def enforce_subscription_access(request, call_next):
     # These routers authenticate/authorize their own recovery and owner operations.
     if request.method == "OPTIONS" or not path.startswith(config.settings.API_V1_STR + "/") or any(
         path == config.settings.API_V1_STR + prefix or path.startswith(config.settings.API_V1_STR + prefix + "/")
-        for prefix in ("/auth", "/subscriptions", "/admin", "/plans")
+        for prefix in ("/auth", "/subscriptions", "/admin", "/plans", "/messaging/webhooks", "/messaging/unsubscribe", "/messaging/topups")
     ):
         return await call_next(request)
     authorization = request.headers.get("authorization", "")
@@ -121,7 +124,11 @@ app.include_router(settings.router, prefix=config.settings.API_V1_STR)
 app.include_router(work_shifts.router, prefix=config.settings.API_V1_STR)
 app.include_router(lookups.router, prefix=config.settings.API_V1_STR)
 app.include_router(discounts.router, prefix=config.settings.API_V1_STR)
-app.include_router(campaigns.router, prefix=config.settings.API_V1_STR)
+if config.settings.CAMPAIGNS_ENABLED:
+    app.include_router(messaging.public_router)
+    app.include_router(campaigns.router, prefix=config.settings.API_V1_STR)
+    app.include_router(messaging.router, prefix=config.settings.API_V1_STR)
+    app.include_router(messaging.admin_router, prefix=config.settings.API_V1_STR)
 app.include_router(billing.router, prefix=config.settings.API_V1_STR)
 app.include_router(billing.ol_router, prefix=config.settings.API_V1_STR)
 app.include_router(chats.router, prefix=config.settings.API_V1_STR)
@@ -146,6 +153,8 @@ app.include_router(migration.router, prefix=config.settings.API_V1_STR)
 app.include_router(migration_source_data.router, prefix=config.settings.API_V1_STR)
 app.include_router(clinic_data_prune.router, prefix=config.settings.API_V1_STR)
 app.include_router(clinic_holidays.router, prefix=config.settings.API_V1_STR)
+from EndPoints import scanner
+app.include_router(scanner.router, prefix=config.settings.API_V1_STR)
 app.include_router(inventory.router, prefix=config.settings.API_V1_STR)
 app.include_router(trash.router, prefix=config.settings.API_V1_STR)
 app.include_router(plans.router, prefix=config.settings.API_V1_STR)

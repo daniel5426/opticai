@@ -35,4 +35,12 @@ describe("appointment overlap message", () => {
     await book();
     expect(appointmentSaveErrorMessage("שגיאה ביצירת התור")).toBe("שגיאה ביצירת התור");
   });
+
+  test("does not reuse a previous overlap after a network failure", async () => {
+    createAppointmentApi.mockResolvedValueOnce({ error: "agent.slotUnavailable", errorDetail: "agent.slotUnavailable" });
+    await book();
+    createAppointmentApi.mockRejectedValueOnce(new Error("Network unavailable"));
+    await book();
+    expect(appointmentSaveErrorMessage("Save failed")).toBe("Save failed");
+  });
 });

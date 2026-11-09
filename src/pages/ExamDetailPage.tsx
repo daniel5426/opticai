@@ -93,7 +93,7 @@ import {
 import { ExamLayoutTabs } from "@/components/exam/ExamLayoutTabs";
 import { OptitechExamTabs } from "@/components/exam/OptitechExamTabs";
 import { SoftopticExamTabs } from "@/components/exam/SoftopticExamTabs";
-import { buildSoftopticTabs, defaultSoftopticTab, oldRefTabId, SOFTOPTIC_CONTACT_LENS_TAB, softopticGridSlotCardId, type SoftopticTabKey } from "@/lib/softoptic-exam-tabs";
+import { buildSoftopticTabs, defaultSoftopticTab, oldRefTabId, SOFTOPTIC_CONTACT_LENS_TAB, softopticGridSlotCardId, withContactLensTab, type SoftopticTabKey } from "@/lib/softoptic-exam-tabs";
 import { sameDayContactLensOrders } from "@/lib/softoptic-contact-lens";
 import { SoftopticContactLensTab } from "@/components/exam/SoftopticContactLensTab";
 import { packSoftopticCards } from "@/lib/softoptic-exam-layout";
@@ -586,15 +586,13 @@ export default function ExamDetailPage({
   );
   const softopticTabs = useMemo(() => {
     if (!isSoftopticView) return null;
-    const tabs = buildSoftopticTabs(cardRows.flatMap((row) => row.cards), (card) =>
+    const tabs = withContactLensTab(buildSoftopticTabs(cardRows.flatMap((row) => row.cards), (card) =>
       card.type === "old-refraction-extension"
         ? computedOldRefractionExtensionTabs[card.id]
         : card.type === "old-refraction"
           ? computedOldRefractionTabs[card.id]
           : undefined,
-    );
-    // An exam with the day's contact lens prescription is a contact lens exam: OpticSoft shows just that screen.
-    if (examDayContactLensOrders.length) return [{ key: SOFTOPTIC_CONTACT_LENS_TAB, cards: [] }] as typeof tabs;
+    ), examDayContactLensOrders.length > 0);
     return tabs.length ? tabs : null;
   }, [isSoftopticView, cardRows, computedOldRefractionTabs, computedOldRefractionExtensionTabs, examDayContactLensOrders]);
   const activeSoftopticTab = softopticTabs?.find((tab) => tab.key === softopticTab) ?? softopticTabs?.find((tab) => tab.key === defaultSoftopticTab(softopticTabs));
@@ -1668,6 +1666,12 @@ export default function ExamDetailPage({
       }, 0);
     }
   };
+
+  useEffect(() => {
+    const edit = () => { if (!loading && !isSaveInFlight && !isEditing) handleEditButtonClick(); };
+    window.addEventListener('prysm:scan-edit-exam', edit);
+    return () => window.removeEventListener('prysm:scan-edit-exam', edit);
+  }, [loading, isSaveInFlight, isEditing]);
 
   const handleTabChange = (value: string) => {
     if (clientId && value !== config.sidebarTab) {

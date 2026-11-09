@@ -1,3 +1,6 @@
+import layoutDurationTranslations from "./layout-duration.json";
+import scannerTranslations from "./scanner.json";
+import campaignTranslations from "./campaigns.json";
 import saveStatusTranslations from "./save-status.json";
 import contactLensDetailsTranslations from "./contact-lens-details.json";
 import clientContactTranslations from "./client-contact.json";
@@ -367,6 +370,7 @@ i18n.use(initReactI18next).init({
           'This will delete the "{{name}}" tab and all data saved in it.',
         clientDetails: "Personal details",
         medicalRecord: "Medical record",
+        newMedicalRecord: "New record",
         age: "Age {{count}}",
         inventoryCreateProduct: "Add {{name}} as a new product",
         inventoryProductCreated: "{{name}} was added to the product catalog",
@@ -785,6 +789,7 @@ i18n.use(initReactI18next).init({
           'פעולה זו תמחק את הלשונית "{{name}}" ואת כל הנתונים שנשמרו בה.',
         clientDetails: "פרטים אישיים",
         medicalRecord: "גליון רפואי",
+        newMedicalRecord: "רשומה חדשה",
         age: "גיל {{count}}",
         inventoryCreateProduct: "הוסף את {{name}} כמוצר חדש",
         inventoryProductCreated: "{{name}} נוסף לקטלוג המוצרים",
@@ -1208,6 +1213,7 @@ i18n.use(initReactI18next).init({
           'Cette action supprimera l’onglet "{{name}}" et toutes les données qu’il contient.',
         clientDetails: "Informations personnelles",
         medicalRecord: "Dossier médical",
+        newMedicalRecord: "Nouvelle note",
         age: "Âge {{count}}",
         inventoryCreateProduct: "Ajouter {{name}} comme nouveau produit",
         inventoryProductCreated: "{{name}} a été ajouté au catalogue produits",
@@ -1387,4 +1393,16 @@ for (const [language, translations] of Object.entries(contactLensDetailsTranslat
 
 for (const [language, translations] of Object.entries(saveStatusTranslations)) {
   i18n.addResourceBundle(language, "translation", { saveStatus: translations }, true, true);
+}
+
+for (const [language, translations] of Object.entries(campaignTranslations)) {
+  i18n.addResourceBundle(language, "translation", { campaign: translations }, true, true);
+}
+
+for (const [language, translations] of Object.entries(scannerTranslations)) {
+  i18n.addResourceBundle(language, "translation", translations, true, true);
+}
+
+for (const [language, translations] of Object.entries(layoutDurationTranslations)) {
+  i18n.addResourceBundle(language, "translation", { layoutDuration: translations }, true, true);
 }

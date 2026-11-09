@@ -6,7 +6,7 @@ const mock = vi.hoisted(() => ({ json: vi.fn() }));
 vi.mock('@/services/agent-client', () => ({ agentJson: mock.json }));
 vi.mock('@/contexts/PrysmAgentContext', () => ({ usePrysmAgent: () => ({ scope: { userId: 1, clinicId: 1 } }) }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en', resolvedLanguage: 'en' } }) }));
-vi.mock('@/components/agent/AgentLinks', () => ({ AgentLink: ({ children }: any) => <span>{children}</span> }));
+vi.mock('@/components/agent/AgentLinks', () => ({ AgentLink: ({ children, href }: any) => <a href={href}>{children}</a> }));
 vi.mock('@/components/agent/ToolActivityTimeline', () => ({ ToolActivityTimeline: () => null }));
 import { ApprovalTimeline } from '@/components/agent/ApprovalTimeline';
 const parts: any[] = [
@@ -71,6 +71,13 @@ describe('saved proposal approval', () => {
     expect(screen.getByRole('button', { name: 'agent.approve' })).toBeDisabled();
     expect(screen.getByRole('alert')).toBeVisible();
     expect(mock.json).not.toHaveBeenCalled();
+  });
+  it('shows a campaign link only for a saved draft with an approval receipt', () => {
+    const result = { kind: 'campaigns', id: 42, status: 'draft', approval: { user_id: 1, at: '2026-11-08T12:00:00Z' } };
+    const view = mount(vi.fn(), [{ ...parts[0], state: 'output-available', output: result }]);
+    expect(screen.getByRole('link', { name: 'campaign.openDraft' })).toHaveAttribute('href', '/campaigns?campaign=42');
+    view.unmount();mount(vi.fn(), [{ ...parts[0], state: 'output-available', output: { ...result, approval: undefined } }]);
+    expect(screen.queryByRole('link')).toBeNull();
   });
   it('does not show a false error for a resolved historical review without a link', () => {
     mount(vi.fn(), [{ ...parts[1], status: 'resolved', presentation: { tool_name: 'commit_change' } }]);

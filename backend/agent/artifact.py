@@ -344,9 +344,77 @@ async def prepare_supply(inputs, config, context):
     return await invoke(context, lambda db, auth: prepare(db, auth, args.operation, [row.model_dump(exclude_none=True) for row in args.rows]))
 
 
-exports = [search_supply, prepare_supply, clinic_context, search_catalog, search_records, search_prescriptions, search_documents, search_patients, find_staff, patient_history, list_records, exam_layout_catalog, compare_exams, check_order, find_appointments,
+class CampaignQuery(Input):
+    campaign_id: int | None = Field(default=None, gt=0)
+    view: Literal['list', 'read', 'preview', 'results'] = 'list'
+
+class CampaignCondition(Input):
+    field: str = Field(description='Exact field key from campaign_catalog, such as last_exam_days.')
+    operator: str = Field(description='Supported operator from campaign_catalog, such as greater_equal.')
+    value: str | int | float | bool = ''
+    logic: Literal['AND', 'OR'] = 'AND'
+
+class CampaignDraftFields(Input):
+    name: str = Field(min_length=1, max_length=200)
+    subject: str = Field(default='', max_length=300)
+    locale: Literal['he', 'en', 'fr'] = 'he'
+    filters: list[CampaignCondition] = Field(default_factory=list)
+    all_clients: bool = Field(default=False, description='True only for an explicitly requested unfiltered audience.')
+    email_enabled: bool = False
+    email_content: str = Field(default='', max_length=100000, description='Plain text; personalization uses single braces, e.g. {first_name}.')
+    sms_enabled: bool = False
+    sms_content: str = Field(default='', max_length=3000, description='Plain text; personalization uses single braces, e.g. {clinic_phone}.')
+    execute_once_per_client: bool = False
+    revision: int | None = None
+
+class CampaignProposal(Input):
+    campaign_id: int | None = Field(default=None, gt=0)
+    fields: CampaignDraftFields
+
+@tool(name='campaign_catalog', description='Discover campaign fields, operators and personalization placeholders. Campaigns are drafts only; activation, sending and payments are UI-only.', input_schema=Input)
+async def campaign_catalog(inputs, config, context):
+    from services.ai_campaign_catalog import FILTER_FIELDS, OPERATORS
+    return await invoke(context, lambda db, auth: {'fields': FILTER_FIELDS, 'operators': OPERATORS,
+        'audience_policy': {'requires_explicit_marketing_consent': True, 'general_notifications_required': True,
+            'suppression_checked_at_send': True, 'all_clients_meaning': 'All clinic clients are still filtered by channel-specific marketing consent, notification preference and suppressions. Do not invent a consent filter.'},
+        'placeholders': ['first_name', 'last_name', 'clinic_name', 'clinic_phone', 'clinic_email', 'clinic_address']})
+
+@tool(name='campaign_read', description='List clinic campaigns, read a draft, preview eligible audience counts and costs, or inspect run results. Never sends messages.', input_schema=CampaignQuery)
+async def campaign_read(inputs, config, context):
+    args = parse(CampaignQuery, inputs)
+    from agent import campaigns as campaign_tools
+    from services import campaign_engine as engine
+    from models import Campaign
+    from campaign_models import CampaignRun
+    def read(db, auth):
+        from security.entitlements import campaign_delivery
+        campaign_delivery(db, auth.clinic_id, auth.user.id)
+        if args.view == 'list':
+            return [engine.serialize(db, c) for c in db.query(Campaign).filter_by(clinic_id=auth.clinic_id).order_by(Campaign.id.desc()).limit(50)]
+        c = campaign_tools.scoped(db, auth, args.campaign_id)
+        if args.view == 'read': return engine.serialize(db, c)
+        if args.view == 'preview':
+            result = engine.preview(db, c, auth.user)
+            result.pop('quote', None)
+            db.commit()
+            return result
+        return [engine.run_summary(db, r) for r in db.query(CampaignRun).filter_by(campaign_id=c.id).order_by(CampaignRun.created_at.desc()).limit(25)]
+    return await invoke(context, read)
+
+@tool(name='prepare_campaign', description='Prepare an inactive clinic campaign draft. Display the proposal then use commit_change with explicit staff approval. Cannot activate, schedule, send or modify billing.', input_schema=CampaignProposal)
+async def prepare_campaign(inputs, config, context):
+    args = parse(CampaignProposal, inputs)
+    import json
+    from agent.campaigns import prepare
+    fields = args.fields.model_dump(exclude_unset=True)
+    if 'filters' in fields:
+        fields['filters'] = json.dumps(fields['filters'])
+    return await invoke(context, lambda db, auth: prepare(db, auth, fields, args.campaign_id))
+
+exports = [campaign_catalog, campaign_read, prepare_campaign, search_supply, prepare_supply, clinic_context, search_catalog, search_records, search_prescriptions, search_documents, search_patients, find_staff, patient_history, list_records, exam_layout_catalog, compare_exams, check_order, find_appointments,
            change_catalog, prepare_change, commit_change, report_catalog, run_report, read_report, saved_reports, preview_report, export_report, job_status]
 toolsets = [
+    toolset(key='campaigns', name='Prysm campaigns', description='Campaign drafts, audience estimates and results; no sending or finance.', tools=[campaign_catalog, campaign_read, prepare_campaign]),
     toolset(key='records', name='Prysm patient records', description='Authorized patient history and exam comparisons.', tools=[clinic_context, search_catalog, search_records, search_prescriptions, search_documents, search_patients, find_staff, patient_history, list_records, exam_layout_catalog, compare_exams, check_order]),
     toolset(key='workflow', name='Prysm clinic workflows', description='Scheduling and approval-gated record, order, referral and follow-up changes.', tools=[search_supply, prepare_supply, find_appointments, change_catalog, prepare_change, commit_change]),
     toolset(key='reporting', name='Prysm reporting', description='Custom reports, full exports and asynchronous result tracking.', tools=[report_catalog, run_report, read_report, saved_reports, preview_report, export_report, job_status]),
@@ -354,5 +422,9 @@ toolsets = [
 
 
 def artifact_app():
-    server = create_artifact_server(exports=exports, toolsets=toolsets, signing_secret=setting('AGENTS24_ARTIFACT_SIGNING_SECRET'))
+    # Published relays pin a manifest. Preserve that contract until the additive package is published.
+    enabled = setting('PRYSM_CAMPAIGN_AGENT_ENABLED', 'false').lower() == 'true'
+    active_exports = exports if enabled else [t for t in exports if t not in (campaign_catalog, campaign_read, prepare_campaign)]
+    active_toolsets = toolsets if enabled else toolsets[1:]
+    server = create_artifact_server(exports=active_exports, toolsets=active_toolsets, signing_secret=setting('AGENTS24_ARTIFACT_SIGNING_SECRET'))
     return create_artifact_fastapi_app(server=server)

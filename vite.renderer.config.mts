@@ -34,6 +34,7 @@ export default defineConfig(({ mode }) => {
     target: "esnext",
     reportCompressedSize: false, // Faster builds
     rollupOptions: {
+      input: { app: path.resolve(__dirname, 'index.html'), scanner: path.resolve(__dirname, 'scanner/index.html') },
       output: {
         manualChunks: {
           vendor: ["react", "react-dom"],

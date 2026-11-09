@@ -37,6 +37,7 @@ import {
   normalizeAdditionAddType,
 } from "@/lib/addition-add-sources";
 type OrderLens = {
+  _scan_provenance?: string;
   order_id: number;
   right_model?: string;
   left_model?: string;
@@ -60,6 +61,7 @@ type OrderLens = {
 };
 
 type Frame = {
+  _scan_provenance?: string;
   order_id: number;
   color?: string;
   supplier?: string;
@@ -1051,9 +1053,8 @@ export function LegacyOrderDetailPage({
         previousSku
           ? item.sku === previousSku
           : Boolean(previousDescription && item.description === previousDescription);
-      const previousIndex = previous
-        ? currentItems.findIndex(matchesPrevious)
-        : -1;
+      const previousIndex = currentItems.findIndex(item =>
+        (slot && item.source_slot === slot) || (previous && matchesPrevious(item)));
       let nextItems = [...currentItems];
 
       if (!variant || variant.default_retail == null) {
@@ -1079,6 +1080,7 @@ export function LegacyOrderDetailPage({
       }
 
       const suggestedItem: OrderLineItem = {
+        source_slot: slot,
         id:
           previousIndex >= 0
             ? nextItems[previousIndex].id
@@ -1140,7 +1142,7 @@ export function LegacyOrderDetailPage({
     replaceSuggestedBillingLine(previous, variant, quantity, component);
   };
 
-  const clearInventorySelection = (component: InventoryComponent) => {
+  const clearInventorySelection = (component: InventoryComponent, keepPrice = false) => {
     const previous =
       inventorySelectionsRef.current.find(
         (selection) => selection.component === component,
@@ -1154,7 +1156,14 @@ export function LegacyOrderDetailPage({
     );
     inventorySelectionsRef.current = next;
     setInventorySelections(next);
-    replaceSuggestedBillingLine(previous, null, 1, component);
+    if (!keepPrice) replaceSuggestedBillingLine(previous, null, 1, component);
+    else if (!workspace && previous) {
+      setOrderLineItems(items => {
+        const next = items.map(item => (previous.variant?.sku ? item.sku === previous.variant.sku : item.description === previous.variant?.display_name) ? {...item, source_slot: component} : item);
+        orderLineItemsRef.current = next;
+        return next;
+      });
+    }
     return true;
   };
 
@@ -1210,12 +1219,12 @@ export function LegacyOrderDetailPage({
     }
   };
 
-  const handleLensInventoryClear = (side: "right" | "left" | "both") => {
+  const handleLensInventoryClear = (side: "right" | "left" | "both", keepPrice = false) => {
     const sides = side === "both" ? ["right", "left"] as const : [side];
     if (sides.some(eye => inventorySelectionsRef.current.some(item => item.component === `lens_${eye}` && item.lifecycle_state === "consumed"))) {
       toast.error(t("orderWorkspace.consumedLens")); return;
     }
-    for (const eye of sides) clearInventorySelection(`lens_${eye}`);
+    for (const eye of sides) clearInventorySelection(`lens_${eye}`, keepPrice);
   };
 
   const frameBillingLines = workspace?.lines || orderLineItems;
@@ -1365,8 +1374,14 @@ export function LegacyOrderDetailPage({
     }));
   };
 
+  useEffect(() => {
+    const edit = () => { if (!loading && !isSaveInFlight && formRef.current?.getClientRects().length) setIsEditing(true); };
+    window.addEventListener('prysm:scan-edit-order', edit);
+    return () => window.removeEventListener('prysm:scan-edit-order', edit);
+  }, [loading, isSaveInFlight]);
+
   const handleFrameFieldChange = (field: keyof Frame, value: string) => {
-    if (field !== "warranty_expiration") {
+    if (field !== "warranty_expiration" && field !== "_scan_provenance") {
       const currentFrameSelection =
         inventorySelectionsRef.current.find(
           (selection) => selection.component === "frame",
@@ -2205,10 +2220,10 @@ export function LegacyOrderDetailPage({
                   onFrameFieldChange={handleFrameFieldChange}
                   framePrice={frameBillingLine?.price} billingCurrency={workspace?.lines?.[0]?.currency || billingFormData.currency || "ILS"}
                   onFramePriceChange={handleFramePriceChange}
-                  lensInventory={inventorySelections} onLensInventorySelect={handleLensInventorySelect} onLensInventoryClear={handleLensInventoryClear}
+                  lensInventory={inventorySelections} onLensInventorySelect={handleLensInventorySelect} onLensInventoryClear={handleLensInventoryClear} onLensInventoryUnlink={side => handleLensInventoryClear(side, true)}
                   selectedFrameInventory={selectionFor("frame")}
                   onFrameInventorySelect={handleFrameInventorySelect}
-                  onFrameInventoryClear={() => clearInventorySelection("frame")}
+                  onFrameInventoryClear={() => clearInventorySelection("frame")} onFrameInventoryUnlink={() => clearInventorySelection("frame", true)}
                   orderDetailsFormData={orderDetailsFormData}
                   setOrderDetailsFormData={setOrderDetailsFormData}
                   clientOrderIndex={clientOrderIndex}
@@ -2508,10 +2523,10 @@ export function LegacyOrderDetailPage({
                   onFrameFieldChange={handleFrameFieldChange}
                   framePrice={frameBillingLine?.price} billingCurrency={workspace?.lines?.[0]?.currency || billingFormData.currency || "ILS"}
                   onFramePriceChange={handleFramePriceChange}
-                  lensInventory={inventorySelections} onLensInventorySelect={handleLensInventorySelect} onLensInventoryClear={handleLensInventoryClear}
+                  lensInventory={inventorySelections} onLensInventorySelect={handleLensInventorySelect} onLensInventoryClear={handleLensInventoryClear} onLensInventoryUnlink={side => handleLensInventoryClear(side, true)}
                   selectedFrameInventory={selectionFor("frame")}
                   onFrameInventorySelect={handleFrameInventorySelect}
-                  onFrameInventoryClear={() => clearInventorySelection("frame")}
+                  onFrameInventoryClear={() => clearInventorySelection("frame")} onFrameInventoryUnlink={() => clearInventorySelection("frame", true)}
                   orderDetailsFormData={orderDetailsFormData}
                   setOrderDetailsFormData={setOrderDetailsFormData}
                   clientOrderIndex={clientOrderIndex}

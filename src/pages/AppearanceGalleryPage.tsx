@@ -1,4 +1,12 @@
+import { CampaignEditor } from '@/components/campaigns/campaign-editor';
+import { blankCampaign, type CampaignDraft, type Condition, type Quote } from '@/lib/campaigns';
 import { SaveStatus } from "@/components/SaveStatus";
+import { SelectedCatalogProduct } from "@/components/inventory/SelectedCatalogProduct";
+import { CatalogProductAction } from "@/components/inventory/CatalogProductAction";
+import { ScannerItemDialog } from "@/components/scanner/ScannerItemDialog";
+import type { ScanCommand } from "@/lib/scanner";
+import { OrderField, OrderSection } from "@/components/orders/layout/OrderSheet";
+import type { CatalogVariant } from "@/lib/inventory";
 import { useSaveController } from "@/hooks/shared/useSaveController";
 import { OpticPlusMigrationCard } from "@/components/exam/OpticPlusMigrationCard";
 import React, { useEffect, useState } from "react";
@@ -38,7 +46,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, XAxis } from "rechar
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 
-const surfaces = ["clients", "appearanceWorkspace", "exams", "orders", "calendar", "inventory", "appearanceSampleActivity", "settings", "appearanceMenu"] as const;
+const surfaces = ["clients", "appearanceWorkspace", "exams", "orders", "calendar", "inventory", "campaign.title", "appearanceSampleActivity", "settings", "appearanceMenu"] as const;
 const fixedDate = new Date(2026, 9, 14);
 const activity = [{ day: "01", value: 12 }, { day: "02", value: 20 }, { day: "03", value: 16 }, { day: "04", value: 26 }, { day: "05", value: 22 }];
 
@@ -135,6 +143,57 @@ function SaveFixture() {
   </CardContent></Card>;
 }
 
+function OrderCatalogFixture() {
+  const { t } = useTranslation();
+  const [linked, setLinked] = useState(true);
+  const [price, setPrice] = useState(34);
+  const [catalogPrice, setCatalogPrice] = useState(100);
+  const variant = { id: 1, product: { brand: 'Atlas', model: 'A101' } } as CatalogVariant;
+  return <div className="max-w-lg" data-testid="order-catalog-fixture">
+    <OrderSection title={t('orderWorkspace.frame')} footer={<div className="mt-3 min-h-10" data-product-link-row>
+      {linked ? <SelectedCatalogProduct variant={variant} onClear={() => setLinked(false)} actions={price !== catalogPrice
+        ? <CatalogProductAction compact label={t('orderWorkspace.catalogUpdatePrice', { price: price.toFixed(2), currency: 'ILS' })} onAction={async () => setCatalogPrice(price)}/>
+        : undefined}/>
+        : <CatalogProductAction label={t('orderWorkspace.catalogCreateProduct', { name: 'Atlas A101' })} onAction={async () => { setCatalogPrice(price); setLinked(true); }}/>}</div>}>
+      <OrderField label={t('orderWorkspace.framePrice')}><Input aria-label={t('orderWorkspace.framePrice')} dir="ltr" type="number" min={0} value={price} onChange={event => setPrice(Number(event.target.value))}/></OrderField>
+    </OrderSection>
+  </div>;
+}
+
+function ScannerItemFixture() {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const variant: CatalogVariant = { id: 1, company_id: 1, product_id: 1, display_name: 'Atlas A101', is_stockable: true,
+    product: { id: 1, company_id: 1, category: 'frame', brand: 'Atlas', model: 'A101' },
+    attributes: { color: 'Black', bridge: 17, height: 21, eye_size: 50, temple_length: 127 },
+    balance: { clinic_id: 1, variant_id: 1, on_hand: 2, reserved: 0, available: 2, reorder_point: 0, target_quantity: 0, version: 1 }, default_retail: 234, currency: 'ILS' };
+  const scan = { barcode: '0012345678905', summary: { name: 'Atlas A101' } } as ScanCommand;
+  return <><Button variant="outline" onClick={() => setOpen(true)}>{t('scanner.details')}</Button>
+    <ScannerItemDialog scan={open ? scan : null} variant={variant} onClose={() => setOpen(false)} onOpenInventory={() => setOpen(false)}/></>;
+}
+
+// Synthetic, local-only editor for checking all locales without changing clinic data.
+function CampaignFixture({ locale }: { locale: AppLocale }) {
+  const { t } = useTranslation();
+  const [draft, setDraft] = useState<CampaignDraft>(() => ({ ...blankCampaign(locale), name: t('campaign.new', { lng: locale }), subject: t('campaign.subjectEmpty', { lng: locale }), email_content: t('campaign.messageEmpty', { lng: locale }) }));
+  const [tab, setTab] = useState('audience');
+  const [quote, setQuote] = useState<Quote | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [conditions, setConditions] = useState<Condition[]>([{ id: 'sample-age', field: 'age', operator: 'greater_than', value: '40', logic: 'AND' }]);
+  const [schedule, setSchedule] = useState({ kind: 'once', start: '', days: 1, maxCost: '', zone: 'Asia/Jerusalem' });
+  const noop = () => {};
+  return <CampaignEditor draft={draft} tab={tab} dirty={dirty} busy={false} canManage
+    catalog={{ fields: { age: { label: '', type: 'number' }, last_exam_days: { label: '', type: 'number' } }, operators: { number: ['greater_than', 'less_than', 'equals'] }, placeholders: ['first_name', 'clinic_name'] }}
+    quote={quote} previewError={false} runs={[]} deliveries={null} conditions={conditions} {...schedule}
+    onTabChange={value => { setTab(value);if(value==='review')setQuote({quote:'synthetic',total_cost:20000,included:4,emails:12,sms:3,segments:3,billing_units:3,errors:[],excluded:{},sample:[]}); }} onChange={value => { setDraft(previous => ({ ...previous, ...value })); setDirty(true); }}
+    onConditions={value => { setConditions(value); setDirty(true); }} onBack={() => setTab('audience')} onSave={() => setDirty(false)}
+    onKindChange={kind => setSchedule(previous => ({ ...previous, kind }))} onStartChange={start => setSchedule(previous => ({ ...previous, start }))}
+    onDaysChange={days => setSchedule(previous => ({ ...previous, days }))} onMaxCostChange={maxCost => setSchedule(previous => ({ ...previous, maxCost }))}
+    onZoneChange={zone => setSchedule(previous => ({ ...previous, zone }))}
+    onTestPreview={async () => ({quote:'synthetic',total_cost:0,included:0,emails:1,sms:0,segments:0,errors:[],excluded:{},sample:[]})} onTestSend={async () => true}
+    onPreview={noop} onRequestSend={noop} onActivate={noop} onPause={noop} onArchive={noop} onRetry={noop} onCancelRun={noop} onOpenDeliveries={noop} />;
+}
+
 function GalleryContent({ locale, onLocaleChange }: { locale: AppLocale; onLocaleChange: (locale: AppLocale) => void }) {
   const { t } = useTranslation();
   const direction = getDirection(locale);
@@ -171,10 +230,12 @@ function GalleryContent({ locale, onLocaleChange }: { locale: AppLocale; onLocal
         </div>
         <div className="space-y-5 p-6" data-testid="gallery-content">
           <div className="sm:hidden"><Select value={surface} onValueChange={setSurface} dir={direction} clearable={false}><SelectTrigger aria-label={t("appearanceThemePreview")}><SelectValue /></SelectTrigger><SelectContent>{surfaces.map(key => <SelectItem key={key} value={key}>{t(key)}</SelectItem>)}</SelectContent></Select></div>
-          <ListPageHeader title={t(surface)} actions={<Button variant="outline" onClick={() => setLoading(value => !value)}>{t("appearanceLoading")}</Button>} />
+          {surface !== "campaign.title" && <ListPageHeader title={t(surface)} actions={<Button variant="outline" onClick={() => setLoading(value => !value)}>{t("appearanceLoading")}</Button>} />}
+          {surface === "campaign.title" ? <CampaignFixture key={locale} locale={locale} /> : null}
           {surface === "appearanceMenu" ? <div className="max-w-2xl"><AppearanceTab persistMode={false} /></div> : null}
           {surface === "clients" || surface === "inventory" ? <ListFixture inventory={surface === "inventory"} loading={loading} /> : null}
-          {surface === "exams" || surface === "orders" || surface === "appearanceWorkspace" ? <><Tabs defaultValue="details" dir={direction}><TabsList><TabsTrigger value="details">{t("clientDetails")}</TabsTrigger><TabsTrigger value="exams">{t("exams")}</TabsTrigger><TabsTrigger value="orders">{t("orders")}</TabsTrigger></TabsList></Tabs><ClinicalFixture /><SaveFixture />{surface === "exams" ? <OpticPlusFixture /> : null}<Card className="gap-3 py-4"><CardHeader><CardTitle>{t("appearanceSampleClient")}</CardTitle></CardHeader><CardContent className="grid gap-4 sm:grid-cols-3"><Input aria-label={t("appearanceField")} defaultValue={t("appearanceSampleClient")} dir={direction} /><Input aria-label={t("appearanceDisabled")} value="+972 50 123 4567" disabled dir="ltr" /><Input aria-label={t("appearanceInvalid")} type="number" defaultValue="450" aria-invalid /></CardContent></Card></> : null}
+          {surface === "inventory" ? <ScannerItemFixture /> : null}
+          {surface === "exams" || surface === "orders" || surface === "appearanceWorkspace" ? <><Tabs defaultValue="details" dir={direction}><TabsList><TabsTrigger value="details">{t("clientDetails")}</TabsTrigger><TabsTrigger value="exams">{t("exams")}</TabsTrigger><TabsTrigger value="orders">{t("orders")}</TabsTrigger></TabsList></Tabs><ClinicalFixture /><SaveFixture />{surface === "orders" ? <OrderCatalogFixture /> : null}{surface === "exams" ? <OpticPlusFixture /> : null}<Card className="gap-3 py-4"><CardHeader><CardTitle>{t("appearanceSampleClient")}</CardTitle></CardHeader><CardContent className="grid gap-4 sm:grid-cols-3"><Input aria-label={t("appearanceField")} defaultValue={t("appearanceSampleClient")} dir={direction} /><Input aria-label={t("appearanceDisabled")} value="+972 50 123 4567" disabled dir="ltr" /><Input aria-label={t("appearanceInvalid")} type="number" defaultValue="450" aria-invalid /></CardContent></Card></> : null}
           {surface === "calendar" ? <div className="overflow-hidden rounded-md border bg-card"><CalendarHeader currentDate={calendarDate} view={calendarView} onToday={() => setCalendarDate(fixedDate)} onNavigate={navigateCalendar} onViewChange={setCalendarView} />
             {calendarView === "month" ? <MonthView visibleDates={monthDates} currentDate={calendarDate} currentUser={null} holidaysByDate={{}} getAppointmentsForDate={() => []} onDateClick={setCalendarDate} onViewChange={setCalendarView} /> : (
               <Table elevated={false} containerClassName="mt-4"><TableHeader><TableRow><TableHead />{calendarDates.map(date => <TableHead key={date.toISOString()} className="text-center"><span dir="ltr">{format(date, "dd/MM")}</span></TableHead>)}</TableRow></TableHeader>

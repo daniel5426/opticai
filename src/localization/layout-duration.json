@@ -1,0 +1,26 @@
+{
+  "en": {
+    "title": "Appointment length by exam type",
+    "description": "Appointments using a layout or group use the duration set here.",
+    "default": "Default ({{minutes}} minutes)",
+    "minutes": "{{minutes}} minutes",
+    "saved": "Appointment length for {{name}} saved",
+    "saveFailed": "Could not save the appointment length"
+  },
+  "he": {
+    "title": "משך תור לפי סוג בדיקה",
+    "description": "תור שנקבע עם הפריסה או הקבוצה יקבל את המשך שהוגדר כאן",
+    "default": "ברירת מחדל ({{minutes}} דקות)",
+    "minutes": "{{minutes}} דקות",
+    "saved": "משך התור של {{name}} נשמר",
+    "saveFailed": "שגיאה בשמירת משך התור"
+  },
+  "fr": {
+    "title": "Durée du rendez-vous par type d’examen",
+    "description": "Les rendez-vous utilisant un modèle ou un groupe prennent la durée définie ici.",
+    "default": "Par défaut ({{minutes}} minutes)",
+    "minutes": "{{minutes}} minutes",
+    "saved": "Durée du rendez-vous pour {{name}} enregistrée",
+    "saveFailed": "Impossible d’enregistrer la durée du rendez-vous"
+  }
+}

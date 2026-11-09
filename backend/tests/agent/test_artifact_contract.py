@@ -19,6 +19,7 @@ def app(clinic, monkeypatch):
     _, _, _, sessions = clinic
     monkeypatch.setattr(artifact, 'SessionLocal', sessions)
     monkeypatch.setenv('AGENTS24_ARTIFACT_SIGNING_SECRET', SECRET)
+    monkeypatch.setenv('PRYSM_CAMPAIGN_AGENT_ENABLED', 'false')
     return artifact.artifact_app()
 
 

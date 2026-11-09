@@ -60,7 +60,7 @@ jobs:
         if: steps.changes.outputs.run == 'true'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --no-audit --no-fund
         if: steps.changes.outputs.run == 'true'
 
       - name: Test release artifact and runtime guards

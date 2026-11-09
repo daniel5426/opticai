@@ -142,6 +142,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     ref,
   ) => {
     const { currentUser } = useUser();
+    noBorder ??= true;
     const internalRef = React.useRef<HTMLInputElement>(null);
     React.useImperativeHandle(ref, () => internalRef.current!);
 
@@ -404,6 +405,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       props["aria-invalid"] ?? (isOutOfRange || isStepMismatch);
 
     const hasLeadingOverlay = !!leadingOverlay;
+    // A width applied to the input also sizes its containing stepper/affix surface.
+    const widthClasses = className?.split(/\s+/).filter(token => /(?:^|:)!?(?:w|min-w|max-w|size)-/.test(token)).join(' ');
 
     return (
       <div
@@ -415,6 +418,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             ? "relative"
             : "",
           showButtons && "overflow-hidden rounded-md",
+          widthClasses,
           wrapperClassName,
         )}
       >
@@ -449,11 +453,12 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
               : effectiveDir === "rtl"
                 ? "text-right"
                 : "text-left",
-            `file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground disabled:cursor-default disabled:opacity-100 ${noBorder ? "border-none" : "border-input border"} flex h-9 w-full min-w-0 rounded-md py-1 text-base transition-[color] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium md:text-sm`,
+            `file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground disabled:cursor-default disabled:opacity-100 ${noBorder ? "border border-transparent" : "border-input border"} flex h-9 w-full min-w-0 rounded-md py-1 text-base transition-[color] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium md:text-sm`,
             "focus-visible:border-ring ring-0 outline-none focus-visible:outline-none",
             "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
             "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
-            hasLeadingOverlay ? "" : prefix ? "pl-5.5" : "px-1",
+            hasLeadingOverlay ? "" : props["data-clinical-nav-item"] ? "px-1" : "px-[length:var(--input-text-inset,calc(0.75rem*var(--field-scale)))]",
+            prefix ? "pl-5.5" : "",
             suffix ? "pr-6.5" : showButtons ? "pr-4" : "",
             className,
           )}

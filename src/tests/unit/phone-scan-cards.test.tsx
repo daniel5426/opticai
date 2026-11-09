@@ -1,0 +1,28 @@
+import React from 'react';
+import { afterEach, expect, test, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, act } from '@testing-library/react';
+import i18n from '@/localization/i18n';
+import { FrameSection } from '@/components/orders/regular/FrameSection';
+import { visibleScanTargets } from '@/lib/scanner';
+vi.mock('@/contexts/UserContext',()=>({useUser:()=>({currentClinic:{id:1},currentUser:{id:1,role_level:2}})}));
+vi.mock('@/lib/api-client',()=>({apiClient:{getInventoryVariants:vi.fn(async()=>({data:{items:[]}})),getLookupTable:vi.fn(async()=>({data:[]}))}}));
+vi.mock('@/components/inventory/FrameCatalogCombobox',()=>({FrameCatalogCombobox:()=>null,canCreateFrameCatalogProduct:()=>false,hasMatchingFrameCatalogVariant:()=>false}));
+vi.mock('@/components/inventory/BarcodeScanButton',()=>({ProductBarcodeScan:()=>null}));
+afterEach(cleanup);
+test.each(['he','en','fr'])('phone scan fills the existing frame handler and clear preserves warranty in %s',async locale=>{
+ await i18n.changeLanguage(locale);
+ const select=vi.fn(),change=vi.fn(),clear=vi.fn();
+ const view=render(<FrameSection clinicId={1} orderId={9} frame={{order_id:9,model:'Existing',warranty_expiration:'2027-01-01'}} isEditing selectedInventory={null} onInventorySelect={select} onInventoryClear={clear} onFrameFieldChange={change}/>);
+ vi.spyOn(view.container.firstElementChild!,'getClientRects').mockReturnValue([{}] as any);
+ const target=visibleScanTargets().find(t=>t.category==='frame')!;
+ expect(target.hasValue).toBe(true);
+ const variant={id:5,product:{category:'frame',model:'New',brand:'Brand'},attributes:{eye_size:52},balance:{available:2}} as any;
+ await act(async()=>target.apply(variant,{source:'phone',created_at:123} as any));
+ expect(select).toHaveBeenCalledWith(variant,'inventory');
+ const metadata=JSON.parse(change.mock.calls.find(([key])=>key==='_scan_provenance')![1]);
+ expect(metadata.frame.fields.model).toBe('New');
+ fireEvent.click(screen.getByRole('button',{name:i18n.t('scanner.clear')}));
+ expect(clear).toHaveBeenCalledOnce();
+ expect(change).toHaveBeenCalledWith('model','');
+ expect(change.mock.calls.some(([key])=>key==='warranty_expiration')).toBe(false);
+});

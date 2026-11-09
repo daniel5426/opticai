@@ -1,12 +1,11 @@
 import { useKeyboardSave } from "@/hooks/shared/useKeyboardSave";
 import { SaveStatus } from "@/components/SaveStatus";
 import { useSaveController } from "@/hooks/shared/useSaveController";
-import { TableFiltersBar } from "@/components/table-filters-bar"
+import { ListPageHeader } from "@/components/list-page-header"
 import { RecordClinicLabel } from "@/components/RecordClinicLabel"
 import { ImportedSourceDataDialog } from "@/components/migration/ImportedSourceDataDialog";
 import React, { useState, ChangeEvent, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
@@ -277,16 +276,15 @@ export const ClientMedicalRecordTab = ({
   };
 
   return (
-    <div className="flex w-full flex-col" dir={direction}>
-      <div className="mb-6">
-        <TableFiltersBar
-          navigation={<h2 className="text-xl font-semibold">גליון רפואי</h2>}
-          actions={<Button onClick={addNewRecord} dir={direction}>
-            רשומה חדשה
-            <Plus className="ms-2 h-4 w-4" />
-          </Button>}
-        />
-      </div>
+    <div className="mx-auto flex w-full max-w-[1024px] flex-col" dir={direction}>
+      <ListPageHeader
+        title={t("medicalRecord")}
+        className="mb-6 items-center"
+        actions={<Button onClick={addNewRecord} dir={direction}>
+          {t("newMedicalRecord")}
+          <Plus className="ms-2 h-4 w-4" />
+        </Button>}
+      />
 
       {medicalLogsQuery.isLoading ? (
         <MedicalRecordsSkeleton direction={direction} />
@@ -378,8 +376,7 @@ export const ClientMedicalRecordTab = ({
                   </div>
                 </div>
 
-                <Card className="ms-14 border-none bg-white text-slate-900 shadow-none">
-                  <CardContent className="border-none">
+                <div className="mt-4 ms-14 text-foreground">
                     {record.isEditing ? (
                       <Textarea
                         value={record.log || ""}
@@ -389,16 +386,15 @@ export const ClientMedicalRecordTab = ({
                           handleContentChange(record.id, e.target.value)
                         }
                         placeholder="הזן את תוכן הרשומה הרפואית..."
-                        className="min-h-[100px] resize-none bg-white text-slate-900 placeholder:text-slate-500 dark:bg-white"
+                        className="min-h-[100px] resize-none"
                         dir={direction}
                       />
                     ) : (
-                      <div className="text-sm whitespace-pre-wrap" dir={direction}>
+                      <div className="text-sm whitespace-pre-wrap break-words" dir={direction}>
                         {record.log || "אין תוכן"}
                       </div>
                     )}
-                  </CardContent>
-                </Card>
+                </div>
               </div>
             ))}
           </div>

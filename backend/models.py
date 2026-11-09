@@ -1541,3 +1541,12 @@ class SubscriptionRefund(Base):
 # Validate company ownership for every ORM writer, including imports and workers.
 from services.company_record_ownership import install_ownership_validation
 install_ownership_validation()
+
+# Messaging models share Base and are included in Alembic's schema metadata.
+import campaign_models
+
+# Scanner transport tables are registered with the application's Alembic metadata.
+import scanner_models  # noqa: E402,F401
+
+from services.scanner_provenance import install_provenance_preservation
+install_provenance_preservation()

@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
 import {
@@ -19,9 +20,11 @@ const DURATIONS = [10, 15, 20, 30, 40, 45, 60, 75, 90, 120];
 const DEFAULT_VALUE = "default";
 
 export function LayoutAppointmentDurations({ defaultDuration }: { defaultDuration: number }) {
+  const { t } = useTranslation();
   const { currentClinic } = useUser();
   const { direction } = useAppLocale();
   const [layouts, setLayouts] = React.useState<ExamLayout[]>([]);
+  const [saving, setSaving] = React.useState(false);
 
   React.useEffect(() => {
     if (!currentClinic?.id) return;
@@ -35,6 +38,7 @@ export function LayoutAppointmentDurations({ defaultDuration }: { defaultDuratio
   }, [currentClinic?.id]);
 
   const save = async (layout: ExamLayout, value: string) => {
+    if (saving) return;
     const appointment_duration = value === DEFAULT_VALUE ? null : Number(value);
     const previous = layout.appointment_duration;
     const apply = (duration: number | null | undefined) =>
@@ -42,13 +46,17 @@ export function LayoutAppointmentDurations({ defaultDuration }: { defaultDuratio
         items.map((item) => (item.id === layout.id ? { ...item, appointment_duration: duration } : item)),
       );
     apply(appointment_duration);
-    const response = await apiClient.updateExamLayout(layout.id!, { appointment_duration });
-    if (response.error) {
+    setSaving(true);
+    try {
+      const response = await apiClient.updateExamLayout(layout.id!, { appointment_duration });
+      if (response.error) throw new Error(response.error);
+      toast.success(t("layoutDuration.saved", { name: layout.name }));
+    } catch {
       apply(previous);
-      toast.error("שגיאה בשמירת משך התור");
-      return;
+      toast.error(t("layoutDuration.saveFailed"));
+    } finally {
+      setSaving(false);
     }
-    toast.success(`משך התור של ${layout.name} נשמר`);
   };
 
   if (layouts.length === 0) return null;
@@ -56,9 +64,9 @@ export function LayoutAppointmentDurations({ defaultDuration }: { defaultDuratio
   return (
     <div className="space-y-3">
       <div>
-        <Label className="block text-start">משך תור לפי סוג בדיקה</Label>
+        <Label className="block text-start">{t("layoutDuration.title")}</Label>
         <p className="text-muted-foreground text-start text-sm">
-          תור שנקבע עם הפריסה או הקבוצה יקבל את המשך שהוגדר כאן
+          {t("layoutDuration.description")}
         </p>
       </div>
       <div className="divide-y rounded-md border">
@@ -70,6 +78,7 @@ export function LayoutAppointmentDurations({ defaultDuration }: { defaultDuratio
                 {layout.name}
               </Label>
               <Select
+                disabled={saving}
                 dir={direction}
                 value={layout.appointment_duration ? String(layout.appointment_duration) : DEFAULT_VALUE}
                 onValueChange={(value) => void save(layout, value)}
@@ -78,12 +87,12 @@ export function LayoutAppointmentDurations({ defaultDuration }: { defaultDuratio
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={DEFAULT_VALUE}>ברירת מחדל ({defaultDuration} דקות)</SelectItem>
+                  <SelectItem value={DEFAULT_VALUE}>{t("layoutDuration.default", { minutes: defaultDuration })}</SelectItem>
                   {[...new Set([...DURATIONS, layout.appointment_duration || DURATIONS[0]])]
                     .sort((a, b) => a - b)
                     .map((minutes) => (
                       <SelectItem key={minutes} value={String(minutes)}>
-                        {minutes} דקות
+                        {t("layoutDuration.minutes", { minutes })}
                       </SelectItem>
                     ))}
                 </SelectContent>

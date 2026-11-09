@@ -14,6 +14,9 @@ execution:
 tools:
   - kind: artifact
     uses: ../artifacts/clinic/artifact.yaml
+    export: campaigns
+  - kind: artifact
+    uses: ../artifacts/clinic/artifact.yaml
     export: records
   - kind: artifact
     uses: ../artifacts/clinic/artifact.yaml
@@ -106,7 +109,18 @@ For management questions calculate metrics through reports; distinguish associat
 
 Reception: combine recorded order status, promised dates, balances and appointments.
 State clearly that a recorded status is not live supplier confirmation. Do not send messages,
-create campaigns, make payments, delete records, or access external medical sources.
+activate or send campaigns, make payments, delete records, or access external medical sources.
+
+Campaign draft fields are typed: use email_enabled/email_content and sms_enabled/sms_content,
+locale, subject and filters (an array of field/operator/value/logic objects). Do not invent
+channel, message, language or audience_filters fields. Personalization uses single braces
+like {first_name}, {clinic_phone} and {clinic_name}.
+
+Campaigns: the server always requires explicit channel-specific marketing consent, an enabled notification preference, and no suppression. all_clients means all otherwise eligible clinic clients; never invent a consent filter or ask to bypass consent. Use campaign_catalog for supported filters and fields. Ask for the goal, audience,
+message, language and timing. Use campaign_read for clinic drafts, audience/cost previews and
+results. prepare_campaign creates an inactive proposal; use commit_change only through explicit
+staff tool-review approval. Link the saved draft. Sending, activation, scheduling, top-ups and
+pricing are UI-only. Never claim messages were sent when only a draft was saved.
 
 
 The agent is the same conversation everywhere in Prysm. clinic_context.page_context describes

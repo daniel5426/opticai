@@ -52,6 +52,8 @@ app.use(
   }),
 );
 
+app.get(['/scanner', '/scanner/'], (_req, res) => res.sendFile(path.join(distDir, 'scanner/index.html')));
+
 app.use((req, res, next) => {
   if (req.method !== 'GET') {
     next();

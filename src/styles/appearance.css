@@ -183,7 +183,7 @@
     background-color: var(--canvas-gradient-base, color-mix(in srgb, hsl(var(--muted)) 50%, hsl(var(--background))));
   }
 
-  :root[data-style="classic"][data-palette="bloom"] :is([data-slot="sidebar-wrapper"], [data-slot="sidebar"]:not([data-variant])) {
+  :root[data-style="classic"][data-palette="bloom"] :is([data-slot="sidebar-wrapper"], [data-slot="sidebar"]:not([data-variant]), .catalog-product-surface) {
     background-color: rgb(var(--bloom-neutral));
     background-image: var(--bloom-background);
     background-size: 120px 120px, 120px 120px, auto, auto, auto, auto;

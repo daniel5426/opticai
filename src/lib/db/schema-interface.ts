@@ -778,6 +778,7 @@ export interface BillingPayment {
 }
 
 export interface OrderLineItem {
+  source_slot?: string | null;
   id?: number;
   billings_id: number;
   sku?: string;

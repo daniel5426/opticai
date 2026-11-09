@@ -70,7 +70,11 @@
     "catalogSuggestions": "Catalog suggestions",
     "noCatalogOptions": "No matching catalog products",
     "itemDiscountsIncluded": "Item discounts (included)",
-    "discountMode": "Discount type"
+    "discountMode": "Discount type",
+    "catalogUnlink": "Unlink product; keep details",
+    "catalogUpdatePrice": "Update catalog price to {{price}} {{currency}}",
+    "catalogCreateProduct": "Add {{name}} to catalog",
+    "catalogSaveError": "Could not save the catalog change. Try again."
   },
   "he": {
     "prescription": "מרשם סופי",
@@ -143,7 +147,11 @@
     "catalogSuggestions": "הצעות מהקטלוג",
     "noCatalogOptions": "אין מוצרי קטלוג מתאימים",
     "itemDiscountsIncluded": "הנחות פריטים (כלולות)",
-    "discountMode": "סוג הנחה"
+    "discountMode": "סוג הנחה",
+    "catalogUnlink": "ניתוק קישור למוצר ושמירת הפרטים",
+    "catalogUpdatePrice": "עדכון המחיר בקטלוג ל־{{price}} {{currency}}",
+    "catalogCreateProduct": "הוספת {{name}} לקטלוג",
+    "catalogSaveError": "לא ניתן לשמור את השינוי בקטלוג. נסו שוב."
   },
   "fr": {
     "prescription": "Prescription finale",
@@ -216,6 +224,10 @@
     "catalogSuggestions": "Suggestions du catalogue",
     "noCatalogOptions": "Aucun produit correspondant",
     "itemDiscountsIncluded": "Remises articles (incluses)",
-    "discountMode": "Type de remise"
+    "discountMode": "Type de remise",
+    "catalogUnlink": "Dissocier le produit et conserver les détails",
+    "catalogUpdatePrice": "Mettre le prix du catalogue à {{price}} {{currency}}",
+    "catalogCreateProduct": "Ajouter {{name}} au catalogue",
+    "catalogSaveError": "Impossible d’enregistrer le catalogue. Réessayez."
   }
 }

@@ -21,6 +21,7 @@ import EndPoints.search as search
 import EndPoints.work_shifts as work_shifts
 import main
 from EndPoints.agent import authorized as authorized_agent
+from EndPoints.scanner import phone_auth
 
 
 def _route_has_auth(router, path: str, method: str) -> bool:
@@ -69,6 +70,15 @@ def test_non_public_api_routes_require_auth():
         # Allpay verifies its signed JSON; Stripe is an inert retired endpoint.
         ("POST", "/api/v1/subscriptions/webhooks/allpay"),
         ("POST", "/api/v1/subscriptions/webhooks/stripe"),
+        # Pairing exchanges a rate-limited, one-use code; phones use scoped bearer grants.
+        ("POST", "/api/v1/scanner/pair"),
+        # These capability/signed callbacks are covered by campaign callback regressions.
+        ("GET", "/api/v1/messaging/unsubscribe/{token}"),
+        ("POST", "/api/v1/messaging/unsubscribe/{token}"),
+        ("POST", "/api/v1/messaging/webhooks/{provider}"),
+        ("GET", "/api/v1/messaging/webhooks/micropay/{secret}"),
+        ("HEAD", "/api/v1/messaging/webhooks/micropay/{secret}"),
+        ("POST", "/api/v1/messaging/webhooks/micropay/{secret}"),
     }
 
     missing = []
@@ -80,7 +90,7 @@ def test_non_public_api_routes_require_auth():
         if any((method, route.path) in allowed_public_routes for method in route.methods or set()):
             continue
         def authenticated(dependant):
-            return any(dep.call in {get_current_user, authorized_agent} or authenticated(dep) for dep in dependant.dependencies)
+            return any(dep.call in {get_current_user, authorized_agent, phone_auth} or authenticated(dep) for dep in dependant.dependencies)
         if not authenticated(route.dependant):
             methods = ",".join(sorted(route.methods or []))
             missing.append(f"{methods} {route.path}")

@@ -50,7 +50,7 @@ Backend changes checklist:
 - Client method in `src/lib/api-client.ts`
 
 ### Mandatory UI Rules (project-specific)
-- RTL Hebrew UI
+- RTL Hebrew UI is the primary layout. Design Hebrew first; English and French follow it.
 - Add a sidebar button for every new page
 - Always set `style={{scrollbarWidth: 'none'}}` on pages/components
 - Use modal `src/components/ui/cusom-modal.tsx`

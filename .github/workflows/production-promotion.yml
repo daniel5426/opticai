@@ -213,14 +213,20 @@ jobs:
           deploy_and_wait allpay-billing-worker-production billing-worker "$billing_source" &
           billing_worker_pid=$!
 
-          deploy_and_wait softoptic-migration-worker-Z2hA worker
-          railway logs \
-            --service softoptic-migration-worker-Z2hA \
-            --environment production \
-            --lines 30 \
-            --json || true
-
-          deploy_and_wait prysm-web web
+          # Both consumers require the healthy migrated API, then deploy independently.
+          (
+            deploy_and_wait softoptic-migration-worker-Z2hA worker
+            railway logs \
+              --service softoptic-migration-worker-Z2hA \
+              --environment production \
+              --lines 30 \
+              --json || true
+          ) &
+          migration_worker_pid=$!
+          deploy_and_wait prysm-web web &
+          web_pid=$!
+          wait "$migration_worker_pid"
+          wait "$web_pid"
           wait "$billing_worker_pid"
           rm -rf "$billing_source"
 

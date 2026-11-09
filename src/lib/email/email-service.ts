@@ -2,7 +2,6 @@ import nodemailer from 'nodemailer';
 import { Settings, Appointment, Client } from '../db/schema-interface';
 import { getEmailProviderConfig } from './email-providers';
 import { apiClient } from '../api-client';
-//vpkm ywaf vveo juyk
 export interface EmailConfig {
   service?: string;
   host?: string;

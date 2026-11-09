@@ -106,7 +106,7 @@ This will transfer your existing data to the PostgreSQL database. Run `python sc
 - Server host: `0.0.0.0` (accessible from all network interfaces)
 - Server port: `8001`
 - API version: `v1`
-- OpenAI model: `gpt-4o`
+- Text generation model: `gpt-6-luna`
 
 ## Frontend Integration
 

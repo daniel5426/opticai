@@ -88,3 +88,10 @@ def test_published_serving_never_applies_resource_drafts(tmp_path, monkeypatch):
     monkeypatch.setattr(worker, 'status', lambda: {'installation': {'publication_state': 'never_published'}})
     with pytest.raises(RuntimeError, match='Publish'):
         worker.synchronize_tools()
+
+
+def test_campaign_staging_keeps_the_existing_local_runtime_boundary(clinic_env):
+    clinic_env.update(PRYSM_CLINIC_CAMPAIGN_DRAFT='true', AGENTS24_INTEGRATION_ID='prysm-campaign-staging')
+    stack.validate_environment(clinic_env, 'clinic')
+    with pytest.raises(RuntimeError):
+        stack.validate_environment({**clinic_env,'AGENTS24_BASE_URL':'https://api.agents24.dev'}, 'clinic')

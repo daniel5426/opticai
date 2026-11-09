@@ -45,8 +45,8 @@ function Review({ part, changeId, ...props }: AgentChatTimelineSlotProps & { par
     <p className="mb-3 font-medium">{t('agent.proposal')}</p>
     {data?.patient && <p className="mb-3"><AgentLink href={data.patient.path}>{data.patient.label}</AgentLink></p>}
     {data && <div className="space-y-3">
-      {Object.entries(data.after).filter(([key]) => !['client_id', 'exam_id', 'layout_instance_id'].includes(key)).map(([key, value]) => <div key={key}>
-        <div className="mb-1 text-xs font-medium text-muted-foreground">{t(`agent.timeline.field.${key}`, { defaultValue: t(key, { defaultValue: t('agent.timeline.field') }) })}</div>
+      {Object.entries(data.after).filter(([key]) => !['client_id', 'exam_id', 'layout_instance_id', 'clinic_id', 'revision'].includes(key)).map(([key, value]) => <div key={key}>
+        <div className="mb-1 text-xs font-medium text-muted-foreground">{data.kind === 'campaigns' ? t(`campaign.proposalField.${key}`, { defaultValue: t('agent.timeline.field') }) : t(`agent.timeline.field.${key}`, { defaultValue: t(key, { defaultValue: t('agent.timeline.field') }) })}</div>
         <div className="grid grid-cols-2 gap-3">
           <div><span className="text-xs text-muted-foreground">{t('agent.before')}</span><div><Value value={data.before[key]} /></div></div>
           <div><span className="text-xs text-muted-foreground">{t('agent.after')}</span><div><Value value={value} /></div></div>
@@ -62,6 +62,12 @@ function Review({ part, changeId, ...props }: AgentChatTimelineSlotProps & { par
 }
 
 export function ApprovalTimeline(props: AgentChatTimelineSlotProps) {
+  const { t } = useTranslation();
+  const campaigns = props.parts.flatMap(part => {
+    if (part.kind !== 'tool' || part.toolName !== 'commit_change' || part.state !== 'output-available') return [];
+    const result = part.output as { kind?: string; id?: number; status?: string; approval?: { user_id?: number; at?: string } } | undefined;
+    return result?.kind === 'campaigns' && result.status === 'draft' && Number.isSafeInteger(result.id) && Number(result.id) > 0 && Number(result.approval?.user_id) > 0 && Number.isFinite(Date.parse(result.approval?.at || '')) ? [Number(result.id)] : [];
+  });
   const groups: React.ReactNode[] = [];
   let chunk: typeof props.parts[number][] = [];
   const changesByCall = new Map<string, string>();
@@ -84,6 +90,7 @@ export function ApprovalTimeline(props: AgentChatTimelineSlotProps) {
   flush(true);
   const reports = reportMessageResults(props.parts);
   return <div className="space-y-3">{groups}
+    {[...new Set(campaigns)].map(id => <p key={id}><AgentLink href={`/campaigns?campaign=${id}`}>{t('campaign.openDraft')}</AgentLink></p>)}
     <MessageReportResults reports={reports} />
     {supplyMessageResults(props.parts).map(jobId => <React.Suspense key={jobId} fallback={null}>
       <section className="min-w-0 rounded-xl border bg-card p-3" data-supply-proposal={jobId}><SupplyReview jobId={jobId} /></section>
