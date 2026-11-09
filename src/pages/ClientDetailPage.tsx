@@ -3,7 +3,7 @@ import { SaveStatus } from "@/components/SaveStatus"
 import { CompanyClinicToolbarProvider } from "@/components/CompanyClinicFilter"
 import { ClientHistoryClinicContext, useCompanyClinicFilter } from "@/hooks/client/useCompanyClinicFilter"
 import React, { useState, useRef, useEffect, useCallback } from "react"
-import { useParams, useSearch } from "@tanstack/react-router"
+import { useNavigate, useParams, useSearch } from "@tanstack/react-router"
 import { useQueryClient } from "@tanstack/react-query"
 import { SiteHeader } from "@/components/site-header"
 import { Button } from "@/components/ui/button"
@@ -70,6 +70,7 @@ export default function ClientDetailPage() {
   const queryClient = useQueryClient()
   const editor = useClientDetailsEditor(clientIdNum)
   const [activeTab, setActiveTab] = useState(initialTab)
+  const navigate = useNavigate()
   const formRef = useRef<HTMLFormElement>(null)
   const isDetailsLoading = editor.isLoading
   const hasDetailsError = editor.isError || (!editor.isLoading && !editor.draftClient)
@@ -168,6 +169,8 @@ export default function ClientDetailPage() {
         editor.cancelEdit()
       }
       setActiveTab(value)
+      // Keep the tab in this history entry, so going back from an exam or order returns to it.
+      void navigate({ to: "/clients/$clientId", params: { clientId }, search: { tab: value }, replace: true })
     })
   }
 

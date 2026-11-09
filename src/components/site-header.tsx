@@ -15,8 +15,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { User, Phone, IdCard, Calendar, Hash } from "lucide-react";
+import { Link, useCanGoBack, useLocation, useNavigate, useRouter } from "@tanstack/react-router";
+import { User, Phone, IdCard, Calendar, Hash, ArrowLeft, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Client } from "@/lib/db/schema-interface";
 import { useClientSidebar } from "@/contexts/ClientSidebarContext";
 import { useNavigationGuard } from "@/contexts/NavigationGuardContext";
@@ -43,6 +44,34 @@ interface SiteHeaderProps {
       label: string;
     }[];
   };
+}
+
+/** Back to the previous screen; a page opened directly goes to its parent instead. */
+function HeaderBackButton({ fallback }: { fallback?: () => void }) {
+  const router = useRouter();
+  const canGoBack = useCanGoBack();
+  const { runGuard } = useNavigationGuard();
+  const { direction } = useAppLocale();
+  const { t } = useTranslation();
+  if (!canGoBack && !fallback) return null;
+  const Icon = direction === "rtl" ? ArrowRight : ArrowLeft;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 shrink-0"
+          aria-label={t("goBack")}
+          onClick={() => runGuard(() => (canGoBack ? router.history.back() : fallback?.()))}
+        >
+          <Icon className="h-4 w-4" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{t("goBack")}</TooltipContent>
+    </Tooltip>
+  );
 }
 
 function calculateAge(dateOfBirth: string | undefined): number | null {
@@ -186,6 +215,20 @@ export function SiteHeader({
     }
   };
 
+  // An exam, order or referral opened directly goes back to its client's tab (exams, orders...).
+  const parentPage = clientBackLink || parentLink || backLink || grandparentLink;
+  const backFallback =
+    clientIdFromPath && location.pathname !== `/clients/${clientIdFromPath}`
+      ? () =>
+          navigate({
+            to: "/clients/$clientId",
+            params: { clientId: clientIdFromPath },
+            search: { tab: tabs?.activeTab || "details" },
+          })
+      : parentPage
+        ? () => navigate({ to: parentPage })
+        : undefined;
+
   const handleTabClick = (value: string) => {
     const clientId = currentClient?.id
       ? String(currentClient.id)
@@ -235,6 +278,7 @@ export function SiteHeader({
               className="mx-2 data-[orientation=vertical]:h-4"
             />
           )}
+          <HeaderBackButton fallback={backFallback} />
           {backLink || parentTitle || grandparentTitle ? (
             <div className={`flex items-center gap-2 ${hasCustomExamInfo ? "shrink-0" : ""}`}>
               {grandparentTitle &&

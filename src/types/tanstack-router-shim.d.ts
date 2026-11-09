@@ -23,5 +23,6 @@ declare module '@tanstack/react-router' {
   export function useRouterState(options?: any): any
   export function useMatch(...args: any[]): any
   export function useBlocker(...args: any[]): any
+  export function useCanGoBack(): boolean
 }
 
