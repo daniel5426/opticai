@@ -22,6 +22,7 @@ import {
   Users,
 } from "lucide-react";
 import {
+  appointmentSaveErrorMessage,
   createAppointment,
   updateAppointment,
   deleteAppointment,
@@ -76,6 +77,7 @@ import { WeekDayView } from "./HomePage/WeekDayView";
 import { AppointmentModal } from "./HomePage/AppointmentModal";
 import { useAppointmentBlocks } from "./HomePage/useAppointmentBlocks";
 import { useDragAndResize } from "./HomePage/useDragAndResize";
+import { readStoredHourHeight, storeHourHeight } from "./HomePage/calendar-zoom";
 import { useSettings } from "@/hooks/useSettings";
 import { apiClient } from "@/lib/api-client";
 import { CalendarHoliday, holidaysByDate } from "@/lib/clinic-holidays";
@@ -183,6 +185,8 @@ export default function HomePage() {
   });
 
   const calendarRef = useRef<HTMLDivElement | null>(null);
+  const [hourHeight, setHourHeight] = useState(readStoredHourHeight);
+  useEffect(() => storeHourHeight(hourHeight), [hourHeight]);
   const calendarMoveScopeRef = useRef<HTMLDivElement | null>(null);
   const loadedStartRef = useRef<Date | null>(null);
   const loadedEndRef = useRef<Date | null>(null);
@@ -474,6 +478,7 @@ export default function HomePage() {
     handleMouseDown,
     handleResizeStart,
   } = useDragAndResize({
+    hourHeight,
     calendarRef,
     workStartMinutes,
     workEndMinutes,
@@ -518,6 +523,7 @@ export default function HomePage() {
 
   // Optimized appointment blocks calculation with custom hook
   const { getAppointmentBlocks } = useAppointmentBlocks({
+    hourHeight,
     getAppointmentsForDate,
     clientsMap,
     workStartMinutes,
@@ -592,7 +598,7 @@ export default function HomePage() {
           );
           toast.success("התור הועבר בהצלחה");
         } else {
-          toast.error("שגיאה בהעברת התור");
+          toast.error(appointmentSaveErrorMessage("שגיאה בהעברת התור"));
           setAppointments((prev) =>
             prev.map((apt) =>
               apt.id === appointment.id ? originalAppointment : apt,
@@ -647,7 +653,7 @@ export default function HomePage() {
           setAppointments((prev) => [...prev, result]);
           toast.success("התור הודבק בהצלחה");
         } else {
-          toast.error("שגיאה בהדבקת התור");
+          toast.error(appointmentSaveErrorMessage("שגיאה בהדבקת התור"));
         }
       } catch (error) {
         console.error("Error pasting appointment:", error);
@@ -792,7 +798,7 @@ export default function HomePage() {
           );
           closeAllDialogs();
         } else {
-          toast.error("שגיאה בעדכון התור");
+          toast.error(appointmentSaveErrorMessage("שגיאה בעדכון התור"));
         }
       } else {
         // Filter out undefined values before sending to backend
@@ -817,7 +823,7 @@ export default function HomePage() {
           setAppointments((prev) => [...prev, result]);
           closeAllDialogs();
         } else {
-          toast.error("שגיאה ביצירת התור");
+          toast.error(appointmentSaveErrorMessage("שגיאה ביצירת התור"));
         }
       }
     } catch (error) {
@@ -950,7 +956,7 @@ export default function HomePage() {
         toast.success("לקוח חדש ותור נוצרו בהצלחה");
         closeAllDialogs();
       } else {
-        toast.error("שגיאה ביצירת התור");
+        toast.error(appointmentSaveErrorMessage("שגיאה ביצירת התור"));
       }
     } catch (error) {
       console.error("Error creating client appointment from calendar:", error);
@@ -1169,6 +1175,8 @@ export default function HomePage() {
                   />
                 ) : (
                   <WeekDayView
+                    hourHeight={hourHeight}
+                    onHourHeightChange={setHourHeight}
                     visibleDates={visibleDates}
                     timeSlots={timeSlots}
                     totalWorkMinutes={totalWorkMinutes}

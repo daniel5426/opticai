@@ -873,8 +873,9 @@ def migrate_contact_lens_orders(
         order_date = parse_date(r.get("presc_date"))
         source_price_rows_to_trace: List[Tuple[Dict[str, Any], int]] = []
 
-        supply_branch = r.get("supply_branch")
-        supply_in_clinic_id = resolve_migration_clinic_id(branch_to_clinic, supply_branch)
+        supply_branch = clean_legacy_text(r.get("supply_branch"))
+        # OpticSoft leaves the supply branch empty unless one was chosen.
+        supply_in_clinic_id = resolve_migration_clinic_id(branch_to_clinic, supply_branch) if supply_branch else None
 
         order_status = _lookup_legacy_code(order_status_lookup, r.get("order_status"))
         advisor = _lookup_legacy_code(worker_names, r.get("advisor_code"))

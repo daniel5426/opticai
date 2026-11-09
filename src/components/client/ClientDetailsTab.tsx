@@ -628,23 +628,6 @@ export function ClientDetailsTab({
             <div className="grid grid-cols-1 @[900px]:grid-cols-2 gap-4" dir={direction}>
               <div className="space-y-2">
                 <ModernLabel>
-                  שם פרטי
-                  {isNewMode && <span className="text-red-500 ms-1">*</span>}
-                </ModernLabel>
-                <Input
-                  type="text"
-                  name="first_name"
-                  value={formData.first_name || ''}
-                  onChange={handleInputChange}
-                  disabled={!showEditableFields || isSaving}
-                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
-                  placeholder={showEditableFields ? "הכנס שם פרטי" : ""}
-                  required={isNewMode}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <ModernLabel>
                   שם משפחה
                   {isNewMode && <span className="text-red-500 ms-1">*</span>}
                 </ModernLabel>
@@ -656,6 +639,23 @@ export function ClientDetailsTab({
                   disabled={!showEditableFields || isSaving}
                   className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
                   placeholder={showEditableFields ? "הכנס שם משפחה" : ""}
+                  required={isNewMode}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <ModernLabel>
+                  שם פרטי
+                  {isNewMode && <span className="text-red-500 ms-1">*</span>}
+                </ModernLabel>
+                <Input
+                  type="text"
+                  name="first_name"
+                  value={formData.first_name || ''}
+                  onChange={handleInputChange}
+                  disabled={!showEditableFields || isSaving}
+                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
+                  placeholder={showEditableFields ? "הכנס שם פרטי" : ""}
                   required={isNewMode}
                 />
               </div>

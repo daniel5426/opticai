@@ -28,6 +28,8 @@ function renderCalendar(blockHeight: number) {
   render(
     <div dir="rtl">
       <WeekDayView
+        hourHeight={95}
+        onHourHeightChange={() => {}}
         visibleDates={[new Date(2026, 7, 2)]}
         timeSlots={[{ time: "10:30", startMinutes: 630, durationMinutes: 30 }]}
         totalWorkMinutes={30}

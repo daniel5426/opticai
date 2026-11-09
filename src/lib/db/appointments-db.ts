@@ -1,6 +1,34 @@
 import { Appointment, User, Client } from './schema-interface';
 import { apiClient } from '../api-client';
 import { googleCalendarSync } from '../google/google-calendar-sync';
+import i18n from '@/localization/i18n';
+
+interface AppointmentConflict {
+  time?: string;
+  end_time?: string;
+  client_name?: string | null;
+  user_name?: string | null;
+}
+
+let lastSaveError: unknown = null;
+
+/** Why the last appointment save failed, in words the user can act on; `fallback` for anything but an overlap. */
+export function appointmentSaveErrorMessage(fallback: string): string {
+  const detail = lastSaveError as { code?: string; conflict?: AppointmentConflict } | string | null;
+  const code = typeof detail === 'string' ? detail : detail?.code;
+  if (code !== 'agent.slotUnavailable') return fallback;
+  const conflict = typeof detail === 'object' ? detail?.conflict : undefined;
+  if (!conflict?.time) return i18n.t('appointmentOverlap');
+  const values = {
+    user: conflict.user_name || i18n.t('appointmentOverlapExaminer'),
+    start: conflict.time,
+    end: conflict.end_time,
+    client: conflict.client_name,
+  };
+  return conflict.client_name
+    ? i18n.t('appointmentOverlapWith', values)
+    : i18n.t('appointmentOverlapAt', values);
+}
 
 /**
  * Get current user from localStorage for sync operations
@@ -190,6 +218,7 @@ export async function createAppointment(appointment: Omit<Appointment, 'id'>): P
     console.log('Original appointment data:', appointment);
     
     const response = await apiClient.createAppointment(appointmentData);
+    lastSaveError = response.error ? response.errorDetail ?? response.error : null;
     if (response.error) {
       console.error('Error creating appointment:', response.error);
       console.error('Full error response:', response);
@@ -251,6 +280,7 @@ export async function updateAppointment(appointment: Appointment): Promise<Appoi
     // Fetch previous appointment to get existing google event id and owner
     const previous = await getAppointmentById(appointment.id);
     const response = await apiClient.updateAppointment(appointment.id, appointment);
+    lastSaveError = response.error ? response.errorDetail ?? response.error : null;
     if (response.error) {
       console.error('Error updating appointment:', response.error);
       return null;

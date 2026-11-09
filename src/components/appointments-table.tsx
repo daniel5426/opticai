@@ -48,6 +48,7 @@ import {
 } from "@/lib/db/clients-db";
 import { getAllUsers } from "@/lib/db/users-db";
 import {
+  appointmentSaveErrorMessage,
   createAppointment,
   updateAppointment,
   deleteAppointment,
@@ -736,7 +737,7 @@ export function AppointmentsTable({
           setOptimisticAppointments((prev) =>
             prev.filter((a) => a.id !== tempId),
           );
-          toast.error("שגיאה ביצירת התור");
+          toast.error(appointmentSaveErrorMessage("שגיאה ביצירת התור"));
         }
       }
       });
@@ -747,7 +748,7 @@ export function AppointmentsTable({
         );
       }
       console.error("Error saving appointment:", error);
-      toast.error("שגיאה בשמירת התור");
+      toast.error(appointmentSaveErrorMessage("שגיאה בשמירת התור"));
     } finally {
       isSavingAppointmentRef.current = false;
       setIsSavingAppointment(false);
@@ -879,7 +880,7 @@ export function AppointmentsTable({
           closeAllDialogs();
           onAppointmentChange(result);
         } else {
-          toast.error("שגיאה ביצירת התור");
+          toast.error(appointmentSaveErrorMessage("שגיאה ביצירת התור"));
         }
       } else {
         toast.error("שגיאה ביצירת הלקוח");
@@ -916,7 +917,7 @@ export function AppointmentsTable({
         closeAllDialogs();
         onAppointmentChange(result);
       } else {
-        toast.error("שגיאה ביצירת התור");
+        toast.error(appointmentSaveErrorMessage("שגיאה ביצירת התור"));
       }
     } catch (error) {
       console.error("Error creating appointment with existing client:", error);

@@ -23,7 +23,9 @@ export const SOFTOPTIC_EXAM_TABS = [
 export type SoftopticExamTab = (typeof SOFTOPTIC_EXAM_TABS)[number]
 /** Cards no OpticSoft tab covers get their own trailing tab, so imported data is never hidden. */
 export const SOFTOPTIC_MORE_TAB = "more"
-export type SoftopticTabKey = SoftopticExamTab | typeof SOFTOPTIC_MORE_TAB
+/** The exam day's contact lens prescription, which older imports keep on the contact lens order. */
+export const SOFTOPTIC_CONTACT_LENS_TAB = "contactLens"
+export type SoftopticTabKey = SoftopticExamTab | typeof SOFTOPTIC_MORE_TAB | typeof SOFTOPTIC_CONTACT_LENS_TAB
 
 const OLD_REF_TABS: Partial<Record<SoftopticExamTab, number>> = { oldRef1: 1, oldRef2: 2, oldRef3: 3 }
 const OLD_REFRACTION_TYPES = ["old-refraction-extension", "old-refraction"]

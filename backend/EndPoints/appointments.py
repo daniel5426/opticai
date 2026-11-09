@@ -51,9 +51,10 @@ def create_appointment(
         db_appointment = Appointment(**payload)
         from agent.config import enabled
         if enabled() and db_appointment.date and db_appointment.time:
-            from services.appointment_schedule import conflict_free
-            if not conflict_free(db, db_appointment.clinic_id, db_appointment.user_id, db_appointment.date, db_appointment.time, db_appointment.duration or 30, lock=True):
-                raise HTTPException(409, 'agent.slotUnavailable')
+            from services.appointment_schedule import find_conflict, overlap_error
+            conflict = find_conflict(db, db_appointment.clinic_id, db_appointment.user_id, db_appointment.date, db_appointment.time, db_appointment.duration or 30, lock=True)
+            if conflict:
+                raise overlap_error(db, conflict)
         db.add(db_appointment)
         db.flush()
 
@@ -297,10 +298,11 @@ def update_appointment(
                 update_fields[key] = scoped[key]
     from agent.config import enabled
     if enabled() and set(update_fields) & {'date', 'time', 'duration', 'user_id', 'clinic_id'}:
-        from services.appointment_schedule import conflict_free
+        from services.appointment_schedule import find_conflict, overlap_error
         candidate = {field: update_fields.get(field, getattr(db_appointment, field)) for field in ('date', 'time', 'duration', 'user_id', 'clinic_id')}
-        if candidate['date'] and candidate['time'] and not conflict_free(db, candidate['clinic_id'], candidate['user_id'], candidate['date'], candidate['time'], candidate['duration'] or 30, exclude=db_appointment.id, lock=True):
-            raise HTTPException(409, 'agent.slotUnavailable')
+        conflict = candidate['date'] and candidate['time'] and find_conflict(db, candidate['clinic_id'], candidate['user_id'], candidate['date'], candidate['time'], candidate['duration'] or 30, exclude=db_appointment.id, lock=True)
+        if conflict:
+            raise overlap_error(db, conflict)
     for field, value in update_fields.items():
         setattr(db_appointment, field, value)
     
