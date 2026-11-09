@@ -2,8 +2,9 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent } from "@/components/ui/card";
 import { SoftOpticDetailsExam } from "@/lib/db/schema-interface";
-import { SOFTOPTIC_DETAIL_SLOTS } from "@/lib/softoptic-details";
-import { FastInput } from "./shared/OptimizedInputs";
+import { SOFTOPTIC_DETAIL_SLOTS, type SoftopticDetailField } from "@/lib/softoptic-details";
+import { useAppLocale } from "@/localization/use-app-locale";
+import { FastInput, FastTextarea } from "./shared/OptimizedInputs";
 
 interface SoftOpticDetailsTabProps {
   data: SoftOpticDetailsExam;
@@ -21,6 +22,7 @@ export function SoftOpticDetailsTab({
   isEditing,
 }: SoftOpticDetailsTabProps) {
   const { t } = useTranslation();
+  const { locale, direction } = useAppLocale();
   const slot = SOFTOPTIC_DETAIL_SLOTS[cardId];
   if (!slot) return null;
 
@@ -41,12 +43,88 @@ export function SoftOpticDetailsTab({
     />
   );
 
+  const fieldInput = (item: SoftopticDetailField) => {
+    const value = String(data[item.field] ?? "");
+    const inputClass = `text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`;
+    if (item.date) {
+      const date = new Date(`${value}T00:00:00`);
+      return <span className="text-foreground font-medium">{Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(locale)}</span>;
+    }
+    if (item.multiline) {
+      return (
+        <FastTextarea
+          name={item.field}
+          value={value}
+          onChange={(next) => onChange(item.field, next)}
+          disabled={!isEditing}
+          dir={direction}
+          className={`min-h-8 text-start ${inputClass}`}
+        />
+      );
+    }
+    if (item.options) {
+      return (
+        <select
+          name={item.field}
+          value={value}
+          onChange={(event) => onChange(item.field, event.target.value)}
+          disabled={!isEditing}
+          className={`border-input h-8 w-full rounded-md border px-2 ${inputClass}`}
+        >
+          <option value="" />
+          {/* An imported value OpticSoft did not document is kept as is. */}
+          {[...new Set([...item.options, ...(value ? [value] : [])])].map((option) => (
+            <option key={option} value={option}>
+              {t(`softoptic.details.options.${option}`, { defaultValue: option })}
+            </option>
+          ))}
+        </select>
+      );
+    }
+    return input(item.field);
+  };
+
+  if (slot.caption) {
+    return (
+      <p dir={direction} className="text-muted-foreground w-full px-2 text-center text-xs">
+        {fields.map((item) => (
+          <span key={item.field}>
+            {t(`softoptic.details.labels.${item.label}`)} {fieldInput(item)}
+          </span>
+        ))}
+      </p>
+    );
+  }
+
+  const fieldColumns = slot.fieldColumns ?? 1;
+  const fieldGrid = fields.length > 0 && (
+    <div
+      className="grid items-center gap-2"
+      style={{ gridTemplateColumns: `repeat(${fieldColumns}, minmax(5rem, auto) minmax(0, 1fr))` }}
+    >
+      {fields.map((item) => (
+        <React.Fragment key={item.field}>
+          <span
+            className="text-muted-foreground text-xs font-medium"
+            style={item.multiline ? { gridColumnStart: 1 } : undefined}
+          >
+            {t(`softoptic.details.labels.${item.label}`)}
+          </span>
+          <div style={item.multiline ? { gridColumn: `span ${fieldColumns * 2 - 1}` } : undefined}>
+            {fieldInput(item)}
+          </div>
+        </React.Fragment>
+      ))}
+    </div>
+  );
+
   return (
     <Card className="examcard w-full pt-3 pb-4">
       <CardContent className="space-y-3 px-4" style={{ scrollbarWidth: "none" }}>
         <h3 className="text-muted-foreground text-center font-medium">
           {t(`softoptic.details.titles.${slot.title}`)}
         </h3>
+        {slot.fieldsFirst && fieldGrid}
         {eyeRows.length > 0 && (
           <div
             className={`grid items-center gap-2 ${showComb ? "grid-cols-[minmax(5rem,0.8fr)_1fr_1fr_1fr]" : "grid-cols-[minmax(5rem,0.8fr)_1fr_1fr]"}`}
@@ -67,18 +145,7 @@ export function SoftOpticDetailsTab({
             ))}
           </div>
         )}
-        {fields.length > 0 && (
-          <div className="grid grid-cols-[minmax(5rem,0.8fr)_2fr] items-center gap-2">
-            {fields.map((item) => (
-              <React.Fragment key={item.field}>
-                <span className="text-muted-foreground text-xs font-medium">
-                  {t(`softoptic.details.labels.${item.label}`)}
-                </span>
-                {input(item.field)}
-              </React.Fragment>
-            ))}
-          </div>
-        )}
+        {!slot.fieldsFirst && fieldGrid}
       </CardContent>
     </Card>
   );

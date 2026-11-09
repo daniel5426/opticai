@@ -260,9 +260,12 @@ def test_contact_fit_creates_separate_exam_with_exact_cards(tmp_path):
         assert data["over-refraction"]["r_sph"] == -0.5
         assert data["maddox-rod"]["with_horizontal_direction"] == "EXO"
         assert data["stereo-test"]["circle_3_score"] == 1
-        assert data["cover-test-v2"]["cc_far_horizontal_prism"] == 9.0
+        assert data["softoptic-cover-test-softoptic-cover-test-bino"]["fv_exo_phoria"] == 9.0
         assert "cover-test" not in data and "rg" not in data
-        assert len([key for key in data if key.startswith("notes-notes-")]) == 3
+        assert data["softoptic-details-fitting"]["remark"] == "fit"
+        assert data["softoptic-details-fitting"]["fit_notes"] == "follow up"
+        assert data["softoptic-details-observation"]["remark"] == "observation"
+        assert exam.test_name == "התאמת עדשות מגע"
 
 
 def test_addition_j_values_are_normalized():

@@ -14,7 +14,13 @@
       "subjective": "Subjective",
       "contactLens": "Contact lenses",
       "more": "More data",
-      "label": "SoftOptic exam sections"
+      "label": "SoftOptic exam sections",
+      "bioM": "Bio.M",
+      "rxCl1": "Rx+Cl 1",
+      "rxCl2": "Rx+Cl 2",
+      "fitting": "Fitting",
+      "observation": "Observation",
+      "empty": "Nothing was recorded on this tab."
     },
     "clientNumber": "Legacy client number (optional)",
     "clientNumberPlaceholder": "For example, 23470",
@@ -32,7 +38,10 @@
         "subjective": "FA and remarks",
         "bino": "Bino remarks",
         "fundus": "Fundus",
-        "bio": "Bio Microscopy"
+        "bio": "Bio Microscopy",
+        "fitting": "Fitting details",
+        "observation": "Observation details",
+        "eyeTest": "Eye test"
       },
       "labels": {
         "contactLensNotes": "Contact lens notes",
@@ -72,7 +81,24 @@
         "lowerLid": "Lower lid",
         "schirmer": "Schirmer",
         "eyeColor": "Eye color",
-        "eyelidTension": "Eyelid tension"
+        "eyelidTension": "Eyelid tension",
+        "reflex": "Reflex",
+        "oldAdd": "Old lenses ADD",
+        "wearingDuration": "Worn for",
+        "wearingUnit": "Unit",
+        "hoursPerDay": "Hours a day",
+        "hoursToday": "Hours today",
+        "fitNotes": "Fitting notes",
+        "stabilityAx": "Stability axis",
+        "axMove": "Axis movement",
+        "eyeTestDate": "Subjective and Bio.M data from the eye test of",
+        "oldBc": "Old lenses BC"
+      },
+      "options": {
+        "days": "days",
+        "weeks": "weeks",
+        "months": "months",
+        "years": "years"
       }
     },
     "contactLens": {
@@ -96,7 +122,13 @@
       "subjective": "Subjective",
       "contactLens": "עדשות מגע",
       "more": "נתונים נוספים",
-      "label": "מקטעי בדיקת SoftOptic"
+      "label": "מקטעי בדיקת SoftOptic",
+      "bioM": "Bio.M",
+      "rxCl1": "Rx+Cl 1",
+      "rxCl2": "Rx+Cl 2",
+      "fitting": "Fitting",
+      "observation": "Observation",
+      "empty": "לא נרשם מידע בלשונית זו."
     },
     "clientNumber": "מספר לקוח במערכת הישנה (לא חובה)",
     "clientNumberPlaceholder": "לדוגמה, 23470",
@@ -114,7 +146,10 @@
         "subjective": "FA והערות",
         "bino": "הערות Bino",
         "fundus": "Fundus",
-        "bio": "Bio Microscopy"
+        "bio": "Bio Microscopy",
+        "fitting": "פרטי התאמה",
+        "observation": "פרטי Observation",
+        "eyeTest": "בדיקת עיניים"
       },
       "labels": {
         "contactLensNotes": "הערות עדשות מגע",
@@ -154,7 +189,24 @@
         "lowerLid": "עפעף תחתון",
         "schirmer": "שירמר",
         "eyeColor": "צבע עיניים",
-        "eyelidTension": "מתח עפעף"
+        "eyelidTension": "מתח עפעף",
+        "reflex": "Reflex",
+        "oldAdd": "ADD עדשות ישנות",
+        "wearingDuration": "הרכיב במשך",
+        "wearingUnit": "יחידה",
+        "hoursPerDay": "מספר שעות ביום",
+        "hoursToday": "מספר שעות היום",
+        "fitNotes": "הערות להתאמה",
+        "stabilityAx": "ציר יציבות",
+        "axMove": "תזוזת ציר",
+        "eyeTestDate": "נתוני Subjective ו־Bio.M מבדיקת העיניים מתאריך",
+        "oldBc": "BC עדשות ישנות"
+      },
+      "options": {
+        "days": "ימים",
+        "weeks": "שבועות",
+        "months": "חודשים",
+        "years": "שנים"
       }
     },
     "contactLens": {
@@ -178,7 +230,13 @@
       "subjective": "Subjective",
       "contactLens": "Lentilles de contact",
       "more": "Autres données",
-      "label": "Sections de l'examen SoftOptic"
+      "label": "Sections de l'examen SoftOptic",
+      "bioM": "Bio.M",
+      "rxCl1": "Rx+Cl 1",
+      "rxCl2": "Rx+Cl 2",
+      "fitting": "Fitting",
+      "observation": "Observation",
+      "empty": "Rien n’a été saisi dans cet onglet."
     },
     "clientNumber": "Numéro client dans l’ancien logiciel (facultatif)",
     "clientNumberPlaceholder": "Par exemple, 23470",
@@ -196,7 +254,10 @@
         "subjective": "FA et remarques",
         "bino": "Remarques Bino",
         "fundus": "Fond d'œil",
-        "bio": "Biomicroscopie"
+        "bio": "Biomicroscopie",
+        "fitting": "Détails de l’adaptation",
+        "observation": "Détails de l’observation",
+        "eyeTest": "Examen de la vue"
       },
       "labels": {
         "contactLensNotes": "Notes lentilles de contact",
@@ -236,7 +297,24 @@
         "lowerLid": "Paupière inférieure",
         "schirmer": "Schirmer",
         "eyeColor": "Couleur des yeux",
-        "eyelidTension": "Tension palpébrale"
+        "eyelidTension": "Tension palpébrale",
+        "reflex": "Reflet",
+        "oldAdd": "ADD anciennes lentilles",
+        "wearingDuration": "Porté pendant",
+        "wearingUnit": "Unité",
+        "hoursPerDay": "Heures par jour",
+        "hoursToday": "Heures aujourd’hui",
+        "fitNotes": "Notes d’adaptation",
+        "stabilityAx": "Axe de stabilité",
+        "axMove": "Mouvement de l’axe",
+        "eyeTestDate": "Données Subjective et Bio.M de l’examen de la vue du",
+        "oldBc": "BC anciennes lentilles"
+      },
+      "options": {
+        "days": "jours",
+        "weeks": "semaines",
+        "months": "mois",
+        "years": "ans"
       }
     },
     "contactLens": {
