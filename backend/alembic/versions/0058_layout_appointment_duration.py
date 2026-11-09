@@ -1,4 +1,4 @@
-"""Let each exam layout or layout group set its own appointment length.
+"""Let each exam layout or layout group set its own appointment length and calendar color.
 
 Revision ID: 0058_layout_appointment_duration
 Revises: 0057_exam_workspace_save
@@ -17,7 +17,10 @@ def upgrade():
     columns = {column["name"] for column in sa.inspect(op.get_bind()).get_columns("exam_layouts")}
     if "appointment_duration" not in columns:
         op.add_column("exam_layouts", sa.Column("appointment_duration", sa.Integer(), nullable=True))
+    if "appointment_color" not in columns:
+        op.add_column("exam_layouts", sa.Column("appointment_color", sa.String(), nullable=True))
 
 
 def downgrade():
+    op.drop_column("exam_layouts", "appointment_color")
     op.drop_column("exam_layouts", "appointment_duration")

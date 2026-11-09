@@ -352,6 +352,16 @@ export default function HomePage() {
     [userColorMap],
   );
 
+  const layoutColors = useMemo(
+    () => new Map(activeExamLayouts.filter((layout) => layout.appointment_color).map((layout) => [layout.id, layout.appointment_color!])),
+    [activeExamLayouts],
+  );
+  const getAppointmentColor = useCallback(
+    (appointment: Appointment) =>
+      (appointment.exam_layout_id && layoutColors.get(appointment.exam_layout_id)) || getUserColor(appointment.user_id),
+    [layoutColors, getUserColor],
+  );
+
   // Get appointment duration (from database or default)
   const getAppointmentDuration = useCallback(
     (appointment: Appointment) => {
@@ -1176,7 +1186,7 @@ export default function HomePage() {
                     holidaysByDate={calendarHolidayMap}
                     clients={clients}
                     getAppointmentBlocks={getAppointmentBlocks}
-                    getUserColor={getUserColor}
+                    getAppointmentColor={getAppointmentColor}
                     getAppointmentDuration={getAppointmentDuration}
                     getDynamicTimeRange={getDynamicTimeRange}
                     handleTimeSlotClick={handleTimeSlotClick}
