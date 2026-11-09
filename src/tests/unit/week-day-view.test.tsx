@@ -37,7 +37,7 @@ function renderCalendar(blockHeight: number) {
         holidaysByDate={{}}
         clients={[client]}
         getAppointmentBlocks={() => [appointment]}
-        getUserColor={() => "#3b82f6"}
+        getAppointmentColor={() => "#3b82f6"}
         getAppointmentDuration={() => 15}
         getDynamicTimeRange={() => "10:30 - 10:45"}
         handleTimeSlotClick={vi.fn()}

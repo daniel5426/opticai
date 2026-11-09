@@ -1,26 +1,47 @@
 {
   "en": {
-    "title": "Appointment length by exam type",
-    "description": "Appointments using a layout or group use the duration set here.",
+    "title": "Appointment length and color by exam type",
+    "description": "Appointments using a layout or group take the length set here and show in its color in the calendar.",
     "default": "Default ({{minutes}} minutes)",
     "minutes": "{{minutes}} minutes",
     "saved": "Appointment length for {{name}} saved",
-    "saveFailed": "Could not save the appointment length"
+    "saveFailed": "Could not save the appointment length",
+    "color": "Calendar color",
+    "colorFor": "Calendar color for {{name}}",
+    "examinerColor": "Examiner's color",
+    "customColor": "Custom color",
+    "noColor": "No color (examiner's color)",
+    "colorSaved": "Calendar color for {{name}} saved",
+    "colorSaveFailed": "Could not save the calendar color"
   },
   "he": {
-    "title": "משך תור לפי סוג בדיקה",
-    "description": "תור שנקבע עם הפריסה או הקבוצה יקבל את המשך שהוגדר כאן",
+    "title": "משך וצבע תור לפי סוג בדיקה",
+    "description": "תור שנקבע עם הפריסה או הקבוצה יקבל את המשך שהוגדר כאן, וביומן יופיע בצבע שלה",
     "default": "ברירת מחדל ({{minutes}} דקות)",
     "minutes": "{{minutes}} דקות",
     "saved": "משך התור של {{name}} נשמר",
-    "saveFailed": "שגיאה בשמירת משך התור"
+    "saveFailed": "שגיאה בשמירת משך התור",
+    "color": "צבע התור ביומן",
+    "colorFor": "צבע התור של {{name}}",
+    "examinerColor": "צבע הבודק",
+    "customColor": "צבע אחר",
+    "noColor": "ללא צבע (צבע הבודק)",
+    "colorSaved": "צבע התור של {{name}} נשמר",
+    "colorSaveFailed": "שגיאה בשמירת צבע התור"
   },
   "fr": {
-    "title": "Durée du rendez-vous par type d’examen",
-    "description": "Les rendez-vous utilisant un modèle ou un groupe prennent la durée définie ici.",
+    "title": "Durée et couleur du rendez-vous par type d’examen",
+    "description": "Les rendez-vous utilisant un modèle ou un groupe prennent la durée définie ici et sa couleur dans l’agenda.",
     "default": "Par défaut ({{minutes}} minutes)",
     "minutes": "{{minutes}} minutes",
     "saved": "Durée du rendez-vous pour {{name}} enregistrée",
-    "saveFailed": "Impossible d’enregistrer la durée du rendez-vous"
+    "saveFailed": "Impossible d’enregistrer la durée du rendez-vous",
+    "color": "Couleur dans l’agenda",
+    "colorFor": "Couleur dans l’agenda pour {{name}}",
+    "examinerColor": "Couleur de l’examinateur",
+    "customColor": "Autre couleur",
+    "noColor": "Sans couleur (couleur de l’examinateur)",
+    "colorSaved": "Couleur de {{name}} enregistrée",
+    "colorSaveFailed": "Impossible d’enregistrer la couleur"
   }
 }

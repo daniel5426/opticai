@@ -110,7 +110,8 @@ interface WeekDayViewProps {
   holidaysByDate: Record<string, CalendarHoliday>;
   clients: Client[];
   getAppointmentBlocks: (date: Date) => AppointmentBlock[];
-  getUserColor: (userId?: number) => string;
+  /** The appointment's exam layout color, else its examiner's. */
+  getAppointmentColor: (appointment: Appointment) => string;
   getAppointmentDuration: (appointment: Appointment) => number;
   getDynamicTimeRange: (appointment: Appointment) => string;
   handleTimeSlotClick: (
@@ -149,7 +150,7 @@ export function WeekDayView({
   holidaysByDate,
   clients,
   getAppointmentBlocks,
-  getUserColor,
+  getAppointmentColor,
   getAppointmentDuration,
   getDynamicTimeRange,
   handleTimeSlotClick,
@@ -419,7 +420,7 @@ export function WeekDayView({
                       const isInCurrentColumn =
                         dragPosition && isSameDay(dragPosition.date, date);
 
-                      const userColor = getUserColor(block.user_id);
+                      const userColor = getAppointmentColor(block);
 
                       // Determine which specific corners touch neighbors
                       const blockTop = block.top;
@@ -647,9 +648,7 @@ export function WeekDayView({
                             left: "0%",
                             width: "100%",
                             zIndex: 45,
-                            backgroundColor: getUserColor(
-                              draggedData.appointment.user_id,
-                            ),
+                            backgroundColor: getAppointmentColor(draggedData.appointment),
                             borderWidth: "1px",
                             borderColor: "rgba(255, 255, 255, 0.3)",
                           }}

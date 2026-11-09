@@ -41,6 +41,7 @@ def build_layout_tree(layouts: List[ExamLayout]) -> List[dict]:
             "parent_layout_id": layout.parent_layout_id,
             "is_group": layout.is_group,
             "appointment_duration": layout.appointment_duration,
+            "appointment_color": layout.appointment_color,
             "type": layout.type,
             "seed_key": layout.seed_key,
             "seed_version": layout.seed_version,
