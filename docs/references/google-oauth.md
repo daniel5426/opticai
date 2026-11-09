@@ -31,6 +31,7 @@ match the full callback exactly, including scheme, host, port, and path:
 | Local | `http://localhost:5126` | `http://localhost:5126/oauth/callback` |
 | Production app | `https://prysm-web-production.up.railway.app` | `https://prysm-web-production.up.railway.app/oauth/callback` |
 | Staging app | `https://prysm-web-staging-staging.up.railway.app` | `https://prysm-web-staging-staging.up.railway.app/oauth/callback` |
+| Staging custom domain | `https://dev.prysm.co.il` | `https://dev.prysm.co.il/oauth/callback` |
 
 Register `http://127.0.0.1:5126/oauth/callback` separately if that hostname is
 used. A site-root redirect does not cover `/oauth/callback`. The separate public

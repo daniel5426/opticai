@@ -552,3 +552,29 @@ The API and migrations still deploy first; web and migration-worker deployments
 then run concurrently, with each exit status checked. Dependency preparation,
 Web CI and Railway web installs omit non-gating npm audit/funding requests.
 The selected Windows/macOS candidates retain packaged/runtime/updater checks.
+
+## Staging web domain
+
+`https://dev.prysm.co.il` routes to Railway staging service `prysm-web-staging`.
+The existing Railway hostname remains an alias. Vercel DNS owns the `dev` CNAME
+and `_railway-verify.dev` TXT record returned by Railway; Railway issues HTTPS.
+Staging browser requests continue using `https://staging-api.prysm.co.il/api/v1`.
+Its CORS allowlist includes `https://dev.prysm.co.il` alongside existing origins.
+Production remains on `https://app.prysm.co.il` and `https://api.prysm.co.il`.
+Migration note: Not needed; this adds staging DNS/routing and an allowed origin.
+
+## Release v1.0.103
+
+Ships company-wide admin phone-scanner reception while retaining company and
+assigned-clinic authorization, plus the current exam/medical-record UI repairs
+and Hebrew/English/French diameter labels. Campaign activation remains unchanged.
+
+Migration note: Not needed; this release changes authorization validation and UI
+only, with no new persisted shape or public contract. Existing Alembic prerequisites
+remain owned by the API release gate.
+
+Speed review: the prior promotion spent 356 seconds deploying services. API-first
+migration ordering remains necessary; web and both workers already deploy in
+parallel afterward. Desktop candidates already build concurrently and publication
+reuses their verified artifacts. No additional workflow change is warranted for
+this patch; reuse these gates and avoid a duplicate local production build.

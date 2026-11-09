@@ -280,6 +280,12 @@
     box-shadow: none !important;
     opacity: 1 !important;
   }
+  /* Canvas controls need their own surface; fields inside cards stay muted. */
+  [data-canvas-toolbar] :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"], [data-slot="optimized-select"], [data-slot="va-select"]):not(.bg-transparent):not(.\!bg-transparent) {
+    background-color: hsl(var(--card)) !important;
+    border-radius: var(--radius-xl) !important;
+    box-shadow: var(--shadow-sm) !important;
+  }
   /* Clinical fields keep the same borderless surface in view and edit modes.
      Transparent borders preserve geometry; focus and invalid states stay visible. */
   :is([data-exam-card], .order-group-content) :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"], [data-slot="optimized-select"], [data-slot="va-select"], .field-view):not([aria-invalid="true"]):not(:focus-visible):not(:focus-within):not([data-state="open"]) {

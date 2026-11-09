@@ -80,7 +80,7 @@ def receiver_live(db, d):
     try:
         session = validate_auth_session(db.get(AuthSession, d.session_id))
         user = validate_current_user(db.get(User, session.user_id))
-        if session.clinic_id != d.clinic_id or user.company_id != d.company_id:
+        if (session.clinic_id is not None and session.clinic_id != d.clinic_id) or session.company_id != d.company_id or user.company_id != d.company_id:
             return False
         normalize_clinic_id_for_company(db, user, d.clinic_id)
         enforce_workspace(db, d.company_id, write=True)
@@ -131,7 +131,7 @@ def enroll(body: DeviceInput, db=Depends(get_db), user=Depends(get_current_user)
 def receiver(device_id: str, body: ReceiverInput, db=Depends(get_db), user=Depends(get_current_user), session=Depends(get_current_auth_session)):
     ready(db)
     d = owned(db, device_id, user, body.secret)
-    if session.clinic_id != d.clinic_id:
+    if session.company_id != d.company_id or (session.clinic_id is not None and session.clinic_id != d.clinic_id):
         raise HTTPException(403, 'scanner.unavailable')
     if receiver_live(db, d) and d.lease != body.lease and not body.takeover:
         raise HTTPException(409, 'scanner.busy')
