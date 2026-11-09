@@ -1,4 +1,5 @@
 import { AgentVoicePreferences } from './AgentVoicePreferences';
+import { LayoutAppointmentDurations } from "./LayoutAppointmentDurations";
 import React from "react";
 import { Link } from "@tanstack/react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -241,6 +242,9 @@ export function PreferencesTab({
               />
             </div>
           </div>
+          <LayoutAppointmentDurations
+            defaultDuration={localSettings.appointment_duration || 30}
+          />
         </CardContent>
       </Card>
     </div>

@@ -999,6 +999,7 @@ class ExamLayoutBase(BaseModel):
     sort_index: Optional[int] = None
     parent_layout_id: Optional[int] = None
     is_group: bool = False
+    appointment_duration: Optional[int] = Field(None, ge=5, le=480)
     type: Optional[str] = None
     seed_key: Optional[str] = None
     seed_version: Optional[int] = None

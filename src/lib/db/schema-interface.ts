@@ -1059,6 +1059,7 @@ export interface ExamLayout {
   sort_index?: number;
   parent_layout_id?: number | null;
   is_group?: boolean;
+  appointment_duration?: number | null;
   type?: string;
   seed_key?: string | null;
   seed_version?: number | null;

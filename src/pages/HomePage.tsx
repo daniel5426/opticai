@@ -862,9 +862,10 @@ export default function HomePage() {
         ...prev,
         exam_layout_id: layout?.id || null,
         exam_name: layout?.name || prev.exam_name || "",
+        duration: layout?.appointment_duration || APPOINTMENT_DURATION,
       }));
     },
-    [activeExamLayouts],
+    [activeExamLayouts, APPOINTMENT_DURATION],
   );
 
   const handleNewClientExamLayoutChange = useCallback(
@@ -874,9 +875,10 @@ export default function HomePage() {
         ...prev,
         exam_layout_id: layout?.id || null,
         exam_name: layout?.name || prev.exam_name,
+        duration: layout?.appointment_duration || APPOINTMENT_DURATION,
       }));
     },
-    [activeExamLayouts],
+    [activeExamLayouts, APPOINTMENT_DURATION],
   );
 
   const openExistingClientFlowFromSlot = useCallback(() => {
