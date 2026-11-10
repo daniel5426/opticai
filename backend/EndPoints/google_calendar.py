@@ -64,6 +64,19 @@ def connect(payload: Connection, db: Session = Depends(get_db), user: User = Dep
     same_account = user.google_account_email == info['email']
     if not payload.refresh_token and (not same_account or not user.google_refresh_token or user.google_oauth_client_type not in (None, kinds[audience])):
         raise HTTPException(400, 'googleCalendar.reconnect')
+    from datetime import timedelta
+    user.google_account_connected = True
+    user.google_account_email = info['email']
+    user.google_access_token = encrypt_secret(payload.access_token)
+    if payload.refresh_token:
+        user.google_refresh_token = encrypt_secret(payload.refresh_token)
+    user.google_token_key_id = token_key_id()
+    user.google_oauth_client_type = kinds[audience]
+    user.google_token_expiry = now() + timedelta(seconds=int(data.get('expires_in', 3600)))
+    # Release the credential row before taking appointment/mapping locks. The
+    # worker takes those locks before refreshing the owner, so holding both in
+    # reverse order here would deadlock reconnect against an in-flight sync.
+    db.commit()
     # Switching accounts is explicit and leaves the old account's events intact.
     # A new account never receives another account's event identifiers.
     if not same_account:
@@ -74,20 +87,10 @@ def connect(payload: Connection, db: Session = Depends(get_db), user: User = Dep
             row.account_email = info['email']
             row.status = 'paused'
         db.query(Appointment).filter_by(user_id=user.id, company_id=user.company_id).update({'google_calendar_event_id': None}, synchronize_session='fetch')
-    from datetime import timedelta
-    user.google_account_connected = True
-    user.google_account_email = info['email']
-    user.google_access_token = encrypt_secret(payload.access_token)
-    if payload.refresh_token:
-        user.google_refresh_token = encrypt_secret(payload.refresh_token)
-    user.google_token_key_id = token_key_id()
-    user.google_oauth_client_type = kinds[audience]
-    user.google_token_expiry = now() + timedelta(seconds=int(data.get('expires_in', 3600)))
-    # Reconnect resumes pending work, including removals, before bulk upserts.
-    for row in db.query(GoogleCalendarSync).filter_by(user_id=user.id, status='reconnect').all():
-        row.status, row.attempts, row.available_at, row.error_code = 'pending', 0, now(), None
     if user.google_calendar_sync_enabled:
         queue_upcoming(db, user)
+    for row in db.query(GoogleCalendarSync).filter_by(user_id=user.id, status='reconnect').all():
+        row.status, row.attempts, row.available_at, row.error_code = 'pending', 0, now(), None
     db.commit()
     return status_for(db, user)
 
@@ -97,6 +100,7 @@ def disconnect(db: Session = Depends(get_db), user: User = Depends(get_current_u
     user.google_account_connected = False
     user.google_calendar_sync_enabled = False
     user.google_access_token = user.google_refresh_token = user.google_token_expiry = user.google_oauth_client_type = None
+    db.commit()
     # Keep account identity/mappings for safe reconnect; no provider writes.
     db.query(GoogleCalendarSync).filter_by(user_id=user.id, status='pending').update({'status': 'reconnect'}, synchronize_session='fetch')
     db.commit()
@@ -108,6 +112,7 @@ def preferences(payload: Preferences, db: Session = Depends(get_db), user: User 
     if payload.enabled and not user.google_account_connected:
         raise HTTPException(409, 'googleCalendar.reconnect')
     user.google_calendar_sync_enabled = payload.enabled
+    db.commit()
     if payload.enabled:
         queue_upcoming(db, user)
     else:
