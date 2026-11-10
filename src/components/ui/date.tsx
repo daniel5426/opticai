@@ -11,6 +11,30 @@ import { useAppLocale } from "@/localization/use-app-locale";
 import { getDateLocale } from "@/localization/date-locale";
 import { useTranslation } from "react-i18next";
 
+/**
+ * Puts in the slashes of DD/MM/YYYY as the user types digits ("230226" shows "23/02/26").
+ * A typed separator after a one-digit day or month pads it ("3/" is "03/"); other text is left as typed.
+ */
+export function formatTypedDate(raw: string): string {
+  if (/[^\d/.\-\s]/.test(raw) || /^\d{4}-/.test(raw)) return raw;
+  const parts = ["", "", ""];
+  let index = 0;
+  for (const char of raw.replace(/\s/g, "")) {
+    if (/\d/.test(char)) {
+      if (index < 2 && parts[index].length === 2) index++;
+      if (parts[index].length < (index === 2 ? 4 : 2)) parts[index] += char;
+    } else if (index < 2 && parts[index]) {
+      parts[index] = parts[index].padStart(2, "0");
+      index++;
+    }
+  }
+  const [day, month, year] = parts;
+  let text = day;
+  if (index >= 1 || day.length === 2) text += `/${month}`;
+  if (index >= 2 || month.length === 2) text += `/${year}`;
+  return text;
+}
+
 interface DateInputProps {
   name: string;
   value: string | undefined;
@@ -159,7 +183,8 @@ export function DateInput({
 
   const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newText = e.target.value;
-    setTextValue(newText);
+    // While deleting, keep what is left so a slash can be erased.
+    setTextValue(newText.length < textValue.length ? newText : formatTypedDate(newText));
   };
 
   const handleTextBlur = () => {
@@ -223,6 +248,7 @@ export function DateInput({
           aria-label={ariaLabel}
           dir={dir ?? "ltr"}
           center
+          inputMode="numeric"
           value={textValue}
           onChange={handleTextChange}
           onBlur={handleTextBlur}
