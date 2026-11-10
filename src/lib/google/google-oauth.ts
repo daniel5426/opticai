@@ -1,5 +1,7 @@
-import { app, shell } from 'electron'
+import authCopy from '../../localization/auth-login.json';
+import { shell } from 'electron'
 import http from 'http'
+import { randomBytes, createHash } from 'crypto'
 import { spawn } from 'child_process'
 import { GOOGLE_CONFIG } from './google-config.js'
 
@@ -24,7 +26,7 @@ export class GoogleOAuthService {
 
   constructor() {
     if (!GOOGLE_CONFIG.clientId || !GOOGLE_CONFIG.clientSecret) {
-      throw new Error('Google login is not configured')
+      throw new Error('authLogin.google.google_not_configured')
     }
     // Import google dynamically to avoid loading Node.js dependencies in renderer
     const { google } = require('googleapis')
@@ -36,49 +38,28 @@ export class GoogleOAuthService {
   }
 
   /**
-   * Generate the OAuth URL for authentication
-   */
-  generateAuthUrl(): string {
-    return this.oauth2Client.generateAuthUrl({
-      access_type: 'offline',
-      scope: GOOGLE_CONFIG.scopes,
-      prompt: 'consent'
-    })
-  }
-
-  /**
    * Handle the OAuth flow in Google Chrome.
    */
-  async authenticate(): Promise<{ tokens: GoogleTokens; userInfo: GoogleUserInfo }> {
-    const { google } = require('googleapis')
-    const callbackServer = await this.createLoopbackCallbackServer()
-    const oauth2Client = new google.auth.OAuth2(
-      GOOGLE_CONFIG.clientId,
-      GOOGLE_CONFIG.clientSecret,
-      callbackServer.redirectUri
-    )
+  async authenticate(locale = 'he'): Promise<{ tokens: GoogleTokens; userInfo: GoogleUserInfo }> {
+    if (GoogleOAuthService.pendingAuth) throw new Error('authLogin.google.failed')
+    const state = randomBytes(32).toString('base64url')
+    const verifier = randomBytes(32).toString('base64url')
+    const challenge = createHash('sha256').update(verifier).digest('base64url')
+    const callbackServer = await this.createLoopbackCallbackServer(state, locale)
+    const oauth2Client = this.createOAuthClient(callbackServer.redirectUri)
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: GOOGLE_CONFIG.scopes,
-      prompt: 'consent'
+      prompt: 'consent', state, code_challenge: challenge, code_challenge_method: 'S256'
     })
 
     return new Promise((resolve, reject) => {
       let settled = false
       let timeoutId: NodeJS.Timeout | undefined
-      let focusCancelArmed = false
-
-      const handleAppFocus = () => {
-        if (focusCancelArmed) {
-          fail(new Error('Google authentication was cancelled'))
-        }
-      }
-
       const cleanup = () => {
         if (timeoutId) {
           clearTimeout(timeoutId)
         }
-        app.off('browser-window-focus', handleAppFocus)
         callbackServer.close()
         if (GoogleOAuthService.pendingAuth === pending) {
           GoogleOAuthService.pendingAuth = null
@@ -89,16 +70,10 @@ export class GoogleOAuthService {
         if (settled) return
         settled = true
         try {
-          const { tokens } = await oauth2Client.getToken(code)
+          const { tokens } = await oauth2Client.getToken({ code, codeVerifier: verifier, redirect_uri: callbackServer.redirectUri })
           oauth2Client.setCredentials(tokens)
 
-          const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client })
-          const userInfoResponse = await oauth2.userinfo.get()
-          const userInfo: GoogleUserInfo = {
-            email: userInfoResponse.data.email!,
-            name: userInfoResponse.data.name || undefined,
-            picture: userInfoResponse.data.picture || undefined
-          }
+          const userInfo = await this.getUserInfo(oauth2Client)
 
           resolve({ tokens, userInfo })
         } catch (error) {
@@ -124,21 +99,25 @@ export class GoogleOAuthService {
       GoogleOAuthService.pendingAuth = pending
 
       callbackServer.waitForCode.then(finish).catch(fail)
-      this.openUrlInChrome(authUrl)
-        .then(() => {
-          setTimeout(() => {
-            focusCancelArmed = true
-            app.on('browser-window-focus', handleAppFocus)
-          }, 1000)
-        })
-        .catch(fail)
+      this.openUrlInChrome(authUrl).catch(fail)
       timeoutId = setTimeout(() => {
-        fail(new Error('Google authentication timed out'))
-      }, 60 * 1000)
+        fail(new Error('authLogin.google.timeout'))
+      }, 120 * 1000)
     })
   }
 
-  private async createLoopbackCallbackServer(): Promise<{
+  private createOAuthClient(redirectUri: string): any {
+    const { google } = require('googleapis')
+    return new google.auth.OAuth2(GOOGLE_CONFIG.clientId, GOOGLE_CONFIG.clientSecret, redirectUri)
+  }
+
+  private async getUserInfo(client: any): Promise<GoogleUserInfo> {
+    const { google } = require('googleapis')
+    const response = await google.oauth2({ version: 'v2', auth: client }).userinfo.get()
+    return { email: response.data.email!, name: response.data.name || undefined, picture: response.data.picture || undefined }
+  }
+
+  private async createLoopbackCallbackServer(expectedState: string, locale = 'he'): Promise<{
     redirectUri: string
     waitForCode: Promise<string>
     close: () => void
@@ -160,24 +139,31 @@ export class GoogleOAuthService {
           return
         }
 
+        if (req.method !== 'GET' || url.searchParams.get('state') !== expectedState) {
+          res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' })
+          res.end('Invalid OAuth callback')
+          return
+        }
         const error = url.searchParams.get('error')
         const code = url.searchParams.get('code')
         if (error) {
-          rejectCode(new Error(error))
+          rejectCode(new Error('authLogin.google.cancelled'))
         } else if (code) {
           resolveCode(code)
         } else {
           rejectCode(new Error('No authorization code received'))
         }
 
+        const language = locale === 'en' || locale === 'fr' ? locale : 'he'
+        const copy = authCopy[language].google
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
         res.end(`
           <!doctype html>
-          <html lang="he" dir="rtl">
-            <head><meta charset="utf-8"><title>Google Login</title></head>
+          <html lang="${language}" dir="${language === 'he' ? 'rtl' : 'ltr'}">
+            <head><meta charset="utf-8"><title>${error || !code ? copy.callbackError : copy.callbackSuccess}</title></head>
             <body style="font-family: sans-serif; text-align: center; padding: 48px;">
-              <h1>ההתחברות הושלמה</h1>
-              <p>אפשר לחזור לאפליקציה ולסגור את החלון הזה.</p>
+              <h1>${error || !code ? copy.callbackError : copy.callbackSuccess}</h1>
+              <p>${error || !code ? copy.cancelled : copy.callbackSuccessDescription}</p>
               <script>window.close();</script>
             </body>
           </html>
@@ -260,11 +246,7 @@ export class GoogleOAuthService {
   /**
    * Resolve a pending authentication with a code received from the renderer
    */
-  static async resolvePendingAuth(code: string): Promise<boolean> {
-    if (this.pendingAuth) {
-      this.pendingAuth.resolve(code)
-      return true
-    }
+  static async resolvePendingAuth(_code: string): Promise<boolean> {
     return false
   }
 

@@ -193,6 +193,8 @@ def _store_google_tokens(user: User, access_token: str, refresh_token: Optional[
     user.google_account_connected = True
     user.google_account_email = email
     user.google_access_token = encrypt_secret(access_token)
+    user.google_token_expiry = None
+    user.google_oauth_client_type = None
     if refresh_token:
         user.google_refresh_token = encrypt_secret(refresh_token)
     user.auth_provider = "google"

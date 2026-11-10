@@ -63,6 +63,8 @@ def mutate_record(db, user, clinic_id, kind, action, fields, record_id=None):
         if not existing:
             raise HTTPException(404, "agent.recordNotFound")
         clinic_id = existing.clinic_id
+    previous_owner_id = existing.user_id if action == 'update' and kind == 'appointments' else None
+    previous_event_id = existing.google_calendar_event_id if action == 'update' and kind == 'appointments' else None
     payload = validate_fields(db, user, clinic_id, kind, action, fields)
     if action == 'update':
         row = db.query(model).filter(model.id == record_id, model.company_id == resolve_company_id(db, user)).with_for_update().first()
@@ -89,6 +91,9 @@ def mutate_record(db, user, clinic_id, kind, action, fields, record_id=None):
         if not slot_available:
             raise HTTPException(409, 'agent.slotUnavailable')
     db.flush()
+    if kind == 'appointments':
+        from services.google_calendar import enqueue
+        enqueue(db, row, previous_owner_id, previous_event_id)
     if kind == 'clients':
         client = row
     else:

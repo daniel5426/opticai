@@ -125,10 +125,18 @@ jobs:
             return 1
           }
 
-          wait_for_service opticai backend
-          wait_for_service softoptic-migration-worker backend
+          wait_for_service opticai backend &
+          api_wait=$!
+          wait_for_service softoptic-migration-worker backend &
+          worker_wait=$!
           wait_for_service prysm-web-staging \
-            src public scanner index.html package.json package-lock.json vite.renderer.config.mts railway.json railpack.json config/devdesk-release config/desktop-runtime scripts/desktop-runtime.mjs scripts/devdesk-release-inputs.mjs scripts/serve-web.mjs
+            src public scanner index.html package.json package-lock.json vite.renderer.config.mts railway.json railpack.json config/devdesk-release config/desktop-runtime scripts/desktop-runtime.mjs scripts/devdesk-release-inputs.mjs scripts/serve-web.mjs &
+          web_wait=$!
+          failed=0
+          for job in "$api_wait" "$worker_wait" "$web_wait"; do
+            wait "$job" || failed=1
+          done
+          exit "$failed"
 
       - name: Verify staging health
         shell: bash

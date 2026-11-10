@@ -578,3 +578,31 @@ migration ordering remains necessary; web and both workers already deploy in
 parallel afterward. Desktop candidates already build concurrently and publication
 reuses their verified artifacts. No additional workflow change is warranted for
 this patch; reuse these gates and avoid a duplicate local production build.
+
+## Google Calendar staging candidate
+
+Google approved project `opticai-465420` on November 9, 2026 for `calendar` and
+`calendar.events`. The Calendar candidate uses API-owned synchronization and an
+API-owned retry consumer, independent of Agents24. Apply additive Alembic
+`0064_google_calendar_sync` before the new API. Web and desktop use the same
+owner-scoped event mappings; retire renderer/IPC Calendar writers together with
+the new clients. Keep the public web callback `https://app.prysm.co.il/oauth/callback`
+registered; API credentials must include the desktop secret for legacy refresh.
+See [Google OAuth configuration](docs/references/google-oauth.md).
+
+Qualification: focused Calendar/OAuth/company/Trash/AI-isolation/auth tests,
+Calendar replica locking and migrations against disposable PostgreSQL, settings
+and callback tests in Hebrew/English/French, and synthetic live staging events.
+No real clinic appointments belong in the live test. No production promotion,
+production migration, release tag or desktop publication is authorized by this
+staging candidate.
+
+Migration note: `0064_google_calendar_sync` preserves encrypted tokens and legacy
+appointment event IDs, adds nullable expiry/client provenance and an RLS-enabled
+mapping/retry table. No historical export, duplicate cleanup or consent backfill.
+The owner-authorized staging target has this revision; production remains unchanged.
+
+Staging verification now waits for the independent API, worker and web builds in
+parallel and checks every exit status, removing serial polling delay while
+retaining exact-SHA checks. Appointment saves also no longer wait on provider I/O
+or fetch each patient's details from the browser during bulk export.

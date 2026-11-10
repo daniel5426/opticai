@@ -102,6 +102,8 @@ class User(Base):
     google_access_token = Column(String)
     google_refresh_token = Column(String)
     google_calendar_sync_enabled = Column(Boolean, default=False)
+    google_oauth_client_type = Column(String, nullable=True)
+    google_token_expiry = Column(DateTime(timezone=True), nullable=True)
     va_format = Column(String, default="meter") # "meter" or "decimal"
     cyl_format = Column(String, default="minus") # "minus" or "plus"
     system_vacation_dates = Column(JSON, default=list)
@@ -1550,3 +1552,22 @@ import scanner_models  # noqa: E402,F401
 
 from services.scanner_provenance import install_provenance_preservation
 install_provenance_preservation()
+
+
+class GoogleCalendarSync(Base):
+    """Durable, owner-scoped mapping and retry queue; never exposed to AI."""
+    __tablename__ = 'google_calendar_sync'
+    id = Column(Integer, primary_key=True)
+    appointment_id = Column(Integer, ForeignKey('appointments.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    account_email = Column(String, nullable=True)
+    event_id = Column(String, nullable=False)
+    generation = Column(Integer, nullable=False, default=0)
+    action = Column(String, nullable=False, default='upsert')
+    status = Column(String, nullable=False, default='pending')
+    attempts = Column(Integer, nullable=False, default=0)
+    available_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    error_code = Column(String, nullable=True)
+    synced_at = Column(DateTime(timezone=True), nullable=True)
+    __table_args__ = (UniqueConstraint('appointment_id', 'user_id', name='uq_google_calendar_owner'),
+                     Index('ix_google_calendar_pending', 'status', 'available_at'))

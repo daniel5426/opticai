@@ -221,6 +221,8 @@ class AppointmentOperationsTool(BaseTool):
                     note=appt_data.get("note")
                 )
                 session.add(appointment)
+                from services.google_calendar import enqueue
+                enqueue(session, appointment)
                 session.commit()
                 session.refresh(appointment)
                 
@@ -346,6 +348,8 @@ class AppointmentOperationsTool(BaseTool):
                 if "note" in appt_data:
                     appointment.note = appt_data["note"]
                 
+                from services.google_calendar import enqueue
+                enqueue(session, appointment)
                 session.commit()
                 
                 client = session.query(Client).filter(Client.id == appointment.client_id).first()

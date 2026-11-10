@@ -65,3 +65,44 @@ Migration note: No schema or persisted token-shape changes. Existing sessions,
 encrypted Google tokens and desktop clients remain supported. Browser OAuth
 endpoints are additive. Tokens from an unconfigured audience are rejected;
 configure the desktop ID before rolling out the API to existing desktop users.
+
+## Calendar synchronization
+
+The approved project is `opticai-465420` / `507617691117`; Google's November 9,
+2026 approval covers `calendar` and `calendar.events`. Keep the existing consent
+configuration and verify its publishing status is **In production**. The current
+production web origin/callback is `https://app.prysm.co.il` /
+`https://app.prysm.co.il/oauth/callback`; retain the Railway aliases above.
+
+The API owns all Calendar writes. Deploy Alembic `0064_google_calendar_sync`
+before the updated API, then the web/desktop clients. This adds nullable token
+expiry/client provenance and a durable owner-scoped mapping/retry table with RLS.
+Existing encrypted tokens and event IDs are adopted lazily, without a bulk export
+or historical rewrite. The API needs the matching **desktop secret** as well as
+both IDs and the web secret to refresh legacy desktop grants. Unknown legacy
+provenance is resolved against only the configured clients on the first refresh.
+Do not copy staging credentials or sessions to production.
+
+`/api/v1/google/calendar/{status,connect,disconnect,preferences,sync}` is
+self-authenticated. Manual sync exports upcoming appointments for the signed-in
+examiner; auto sync records subsequent appointment mutations atomically. The
+API-owned consumer runs without Agents24 and coordinates replicas with database
+locks. It preserves deterministic event IDs across uncertain writes, retries
+transient failures with bounded exponential backoff, and exposes reconnect and
+failed counts in Settings. Disabling auto sync pauses queued upserts; removals
+already requested still reconcile. Manual sync deliberately retries current
+upcoming appointments and failed removals.
+
+This is one-way export to the owner's primary calendar. Events are private and
+include patient name, exam, appointment notes and clinic; no attendee invitations
+are added or emailed. Google-side edits do not update clinic records. Calendar
+data, tokens and integration state remain excluded from AI inputs. Disconnecting
+stops writes and preserves events/mappings for reconnect. Switching accounts
+creates fresh event IDs and leaves the previous account's events intact.
+Historical duplicate events are not automatically deleted: they cannot safely be
+identified from a single legacy mapping.
+
+Desktop authorization uses a system browser, random state, PKCE and a private
+loopback listener. Renderer-forwarded codes cannot bypass callback validation.
+Use the existing candidate workflow for macOS/Windows qualification; do not
+publish desktop packages until production promotion is explicitly requested.

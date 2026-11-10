@@ -36,6 +36,8 @@ def _normalize_google_token_update(update_data: dict) -> None:
         update_data["google_account_email"] = None
         return
     if "google_access_token" in update_data:
+        update_data["google_token_expiry"] = None
+        update_data["google_oauth_client_type"] = None
         update_data["google_access_token"] = encrypt_secret(update_data["google_access_token"])
     if "google_refresh_token" in update_data:
         update_data["google_refresh_token"] = encrypt_secret(update_data["google_refresh_token"])

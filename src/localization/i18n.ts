@@ -1,3 +1,4 @@
+import googleCalendarTranslations from "./google-calendar.json";
 import contactLensDiametersTranslations from "./contact-lens-diameters.json";
 import layoutDurationTranslations from "./layout-duration.json";
 import scannerTranslations from "./scanner.json";
@@ -1413,4 +1414,8 @@ for (const [language, translations] of Object.entries(layoutDurationTranslations
 
 for (const [language, translations] of Object.entries(contactLensDiametersTranslations)) {
   i18n.addResourceBundle(language, "translation", { contactLensDiameters: translations }, true, true);
+}
+
+for (const [language, translations] of Object.entries(googleCalendarTranslations)) {
+  i18n.addResourceBundle(language, "translation", { googleCalendar: translations }, true, true);
 }

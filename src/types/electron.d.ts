@@ -58,7 +58,7 @@ export interface ElectronAPI {
   createCampaignFromPrompt: (prompt: string) => Promise<{ success: boolean; data?: any; error?: string; message?: string }>;
 
   // Google OAuth and Calendar operations
-  googleOAuthAuthenticate: () => Promise<{
+  googleOAuthAuthenticate: (locale?: string) => Promise<{
     success?: boolean;
     error?: string;
     tokens?: {
@@ -86,11 +86,6 @@ export interface ElectronAPI {
     expiry_date?: number;
   }>;
   googleOAuthValidateTokens: (tokens: any) => Promise<boolean>;
-  googleCalendarCreateEvent: (tokens: any, appointment: any, client?: any) => Promise<string | null>;
-  googleCalendarUpdateEvent: (tokens: any, eventId: string, appointment: any, client?: any) => Promise<boolean>;
-  googleCalendarDeleteEvent: (tokens: any, eventId: string) => Promise<boolean>;
-  googleCalendarSyncAppointments: (tokens: any, appointments: any[]) => Promise<{ success: number; failed: number }>;
-  googleCalendarGetEvents: (tokens: any, startDate: string, endDate: string) => Promise<any[]>;
 
   // Update operations
   checkForUpdates: () => Promise<{ available: boolean; version?: string; currentVersion?: string; error?: string; message?: string }>;

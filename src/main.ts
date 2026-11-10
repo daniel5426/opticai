@@ -28,7 +28,6 @@ if (process.env.NODE_ENV === 'production') {
 import { app, BrowserWindow, ipcMain, dialog, shell, Menu } from "electron";
 import { autoUpdater } from "electron-updater";
 import { GoogleOAuthService } from './lib/google/google-oauth';
-import { GoogleCalendarService } from './lib/google/google-calendar';
 import { pruneSoftOpticExport } from "./lib/softoptic-prune";
 import { discoverOpticPlus, prepareOpticPlusInput, exportOpticPlus, type OpticPlusCandidate } from "./lib/opticplus-export";
 import registerListeners from "./helpers/ipc/listeners-register";
@@ -1860,13 +1859,14 @@ function setupIpcHandlers() {
   });
 
   // Google OAuth and Calendar operations
-  ipcMain.handle('google-oauth-authenticate', async () => {
+  ipcMain.handle('google-oauth-authenticate', async (_event, locale?: string) => {
     try {
       const oauthService = new GoogleOAuthService();
-      return await oauthService.authenticate();
+      return await oauthService.authenticate(locale);
     } catch (error) {
-      console.error('Error authenticating with Google:', error);
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
+      console.error('Google authentication failed');
+      const code = error instanceof Error && error.message.startsWith('authLogin.google.') ? error.message : 'authLogin.google.failed';
+      return { success: false, error: code };
     }
   });
 
@@ -1904,59 +1904,6 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle('google-calendar-create-event', async (event, tokens: any, appointment: any, client?: any) => {
-    try {
-      const calendarService = new GoogleCalendarService();
-      return await calendarService.createEvent(tokens, appointment, client);
-    } catch (error) {
-      console.error('Error creating Google Calendar event:', error);
-      return null;
-    }
-  });
-
-  ipcMain.handle('google-calendar-update-event', async (event, tokens: any, eventId: string, appointment: any, client?: any) => {
-    try {
-      const calendarService = new GoogleCalendarService();
-      return await calendarService.updateEvent(tokens, eventId, appointment, client);
-    } catch (error) {
-      console.error('Error updating Google Calendar event:', error);
-      return false;
-    }
-  });
-
-  ipcMain.handle('google-calendar-delete-event', async (event, tokens: any, eventId: string) => {
-    try {
-      const calendarService = new GoogleCalendarService();
-      return await calendarService.deleteEvent(tokens, eventId);
-    } catch (error) {
-      console.error('Error deleting Google Calendar event:', error);
-      return false;
-    }
-  });
-
-  ipcMain.handle('google-calendar-sync-appointments', async (event, tokens: any, appointments: any[]) => {
-    try {
-      const calendarService = new GoogleCalendarService();
-      return await calendarService.syncAppointments(tokens, appointments);
-    } catch (error) {
-      console.error('Error syncing appointments to Google Calendar:', error);
-      return { success: 0, failed: appointments.length };
-    }
-  });
-
-  ipcMain.handle('google-calendar-get-events', async (event, tokens: any, startDate: string, endDate: string) => {
-    try {
-      const calendarService = new GoogleCalendarService();
-      return await calendarService.getEvents(tokens, startDate, endDate);
-    } catch (error) {
-      console.error('Error getting Google Calendar events:', error);
-      return [];
-    }
-  });
-
-
-
-  // Client operations handler
   ipcMain.handle('db-get-clients', async () => {
     try {
       const response = await apiClient.getAllClients();

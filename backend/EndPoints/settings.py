@@ -219,6 +219,8 @@ def save_all(
                 update_fields["google_account_email"] = None
             else:
                 if "google_access_token" in update_fields:
+                    update_fields["google_token_expiry"] = None
+                    update_fields["google_oauth_client_type"] = None
                     update_fields["google_access_token"] = encrypt_secret(update_fields["google_access_token"])
                 if "google_refresh_token" in update_fields:
                     update_fields["google_refresh_token"] = encrypt_secret(update_fields["google_refresh_token"])
