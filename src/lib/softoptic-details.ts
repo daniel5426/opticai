@@ -3,9 +3,28 @@
  * Each card id is one slot; values are stored as imported, because their codes are not documented.
  */
 
-export type SoftopticDetailField = { label: string; field: string }
+export type SoftopticDetailField = {
+  label: string
+  field: string
+  /** Long free text, shown in a text box. */
+  multiline?: boolean
+  /** The stored value is one of these; each is shown by its translated name. */
+  options?: string[]
+  /** An ISO date, shown formatted and never edited. */
+  date?: boolean
+}
 export type SoftopticDetailEyeRow = { label: string; r: string; l: string; comb?: string }
-export type SoftopticDetailSlot = { title: string; eyeRows?: SoftopticDetailEyeRow[]; fields?: SoftopticDetailField[] }
+export type SoftopticDetailSlot = {
+  title: string
+  eyeRows?: SoftopticDetailEyeRow[]
+  fields?: SoftopticDetailField[]
+  /** Label and value pairs per row; long text always takes a whole row. */
+  fieldColumns?: number
+  /** Show the fields above the eye rows. */
+  fieldsFirst?: boolean
+  /** A single line of text instead of a card. */
+  caption?: boolean
+}
 
 const eyeRow = (label: string, name: string = label, comb?: string): SoftopticDetailEyeRow => ({
   label,
@@ -83,4 +102,25 @@ export const SOFTOPTIC_DETAIL_SLOTS: Record<string, SoftopticDetailSlot> = {
       { label: "eyelidTension", field: "eyelid_tension" },
     ],
   },
+  // Contact lens fit (imported "contact_fit" exams).
+  fitting: {
+    title: "fitting",
+    fieldColumns: 4,
+    fieldsFirst: true,
+    eyeRows: [eyeRow("reflex"), eyeRow("oldBc", "old_bc"), eyeRow("oldAdd", "old_add")],
+    fields: [
+      { label: "wearingDuration", field: "wearing_duration" },
+      { label: "wearingUnit", field: "wearing_unit", options: ["days", "weeks", "months", "years"] },
+      { label: "hoursPerDay", field: "hours_per_day" },
+      { label: "hoursToday", field: "hours_today" },
+      { label: "remark", field: "remark", multiline: true },
+      { label: "fitNotes", field: "fit_notes", multiline: true },
+    ],
+  },
+  observation: {
+    title: "observation",
+    eyeRows: [eyeRow("stabilityAx", "stability_ax"), eyeRow("axMove", "ax_move")],
+    fields: [{ label: "remark", field: "remark", multiline: true }],
+  },
+  "eye-test": { title: "eyeTest", caption: true, fields: [{ label: "eyeTestDate", field: "eye_test_date", date: true }] },
 }

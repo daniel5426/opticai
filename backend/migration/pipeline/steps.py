@@ -786,15 +786,17 @@ def migrate_optical_exams(
         if not account_code or account_code not in account_to_client:
             continue
         clinic_id = resolve_migration_clinic_id(branch_to_clinic, row.get("branch_code"))
+        fit_date = parse_date(row.get("fit_date"))
         exam = OpticalExam(
             client_id=account_to_client[account_code], clinic_id=clinic_id, user_id=admin_user_id,
-            exam_date=parse_date(row.get("fit_date")), test_name="Migrated Contact Fit", type="contact_fit",
+            exam_date=fit_date, test_name=CONTACT_FIT_TEST_NAME, type="contact_fit",
         )
         db.add(exam)
         db.flush()
+        eye_test = find_contact_fit_eye_test(db, account_to_client[account_code], fit_date)
         db.add(ExamLayoutInstance(
             exam_id=exam.id, layout_id=None, is_active=True, order=0,
-            exam_data=build_contact_fit_exam_data(row), layout_data=build_contact_fit_layout_data(),
+            exam_data=build_contact_fit_exam_data(row, eye_test), layout_data=build_contact_fit_layout_data(),
         ))
         record_raw_source_link(
             db, trace_context, target_model="OpticalExam", target_id=exam.id, clinic_id=clinic_id,
@@ -980,8 +982,8 @@ def migrate_contact_lens_orders(
             data["contact-lens-details"] = details_block
 
         exam_block = {
-            "l_bc": parse_optical_float(r.get("left_bc1")),
-            "l_bc_2": parse_optical_float(r.get("left_bc2")),
+            "l_bc": parse_softoptic_bc(r.get("left_bc1")),
+            "l_bc_2": parse_softoptic_bc(r.get("left_bc2")),
             "l_oz": clean_legacy_text(r.get("left_oz")),
             "l_diam": parse_float(r.get("left_diam")),
             "l_sph": parse_optical_float(r.get("left_sph")),
@@ -990,8 +992,8 @@ def migrate_contact_lens_orders(
             "l_va": clean_legacy_text(r.get("left_va")),
             "l_read_ad": parse_float(r.get("left_read")),
             "l_j": clean_legacy_text(r.get("left_j")),
-            "r_bc": parse_optical_float(r.get("right_bc1")),
-            "r_bc_2": parse_optical_float(r.get("right_bc2")),
+            "r_bc": parse_softoptic_bc(r.get("right_bc1")),
+            "r_bc_2": parse_softoptic_bc(r.get("right_bc2")),
             "r_oz": clean_legacy_text(r.get("right_oz")),
             "r_diam": parse_float(r.get("right_diam")),
             "r_sph": parse_optical_float(r.get("right_sph")),

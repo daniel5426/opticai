@@ -283,20 +283,15 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                       disabled={!isEditing}
                     />
                   ) : lookupConfig?.lookupType ? (
-                    isEditing ? (
-                      <LookupSelect
-                        value={getFieldValue("L", key)}
-                        onChange={(value) => handleChange("L", key, value)}
-                        lookupType={lookupConfig.lookupType}
-                        placeholder=""
-                        className="h-8 text-xs bg-white [&_input]:h-8 [&_input]:text-xs"
-                        center={true}
-                      />
-                    ) : (
-                      <div className="field-view bg-field flex h-8 items-center rounded-md border border-transparent px-2 text-xs">
-                        {getFieldValue("L", key) || ""}
-                      </div>
-                    )
+                    <LookupSelect
+                      disabled={!isEditing}
+                      value={getFieldValue("L", key)}
+                      onChange={(value) => handleChange("L", key, value)}
+                      lookupType={lookupConfig.lookupType}
+                      placeholder=""
+                      className="h-8 text-xs bg-white [&_input]:h-8 [&_input]:text-xs"
+                      center={true}
+                    />
                   ) : (
                     <FastInput
                       {...colProps}

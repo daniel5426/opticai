@@ -21,11 +21,15 @@ export const SOFTOPTIC_EXAM_TABS = [
 ] as const
 
 export type SoftopticExamTab = (typeof SOFTOPTIC_EXAM_TABS)[number]
+
+/** OpticSoft's contact lens fit screen, for imported "contact_fit" exams. */
+export const SOFTOPTIC_FIT_TABS = ["subjective", "bioM", "rxCl1", "rxCl2", "fitting", "observation", "bino"] as const
+export type SoftopticFitTab = (typeof SOFTOPTIC_FIT_TABS)[number]
 /** Cards no OpticSoft tab covers get their own trailing tab, so imported data is never hidden. */
 export const SOFTOPTIC_MORE_TAB = "more"
 /** The exam day's contact lens prescription, which older imports keep on the contact lens order. */
 export const SOFTOPTIC_CONTACT_LENS_TAB = "contactLens"
-export type SoftopticTabKey = SoftopticExamTab | typeof SOFTOPTIC_MORE_TAB | typeof SOFTOPTIC_CONTACT_LENS_TAB
+export type SoftopticTabKey = SoftopticExamTab | SoftopticFitTab | typeof SOFTOPTIC_MORE_TAB | typeof SOFTOPTIC_CONTACT_LENS_TAB
 
 const OLD_REF_TABS: Partial<Record<SoftopticExamTab, number>> = { oldRef1: 1, oldRef2: 2, oldRef3: 3 }
 const OLD_REFRACTION_TYPES = ["old-refraction-extension", "old-refraction"]
@@ -105,27 +109,68 @@ export function withContactLensTab<T extends CardDef>(tabs: SoftopticTabView<T>[
   return hasOrders ? [...tabs, { key: SOFTOPTIC_CONTACT_LENS_TAB, cards: [] }] : tabs
 }
 
-/**
- * The OpticSoft tabs that have data for this exam, each with its cards in display order.
- * `oldRefTabs` returns an old-refraction card's internal tab ids.
- */
-export function buildSoftopticTabs<T extends CardDef>(cards: T[], oldRefTabs: (card: T) => string[] | undefined): SoftopticTabView<T>[] {
+// A tab's card list names a single details slot as "softoptic-details:<slot>".
+const detailsSpec = (slot: string) => `${DETAILS_TYPE}:${slot}`
+
+const FIT_OLD_REF_TABS: Partial<Record<SoftopticFitTab, number>> = { rxCl1: 1, rxCl2: 2 }
+const BINO_CARD_TYPES = TAB_CARD_TYPES.bino.filter((type) => type !== DETAILS_TYPE)
+
+// Card types per fit tab, in OpticSoft's on-screen order.
+const FIT_TAB_CARD_TYPES: Record<SoftopticFitTab, string[]> = {
+  subjective: [
+    "schirmer-test", detailsSpec("subjective"), "final-subjective", "addition", "keratometer", "uncorrected-va",
+    detailsSpec("eye-test"),
+  ],
+  bioM: ["schirmer-test", "contact-lens-diameters", detailsSpec("bio"), detailsSpec("eye-test")],
+  rxCl1: [...OLD_REFRACTION_TYPES, detailsSpec("old-ref-1"), ...OLD_REF_GRID_TYPES],
+  rxCl2: [...OLD_REFRACTION_TYPES, detailsSpec("old-ref-2"), ...OLD_REF_GRID_TYPES],
+  fitting: [detailsSpec("fitting"), "old-contact-lenses", "objective", "keratometer", "over-refraction"],
+  observation: ["sensation-vision-stability", detailsSpec("observation")],
+  bino: [...BINO_CARD_TYPES, detailsSpec("bino")],
+}
+
+// OpticSoft shows every fit tab with its sections, so empty ones are drawn for typing in.
+const FIT_TAB_PLACEHOLDER_TYPES: Partial<Record<SoftopticFitTab, string[]>> = {
+  subjective: ["schirmer-test", "final-subjective", "addition", "keratometer", "uncorrected-va"],
+  bioM: ["schirmer-test", "contact-lens-diameters"],
+  fitting: ["old-contact-lenses", "objective", "keratometer", "over-refraction"],
+  observation: ["sensation-vision-stability"],
+  bino: ["maddox-wing", "stereo-test", "maddox-rod", "fusion-range"],
+}
+
+type TabConfig<K extends string> = {
+  tabs: readonly K[]
+  cardTypes: Record<K, string[]>
+  detailSlots: Partial<Record<K, string[]>>
+  oldRefTabs: Partial<Record<K, number>>
+  placeholderTypes: Partial<Record<K, string[]>>
+  /** Show tabs that have no data, as OpticSoft does. */
+  showEmpty?: boolean
+}
+
+function buildTabs<T extends CardDef, K extends SoftopticTabKey>(
+  cards: T[],
+  oldRefTabs: (card: T) => string[] | undefined,
+  config: TabConfig<K>,
+): SoftopticTabView<T>[] {
   const placed = new Set<T>()
   const tabs: SoftopticTabView<T>[] = []
 
   const binoGrid = cards.some((card) => card.type === "softoptic-cover-test" && card.id === BINO_GRID_ID)
   if (binoGrid) cards.filter((card) => BINO_GRID_REPLACES.includes(card.type)).forEach((card) => placed.add(card))
 
-  for (const key of SOFTOPTIC_EXAM_TABS) {
-    const oldRef = OLD_REF_TABS[key]
-    const placeholderTypes = TAB_PLACEHOLDER_TYPES[key] ?? []
+  for (const key of config.tabs) {
+    const oldRef = config.oldRefTabs[key]
+    const isBino = key === "bino"
+    const placeholderTypes = config.placeholderTypes[key] ?? []
     const placeholders: string[] = []
-    const tabCards = TAB_CARD_TYPES[key].flatMap((type) => {
+    const tabCards = config.cardTypes[key].flatMap((spec) => {
+      const [type, slot] = spec.split(":")
       const matches = cards.filter((card) => {
         if (card.type !== type) return false
-        if (type === DETAILS_TYPE) return Boolean(TAB_DETAIL_SLOTS[key]?.includes(card.id))
-        if (key === "bino" && binoGrid && BINO_GRID_REPLACES.includes(type)) return false
-        if (key === "bino" && OLD_REF_GRID_TYPES.includes(type)) return card.id === BINO_GRID_ID
+        if (type === DETAILS_TYPE) return slot ? card.id === slot : Boolean(config.detailSlots[key]?.includes(card.id))
+        if (isBino && binoGrid && BINO_GRID_REPLACES.includes(type)) return false
+        if (isBino && OLD_REF_GRID_TYPES.includes(type)) return card.id === BINO_GRID_ID
         if (oldRef == null) return true
         if (OLD_REF_GRID_TYPES.includes(type)) return gridSlot(card) === oldRef
         return Boolean(oldRefTabId(oldRefTabs(card), oldRef))
@@ -135,8 +180,8 @@ export function buildSoftopticTabs<T extends CardDef>(cards: T[], oldRefTabs: (c
       placeholders.push(type)
       return [{ id: type, type } as T]
     })
-    // A tab only appears for real data; placeholders just complete a tab that is already shown.
-    if (tabCards.length > placeholders.length) {
+    // Otherwise a tab only appears for real data; placeholders just complete a tab that is already shown.
+    if (config.showEmpty || tabCards.length > placeholders.length) {
       tabs.push({ key, cards: tabCards, ...(oldRef ? { oldRef } : {}), ...(placeholders.length ? { placeholders } : {}) })
     }
   }
@@ -146,7 +191,36 @@ export function buildSoftopticTabs<T extends CardDef>(cards: T[], oldRefTabs: (c
   return tabs
 }
 
-/** OpticSoft opens an exam on its summary. */
+/**
+ * The OpticSoft tabs that have data for this exam, each with its cards in display order.
+ * `oldRefTabs` returns an old-refraction card's internal tab ids.
+ */
+export function buildSoftopticTabs<T extends CardDef>(cards: T[], oldRefTabs: (card: T) => string[] | undefined): SoftopticTabView<T>[] {
+  return buildTabs(cards, oldRefTabs, {
+    tabs: SOFTOPTIC_EXAM_TABS,
+    cardTypes: TAB_CARD_TYPES,
+    detailSlots: TAB_DETAIL_SLOTS,
+    oldRefTabs: OLD_REF_TABS,
+    placeholderTypes: TAB_PLACEHOLDER_TYPES,
+  })
+}
+
+/**
+ * A contact lens fit on OpticSoft's fit screen: all seven tabs, each with its sections.
+ * Rx+Cl 1 and 2 show the fit's first and second old refraction.
+ */
+export function buildSoftopticFitTabs<T extends CardDef>(cards: T[], oldRefTabs: (card: T) => string[] | undefined): SoftopticTabView<T>[] {
+  return buildTabs(cards, oldRefTabs, {
+    tabs: SOFTOPTIC_FIT_TABS,
+    cardTypes: FIT_TAB_CARD_TYPES,
+    detailSlots: {},
+    oldRefTabs: FIT_OLD_REF_TABS,
+    placeholderTypes: FIT_TAB_PLACEHOLDER_TYPES,
+    showEmpty: true,
+  })
+}
+
+/** OpticSoft opens an exam on its summary, and a contact lens fit on its fitting. */
 export function defaultSoftopticTab(tabs: SoftopticTabView[]): SoftopticTabKey | null {
-  return (tabs.find((tab) => tab.key === "summary") ?? tabs[0])?.key ?? null
+  return (tabs.find((tab) => tab.key === "summary" || tab.key === "fitting") ?? tabs[0])?.key ?? null
 }

@@ -94,7 +94,7 @@ import {
 import { ExamLayoutTabs } from "@/components/exam/ExamLayoutTabs";
 import { OptitechExamTabs } from "@/components/exam/OptitechExamTabs";
 import { SoftopticExamTabs } from "@/components/exam/SoftopticExamTabs";
-import { buildSoftopticTabs, defaultSoftopticTab, oldRefTabId, SOFTOPTIC_CONTACT_LENS_TAB, softopticGridSlotCardId, withContactLensTab, type SoftopticTabKey } from "@/lib/softoptic-exam-tabs";
+import { buildSoftopticFitTabs, buildSoftopticTabs, defaultSoftopticTab, oldRefTabId, SOFTOPTIC_CONTACT_LENS_TAB, softopticGridSlotCardId, withContactLensTab, type SoftopticTabKey } from "@/lib/softoptic-exam-tabs";
 import { sameDayContactLensOrders } from "@/lib/softoptic-contact-lens";
 import { SoftopticContactLensTab } from "@/components/exam/SoftopticContactLensTab";
 import { packSoftopticCards } from "@/lib/softoptic-exam-layout";
@@ -587,7 +587,9 @@ export default function ExamDetailPage({
   );
   const softopticTabs = useMemo(() => {
     if (!isSoftopticView) return null;
-    const tabs = withContactLensTab(buildSoftopticTabs(cardRows.flatMap((row) => row.cards), (card) =>
+    // A contact lens fit has OpticSoft's fit screen tabs instead of the eye test's.
+    const buildTabs = exam?.type === "contact_fit" ? buildSoftopticFitTabs : buildSoftopticTabs;
+    const tabs = withContactLensTab(buildTabs(cardRows.flatMap((row) => row.cards), (card) =>
       card.type === "old-refraction-extension"
         ? computedOldRefractionExtensionTabs[card.id]
         : card.type === "old-refraction"
@@ -595,7 +597,7 @@ export default function ExamDetailPage({
           : undefined,
     ), examDayContactLensOrders.length > 0);
     return tabs.length ? tabs : null;
-  }, [isSoftopticView, cardRows, computedOldRefractionTabs, computedOldRefractionExtensionTabs, examDayContactLensOrders]);
+  }, [isSoftopticView, exam?.type, cardRows, computedOldRefractionTabs, computedOldRefractionExtensionTabs, examDayContactLensOrders]);
   const activeSoftopticTab = softopticTabs?.find((tab) => tab.key === softopticTab) ?? softopticTabs?.find((tab) => tab.key === defaultSoftopticTab(softopticTabs));
   const displayedLayout = useMemo(() => {
     if (!activeSoftopticTab) return { rows: cardRows, customWidths, items: gridItems };
@@ -2030,6 +2032,8 @@ export default function ExamDetailPage({
               <form ref={formRef} className="flex min-h-full flex-col" style={{ zoom: examContentZoom }} aria-busy={isSaveInFlight} onSubmit={event => {event.preventDefault(); void handleSave();}}><fieldset disabled={isSaveInFlight} className="contents">
                 {activeSoftopticTab?.key === SOFTOPTIC_CONTACT_LENS_TAB ? (
                   <SoftopticContactLensTab orders={examDayContactLensOrders} />
+                ) : activeSoftopticTab && !activeSoftopticTab.cards.length ? (
+                  <p className="text-muted-foreground p-10 text-center text-sm">{t("softoptic.examTabs.empty")}</p>
                 ) : (
                 <ExamLayoutRenderer
                   cardRows={displayedLayout.rows}
