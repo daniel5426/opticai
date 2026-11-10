@@ -150,6 +150,9 @@ def test_reassignment_removes_old_owner_event_using_only_old_owner_token(setup):
     assert s.network.call_args_list[0].kwargs['headers']['Authorization'] == 'Bearer access-marker'
     assert s.network.call_args_list[1].kwargs['headers']['Authorization'] == 'Bearer other-marker'
     assert old.status == 'deleted'
+    new=s.db.query(GoogleCalendarSync).filter_by(appointment_id=appt.id,user_id=other.id).one()
+    assert new.event_id != 'old-event'
+    assert appt.google_calendar_event_id == new.event_id
 
 
 def test_delete_before_first_sync_never_creates_event_then_restore_rotates_id(setup):

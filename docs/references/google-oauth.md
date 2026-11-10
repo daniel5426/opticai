@@ -120,3 +120,10 @@ The nullable `users.google_token_key_id` routes queue work by an encryption-key
 fingerprint. Local and hosted APIs sharing staging must not claim each other’s
 credentials; unknown legacy ciphertext is claimed only by a worker that can
 decrypt it. A matching worker stamps the fingerprint without re-encrypting data.
+
+Production promotion prepares the API's desktop refresh secret from the same
+GitHub secrets used by the desktop candidate. The preparation verifies the
+Railway project and existing API desktop client ID, supplies the secret on stdin,
+uses `--skip-deploys`, and verifies the value before the ordered API deployment.
+It runs only inside an explicitly requested production promotion. Staging
+qualification never executes this preparation or changes production variables.

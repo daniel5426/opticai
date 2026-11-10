@@ -608,3 +608,9 @@ Staging verification now waits for the independent API, worker and web builds in
 parallel and checks every exit status, removing serial polling delay while
 retaining exact-SHA checks. Appointment saves also no longer wait on provider I/O
 or fetch each patient's details from the browser during bulk export.
+
+The production promotion workflow prepares the API desktop refresh secret from
+its existing matching desktop-candidate GitHub secret, verifies the project/client
+identity, and uses stdin plus `--skip-deploys`. It does not run during staging
+qualification. Offline tests cover mismatch rejection, read-only audit, idempotent
+configuration and deployment suppression.

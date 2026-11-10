@@ -116,7 +116,12 @@ def enqueue(db, appointment, previous_owner_id=None, previous_event_id=None, *, 
             continue
         row = db.query(GoogleCalendarSync).filter_by(appointment_id=appointment.id, user_id=owner_id).with_for_update().first()
         deleting = bool(appointment.deleted_at or owner_id != appointment.user_id)
-        legacy_id = previous_event_id if owner_id == previous_owner_id else appointment.google_calendar_event_id
+        if owner_id == previous_owner_id:
+            legacy_id = previous_event_id
+        elif previous_owner_id is not None or previous_event_id is not None:
+            legacy_id = None  # An event ID belongs to its previous examiner/account.
+        else:
+            legacy_id = appointment.google_calendar_event_id
         if not row:
             if not legacy_id and (deleting or not owner.google_account_connected or not (force or owner.google_calendar_sync_enabled)):
                 continue

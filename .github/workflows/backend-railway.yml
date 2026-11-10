@@ -50,6 +50,10 @@ jobs:
           python -m pip install -r requirements.txt pytest pytest-asyncio==1.4.0
         if: steps.changes.outputs.run == 'true'
 
+      - name: Test Calendar production credential guard without provider calls
+        run: python -m unittest scripts.test_prepare_calendar_production_env -q
+        if: steps.changes.outputs.run == 'true'
+
       - name: Run backend release-gate tests
         env:
           PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/backend
