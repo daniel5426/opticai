@@ -1,13 +1,13 @@
 """Let each exam layout or layout group set its appointments' calendar color.
 
-Revision ID: 0064_layout_appointment_color
-Revises: 0063_merge_layout_duration
+Revision ID: 0067_layout_appointment_color
+Revises: 0066_calendar_routing
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0064_layout_appointment_color"
-down_revision = "0063_merge_layout_duration"
+revision = "0067_layout_appointment_color"
+down_revision = "0066_calendar_routing"
 branch_labels = None
 depends_on = None
 
