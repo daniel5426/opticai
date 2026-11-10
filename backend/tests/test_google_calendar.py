@@ -287,3 +287,21 @@ def test_unknown_legacy_encryption_realm_is_not_mistaken_for_revoked_consent(set
     assert calendar.run_once(s.db) is False
     assert job.status=='pending' and job.attempts==0
     s.network.assert_not_called()
+
+
+def test_clients_cannot_select_or_overwrite_server_calendar_event_ids(setup):
+    s=setup
+    result=s.http.post('/appointments/',json={'client_id':s.client.id,'clinic_id':s.b.id,'user_id':s.user.id,
+        'date':str(date.today()+timedelta(days=1)),'time':'10:00','google_calendar_event_id':'foreign-selected-id'})
+    assert result.status_code==200,result.text
+    appt=s.db.get(Appointment,result.json()['id'])
+    job=s.db.query(GoogleCalendarSync).filter_by(appointment_id=appt.id).one()
+    assert job.event_id != 'foreign-selected-id'
+    calendar.run_once(s.db)
+    original=appt.google_calendar_event_id
+    result=s.http.put(f'/appointments/{appt.id}',json={'google_calendar_event_id':'foreign-selected-id','note':'Clinic note'})
+    assert result.status_code==200,result.text
+    assert appt.google_calendar_event_id==original
+    result=s.http.put(f'/appointments/{appt.id}/google-event-id?google_event_id=foreign-selected-id')
+    assert result.status_code==200,result.text
+    assert appt.google_calendar_event_id==original

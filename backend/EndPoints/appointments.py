@@ -46,6 +46,7 @@ def create_appointment(
         # apply_clinic_user_scope already validates and normalizes the clinic, client,
         # and assigned user. Re-running those checks here adds remote DB round trips.
         payload = apply_clinic_user_scope(db, current_user, appointment.dict())
+        payload.pop("google_calendar_event_id", None)  # Mapping is server-owned.
         
         print(f"Creating appointment with final data: {payload}")
         db_appointment = Appointment(**payload)
@@ -286,6 +287,7 @@ def update_appointment(
     db_appointment = get_scoped_appointment(db, current_user, appointment_id)
     previous_owner_id, previous_event_id = db_appointment.user_id, db_appointment.google_calendar_event_id
     update_fields = appointment.dict(exclude_unset=True)
+    update_fields.pop("google_calendar_event_id", None)
     if update_fields:
         candidate = {
             "client_id": db_appointment.client_id,
@@ -342,10 +344,8 @@ def update_appointment_google_event_id(
 ):
     appointment = get_scoped_appointment(db, current_user, appointment_id)
     
-    from models import GoogleCalendarSync
-    managed = db.query(GoogleCalendarSync).filter_by(appointment_id=appointment.id, user_id=appointment.user_id).first()
-    if not managed:
-        appointment.google_calendar_event_id = google_event_id
+    # Old clients may acknowledge a renderer-created event. Preserve the route
+    # shape, but never accept a client-selected ID for another owner's calendar.
     db.commit()
     # bump client_updated_date and clear ai_appointment_state to avoid stale AI
     try:
