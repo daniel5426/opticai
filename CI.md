@@ -631,3 +631,15 @@ no token rewrite, automatic calendar creation, or historical backfill.
 Speed: manual reconciliation now selects only eligible appointments and existing
 live mappings in SQL, avoiding scans of unrelated company appointments and repeat
 cleanup of already-deleted mappings. Reuse the parallel staging verification gate.
+
+## Local integration of Zohar PRs 76, 77 and 78
+
+Merged imported SoftOptic contact fits, history-aware back navigation, search
+spaces, layout calendar colors and automatic date separators into local main.
+
+Migration note: `0064_layout_appointment_color` adds nullable layout colors;
+`0067_merge_layout_color` joins it with `0066_calendar_routing` without
+renumbering existing revisions. Apply the combined graph through Alembic before
+the updated API. Allowlisted staging is at 0067; its existing manually added
+color column was preserved. Production is unchanged. The contact-fit backfill
+remains an explicit, dry-run-by-default operation and was not applied.
