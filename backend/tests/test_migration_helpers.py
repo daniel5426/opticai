@@ -7,6 +7,7 @@ from sqlalchemy.pool import StaticPool
 
 from backend.database import Base
 from backend.migration import migrate_csv_to_postgres as migration
+from backend.migration.pipeline import common as migration_common
 from backend.models import (
     Billing,
     BillingPayment,
@@ -993,6 +994,9 @@ def test_regular_order_resolves_opticsoft_fulfillment_codes(tmp_path):
                 "order_status": "18",
                 "supply_branch": "1",
                 "end_of_warranty": "2026-07-30",
+                # OpticSoft's sample order: R Plano +22.50 x3 ESO, L +35.75 -50.25 x4 Down, DIAM 34/44 and 45/55.
+                "right_sph": "Plano", "right_cyl": "+225 ", "right_base": "ESO", "right_diam": "3444",
+                "left_sph": "+3575", "left_cyl": "-5025", "left_base": "Down", "left_diam": "4555",
             }
         ],
     )
@@ -1032,7 +1036,11 @@ def test_regular_order_resolves_opticsoft_fulfillment_codes(tmp_path):
         assert details["order_status"] == "יש להזמין"
         assert details["delivery_clinic_id"] == clinic.id
         assert details["delivery_location"] == "אופטיקה הראל-ירושלים"
+        prescription = order_data["final-prescription"]
+        assert (prescription["r_sph"], prescription["r_cyl"], prescription["r_base"]) == (0.0, 22.5, "ESO")
+        assert (prescription["l_sph"], prescription["l_cyl"], prescription["l_base"]) == (35.75, -50.25, "DOWN")
         tab = order_data["lens_frame_tabs"][0]
+        assert (tab["lens"]["right_diameter"], tab["lens"]["left_diameter"]) == ("34/44", "45/55")
         assert tab["lens"]["warranty_expiration"] == "2026-07-30"
         assert tab["frame"]["warranty_expiration"] == "2026-07-30"
 
@@ -1283,3 +1291,10 @@ def test_softoptic_defaults_alone_add_no_details_and_wearing_numbers_are_not_dat
     assert "softoptic-details-final" not in data
     assert "started_wearing_since" not in data["anamnesis"] or data["anamnesis"]["started_wearing_since"] is None
     assert data["anamnesis"]["stopped_wearing_since"] == "2026-01-02"
+
+
+def test_softoptic_prescription_values_read_like_opticsoft_shows_them():
+    common = migration_common
+    assert [common.parse_softoptic_power(v) for v in ("+225 ", "-0050", "Plano", "Balan", "   ", "+3575")] == [22.5, -0.5, 0.0, "Balance", None, 35.75]
+    assert [common.parse_softoptic_base(v) for v in ("Down", "up", "ln", "IN", "ESO", " ")] == ["DOWN", "UP", "IN", "IN", "ESO", None]
+    assert [common.parse_softoptic_lens_diameter(v) for v in ("3444", " 70", "708 ", "0   ", "")] == ["34/44", "70", "70/80", None, None]

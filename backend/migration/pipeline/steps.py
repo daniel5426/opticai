@@ -1200,16 +1200,16 @@ def migrate_regular_orders(
         frame_width, frame_bridge, frame_height = parse_frame_dimensions(r.get("frame_size"))
 
         final_prescription = {
-            "r_sph": parse_optical_float(r.get("right_sph")),
-            "l_sph": parse_optical_float(r.get("left_sph")),
-            "r_cyl": parse_optical_float(r.get("right_cyl")),
-            "l_cyl": parse_optical_float(r.get("left_cyl")),
+            "r_sph": parse_softoptic_power(r.get("right_sph")),
+            "l_sph": parse_softoptic_power(r.get("left_sph")),
+            "r_cyl": parse_softoptic_power(r.get("right_cyl")),
+            "l_cyl": parse_softoptic_power(r.get("left_cyl")),
             "r_ax": parse_int(r.get("right_ax")),
             "l_ax": parse_int(r.get("left_ax")),
             "r_pris": parse_float(r.get("right_pris")),
             "l_pris": parse_float(r.get("left_pris")),
-            "r_base": clean_legacy_text(r.get("right_base")),
-            "l_base": clean_legacy_text(r.get("left_base")),
+            "r_base": parse_softoptic_base(r.get("right_base")),
+            "l_base": parse_softoptic_base(r.get("left_base")),
             "r_va": parse_visual_acuity(r.get("right_va")),
             "l_va": parse_visual_acuity(r.get("left_va")),
             "r_ad": parse_float(r.get("right_add")) if clean_legacy_text(r.get("right_add")) else parse_float(r.get("right_read")),
@@ -1218,8 +1218,8 @@ def migrate_regular_orders(
             "l_pd": parse_float(r.get("left_pd")),
             "r_high": parse_float(r.get("right_high")),
             "l_high": parse_float(r.get("left_high")),
-            "r_diam": parse_float(r.get("right_diam")),
-            "l_diam": parse_float(r.get("left_diam")),
+            "r_diam": parse_softoptic_lens_diameter(r.get("right_diam")),
+            "l_diam": parse_softoptic_lens_diameter(r.get("left_diam")),
             "comb_va": parse_visual_acuity(r.get("mid_va")),
             "comb_pd": parse_float(r.get("pd_far")),
             "comb_high": None,
@@ -1244,6 +1244,8 @@ def migrate_regular_orders(
             "coating": lens_coating,
             "material": lens_material,
             "supplier": lens_supplier,
+            "right_diameter": final_prescription["r_diam"],
+            "left_diameter": final_prescription["l_diam"],
         }
 
         frame_supplied_by, legacy_frame_supplied_by = _normalize_supplied_by(r.get("frame_supply_by"), ui_default=True)
