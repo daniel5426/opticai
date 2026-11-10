@@ -17,6 +17,7 @@ const tree = [
   layout(2, {
     is_group: true,
     appointment_duration: 45,
+    appointment_color: "#16a34a",
     children: [layout(3, { parent_layout_id: 2 }), layout(4, { parent_layout_id: 2, is_active: false })],
   }),
   layout(5, { is_group: true, children: [layout(6, { is_active: false })] }),
@@ -28,12 +29,12 @@ describe("appointment length per exam layout", () => {
     expect(appointmentDurationTargets(tree).map((item) => item.id)).toEqual([1, 2]);
   });
 
-  test("layouts in a group book with the group's length", () => {
+  test("layouts in a group book with the group's length and color", () => {
     expect(
-      flattenActiveExamLayouts(tree).map((item) => [item.id, item.appointment_duration]),
+      flattenActiveExamLayouts(tree).map((item) => [item.id, item.appointment_duration, item.appointment_color]),
     ).toEqual([
-      [1, 20],
-      [3, 45],
+      [1, 20, undefined],
+      [3, 45, "#16a34a"],
     ]);
   });
 });

@@ -45,7 +45,7 @@ export default function AllFilesPage() {
 
   useEffect(() => {
     updateLatestSearch(search.q);
-    setSearchInput(search.q);
+    setSearchInput((current) => (current.trim() === search.q ? current : search.q));
   }, [search.q, updateLatestSearch]);
 
   const handleSearchInputChange = (value: string) => {
@@ -82,7 +82,7 @@ export default function AllFilesPage() {
 
   useEffect(() => {
     const t = setTimeout(() => {
-      if (searchInput === search.q) return;
+      if (searchInput.trim() === search.q) return;
       navigate({
         to: "/files",
         search: buildSearchState({ q: searchInput.trim(), page: 1 }),

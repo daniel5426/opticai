@@ -31,7 +31,7 @@ export default function FamiliesPage() {
 
   useEffect(() => {
     updateLatestSearch(search.q)
-    setSearchInput(search.q)
+    setSearchInput((current) => (current.trim() === search.q ? current : search.q))
   }, [search.q, updateLatestSearch])
 
   const buildSearchState = useCallback(
@@ -45,7 +45,7 @@ export default function FamiliesPage() {
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
-      if (searchInput === search.q) return
+      if (searchInput.trim() === search.q) return
       void navigate({
         to: "/clients/families",
         search: buildSearchState({ q: searchInput.trim(), page: 1 })

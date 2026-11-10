@@ -38,7 +38,7 @@ export default function ClientsMergePage() {
 
   useEffect(() => {
     updateLatestSearch(search.q)
-    setSearchInput(search.q)
+    setSearchInput((current) => (current.trim() === search.q ? current : search.q))
   }, [search.q, updateLatestSearch])
 
   const buildSearchState = useCallback(
@@ -58,7 +58,7 @@ export default function ClientsMergePage() {
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
-      if (searchInput === search.q) return
+      if (searchInput.trim() === search.q) return
       void navigate({
         to: "/clients/merge",
         search: buildSearchState({ q: searchInput.trim(), page: 1 })

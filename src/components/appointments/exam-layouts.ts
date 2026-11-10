@@ -5,10 +5,11 @@ export function flattenActiveExamLayouts(layouts: ExamLayout[]): ExamLayout[] {
     const children = flattenActiveExamLayouts(layout.children || []);
     if (layout.is_group) {
       if (layout.is_active === false) return [];
-      // A group's appointment length applies to every layout inside it.
+      // A group's appointment length and color apply to every layout inside it.
       return children.map((child) => ({
         ...child,
         appointment_duration: layout.appointment_duration ?? child.appointment_duration,
+        appointment_color: layout.appointment_color ?? child.appointment_color,
       }));
     }
     return layout.is_active === false || !layout.id

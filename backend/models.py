@@ -676,6 +676,7 @@ class ExamLayout(Base):
     parent_layout_id = Column(Integer, ForeignKey("exam_layouts.id", ondelete="SET NULL"))
     is_group = Column(Boolean, default=False)
     appointment_duration = Column(Integer, nullable=True)  # minutes; a group's value applies to its layouts
+    appointment_color = Column(String, nullable=True)  # "#rrggbb" for its calendar appointments; same group rule
     type = Column(String, nullable=True) # "contact lens", "glass", "global"
     seed_key = Column(String, nullable=True)
     seed_version = Column(Integer, nullable=True)
