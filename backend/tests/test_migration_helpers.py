@@ -17,6 +17,8 @@ from backend.models import (
     ExamLayoutInstance,
     LookupAdvisor,
     LookupColor,
+    LookupManufacturer,
+    LookupSupplier,
     MedicalLog,
     OpticalExam,
     Order,
@@ -993,9 +995,12 @@ def test_regular_order_resolves_opticsoft_fulfillment_codes(tmp_path):
                 "order_status": "18",
                 "supply_branch": "1",
                 "end_of_warranty": "2026-07-30",
+                "frame_supplier": "GIPSY",
+                "frame_manuf": "18 פייר מרקטינג",
             }
         ],
     )
+    _write_csv(tmp_path / "optic_tv_frame_manuf.csv", [{"code": "18", "name": "18 פייר מרקטינג"}])
 
     engine = create_engine(
         "sqlite:///:memory:",
@@ -1035,6 +1040,10 @@ def test_regular_order_resolves_opticsoft_fulfillment_codes(tmp_path):
         tab = order_data["lens_frame_tabs"][0]
         assert tab["lens"]["warranty_expiration"] == "2026-07-30"
         assert tab["frame"]["warranty_expiration"] == "2026-07-30"
+        # OpticSoft keeps the brand in frame_supplier and the supplier in frame_manuf.
+        assert (tab["frame"]["manufacturer"], tab["frame"]["supplier"]) == ("GIPSY", "18 פייר מרקטינג")
+        assert [name for (name,) in db.query(LookupSupplier.name).filter_by(clinic_id=clinic.id)] == ["18 פייר מרקטינג"]
+        assert not db.query(LookupManufacturer).filter_by(clinic_id=clinic.id).count()
 
 
 def test_contact_order_migrates_type_aliases_price_rows_and_installments(tmp_path):

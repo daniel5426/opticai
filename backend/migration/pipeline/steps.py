@@ -19,7 +19,7 @@ def migrate_lookups(db: Session, csv_dir: str, clinic_ids: List[int]):
         ("optic_tv_lens_color.csv", LookupColor),
         ("optic_tv_lens_coat.csv", LookupCoating),
         ("optic_tv_frame_model.csv", LookupFrameModel),
-        ("optic_tv_frame_manuf.csv", LookupManufacturer),
+        ("optic_tv_frame_manuf.csv", LookupSupplier),  # frame suppliers, despite the name
         ("optic_tv_contact_type.csv", LookupContactLensType),
         ("optic_tv_contact_model.csv", LookupContactEyeLensType),
         ("optic_tv_contact_manuf.csv", LookupManufacturer),
@@ -1247,11 +1247,12 @@ def migrate_regular_orders(
         }
 
         frame_supplied_by, legacy_frame_supplied_by = _normalize_supplied_by(r.get("frame_supply_by"), ui_default=True)
+        # OpticSoft's frame_supplier column holds the brand and frame_manuf the supplier.
         frame = {
             "color": clean_legacy_text(r.get("frame_color")),
-            "supplier": clean_legacy_text(r.get("frame_supplier")),
+            "supplier": clean_legacy_text(r.get("frame_manuf")),
             "model": clean_legacy_text(r.get("frame_model")),
-            "manufacturer": clean_legacy_text(r.get("frame_manuf")),
+            "manufacturer": clean_legacy_text(r.get("frame_supplier")),
             "supplied_by": frame_supplied_by,
             "bridge": frame_bridge if frame_bridge is not None else parse_float(r.get("frame_bridge")),
             "width": frame_width if frame_width is not None else parse_float(r.get("frame_width")),
@@ -1370,7 +1371,7 @@ def migrate_regular_orders(
                     ),
                     (
                         clean_legacy_text(r.get("frame_model")) or "Frame",
-                        clean_legacy_text(r.get("frame_supplier")),
+                        clean_legacy_text(r.get("frame_manuf")),
                         parse_float(r.get("frame_price")),
                         1.0,
                         parse_float(r.get("frame_discount")),
