@@ -1,5 +1,6 @@
 import csv
 import json
+from collections import Counter
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -7,6 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from backend.database import Base
 from backend.migration import migrate_csv_to_postgres as migration
+from backend.migration.pipeline import steps as migration_steps
 from backend.models import (
     Billing,
     BillingPayment,
@@ -1043,7 +1045,13 @@ def test_regular_order_resolves_opticsoft_fulfillment_codes(tmp_path):
         # OpticSoft keeps the brand in frame_supplier and the supplier in frame_manuf.
         assert (tab["frame"]["manufacturer"], tab["frame"]["supplier"]) == ("GIPSY", "18 פייר מרקטינג")
         assert [name for (name,) in db.query(LookupSupplier.name).filter_by(clinic_id=clinic.id)] == ["18 פייר מרקטינג"]
+        # One order is too few for a typed brand to become a lookup.
         assert not db.query(LookupManufacturer).filter_by(clinic_id=clinic.id).count()
+
+
+def test_frame_brand_lookups_skip_rarely_typed_brands():
+    counts = Counter({"GIPSY": 10, "2 B.IN": 9, None: 40})
+    assert migration_steps.frame_brand_lookup_names(counts) == ["GIPSY"]
 
 
 def test_contact_order_migrates_type_aliases_price_rows_and_installments(tmp_path):

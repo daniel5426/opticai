@@ -1,7 +1,16 @@
 from services.company_record_ownership import validate_records
 from .common import *
+from collections import Counter
 from pathlib import Path
 from services import order_group_service  # Register legacy import/group compatibility hooks.
+
+
+# A typed brand becomes a lookup only once orders use it this often; the rest are typos and variants.
+FRAME_BRAND_MIN_ORDERS = 10
+
+
+def frame_brand_lookup_names(brand_counts: Counter) -> List[str]:
+    return sorted(brand for brand, count in brand_counts.items() if brand and count >= FRAME_BRAND_MIN_ORDERS)
 
 
 def migrate_lookups(db: Session, csv_dir: str, clinic_ids: List[int]):
@@ -43,6 +52,11 @@ def migrate_lookups(db: Session, csv_dir: str, clinic_ids: List[int]):
             }
         )
         lookup_names.append((model, names))
+    # OpticSoft has no frame brand table; the brand is typed into the order's frame_supplier column.
+    brand_counts = Counter(clean_legacy_text(r.get("frame_supplier")) for r in read_csv_streaming(csv_dir, "optic_glasses_presc.csv"))
+    brand_names = frame_brand_lookup_names(brand_counts)
+    print(f"[lookups] optic_glasses_presc.csv frame brands: {len(brand_names)}", flush=True)
+    lookup_names.append((LookupManufacturer, brand_names))
     # Active OpticSoft workers are the order advisors ("יועץ").
     advisor_names = sorted(set(_build_account_name_map(csv_dir, "WORK", active_only=True).values()))
     print(f"[lookups] account.csv WORK advisors: {len(advisor_names)}", flush=True)
