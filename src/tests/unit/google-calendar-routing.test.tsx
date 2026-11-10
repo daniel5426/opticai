@@ -1,0 +1,28 @@
+import React from 'react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import i18n from '@/localization/i18n';
+import { GoogleCalendarRouting } from '@/components/settings/GoogleCalendarRouting';
+const mocks=vi.hoisted(()=>({request:vi.fn()}));
+vi.mock('@/lib/api-client',()=>({apiClient:{googleCalendarRequest:mocks.request}}));
+const data={clinics:[{id:1,name:'Synthetic clinic'}],workers:[{id:2,name:'Synthetic examiner'}],routes:{},can_include_workers:true};
+beforeEach(()=>{vi.clearAllMocks();mocks.request.mockImplementation(async(action:string)=>action==='calendars'?[]:data);});
+afterEach(cleanup);
+for(const locale of ['he','en','fr']) it(`preserves primary/self-only defaults with opt-in worker settings in ${locale}`,async()=>{
+ await i18n.changeLanguage(locale);
+ const {container}=render(<GoogleCalendarRouting/>);
+ fireEvent.click(screen.getByRole('button',{name:i18n.t('googleCalendar.routing')}));
+ await screen.findByText('Synthetic examiner');
+ expect(container.firstChild).toHaveAttribute('dir',locale==='he'?'rtl':'ltr');
+ expect(screen.getByRole('checkbox',{name:i18n.t('googleCalendar.allWorkers')})).not.toBeChecked();
+ expect(screen.getByRole('checkbox',{name:'Synthetic examiner'})).not.toBeChecked();
+ fireEvent.click(screen.getByRole('button',{name:i18n.t('googleCalendar.saveRouting')}));
+ await waitFor(()=>expect(mocks.request).toHaveBeenCalledWith('routing',{clinic_id:1,calendar_id:'primary',all_workers:false,workers:[]},'PUT'));
+});
+it('hides owner subscription controls from workers',async()=>{
+ mocks.request.mockImplementation(async(action:string)=>action==='calendars'?[]:{...data,can_include_workers:false});
+ render(<GoogleCalendarRouting/>);
+ fireEvent.click(screen.getByRole('button',{name:i18n.t('googleCalendar.routing')}));
+ await screen.findByText(i18n.t('googleCalendar.primary'));
+ expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+});

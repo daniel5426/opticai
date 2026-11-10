@@ -1,3 +1,5 @@
+import googleCalendarTranslations from "./google-calendar.json";
+import contactLensDiametersTranslations from "./contact-lens-diameters.json";
 import layoutDurationTranslations from "./layout-duration.json";
 import scannerTranslations from "./scanner.json";
 import campaignTranslations from "./campaigns.json";
@@ -371,6 +373,7 @@ i18n.use(initReactI18next).init({
           'This will delete the "{{name}}" tab and all data saved in it.',
         clientDetails: "Personal details",
         medicalRecord: "Medical record",
+        editMedicalRecord: "Edit medical record",
         newMedicalRecord: "New record",
         age: "Age {{count}}",
         inventoryCreateProduct: "Add {{name}} as a new product",
@@ -791,6 +794,7 @@ i18n.use(initReactI18next).init({
           'פעולה זו תמחק את הלשונית "{{name}}" ואת כל הנתונים שנשמרו בה.',
         clientDetails: "פרטים אישיים",
         medicalRecord: "גליון רפואי",
+        editMedicalRecord: "עריכת רשומה רפואית",
         newMedicalRecord: "רשומה חדשה",
         age: "גיל {{count}}",
         inventoryCreateProduct: "הוסף את {{name}} כמוצר חדש",
@@ -1216,6 +1220,7 @@ i18n.use(initReactI18next).init({
           'Cette action supprimera l’onglet "{{name}}" et toutes les données qu’il contient.',
         clientDetails: "Informations personnelles",
         medicalRecord: "Dossier médical",
+        editMedicalRecord: "Modifier la note médicale",
         newMedicalRecord: "Nouvelle note",
         age: "Âge {{count}}",
         inventoryCreateProduct: "Ajouter {{name}} comme nouveau produit",
@@ -1408,4 +1413,12 @@ for (const [language, translations] of Object.entries(scannerTranslations)) {
 
 for (const [language, translations] of Object.entries(layoutDurationTranslations)) {
   i18n.addResourceBundle(language, "translation", { layoutDuration: translations }, true, true);
+}
+
+for (const [language, translations] of Object.entries(contactLensDiametersTranslations)) {
+  i18n.addResourceBundle(language, "translation", { contactLensDiameters: translations }, true, true);
+}
+
+for (const [language, translations] of Object.entries(googleCalendarTranslations)) {
+  i18n.addResourceBundle(language, "translation", { googleCalendar: translations }, true, true);
 }

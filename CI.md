@@ -552,3 +552,82 @@ The API and migrations still deploy first; web and migration-worker deployments
 then run concurrently, with each exit status checked. Dependency preparation,
 Web CI and Railway web installs omit non-gating npm audit/funding requests.
 The selected Windows/macOS candidates retain packaged/runtime/updater checks.
+
+## Staging web domain
+
+`https://dev.prysm.co.il` routes to Railway staging service `prysm-web-staging`.
+The existing Railway hostname remains an alias. Vercel DNS owns the `dev` CNAME
+and `_railway-verify.dev` TXT record returned by Railway; Railway issues HTTPS.
+Staging browser requests continue using `https://staging-api.prysm.co.il/api/v1`.
+Its CORS allowlist includes `https://dev.prysm.co.il` alongside existing origins.
+Production remains on `https://app.prysm.co.il` and `https://api.prysm.co.il`.
+Migration note: Not needed; this adds staging DNS/routing and an allowed origin.
+
+## Release v1.0.103
+
+Ships company-wide admin phone-scanner reception while retaining company and
+assigned-clinic authorization, plus the current exam/medical-record UI repairs
+and Hebrew/English/French diameter labels. Campaign activation remains unchanged.
+
+Migration note: Not needed; this release changes authorization validation and UI
+only, with no new persisted shape or public contract. Existing Alembic prerequisites
+remain owned by the API release gate.
+
+Speed review: the prior promotion spent 356 seconds deploying services. API-first
+migration ordering remains necessary; web and both workers already deploy in
+parallel afterward. Desktop candidates already build concurrently and publication
+reuses their verified artifacts. No additional workflow change is warranted for
+this patch; reuse these gates and avoid a duplicate local production build.
+
+## Google Calendar staging candidate
+
+Google approved project `opticai-465420` on November 9, 2026 for `calendar` and
+`calendar.events`. The Calendar candidate uses API-owned synchronization and an
+API-owned retry consumer, independent of Agents24. Apply additive Alembic
+`0064_google_calendar_sync` and `0065_google_calendar_key_routing` before the new API. Web and desktop use the same
+owner-scoped event mappings; retire renderer/IPC Calendar writers together with
+the new clients. Keep the public web callback `https://app.prysm.co.il/oauth/callback`
+registered; API credentials must include the desktop secret for legacy refresh.
+See [Google OAuth configuration](docs/references/google-oauth.md).
+
+Qualification: focused Calendar/OAuth/company/Trash/AI-isolation/auth tests,
+Calendar replica locking and migrations against disposable PostgreSQL, settings
+and callback tests in Hebrew/English/French, and synthetic live staging events.
+No real clinic appointments belong in the live test. No production promotion,
+production migration, release tag or desktop publication is authorized by this
+staging candidate.
+
+Migration note: `0064_google_calendar_sync` preserves encrypted tokens and legacy
+appointment event IDs, adds nullable expiry/client provenance and an RLS-enabled
+mapping/retry table. No historical export, duplicate cleanup or consent backfill.
+Revision `0065_google_calendar_key_routing` adds nullable encryption-key routing so
+local and hosted APIs sharing staging cannot consume each other’s credentials.
+The owner-authorized staging target has both revisions; production remains unchanged.
+
+Staging verification now waits for the independent API, worker and web builds in
+parallel and checks every exit status, removing serial polling delay while
+retaining exact-SHA checks. Appointment saves also no longer wait on provider I/O
+or fetch each patient's details from the browser during bulk export.
+
+The production promotion workflow prepares the API desktop refresh secret from
+its existing matching desktop-candidate GitHub secret, verifies the project/client
+identity, and uses stdin plus `--skip-deploys`. It does not run during staging
+qualification. Offline tests cover mismatch rejection, read-only audit, idempotent
+configuration and deployment suppression.
+
+## Calendar routing upgrade
+
+Apply Alembic `0066_calendar_routing` before the API/UI. Existing users remain
+self-only on primary; clinic destinations and owner worker subscriptions are
+explicit opt-ins. Destination moves and subscription removals use durable cleanup
+of prior mappings. Never roll back to the primary-only worker after routes exist.
+Focused qualification includes `test_calendar_routing.py`, Calendar/OAuth and
+replica tests, disposable PostgreSQL release migrations, locale settings/routing
+UI tests, and live synthetic staging calendars. Production remains unchanged.
+
+Migration note: Additive nullable user routing plus default-primary mapping fields;
+no token rewrite, automatic calendar creation, or historical backfill.
+
+Speed: manual reconciliation now selects only eligible appointments and existing
+live mappings in SQL, avoiding scans of unrelated company appointments and repeat
+cleanup of already-deleted mappings. Reuse the parallel staging verification gate.

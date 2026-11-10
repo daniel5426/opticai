@@ -128,3 +128,62 @@ def test_revoked_staff_session_stops_phone_delivery(scanner):
         db.commit()
     assert c.get('/scanner/phone/devices',headers=h).json()[0]['online'] is False
     assert c.post(f"/scanner/phone/devices/{d['id']}/start",json={},headers=h).status_code==409
+
+
+def test_company_wide_admin_session_can_receive_in_authorized_clinic(scanner):
+    c, f, ids = scanner
+    with f() as db:
+        user = db.get(User, ids['worker'])
+        user.role_level, user.clinic_id = 4, None
+        db.get(AuthSession, 'test-session').clinic_id = None
+        db.commit()
+    d, binding, headers, _ = setup(c, ids)
+    rows = c.get('/scanner/phone/devices', headers=headers).json()
+    assert rows[0]['online'] is True
+    response = c.post(f"/scanner/phone/devices/{d['id']}/scans", json={
+        'request_id': 'company-count', 'barcode': '0012345678905',
+        'lease': binding['lease'], 'context': binding['context'],
+    }, headers=headers)
+    assert response.status_code == 200, response.text
+
+
+def test_explicit_other_clinic_session_cannot_register_receiver(scanner):
+    c, f, ids = scanner
+    d = c.post('/scanner/devices', json={'name': 'Reception', 'clinic_id': ids['clinic']}).json()
+    with f() as db:
+        db.get(AuthSession, 'test-session').clinic_id = ids['clinic'] + 100
+        db.commit()
+    response = c.put(f"/scanner/devices/{d['id']}/receiver", json={
+        'secret': d['secret'], 'lease': 'lease', 'context': 'context',
+    })
+    assert response.status_code == 403
+
+
+def test_other_company_session_cannot_register_receiver(scanner):
+    c, f, ids = scanner
+    d = c.post('/scanner/devices', json={'name': 'Reception', 'clinic_id': ids['clinic']}).json()
+    with f() as db:
+        db.get(AuthSession, 'test-session').company_id = ids['company'] + 100
+        db.commit()
+    response = c.put(f"/scanner/devices/{d['id']}/receiver", json={
+        'secret': d['secret'], 'lease': 'lease', 'context': 'context',
+    })
+    assert response.status_code == 403
+
+
+def test_unscoped_session_still_enforces_workers_assigned_clinic(scanner):
+    from models import Clinic
+    from auth import token_hash
+    c, f, ids = scanner
+    with f() as db:
+        other = Clinic(company_id=ids['company'], name='Other', unique_id='scanner-other')
+        db.add(other)
+        db.flush()
+        db.add(ScannerDevice(id='other-clinic-device', company_id=ids['company'],
+                             clinic_id=other.id, name='Other', secret_hash=token_hash('known-secret')))
+        db.get(AuthSession, 'test-session').clinic_id = None
+        db.commit()
+    response = c.put('/scanner/devices/other-clinic-device/receiver', json={
+        'secret': 'known-secret', 'lease': 'lease', 'context': 'context',
+    })
+    assert response.status_code == 403

@@ -1,3 +1,4 @@
+import i18n from '@/localization/i18n';
 import { apiClient, AuthPayload, AuthResult, SetupRequiredPayload } from '@/lib/api-client'
 import { User, Company, Clinic } from '@/lib/db/schema-interface'
 import { ROLE_LEVELS, isRoleAtLeast } from '@/lib/role-levels'
@@ -132,9 +133,9 @@ class AuthService {
   }
 
   async signInWithGoogle(): Promise<void> {
-    const result = await window.electronAPI.googleOAuthAuthenticate()
+    const result = await window.electronAPI.googleOAuthAuthenticate(i18n.resolvedLanguage || i18n.language)
     if (result.success === false || !result.tokens?.access_token) {
-      throw new Error(result.error || 'Google authentication failed')
+      throw new Error(result.error && i18n.exists(result.error) ? String(i18n.t(result.error)) : String(i18n.t('authLogin.google.failed')))
     }
     const response = await apiClient.loginGoogle({
       access_token: result.tokens.access_token,
@@ -253,9 +254,9 @@ class AuthService {
     const clinic = this.session?.clinic || this.getStoredClinic()
     if (!clinic) throw new Error('Missing clinic session')
 
-    const result = await window.electronAPI.googleOAuthAuthenticate()
+    const result = await window.electronAPI.googleOAuthAuthenticate(i18n.resolvedLanguage || i18n.language)
     if (result.success === false || !result.tokens?.access_token) {
-      throw new Error(result.error || 'Google authentication failed')
+      throw new Error(result.error && i18n.exists(result.error) ? String(i18n.t(result.error)) : String(i18n.t('authLogin.google.failed')))
     }
     const response = await this.withClinicTrust(clinic, token => apiClient.loginGoogle({
       access_token: result.tokens.access_token,

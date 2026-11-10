@@ -1,3 +1,4 @@
+import { GoogleCalendarIntegration } from "./GoogleCalendarIntegration";
 import { BarcodeScannerPreferences } from "./BarcodeScannerPreferences";
 import React, { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ImageInput } from "@/components/ui/image-input"
-import { IconPlus, IconX, IconCalendar, IconBrandGoogle, IconAdjustmentsHorizontal } from "@tabler/icons-react"
+import { IconPlus, IconX, IconAdjustmentsHorizontal } from "@tabler/icons-react"
 import type { DateRange } from "react-day-picker"
 import { User } from "@/lib/db/schema-interface"
 import { Switch } from "@/components/ui/switch"
@@ -32,28 +33,16 @@ interface PersonalProfileTabProps {
   personalProfile: Partial<User>
   currentUser: User | null
   emailError: string | null
-  googleCalendarLoading: boolean
-  googleCalendarSyncing: boolean
   onProfileChange: (field: keyof User, value: any) => void
   onProfilePictureRemove: () => void
-  onConnectGoogle: () => void
-  onDisconnectGoogle: () => void
-  onSyncGoogleCalendar: () => void
-  onToggleGoogleAutoSync: (enabled: boolean) => void
 }
 
 export function PersonalProfileTab({
   personalProfile,
   currentUser,
   emailError,
-  googleCalendarLoading,
-  googleCalendarSyncing,
   onProfileChange,
   onProfilePictureRemove,
-  onConnectGoogle,
-  onDisconnectGoogle,
-  onSyncGoogleCalendar,
-  onToggleGoogleAutoSync
 }: PersonalProfileTabProps) {
   const { direction } = useAppLocale()
   const [openSystemVacation, setOpenSystemVacation] = useState(false)
@@ -450,35 +439,7 @@ export function PersonalProfileTab({
         </CardContent>
       </Card>
 
-      <Card className="">
-        <CardHeader dir={direction} className="text-start">
-          <CardTitle dir={direction} className="flex w-full items-center justify-start gap-2 text-start">
-            <IconCalendar className="h-5 w-5" />
-            <span>חיבור ל-Google Calendar</span>
-          </CardTitle>
-          <p className="w-full text-start text-sm text-muted-foreground">
-            סנכרן את התורים שלך עם Google Calendar
-          </p>
-        </CardHeader>
-        <CardContent>
-          {currentUser?.google_account_connected ? (
-            <GoogleCalendarConnected
-              email={currentUser.google_account_email || ''}
-              loading={googleCalendarLoading}
-              syncing={googleCalendarSyncing}
-              onDisconnect={onDisconnectGoogle}
-              onSync={onSyncGoogleCalendar}
-              autoSyncEnabled={!!currentUser.google_calendar_sync_enabled}
-              onToggleAutoSync={onToggleGoogleAutoSync}
-            />
-          ) : (
-            <GoogleCalendarDisconnected
-              loading={googleCalendarLoading}
-              onConnect={onConnectGoogle}
-            />
-          )}
-        </CardContent>
-      </Card>
+      <GoogleCalendarIntegration />
     </div>
   )
 }
@@ -568,133 +529,6 @@ function VacationSection({
             </Button>
           </span>
         ))}
-      </div>
-    </div>
-  )
-}
-
-interface GoogleCalendarConnectedProps {
-  email: string
-  loading: boolean
-  syncing: boolean
-  onDisconnect: () => void
-  onSync: () => void
-  autoSyncEnabled: boolean
-  onToggleAutoSync: (enabled: boolean) => void
-}
-
-function GoogleCalendarConnected({
-  email,
-  loading,
-  syncing,
-  onDisconnect,
-  onSync,
-  autoSyncEnabled,
-  onToggleAutoSync
-}: GoogleCalendarConnectedProps) {
-  const { direction } = useAppLocale()
-
-  return (
-    <div className="space-y-4" dir={direction}>
-      <div
-        className={cn(
-          "flex items-center justify-between rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950/20",
-          direction === "ltr" && "flex-row-reverse",
-        )}
-      >
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onDisconnect}
-              disabled={loading}
-              className="text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
-            >
-              {loading && (
-                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin ml-2" />
-              )}
-              נתק חשבון
-            </Button>
-            <div className="flex items-center gap-2">
-              <Switch checked={autoSyncEnabled} onCheckedChange={onToggleAutoSync} />
-              <span className="text-sm">סנכרון אוטומטי</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="text-start">
-          <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            <span className="font-medium">מחובר ל-Google Calendar</span>
-          </div>
-          <div className="text-sm text-green-600 dark:text-green-400 mt-1">
-            {email}
-          </div>
-        </div>
-      </div>
-
-      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950/20">
-        <h4 className="mb-2 text-start text-sm font-medium text-blue-800 dark:text-blue-200">מידע על הסנכרון</h4>
-        <ul className="space-y-1 text-start text-xs text-blue-700 dark:text-blue-300">
-          <li>• התורים מהעמוד הראשי יסונכרנו עם Google Calendar שלך</li>
-          <li>• שינויים בתורים יתעדכנו באופן אוטומטי ב-Google Calendar</li>
-          <li>• ניתן לסנכרן באופן ידני או לקבוע סנכרון אוטומטי</li>
-        </ul>
-      </div>
-    </div>
-  )
-}
-
-interface GoogleCalendarDisconnectedProps {
-  loading: boolean
-  onConnect: () => void
-}
-
-function GoogleCalendarDisconnected({
-  loading
-}: GoogleCalendarDisconnectedProps) {
-  const { direction } = useAppLocale()
-
-  return (
-    <div className="space-y-4" dir={direction}>
-      <div
-        className={cn(
-          "flex items-center justify-between rounded-lg border bg-gray-50 p-4 dark:bg-gray-800",
-          direction === "ltr" && "flex-row-reverse",
-        )}
-      >
-        <Button
-          disabled
-          className="flex items-center gap-2"
-          dir={direction}
-        >
-          {loading ? (
-            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-          ) : (
-            <IconBrandGoogle className="h-4 w-4" />
-          )}
-          {loading ? 'מתחבר...' : 'חבר חשבון Google (עם גישה ליומן)'}
-        </Button>
-
-        <div className="text-start">
-          <div className="font-medium text-gray-700 dark:text-gray-300">לא מחובר ל-Google Calendar</div>
-          <div className="text-sm text-muted-foreground mt-1">
-            חיבור Google Calendar יגיע בקרוב
-          </div>
-        </div>
-      </div>
-
-      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950/20">
-        <h4 className="mb-2 text-start text-sm font-medium text-blue-800 dark:text-blue-200">יתרונות החיבור ל-Google Calendar</h4>
-        <ul className="space-y-1 text-start text-xs text-blue-700 dark:text-blue-300">
-          <li>• סנכרון אוטומטי של כל התורים שלך</li>
-          <li>• גישה לתורים מכל מכשיר דרך Google Calendar</li>
-          <li>• התראות ותזכורות מ-Google על תורים קרובים</li>
-          <li>• אפשרות לשתף את לוח הזמנים עם חברי צוות</li>
-        </ul>
       </div>
     </div>
   )

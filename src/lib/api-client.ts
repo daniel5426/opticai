@@ -2447,6 +2447,14 @@ class ApiClient {
     return this.request(`/campaigns/${campaignId}/validate`);
   }
 
+  async googleCalendarRequest<T>(action: string, body?: unknown, method = 'POST'): Promise<T> {
+    const response = await this.request<T>(`/google/calendar/${action}`, body === undefined ? undefined : {
+      method, body: JSON.stringify(body),
+    });
+    if (response.error) throw new Error(response.error);
+    return response.data as T;
+  }
+
   // Google operations
   async googleOAuthAuthenticate() {
     return this.request('/google/oauth/authenticate', {
@@ -2468,40 +2476,7 @@ class ApiClient {
     });
   }
 
-  async googleCalendarCreateEvent(tokens: any, appointment: any, client?: any) {
-    return this.request('/google/calendar/create-event', {
-      method: 'POST',
-      body: JSON.stringify({ tokens, appointment, client }),
-    });
-  }
 
-  async googleCalendarUpdateEvent(tokens: any, eventId: string, appointment: any, client?: any) {
-    return this.request(`/google/calendar/update-event/${eventId}`, {
-      method: 'PUT',
-      body: JSON.stringify({ tokens, appointment, client }),
-    });
-  }
-
-  async googleCalendarDeleteEvent(tokens: any, eventId: string) {
-    return this.request(`/google/calendar/delete-event/${eventId}`, {
-      method: 'DELETE',
-      body: JSON.stringify({ tokens }),
-    });
-  }
-
-  async googleCalendarSyncAppointments(tokens: any, appointments: any[]) {
-    return this.request('/google/calendar/sync-appointments', {
-      method: 'POST',
-      body: JSON.stringify({ tokens, appointments }),
-    });
-  }
-
-  async googleCalendarGetEvents(tokens: any, startDate: string, endDate: string) {
-    return this.request('/google/calendar/get-events', {
-      method: 'POST',
-      body: JSON.stringify({ tokens, startDate, endDate }),
-    });
-  }
 
   // AI operations
   async aiChat(message: string, conversationHistory: any[], chatId?: number) {

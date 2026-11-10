@@ -46,6 +46,7 @@ def create_appointment(
         # apply_clinic_user_scope already validates and normalizes the clinic, client,
         # and assigned user. Re-running those checks here adds remote DB round trips.
         payload = apply_clinic_user_scope(db, current_user, appointment.dict())
+        payload.pop("google_calendar_event_id", None)  # Mapping is server-owned.
         
         print(f"Creating appointment with final data: {payload}")
         db_appointment = Appointment(**payload)
@@ -65,10 +66,11 @@ def create_appointment(
             client.client_updated_date = func.now()
             client.ai_appointment_state = None
 
+        reconcile_calendar_owner(db, db_appointment, current_user)
         db.commit()
         db.refresh(db_appointment)
         print(f"Successfully created appointment with ID: {db_appointment.id}")
-        reconcile_calendar_owner(db, db_appointment, current_user)
+        db_appointment.calendar_sync_owned = True
         return db_appointment
     except HTTPException:
         raise
@@ -285,6 +287,7 @@ def update_appointment(
     db_appointment = get_scoped_appointment(db, current_user, appointment_id)
     previous_owner_id, previous_event_id = db_appointment.user_id, db_appointment.google_calendar_event_id
     update_fields = appointment.dict(exclude_unset=True)
+    update_fields.pop("google_calendar_event_id", None)
     if update_fields:
         candidate = {
             "client_id": db_appointment.client_id,
@@ -306,6 +309,7 @@ def update_appointment(
     for field, value in update_fields.items():
         setattr(db_appointment, field, value)
     
+    reconcile_calendar_owner(db, db_appointment, current_user, previous_owner_id, previous_event_id)
     db.commit()
     # bump client_updated_date and clear ai_appointment_state to avoid stale AI
     try:
@@ -318,7 +322,7 @@ def update_appointment(
     except Exception:
         pass
     db.refresh(db_appointment)
-    reconcile_calendar_owner(db, db_appointment, current_user, previous_owner_id, previous_event_id)
+    db_appointment.calendar_sync_owned = True
     return db_appointment
 
 @router.delete("/{appointment_id}")
@@ -340,7 +344,8 @@ def update_appointment_google_event_id(
 ):
     appointment = get_scoped_appointment(db, current_user, appointment_id)
     
-    appointment.google_calendar_event_id = google_event_id
+    # Old clients may acknowledge a renderer-created event. Preserve the route
+    # shape, but never accept a client-selected ID for another owner's calendar.
     db.commit()
     # bump client_updated_date and clear ai_appointment_state to avoid stale AI
     try:

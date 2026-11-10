@@ -187,7 +187,7 @@ export function ExamLayoutTabs({
               />
             </button>}
             {actions ? (
-              <div className="flex flex-wrap items-center gap-2 pb-1.5">
+              <div data-canvas-toolbar className="flex flex-wrap items-center gap-2 pb-1.5">
                 {actions}
               </div>
             ) : null}

@@ -120,3 +120,13 @@ Supported browsers use their native install prompt after an explicit tap;
 iPhone shows Safari Share → Add to Home Screen instructions. The offer is
 hidden in standalone mode and can be reopened from the connection drawer.
 Dismissing it stores only a device-local preference; pairing tokens are unchanged.
+
+## Google Calendar consumer
+
+The API owns the Calendar retry consumer. It starts/stops with the app, uses the
+same database and needs no Agents24 connection or separate service. Apply Alembic
+`0064_google_calendar_sync` and `0065_google_calendar_key_routing` explicitly before running the updated API; startup
+never mutates schema. Provider writes are queued only by connected users' explicit
+sync or enabled appointment synchronization. Tokens and event mappings persist
+across restarts. See the [Google OAuth runbook](docs/references/google-oauth.md)
+for API credentials, status/reconnect handling and one-way export behavior.

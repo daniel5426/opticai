@@ -2241,10 +2241,6 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
                 item.id,
               )}
               isEditing={mode === "detail" ? detailProps!.isEditing : false}
-              needsMiddleSpacer={
-                hasSiblingWithMiddleRow &&
-                componentsDontHaveMiddleRow.includes(item.type)
-              }
             />
           </div>
         );

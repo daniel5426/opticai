@@ -290,8 +290,11 @@ def _move_to_trash(db: Session, current_user: User, entity_type: str, entity_id:
             release_order_allocations_for_delete(db, order=member, current_user=current_user, contact=False)
         elif member_type == "contact_lens_order":
             release_order_allocations_for_delete(db, order=member, current_user=current_user, contact=True)
-        elif member_type == "appointment" and member.google_calendar_event_id:
-            appointment_ids.append(member.id)
+        elif member_type == "appointment":
+            from services.google_calendar import enqueue
+            enqueue(db, member)
+            if member.google_calendar_event_id:
+                appointment_ids.append(member.id)
 
     if appointment_ids:
         _enqueue(db, item, "calendar_delete", {"appointment_ids": appointment_ids})
@@ -370,6 +373,8 @@ def _restore_item(db: Session, current_user: User, item_id: int) -> dict[str, An
         elif member.entity_type == "file":
             warnings.append({"code": "file_availability_check_pending", "file_id": row.id})
         elif member.entity_type == "appointment":
+            from services.google_calendar import enqueue
+            enqueue(db, row)
             appointment_ids.append(row.id)
 
     item.status = "restored"
@@ -467,89 +472,20 @@ def claim_next_job(db: Session, worker_id: str, *, allow_purge: bool = True) -> 
     return job
 
 
-def _calendar_headers(user: User) -> dict[str, str]:
-    token = decrypt_secret(user.google_access_token) if user.google_access_token else None
-    if not token or not user.google_account_connected or not user.google_calendar_sync_enabled:
-        raise RuntimeError("Calendar owner is disconnected")
-    return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-
-
 def _calendar_delete(db: Session, appointment_ids: list[int]) -> None:
+    from services.google_calendar import enqueue
     for appointment_id in appointment_ids:
-        appointment = _include_deleted(db.query(Appointment)).filter(Appointment.id == appointment_id).first()
-        if not appointment or appointment.deleted_at is None or not appointment.google_calendar_event_id or not appointment.user_id:
-            continue
-        owner = db.get(User, appointment.user_id)
-        if not owner:
-            continue
-        response = requests.delete(
-            f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{appointment.google_calendar_event_id}",
-            headers=_calendar_headers(owner),
-            params={"sendUpdates": "none"},
-            timeout=15,
-        )
-        if response.status_code not in {204, 404, 410}:
-            raise RuntimeError(f"Calendar deletion failed ({response.status_code})")
+        appointment = _include_deleted(db.query(Appointment)).filter_by(id=appointment_id).first()
+        if appointment and appointment.deleted_at:
+            enqueue(db, appointment)
 
 
 def _calendar_restore(db: Session, job: TrashJob, appointment_ids: list[int]) -> None:
+    from services.google_calendar import enqueue
     for appointment_id in appointment_ids:
-        appointment = db.query(Appointment).filter(Appointment.id == appointment_id).first()
-        if not appointment or not appointment.user_id or not appointment.date or not appointment.time:
-            continue
-        owner = db.get(User, appointment.user_id)
-        if not owner:
-            continue
-        recovery_event_id = f"707279736d{job.trash_item_id:x}{appointment.id:x}{job.generation:x}"
-        event_id = appointment.google_calendar_event_id or recovery_event_id
-        appointment_time = datetime.strptime(str(appointment.time)[:5], "%H:%M").time()
-        start = datetime.combine(appointment.date, appointment_time).replace(tzinfo=ZoneInfo("Asia/Jerusalem"))
-        end = start + timedelta(minutes=appointment.duration or 30)
-        payload = {
-            "id": event_id,
-            "summary": appointment.exam_name or "Eye examination",
-            "description": appointment.note or "",
-            "start": {"dateTime": start.isoformat(), "timeZone": "Asia/Jerusalem"},
-            "end": {"dateTime": end.isoformat(), "timeZone": "Asia/Jerusalem"},
-            "extendedProperties": {"private": {"prysmAppointmentId": str(appointment.id)}},
-        }
-        headers = _calendar_headers(owner)
-        existing = requests.get(
-            f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{event_id}",
-            headers=headers,
-            timeout=15,
-        )
-        if existing.status_code == 200:
-            response = requests.put(
-                f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{event_id}",
-                headers=headers,
-                params={"sendUpdates": "none"},
-                json=payload,
-                timeout=15,
-            )
-        elif existing.status_code in {404, 410}:
-            event_id = recovery_event_id
-            payload["id"] = event_id
-            response = requests.post(
-                "https://www.googleapis.com/calendar/v3/calendars/primary/events",
-                headers=headers,
-                params={"sendUpdates": "none"},
-                json=payload,
-                timeout=15,
-            )
-        else:
-            raise RuntimeError(f"Calendar lookup failed ({existing.status_code})")
-        if response.status_code == 409:
-            response = requests.put(
-                f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{event_id}",
-                headers=headers,
-                params={"sendUpdates": "none"},
-                json=payload,
-                timeout=15,
-            )
-        if response.status_code not in {200, 201}:
-            raise RuntimeError(f"Calendar restoration failed ({response.status_code})")
-        appointment.google_calendar_event_id = event_id
+        appointment = db.get(Appointment, appointment_id)
+        if appointment:
+            enqueue(db, appointment)
 
 
 def _file_check(db: Session, job: TrashJob, storage: FileStorageService, file_ids: list[int]) -> None:

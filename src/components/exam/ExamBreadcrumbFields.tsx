@@ -5,13 +5,6 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { UserSelect } from "@/components/ui/user-select";
 import type { DetailProps } from "@/components/exam/ExamCardRenderer";
 import { useAppLocale } from "@/localization/use-app-locale";
@@ -155,18 +148,6 @@ export function ExamBreadcrumbFields({ detailProps }: { detailProps: DetailProps
               autoDefaultToCurrentUser={isEditing}
               onValueChange={(userId) => setFormData((prev) => ({ ...prev, user_id: userId }))}
             />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-muted-foreground text-xs" id="exam-dominant-eye-label">{t("dominantEye")}</label>
-            <Select dir={direction} disabled={!isEditing} value={formData.dominant_eye || ""} onValueChange={(value) => handleSelectChange(value, "dominant_eye")}>
-              <SelectTrigger className="w-full" aria-labelledby="exam-dominant-eye-label">
-                <SelectValue placeholder={t("dominantEye")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="R">{t("rightEye")}</SelectItem>
-                <SelectItem value="L">{t("leftEye")}</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
         </PopoverContent>
       </Popover>

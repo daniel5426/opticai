@@ -1,3 +1,4 @@
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SaveStatus } from "@/components/SaveStatus";
 import { useLayoutWidth } from "@/hooks/exam/useLayoutWidth";
 import { useExamContentZoom } from "@/hooks/exam/useExamContentZoom";
@@ -1842,6 +1843,20 @@ export default function ExamDetailPage({
   // Header actions
   const headerActions = (
     <>
+      <Select
+        dir={direction}
+        disabled={!isEditing || isSaveInFlight}
+        value={formData.dominant_eye || ""}
+        onValueChange={(value) => detailPropsWithOverrides.handleSelectChange(value, "dominant_eye")}
+      >
+        <SelectTrigger className="w-auto min-w-24 shrink-0 gap-2 px-2" aria-label={t("dominantEye")} title={t("dominantEye")}>
+          <SelectValue placeholder={t("dominantEye")} />
+        </SelectTrigger>
+        <SelectContent dir={direction}>
+          <SelectItem value="R">{t("rightEye")}</SelectItem>
+          <SelectItem value="L">{t("leftEye")}</SelectItem>
+        </SelectContent>
+      </Select>
       {!isNewMode && (
         <>
           <ImportedSourceDataDialog recordType="exam" recordId={exam?.id} />

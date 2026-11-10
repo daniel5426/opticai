@@ -43,11 +43,12 @@ async def lifespan(_app: FastAPI):
     from services.scanner_service import scanner_services
     from workers.campaign_worker import campaign_services
     from workers.table_export_worker import table_export_services
+    from workers.google_calendar_worker import google_calendar_services
     from agent.local_startup import local_agent_services
     from agent.hosted_services import hosted_agent_services
     from agent.runtime import close_runtime_clients
     try:
-        async with scanner_services(), campaign_services(), table_export_services(), local_agent_services(), hosted_agent_services():
+        async with scanner_services(), campaign_services(), table_export_services(), google_calendar_services(), local_agent_services(), hosted_agent_services():
             seed_initial_data()
             yield
     finally:
@@ -108,6 +109,8 @@ app.include_router(admin.router, prefix=config.settings.API_V1_STR)
 
 app.include_router(auth.router, prefix=config.settings.API_V1_STR)
 app.include_router(google_oauth.router, prefix=config.settings.API_V1_STR)
+from EndPoints import google_calendar
+app.include_router(google_calendar.router, prefix=config.settings.API_V1_STR)
 app.include_router(companies.router, prefix=config.settings.API_V1_STR)
 app.include_router(clinics.router, prefix=config.settings.API_V1_STR)
 app.include_router(users.router, prefix=config.settings.API_V1_STR)

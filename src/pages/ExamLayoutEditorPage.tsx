@@ -910,7 +910,7 @@ export default function ExamLayoutEditorPage() {
         grandparentLink="/settings"
       />
       <div className="flex flex-1 flex-col p-4 pb-32 lg:p-6 lg:pb-40" dir="rtl">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div data-canvas-toolbar className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
               {isEditingName ? (

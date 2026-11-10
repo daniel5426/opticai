@@ -187,7 +187,7 @@ def test_merged_client_links_resolve_full_company_history(scope):
 
 def test_calendar_reconciliation_uses_assigned_owner_and_original_clinic(scope,monkeypatch):
     from auth import encrypt_secret
-    from services import appointment_calendar_owner as calendar
+    from services import google_calendar as calendar
     s=scope
     owner=User(company_id=s.a.company_id,clinic_id=s.a.id,username='examiner',role_level=2,
         google_account_connected=True,google_calendar_sync_enabled=True,google_access_token=encrypt_secret('assigned-owner-token'))
@@ -195,13 +195,15 @@ def test_calendar_reconciliation_uses_assigned_owner_and_original_clinic(scope,m
     appointment=Appointment(client_id=s.client.id,clinic_id=s.a.id,user_id=owner.id,date=date(2026,11,2),time='10:00',duration=30)
     s.db.add(appointment);s.db.commit()
     calls=[]
-    def send(url,**kwargs):
+    def send(method,url,**kwargs):
         calls.append((url,kwargs))
         return SimpleNamespace(status_code=200,json=lambda:{'id':'assigned-event'})
-    monkeypatch.setattr(calendar.requests,'put',send)
-    calendar.reconcile(s.db,appointment,s.user)
+    monkeypatch.setattr(calendar.requests,'request',send)
+    calendar.enqueue(s.db,appointment)
+    s.db.commit()
+    calendar.run_once(s.db)
     assert appointment.calendar_sync_owned
-    assert appointment.google_calendar_event_id=='assigned-event'
+    assert appointment.google_calendar_event_id==calendar.event_id(appointment.id,owner.id,0)
     assert calls[0][1]['headers']['Authorization']=='Bearer assigned-owner-token'
     assert calls[0][1]['json']['location']==s.a.name
 

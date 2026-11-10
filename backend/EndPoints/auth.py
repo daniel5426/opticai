@@ -192,7 +192,11 @@ def _issue_clinic_trust(db: Session, clinic: Clinic, device_id: str) -> dict[str
 def _store_google_tokens(user: User, access_token: str, refresh_token: Optional[str], email: str) -> None:
     user.google_account_connected = True
     user.google_account_email = email
+    from services.google_calendar import token_key_id
+    user.google_token_key_id = token_key_id()
     user.google_access_token = encrypt_secret(access_token)
+    user.google_token_expiry = None
+    user.google_oauth_client_type = None
     if refresh_token:
         user.google_refresh_token = encrypt_secret(refresh_token)
     user.auth_provider = "google"
@@ -603,6 +607,7 @@ async def google_tokens(current_user: User = Depends(get_current_user)):
     return {
         "connected": bool(current_user.google_account_connected),
         "email": current_user.google_account_email,
-        "access_token": decrypt_secret(current_user.google_access_token) if current_user.google_account_connected else None,
-        "refresh_token": decrypt_secret(current_user.google_refresh_token) if current_user.google_account_connected else None,
+        "access_token": None,
+        "refresh_token": None,
+        "managed_by": "api",
     }

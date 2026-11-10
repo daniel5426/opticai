@@ -1,0 +1,20 @@
+{
+  "he": {
+    "title": "קטרים",
+    "pupil_diameter": { "short": "ק. אישון", "full": "קוטר אישון" },
+    "corneal_diameter": { "short": "ק. קרנית", "full": "קוטר קרנית" },
+    "eyelid_aperture": { "short": "מ. עפעף", "full": "מפתח עפעף" }
+  },
+  "en": {
+    "title": "Diameters",
+    "pupil_diameter": { "short": "Pupil", "full": "Pupil diameter" },
+    "corneal_diameter": { "short": "Cornea", "full": "Corneal diameter" },
+    "eyelid_aperture": { "short": "Lid gap", "full": "Eyelid aperture" }
+  },
+  "fr": {
+    "title": "Diamètres",
+    "pupil_diameter": { "short": "Pupille", "full": "Diamètre pupillaire" },
+    "corneal_diameter": { "short": "Cornée", "full": "Diamètre cornéen" },
+    "eyelid_aperture": { "short": "O. palp.", "full": "Ouverture palpébrale" }
+  }
+}

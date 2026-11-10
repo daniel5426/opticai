@@ -2,7 +2,6 @@ import { useKeyboardSave } from "@/hooks/shared/useKeyboardSave";
 import { SaveStatus } from "@/components/SaveStatus";
 import { useSaveController } from "@/hooks/shared/useSaveController";
 import { ListPageHeader } from "@/components/list-page-header"
-import { RecordClinicLabel } from "@/components/RecordClinicLabel"
 import { ImportedSourceDataDialog } from "@/components/migration/ImportedSourceDataDialog";
 import React, { useState, ChangeEvent, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -296,7 +295,7 @@ export const ClientMedicalRecordTab = ({
         <div className="relative ms-6">
           <div className="space-y-8">
             {records.map((record, index) => (
-              <div key={record.id ?? `new-${index}`} className="relative">
+              <div key={record.id ?? `new-${index}`} className="group/record relative">
                 {index < records.length - 1 && (
                   <div className="bg-primary/30 absolute top-6 start-3 h-[calc(100%+2rem-6px)] w-0.5" />
                 )}
@@ -334,14 +333,14 @@ export const ClientMedicalRecordTab = ({
                       )}
                     </div>
 
-                    <RecordClinicLabel clinicId={record.clinic_id} />
-                    <div className="ms-1 flex gap-1">
+                    <div className={`ms-1 flex gap-1 ${record.isEditing ? "" : "pointer-events-none opacity-0 group-hover/record:pointer-events-auto group-hover/record:opacity-100 group-focus-within/record:pointer-events-auto group-focus-within/record:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100"}`}>
                       {!record.isEditing && <ImportedSourceDataDialog recordType="medical_log" recordId={record.id} />}
                       {statusRecordId === record.id && <SaveStatus state={saveController.state} onRetry={() => void saveRecord(record.id!)}/>}
                       {record.isEditing ? (
                         <Button
                           size="sm"
                           variant="ghost"
+                          aria-label={t("saveStatus.save")}
                           disabled={savingRecordIds.includes(record.id!)}
                           onClick={() =>
                             record.id !== undefined && saveRecord(record.id)
@@ -354,12 +353,13 @@ export const ClientMedicalRecordTab = ({
                         <Button
                           size="sm"
                           variant="ghost"
+                          aria-label={t("editMedicalRecord")}
                           onClick={() =>
                             record.id !== undefined && editRecord(record.id)
                           }
                           className="h-8 w-8 p-0"
                         >
-                          <PencilIcon className="h-4 w-4" />
+                          <PencilIcon className="size-3.5" />
                         </Button>
                       )}
                       <Button
@@ -370,7 +370,7 @@ export const ClientMedicalRecordTab = ({
                         aria-label={t("trashMoveConfirm")}
                         className="text-destructive hover:text-destructive h-8 w-8 p-0"
                       >
-                        <TrashIcon className="h-4 w-4" />
+                        <TrashIcon className="size-3.5" />
                       </Button>
                     </div>
                   </div>

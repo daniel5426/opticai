@@ -128,6 +128,14 @@ jobs:
           DEVDESK_RELEASE_BUILD: "1"
         run: node scripts/devdesk-release-inputs.mjs apply
 
+      - name: Prepare API desktop Calendar refresh credential
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PRODUCTION }}
+          CALENDAR_RELEASE_ENVIRONMENT: production
+          GOOGLE_DESKTOP_CLIENT_ID: ${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
+          GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
+        run: python3 scripts/prepare_calendar_production_env.py --apply
+
       - name: Deploy API, worker, and web in order
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PRODUCTION }}

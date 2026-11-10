@@ -1,6 +1,6 @@
 import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { useTranslation } from "react-i18next";
 import { ContactLensDiameters } from "@/lib/db/schema-interface";
 import { EXAM_FIELDS } from "./data/exam-field-definitions";
 
@@ -11,7 +11,6 @@ interface ContactLensDiametersTabProps {
     value: string,
   ) => void;
   isEditing: boolean;
-  needsMiddleSpacer?: boolean;
 }
 
 import { FastInput } from "./shared/OptimizedInputs";
@@ -20,8 +19,8 @@ export function ContactLensDiametersTab({
   contactLensDiametersData,
   onContactLensDiametersChange,
   isEditing,
-  needsMiddleSpacer = false,
 }: ContactLensDiametersTabProps) {
+  const { t } = useTranslation();
   const fields = [
     { key: "pupil_diameter" as const, ...EXAM_FIELDS.PUPIL_DIAMETER },
     { key: "corneal_diameter" as const, ...EXAM_FIELDS.CORNEAL_DIAMETER },
@@ -41,41 +40,29 @@ export function ContactLensDiametersTab({
       <CardContent className="px-4" style={{ scrollbarWidth: "none" }}>
         <div className="space-y-3">
           <div className="text-center">
-            <h3 className="text-muted-foreground font-medium">Diameters</h3>
+            <h3 className="text-muted-foreground font-medium">{t("contactLensDiameters.title")}</h3>
           </div>
 
-          <div className="grid grid-cols-[2fr_auto] items-center gap-2 gap-x-4">
-            {/* Header row */}
-            <div className="flex h-4 items-center justify-center">
-              <span className="text-muted-foreground text-xs font-medium">
-                Value (mm)
-              </span>
-            </div>
-            <div className="flex h-4 items-center justify-center"></div>
-
-            {fields.map((field, index) => (
+          <div className="grid grid-cols-[minmax(4.25rem,1fr)_auto] items-center gap-2">
+            {fields.map((field) => (
               <React.Fragment key={field.key}>
                 <FastInput
                   type="number"
+                  aria-label={t(`contactLensDiameters.${field.key}.full`)}
+                  suffix={field.unit}
                   step={field.step}
                   min={field.min}
                   max={field.max}
                   value={getFieldValue(field.key)}
                   onChange={(val) => handleChange(field.key, val)}
                   disabled={!isEditing}
-                  className={`h-8 pr-1 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                  className="h-8 text-xs disabled:cursor-default disabled:opacity-100"
                 />
                 <div className="flex items-center justify-end">
-                  <span className="text-muted-foreground text-xs font-medium">
-                    {field.label}
+                  <span className="text-muted-foreground whitespace-nowrap text-xs font-medium" title={t(`contactLensDiameters.${field.key}.full`)}>
+                    {t(`contactLensDiameters.${field.key}.short`)}
                   </span>
                 </div>
-                {needsMiddleSpacer && index === 0 && (
-                  <>
-                    <div className="h-8" />
-                    <div className="h-8" />
-                  </>
-                )}
               </React.Fragment>
             ))}
           </div>
