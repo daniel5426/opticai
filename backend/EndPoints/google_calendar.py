@@ -189,7 +189,7 @@ def list_calendars(user):
 def routing(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     clinics = routing_clinics(db, user)
     ids = {c.id for c in clinics}
-    workers = db.query(User).filter(User.company_id == user.company_id, User.is_active.is_(True)).order_by(User.id).all() if user.role_level >= 4 else []
+    workers = db.query(User).filter(User.company_id == user.company_id, User.is_active.is_(True), User.id != user.id).order_by(User.id).all() if user.role_level >= 4 else []
     return {'clinics': [{'id': c.id, 'name': c.name} for c in clinics],
         'workers': [{'id': w.id, 'name': w.full_name or w.username, 'clinic_id': w.clinic_id} for w in workers],
         'can_include_workers': user.role_level >= 4,

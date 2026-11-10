@@ -136,7 +136,7 @@ mapping fields. No routes are populated: existing users keep self-only export to
 Prysm calendar per clinic. Owners (role 4+) may additionally include all or selected
 company workers per clinic. Each recipient has one mapping per appointment, so
 including oneself does not duplicate one's own event. Worker copies continue
-independently. Destination/clinic changes queue removal of the previous mapped
+independently. Destination changes queue removal of the previous mapped
 event before creating its replacement; removing a subscription removes its copy.
 Missing or unwritable calendars fail visibly, without falling back to primary.
 
@@ -149,3 +149,7 @@ After opt-in routing is used, do not roll the API back to the primary-only worke
 Migration note: Apply additive `0066_calendar_routing` before the API and UI.
 Existing encrypted grants, primary event IDs, and self-only preferences remain
 unchanged. No historical bulk export or production activation is implied.
+
+Appointment clinic ownership remains immutable under the existing clinical-record
+contract. New bookings use their own clinic destination; this upgrade does not
+introduce reassignment of a clinical record to a different clinic.

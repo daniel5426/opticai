@@ -27,7 +27,7 @@ export function GoogleCalendarRouting() {
     try {
       let routing: Routing;
       if (action === 'load') routing = await apiClient.googleCalendarRequest<Routing>('routing');
-      else if (action === 'save') routing = await apiClient.googleCalendarRequest<Routing>('routing', { clinic_id: Number(clinic), calendar_id: draft.calendar_id || 'primary', all_workers: !!draft.all_workers, workers: draft.workers || [] }, 'PUT');
+      else if (action === 'save') routing = await apiClient.googleCalendarRequest<Routing>('routing', { clinic_id: Number(clinic), calendar_id: draft.calendar_id || 'primary', all_workers: !!draft.all_workers, workers: draft.all_workers ? [] : (draft.workers || []).filter(id => data?.workers.some(w => w.id === id)) }, 'PUT');
       else routing = await apiClient.googleCalendarRequest<Routing>('calendars', { clinic_id: Number(clinic) });
       setData(routing);
       const selected = clinic || String(routing.clinics[0]?.id || '');
