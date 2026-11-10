@@ -1,5 +1,6 @@
 """Calendar writes belong to the API, with durable, repeat-safe owner mappings."""
 import hashlib
+from urllib.parse import quote
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -84,7 +85,7 @@ def calendar_request(owner, method, url, **kwargs):
         token = refresh(owner)
     def send(access):
         return requests.request(method, url, headers={'Authorization': 'Bearer ' + access},
-            params={'sendUpdates': 'none'}, timeout=15, **kwargs)
+            params=kwargs.pop('params', {'sendUpdates': 'none'} if '/events' in url else {}), timeout=15, **kwargs)
     response = send(token)
     if response.status_code == 401:
         response = send(refresh(owner))
@@ -104,19 +105,43 @@ def event_id(appointment_id, owner_id, generation):
     return hashlib.sha256(f'prysm:{appointment_id}:{owner_id}:{generation}'.encode()).hexdigest()
 
 
-def enqueue(db, appointment, previous_owner_id=None, previous_event_id=None, *, force=False):
+def events_url(calendar_id='primary'):
+    return 'https://www.googleapis.com/calendar/v3/calendars/' + quote(calendar_id, safe='') + '/events'
+
+
+def route_for(owner, clinic_id):
+    return (owner.google_calendar_routes or {}).get(str(clinic_id), {})
+
+
+def eligible(owner, appointment):
+    if not owner.is_active or owner.company_id != appointment.company_id:
+        return False
+    if appointment.user_id == owner.id:
+        return True
+    route = route_for(owner, appointment.clinic_id)
+    return owner.role_level >= 4 and appointment.user_id is not None and (route.get('all_workers', False) or appointment.user_id in route.get('workers', []))
+
+
+def enqueue(db, appointment, previous_owner_id=None, previous_event_id=None, *, force=False, receiver_id=None):
     """Caller commits queue intent atomically with the appointment mutation."""
     db.flush()
     # Serialize the mapping lookup, including first creation, on its parent row.
     db.query(Appointment).filter_by(id=appointment.id).with_for_update().execution_options(include_deleted=True).first()
     owners = {value for value in (appointment.user_id, previous_owner_id) if value}
-    for owner_id in owners:
+    owners.update(r.user_id for r in db.query(GoogleCalendarSync).filter_by(appointment_id=appointment.id).all())
+    owners.update(u.id for u in db.query(User).filter_by(company_id=appointment.company_id, is_active=True).filter(User.role_level >= 4).all()
+                  if eligible(u, appointment) and u.google_account_connected)
+    if receiver_id is not None:
+        owners = {receiver_id}
+    for owner_id in sorted(owners):
         owner = db.get(User, owner_id)
         if not owner or owner.company_id != appointment.company_id:
             continue
         row = db.query(GoogleCalendarSync).filter_by(appointment_id=appointment.id, user_id=owner_id).with_for_update().first()
-        deleting = bool(appointment.deleted_at or owner_id != appointment.user_id)
-        if owner_id == previous_owner_id:
+        deleting = bool(appointment.deleted_at or not eligible(owner, appointment))
+        if owner_id != appointment.user_id and owner_id != previous_owner_id:
+            legacy_id = None
+        elif owner_id == previous_owner_id:
             legacy_id = previous_event_id
         elif previous_owner_id is not None or previous_event_id is not None:
             legacy_id = None  # An event ID belongs to its previous examiner/account.
@@ -126,10 +151,17 @@ def enqueue(db, appointment, previous_owner_id=None, previous_event_id=None, *, 
             if not legacy_id and (deleting or not owner.google_account_connected or not (force or owner.google_calendar_sync_enabled)):
                 continue
             row = GoogleCalendarSync(appointment_id=appointment.id, user_id=owner_id,
-                account_email=owner.google_account_email, event_id=legacy_id or event_id(appointment.id, owner_id, 0), generation=0)
+                account_email=owner.google_account_email, event_id=legacy_id or event_id(appointment.id, owner_id, 0), generation=0,
+                calendar_id='primary' if legacy_id else route_for(owner, appointment.clinic_id).get('calendar_id', 'primary'))
             db.add(row)
         if not deleting and not force and not owner.google_calendar_sync_enabled:
             continue
+        target = route_for(owner, appointment.clinic_id).get('calendar_id', 'primary')
+        if not deleting and (row.calendar_id or 'primary') != target:
+            row.retired_events = [*(row.retired_events or []), {'calendar_id': row.calendar_id or 'primary', 'event_id': row.event_id}]
+            row.generation += 1
+            row.event_id = event_id(appointment.id, owner_id, row.generation)
+            row.calendar_id = target
         if row.status == 'deleted' and not deleting:
             row.generation += 1
             row.event_id = event_id(appointment.id, owner_id, row.generation)
@@ -167,9 +199,15 @@ def process(db, row):
     if row.account_email and row.account_email != owner.google_account_email:
         # Never apply an old account's event IDs to a newly connected account.
         raise CalendarError('account_changed', retry=False)
-    deleting = row.action == 'delete' or appointment.deleted_at or appointment.user_id != owner.id
+    deleting = row.action == 'delete' or appointment.deleted_at or not eligible(owner, appointment)
+    for retired in row.retired_events or []:
+        old = calendar_request(owner, 'DELETE', events_url(retired['calendar_id']) + '/' + quote(retired['event_id'], safe=''))
+        if old.status_code not in (200, 204, 404, 410):
+            raise CalendarError('calendar_unavailable', retry=False)
+    row.retired_events = []
+    base = events_url(row.calendar_id or 'primary')
     if deleting:
-        response = calendar_request(owner, 'DELETE', f'{BASE}/{row.event_id}')
+        response = calendar_request(owner, 'DELETE', f'{base}/{quote(row.event_id, safe="")}')
         if response.status_code not in (200, 204, 404, 410):
             raise CalendarError('provider_rejected', retry=False)
         row.status = 'deleted'
@@ -179,19 +217,24 @@ def process(db, row):
         if not appointment.date or not appointment.time:
             raise CalendarError('invalid_appointment', retry=False)
         body = payload(db, appointment)
-        response = calendar_request(owner, 'PUT', f'{BASE}/{row.event_id}', json=body)
+        if appointment.user_id != owner.id:
+            examiner = db.get(User, appointment.user_id)
+            if examiner:
+                body['summary'] += ' — ' + (examiner.full_name or examiner.username)
+        response = calendar_request(owner, 'PUT', f'{base}/{quote(row.event_id, safe="")}', json=body)
         if response.status_code in (404, 410):
             # A deleted event ID cannot be reused. Only rotate after a confirmed
             # tombstone; uncertain inserts always retry the SAME deterministic ID.
             if response.status_code == 410:
                 row.generation += 1
                 row.event_id = event_id(appointment.id, owner.id, row.generation)
-            response = calendar_request(owner, 'POST', BASE, json={**body, 'id': row.event_id})
+            response = calendar_request(owner, 'POST', base, json={**body, 'id': row.event_id})
             if response.status_code == 409:
-                response = calendar_request(owner, 'PUT', f'{BASE}/{row.event_id}', json=body)
+                response = calendar_request(owner, 'PUT', f'{base}/{quote(row.event_id, safe="")}', json=body)
         if response.status_code not in (200, 201):
             raise CalendarError('provider_rejected', retry=False)
-        appointment.google_calendar_event_id = row.event_id
+        if appointment.user_id == owner.id:
+            appointment.google_calendar_event_id = row.event_id
         row.account_email = owner.google_account_email
         row.status = 'synced'
     row.synced_at, row.error_code = now(), None

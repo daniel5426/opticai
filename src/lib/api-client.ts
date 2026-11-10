@@ -2447,9 +2447,9 @@ class ApiClient {
     return this.request(`/campaigns/${campaignId}/validate`);
   }
 
-  async googleCalendarRequest<T>(action: string, body?: unknown): Promise<T> {
+  async googleCalendarRequest<T>(action: string, body?: unknown, method = 'POST'): Promise<T> {
     const response = await this.request<T>(`/google/calendar/${action}`, body === undefined ? undefined : {
-      method: 'POST', body: JSON.stringify(body),
+      method, body: JSON.stringify(body),
     });
     if (response.error) throw new Error(response.error);
     return response.data as T;

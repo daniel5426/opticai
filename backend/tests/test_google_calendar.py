@@ -54,7 +54,7 @@ def appointment(s, **kwargs):
 def queued(s, **kwargs):
     appt = appointment(s, **kwargs)
     calendar.enqueue(s.db, appt); s.db.commit()
-    return appt, s.db.query(GoogleCalendarSync).filter_by(appointment_id=appt.id).one()
+    return appt, s.db.query(GoogleCalendarSync).filter_by(appointment_id=appt.id, user_id=s.user.id).one()
 
 
 def test_own_appointment_api_commits_queue_without_provider_calls(setup):
@@ -295,7 +295,7 @@ def test_clients_cannot_select_or_overwrite_server_calendar_event_ids(setup):
         'date':str(date.today()+timedelta(days=1)),'time':'10:00','google_calendar_event_id':'foreign-selected-id'})
     assert result.status_code==200,result.text
     appt=s.db.get(Appointment,result.json()['id'])
-    job=s.db.query(GoogleCalendarSync).filter_by(appointment_id=appt.id).one()
+    job=s.db.query(GoogleCalendarSync).filter_by(appointment_id=appt.id, user_id=s.user.id).one()
     assert job.event_id != 'foreign-selected-id'
     calendar.run_once(s.db)
     original=appt.google_calendar_event_id

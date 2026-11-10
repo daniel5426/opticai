@@ -614,3 +614,20 @@ its existing matching desktop-candidate GitHub secret, verifies the project/clie
 identity, and uses stdin plus `--skip-deploys`. It does not run during staging
 qualification. Offline tests cover mismatch rejection, read-only audit, idempotent
 configuration and deployment suppression.
+
+## Calendar routing upgrade
+
+Apply Alembic `0066_calendar_routing` before the API/UI. Existing users remain
+self-only on primary; clinic destinations and owner worker subscriptions are
+explicit opt-ins. Destination moves and subscription removals use durable cleanup
+of prior mappings. Never roll back to the primary-only worker after routes exist.
+Focused qualification includes `test_calendar_routing.py`, Calendar/OAuth and
+replica tests, disposable PostgreSQL release migrations, locale settings/routing
+UI tests, and live synthetic staging calendars. Production remains unchanged.
+
+Migration note: Additive nullable user routing plus default-primary mapping fields;
+no token rewrite, automatic calendar creation, or historical backfill.
+
+Speed: manual reconciliation now selects only eligible appointments and existing
+live mappings in SQL, avoiding scans of unrelated company appointments and repeat
+cleanup of already-deleted mappings. Reuse the parallel staging verification gate.

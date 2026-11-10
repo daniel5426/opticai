@@ -1,3 +1,4 @@
+import { GoogleCalendarRouting } from './GoogleCalendarRouting';
 import React from 'react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -103,6 +104,7 @@ export function GoogleCalendarIntegration() {
           {status.failed > 0 && <p className="text-destructive">{t('googleCalendar.failedCount', { count: status.failed })}</p>}
         </div>
       </>}
+      {status?.connected && <GoogleCalendarRouting />}
       {error && <p role="alert" className="text-sm text-destructive">{t(error)}</p>}
       <p className="text-sm text-muted-foreground">{t('googleCalendar.dataHint')}</p>
       <p className="text-sm text-muted-foreground">{t('googleCalendar.disconnectHint')}</p>

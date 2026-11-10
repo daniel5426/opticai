@@ -127,3 +127,25 @@ Railway project and existing API desktop client ID, supplies the secret on stdin
 uses `--skip-deploys`, and verifies the value before the ordered API deployment.
 It runs only inside an explicitly requested production promotion. Staging
 qualification never executes this preparation or changes production variables.
+
+## Per-clinic destinations and owner overview
+
+Migration `0066_calendar_routing` adds nullable user routes and destination/retired
+mapping fields. No routes are populated: existing users keep self-only export to
+`primary`. In Calendar settings, choose an existing writable calendar or create a
+Prysm calendar per clinic. Owners (role 4+) may additionally include all or selected
+company workers per clinic. Each recipient has one mapping per appointment, so
+including oneself does not duplicate one's own event. Worker copies continue
+independently. Destination/clinic changes queue removal of the previous mapped
+event before creating its replacement; removing a subscription removes its copy.
+Missing or unwritable calendars fail visibly, without falling back to primary.
+
+Calendar creation records uncertainty before contacting Google. After a timeout,
+refresh the available-calendar list and select the created calendar; do not blindly
+retry creation. Selecting/saving a destination reconciles upcoming appointments
+and existing mapped events. A Google account change resets its calendar routes.
+After opt-in routing is used, do not roll the API back to the primary-only worker.
+
+Migration note: Apply additive `0066_calendar_routing` before the API and UI.
+Existing encrypted grants, primary event IDs, and self-only preferences remain
+unchanged. No historical bulk export or production activation is implied.

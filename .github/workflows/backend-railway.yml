@@ -87,6 +87,7 @@ jobs:
           backend/tests/test_table_exports.py
           backend/tests/test_google_oauth.py
           backend/tests/test_google_calendar.py
+          backend/tests/test_calendar_routing.py
           backend/tests/test_backend_owned_auth.py
           backend/tests/test_web_email_verification.py
           backend/tests/test_optitech_phase2.py

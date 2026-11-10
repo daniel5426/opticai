@@ -1,7 +1,7 @@
 {
   "en": {
     "title": "Google Calendar",
-    "description": "Export upcoming appointments to your primary Google calendar. Changes in Google do not update Prysm.",
+    "description": "Export appointments to Google Calendar. Google edits do not update Prysm.",
     "loading": "Loading connection…",
     "connected": "Connected to Google Calendar",
     "disconnected": "Google Calendar is disconnected",
@@ -20,11 +20,23 @@
     "permission": "Grant Calendar access to connect this Google account.",
     "dataHint": "Calendar events include the patient’s name, exam, appointment notes and clinic. No patient invitations are sent.",
     "disconnectHint": "Disconnecting stops synchronization and keeps existing Google events. Changing accounts leaves old events in the previous account.",
-    "updateRequired": "Update Prysm to manage Google Calendar from Settings."
+    "updateRequired": "Update Prysm to manage Google Calendar from Settings.",
+    "routing": "Clinic calendars & worker overview",
+    "routingHint": "Default: only your assigned appointments in your primary calendar. Choose a destination per clinic; owners can also include selected workers. Saving reconciles upcoming appointments and existing mapped events.",
+    "clinic": "Clinic",
+    "destination": "Google calendar",
+    "primary": "Primary calendar",
+    "createCalendar": "Create a Prysm calendar for this clinic",
+    "ownerOverview": "Include workers in my calendar",
+    "allWorkers": "All workers in this clinic",
+    "saveRouting": "Save calendar routing",
+    "calendarUnavailable": "This calendar is unavailable or not writable. Select another calendar.",
+    "routeDenied": "You cannot configure these clinics or workers.",
+    "creationUncertain": "Calendar creation could not be confirmed. Refresh the calendar list and select the created calendar if present. Do not create it again."
   },
   "he": {
     "title": "Google Calendar",
-    "description": "ייצוא תורים עתידיים ליומן Google הראשי שלך. שינויים ב-Google אינם מעדכנים את Prysm.",
+    "description": "ייצוא תורים ל-Google Calendar. שינויים ב-Google אינם מעדכנים את Prysm.",
     "loading": "טוען את החיבור…",
     "connected": "מחובר ל-Google Calendar",
     "disconnected": "Google Calendar אינו מחובר",
@@ -43,11 +55,23 @@
     "permission": "יש לאשר גישה ליומן כדי לחבר את חשבון Google.",
     "dataHint": "האירועים ביומן כוללים שם מטופל, בדיקה, הערות התור והמרפאה. לא נשלחות הזמנות למטופלים.",
     "disconnectHint": "ניתוק מפסיק את הסנכרון ומשאיר אירועים קיימים ב-Google. החלפת חשבון משאירה את האירועים הישנים בחשבון הקודם.",
-    "updateRequired": "יש לעדכן את Prysm כדי לנהל את Google Calendar דרך ההגדרות."
+    "updateRequired": "יש לעדכן את Prysm כדי לנהל את Google Calendar דרך ההגדרות.",
+    "routing": "יומני מרפאות ותצוגת עובדים",
+    "routingHint": "ברירת המחדל: רק התורים המשויכים אליך ביומן הראשי. ניתן לבחור יומן לכל מרפאה, ולבעלים גם לכלול עובדים נבחרים. השמירה תעדכן תורים עתידיים ואירועים מסונכרנים קיימים.",
+    "clinic": "מרפאה",
+    "destination": "יומן Google",
+    "primary": "היומן הראשי",
+    "createCalendar": "יצירת יומן Prysm למרפאה זו",
+    "ownerOverview": "הכללת עובדים ביומן שלי",
+    "allWorkers": "כל העובדים במרפאה זו",
+    "saveRouting": "שמירת ניתוב היומנים",
+    "calendarUnavailable": "היומן אינו זמין או שאין הרשאת כתיבה. יש לבחור יומן אחר.",
+    "routeDenied": "אין הרשאה להגדיר מרפאות או עובדים אלה.",
+    "creationUncertain": "לא ניתן לאשר את יצירת היומן. יש לרענן את רשימת היומנים ולבחור ביומן שנוצר, אם קיים. אין ליצור אותו שוב."
   },
   "fr": {
     "title": "Google Agenda",
-    "description": "Exportez les prochains rendez-vous vers votre agenda Google principal. Les modifications dans Google ne mettent pas Prysm à jour.",
+    "description": "Exportez les rendez-vous vers Google Agenda. Les modifications Google ne mettent pas Prysm à jour.",
     "loading": "Chargement de la connexion…",
     "connected": "Connecté à Google Agenda",
     "disconnected": "Google Agenda est déconnecté",
@@ -66,6 +90,18 @@
     "permission": "Autorisez l’accès à Agenda pour connecter ce compte Google.",
     "dataHint": "Les événements comprennent le nom du patient, l’examen, les notes du rendez-vous et le cabinet. Aucune invitation n’est envoyée aux patients.",
     "disconnectHint": "La déconnexion arrête la synchronisation et conserve les événements Google. Un changement de compte laisse les anciens événements dans le compte précédent.",
-    "updateRequired": "Mettez Prysm à jour pour gérer Google Agenda dans les paramètres."
+    "updateRequired": "Mettez Prysm à jour pour gérer Google Agenda dans les paramètres.",
+    "routing": "Agendas des cabinets et vue des employés",
+    "routingHint": "Par défaut : uniquement vos rendez-vous dans votre agenda principal. Choisissez un agenda par cabinet ; les propriétaires peuvent inclure des employés. L’enregistrement actualise les prochains rendez-vous et les événements déjà liés.",
+    "clinic": "Cabinet",
+    "destination": "Agenda Google",
+    "primary": "Agenda principal",
+    "createCalendar": "Créer un agenda Prysm pour ce cabinet",
+    "ownerOverview": "Inclure les employés dans mon agenda",
+    "allWorkers": "Tous les employés de ce cabinet",
+    "saveRouting": "Enregistrer le routage",
+    "calendarUnavailable": "Cet agenda est indisponible ou non modifiable. Choisissez un autre agenda.",
+    "routeDenied": "Vous ne pouvez pas configurer ces cabinets ou employés.",
+    "creationUncertain": "La création de l’agenda n’a pas pu être confirmée. Actualisez la liste et sélectionnez l’agenda créé s’il existe. Ne le créez pas à nouveau."
   }
 }
