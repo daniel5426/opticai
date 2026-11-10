@@ -40,6 +40,12 @@ describe.each(['he', 'en', 'fr'])('%s add order menu', locale => {
     expect(fixture.navigate).toHaveBeenCalledWith({ to: '/clients/$clientId/orders/new', params: { clientId: '7' }, search: kind === 'contact' ? { type: 'contact' } : {} });
     await waitFor(() => expect(screen.queryByRole('menuitem')).toBeNull());
   });
+  it.each(['regular', 'contact'] as const)('the %s empty order option creates an order with no import', async kind => {
+    mount(7);
+    await openKind(kind);
+    fireEvent.click(screen.getByRole('menuitem', { name: i18n.t('orderGroupEmptyOrder') }));
+    expect(fixture.navigate).toHaveBeenCalledWith({ to: '/clients/$clientId/orders/new', params: { clientId: '7' }, search: kind === 'contact' ? { type: 'contact' } : {} });
+  });
   it.each([
     ['regular', 'order', 11], ['contact', 'order', 22], ['regular', 'exam', 33], ['contact', 'exam', 33],
   ] as const)('imports the correct %s %s source', async (kind, source, id) => {

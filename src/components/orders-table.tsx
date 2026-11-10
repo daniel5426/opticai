@@ -767,7 +767,7 @@ export function OrdersTable({
                         </Button>
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuItem onClick={() => handleCreateOrder("regular")}>משקפיים</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleCreateOrder("regular")}>הזמנה ריקה</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
 
@@ -840,7 +840,7 @@ export function OrdersTable({
                         </Button>
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuItem onClick={() => handleCreateOrder("contact")}>עדשות מגע</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleCreateOrder("contact")}>הזמנה ריקה</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </>
