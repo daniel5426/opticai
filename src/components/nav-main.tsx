@@ -13,6 +13,10 @@ import { GuardedRouterLink } from "@/components/GuardedRouterLink";
 import { type SidebarQuickAction } from "@/components/sidebar-quick-actions";
 import { useTranslation } from "react-i18next";
 
+// A client's pages (e.g. an order) live under /clients; the sidebar keeps the section they were opened from.
+let sectionBeforeClientPage: string | null = null;
+const isClientPage = (path: string) => /^\/clients\/(?!new$)[^/]+/.test(path);
+
 export function NavMain({
   items,
   showAddClientButton = true,
@@ -48,6 +52,18 @@ export function NavMain({
     );
   };
 
+  const currentPath = normalizePath(location.pathname);
+  const onClientPage = isClientPage(currentPath);
+  React.useEffect(() => {
+    if (onClientPage) return;
+    const section = items.find((item) => isRouteActive(item.url));
+    if (section) sectionBeforeClientPage = normalizePath(section.url);
+  }, [currentPath, onClientPage, items]);
+  const isItemActive = (url: string) =>
+    onClientPage && sectionBeforeClientPage && sectionBeforeClientPage !== "/clients"
+      ? normalizePath(url) === sectionBeforeClientPage
+      : isRouteActive(url);
+
   return (
     <SidebarGroup>
       <SidebarGroupContent className="flex flex-col gap-2">
@@ -69,7 +85,7 @@ export function NavMain({
         </SidebarMenu>
         <SidebarMenu>
           {items.map((item) => {
-            const isActive = isRouteActive(item.url);
+            const isActive = isItemActive(item.url);
             return (
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton
