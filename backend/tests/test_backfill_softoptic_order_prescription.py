@@ -44,7 +44,7 @@ def test_reads_imported_prescriptions_like_opticsoft_and_keeps_edits():
     db.add(MigrationSourceLink(
         source_system="softoptic", source_primary_key_parts=[], clinic_id=clinic.id, company_id=company.id,
         migration_job_id="job", source_table="optic_glasses_presc.csv", raw_row_ref="o", target_model="Order", target_id=order.id,
-        raw_payload={"right_sph": "Balan", "right_cyl": "+225 ", "right_base": "Down", "left_cyl": "+225 ", "left_base": "ESO", "right_diam": "3444"},
+        raw_payload={"right_sph": "Balan", "right_cyl": "+225 ", "right_base": "Down", "left_cyl": "+225 ", "left_base": "ESO", "right_diam": "3444", "pd_near": "61.00"},
     ))
     db.commit()
 
@@ -55,7 +55,7 @@ def test_reads_imported_prescriptions_like_opticsoft_and_keeps_edits():
 
     data = db.get(Order, order.id).order_data
     assert data["final-prescription"] == {
-        "r_sph": "Balance", "r_cyl": 22.5, "r_base": "DOWN", "l_cyl": -1.0, "l_base": "ESO", "r_diam": "34/44",
+        "r_sph": "Balance", "r_cyl": 22.5, "r_base": "DOWN", "l_cyl": -1.0, "l_base": "ESO", "r_diam": "34/44", "comb_pd_close": 61.0,
     }
     assert data["lens"]["right_diameter"] == "34/44"
     assert data["lens_frame_tabs"][0]["lens"]["right_diameter"] == "34/44"

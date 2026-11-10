@@ -2,7 +2,8 @@
 
 Older imports lost a "Balan" (Balance) SPH, read "+225 " as 2.25 instead of 22.50, kept OpticSoft's
 prism base as typed ("Down", "in") where Prysm's base field lists IN/OUT/UP/DOWN, and read a lens
-diameter "3444" (34/44) as a number without putting it on the lens. A value is changed only while
+diameter "3444" (34/44) as a number without putting it on the lens. They also dropped the near PD
+(pd_near), which most of these orders carry. A value is changed only while
 it still equals what the older import stored, so anything edited since the import is left alone.
 
 Dry run by default; pass --apply to write.
@@ -56,6 +57,15 @@ def _fix_prescription(block: Any, raw: Dict[str, Any], counts: Counter) -> bool:
     return changed
 
 
+def _add_near_pd(block: Any, raw: Dict[str, Any], counts: Counter) -> bool:
+    near_pd = parse_float(raw.get("pd_near"))
+    if not isinstance(block, dict) or near_pd is None or block.get("comb_pd_close") is not None:
+        return False
+    block["comb_pd_close"] = near_pd
+    counts["near pd added"] += 1
+    return True
+
+
 def _fix_lens(lens: Any, raw: Dict[str, Any], counts: Counter) -> bool:
     """Older imports put no diameter on the lens."""
     if not isinstance(lens, dict):
@@ -92,6 +102,7 @@ def plan(db, job: SoftOpticMigrationJob) -> Tuple[List[tuple], Counter]:
             raw = raw_by_order[order.id] or {}
             data = copy.deepcopy(order.order_data or {})
             changed = _fix_prescription(data.get("final-prescription"), raw, counts)
+            changed = _add_near_pd(data.get("final-prescription"), raw, counts) or changed
             changed = _fix_lens(data.get("lens"), raw, counts) or changed
             for tab in data.get("lens_frame_tabs") or []:
                 if isinstance(tab, dict):

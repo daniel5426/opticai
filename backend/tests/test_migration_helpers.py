@@ -997,6 +997,7 @@ def test_regular_order_resolves_opticsoft_fulfillment_codes(tmp_path):
                 # OpticSoft's sample order: R Plano +22.50 x3 ESO, L +35.75 -50.25 x4 Down, DIAM 34/44 and 45/55.
                 "right_sph": "Plano", "right_cyl": "+225 ", "right_base": "ESO", "right_diam": "3444",
                 "left_sph": "+3575", "left_cyl": "-5025", "left_base": "Down", "left_diam": "4555",
+                "pd_far": "64.00", "pd_near": "61.00",
             }
         ],
     )
@@ -1039,6 +1040,7 @@ def test_regular_order_resolves_opticsoft_fulfillment_codes(tmp_path):
         prescription = order_data["final-prescription"]
         assert (prescription["r_sph"], prescription["r_cyl"], prescription["r_base"]) == (0.0, 22.5, "ESO")
         assert (prescription["l_sph"], prescription["l_cyl"], prescription["l_base"]) == (35.75, -50.25, "DOWN")
+        assert (prescription["comb_pd"], prescription["comb_pd_close"]) == (64.0, 61.0)
         tab = order_data["lens_frame_tabs"][0]
         assert (tab["lens"]["right_diameter"], tab["lens"]["left_diameter"]) == ("34/44", "45/55")
         assert tab["lens"]["warranty_expiration"] == "2026-07-30"

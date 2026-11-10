@@ -1222,6 +1222,7 @@ def migrate_regular_orders(
             "l_diam": parse_softoptic_lens_diameter(r.get("left_diam")),
             "comb_va": parse_visual_acuity(r.get("mid_va")),
             "comb_pd": parse_float(r.get("pd_far")),
+            "comb_pd_close": parse_float(r.get("pd_near")),
             "comb_high": None,
         }
 
