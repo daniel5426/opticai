@@ -130,6 +130,7 @@ const componentsWithMiddleRow: CardItem["type"][] = [
   "anamnesis",
   "over-refraction",
   "old-contact-lenses",
+  "new-contact-lenses",
   "contact-lens-exam",
   "maddox-wing",
 ];
@@ -179,6 +180,7 @@ const componentsWithEyeRowCopy: CardItem["type"][] = [
   "keratometer-contact-lens",
   "contact-lens-exam",
   "old-contact-lenses",
+  "new-contact-lenses",
   "over-refraction",
 ];
 
@@ -237,6 +239,7 @@ export interface CardItem {
     | "ocular-motor-assessment"
     | "npc"
     | "old-contact-lenses"
+    | "new-contact-lenses"
     | "over-refraction";
   showEyeLabels?: boolean;
   title?: string;
@@ -404,6 +407,7 @@ const getExamFormData = (
     case "npc":
       return { layout_instance_id: 0 } as NPCExam;
     case "old-contact-lenses":
+    case "new-contact-lenses":
       return { layout_instance_id: 0 } as OldContactLenses;
     case "over-refraction":
       return { layout_instance_id: 0 } as OverRefraction;
@@ -601,6 +605,7 @@ export const getColumnCount = (
     case "contact-lens-exam":
       return 11;
     case "old-contact-lenses":
+    case "new-contact-lenses":
       return 13;
     case "over-refraction":
       return 9;
@@ -1248,6 +1253,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
         case "npc":
           return emptyNPCData;
         case "old-contact-lenses":
+        case "new-contact-lenses":
           return emptyOldContactLensesData;
         case "over-refraction":
           return emptyOverRefractionData;
@@ -2485,6 +2491,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
         );
 
       case "old-contact-lenses":
+      case "new-contact-lenses":
         return (
           <div
             className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
@@ -2492,11 +2499,12 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
             {toolbox}
             <OldContactLensesTab
               data={
-                getExamData("old-contact-lenses", item.id) as OldContactLenses
+                getExamData(item.type, item.id) as OldContactLenses
               }
-              onChange={getChangeHandler("old-contact-lenses", item.id)}
+              onChange={getChangeHandler(item.type, item.id)}
               isEditing={mode === "detail" ? detailProps!.isEditing : false}
               hideEyeLabels={finalHideEyeLabels}
+              title={item.type === "new-contact-lenses" ? "New Contact Lenses" : undefined}
             />
           </div>
         );

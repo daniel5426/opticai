@@ -5420,6 +5420,10 @@ export const legacyStaticCopy = {
     "en": "Old contact lenses",
     "fr": "Vieilles lentilles de contact"
   },
+  "עדשות מגע חדשות": {
+    "en": "New contact lenses",
+    "fr": "Nouvelles lentilles de contact"
+  },
   "עובד": {
     "en": "works",
     "fr": "œuvres"
