@@ -19,7 +19,8 @@
     "connectionFailed": "Google connection was cancelled or failed. Try again.",
     "permission": "Grant Calendar access to connect this Google account.",
     "dataHint": "Calendar events include the patient’s name, exam, appointment notes and clinic. No patient invitations are sent.",
-    "disconnectHint": "Disconnecting stops synchronization and keeps existing Google events. Changing accounts leaves old events in the previous account."
+    "disconnectHint": "Disconnecting stops synchronization and keeps existing Google events. Changing accounts leaves old events in the previous account.",
+    "updateRequired": "Update Prysm to manage Google Calendar from Settings."
   },
   "he": {
     "title": "Google Calendar",
@@ -41,7 +42,8 @@
     "connectionFailed": "החיבור ל-Google בוטל או נכשל. יש לנסות שוב.",
     "permission": "יש לאשר גישה ליומן כדי לחבר את חשבון Google.",
     "dataHint": "האירועים ביומן כוללים שם מטופל, בדיקה, הערות התור והמרפאה. לא נשלחות הזמנות למטופלים.",
-    "disconnectHint": "ניתוק מפסיק את הסנכרון ומשאיר אירועים קיימים ב-Google. החלפת חשבון משאירה את האירועים הישנים בחשבון הקודם."
+    "disconnectHint": "ניתוק מפסיק את הסנכרון ומשאיר אירועים קיימים ב-Google. החלפת חשבון משאירה את האירועים הישנים בחשבון הקודם.",
+    "updateRequired": "יש לעדכן את Prysm כדי לנהל את Google Calendar דרך ההגדרות."
   },
   "fr": {
     "title": "Google Agenda",
@@ -63,6 +65,7 @@
     "connectionFailed": "La connexion Google a été annulée ou a échoué. Réessayez.",
     "permission": "Autorisez l’accès à Agenda pour connecter ce compte Google.",
     "dataHint": "Les événements comprennent le nom du patient, l’examen, les notes du rendez-vous et le cabinet. Aucune invitation n’est envoyée aux patients.",
-    "disconnectHint": "La déconnexion arrête la synchronisation et conserve les événements Google. Un changement de compte laisse les anciens événements dans le compte précédent."
+    "disconnectHint": "La déconnexion arrête la synchronisation et conserve les événements Google. Un changement de compte laisse les anciens événements dans le compte précédent.",
+    "updateRequired": "Mettez Prysm à jour pour gérer Google Agenda dans les paramètres."
   }
 }

@@ -30,6 +30,8 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 
 def _normalize_google_token_update(update_data: dict) -> None:
+    if update_data.get("google_access_token") or update_data.get("google_refresh_token"):
+        raise HTTPException(409, "googleCalendar.updateRequired")
     if update_data.get("google_account_connected") is False:
         update_data["google_access_token"] = None
         update_data["google_refresh_token"] = None
@@ -341,8 +343,9 @@ def get_user_google_tokens(
     return {
         "connected": bool(user.google_account_connected),
         "email": user.google_account_email,
-        "access_token": decrypt_secret(user.google_access_token) if user.google_account_connected else None,
-        "refresh_token": decrypt_secret(user.google_refresh_token) if user.google_account_connected else None,
+        "access_token": None,
+        "refresh_token": None,
+        "managed_by": "api",
     }
 
 @router.get("/{user_id}", response_model=UserSchema)

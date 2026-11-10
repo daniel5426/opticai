@@ -125,7 +125,7 @@ Dismissing it stores only a device-local preference; pairing tokens are unchange
 
 The API owns the Calendar retry consumer. It starts/stops with the app, uses the
 same database and needs no Agents24 connection or separate service. Apply Alembic
-`0064_google_calendar_sync` explicitly before running the updated API; startup
+`0064_google_calendar_sync` and `0065_google_calendar_key_routing` explicitly before running the updated API; startup
 never mutates schema. Provider writes are queued only by connected users' explicit
 sync or enabled appointment synchronization. Tokens and event mappings persist
 across restarts. See the [Google OAuth runbook](docs/references/google-oauth.md)

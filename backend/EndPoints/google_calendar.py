@@ -10,7 +10,7 @@ from auth import get_current_user, encrypt_secret
 from config import settings
 from database import get_db
 from models import Appointment, GoogleCalendarSync, User
-from services.google_calendar import CALENDAR_SCOPE, enqueue, now
+from services.google_calendar import CALENDAR_SCOPE, enqueue, now, token_key_id
 
 router = APIRouter(prefix='/google/calendar', tags=['Google Calendar'])
 
@@ -80,6 +80,7 @@ def connect(payload: Connection, db: Session = Depends(get_db), user: User = Dep
     user.google_access_token = encrypt_secret(payload.access_token)
     if payload.refresh_token:
         user.google_refresh_token = encrypt_secret(payload.refresh_token)
+    user.google_token_key_id = token_key_id()
     user.google_oauth_client_type = kinds[audience]
     user.google_token_expiry = now() + timedelta(seconds=int(data.get('expires_in', 3600)))
     # Reconnect resumes pending work, including removals, before bulk upserts.

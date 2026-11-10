@@ -75,7 +75,7 @@ production web origin/callback is `https://app.prysm.co.il` /
 `https://app.prysm.co.il/oauth/callback`; retain the Railway aliases above.
 
 The API owns all Calendar writes. Deploy Alembic `0064_google_calendar_sync`
-before the updated API, then the web/desktop clients. This adds nullable token
+and `0065_google_calendar_key_routing` before the updated API, then the web/desktop clients. This adds nullable token
 expiry/client provenance and a durable owner-scoped mapping/retry table with RLS.
 Existing encrypted tokens and event IDs are adopted lazily, without a bulk export
 or historical rewrite. The API needs the matching **desktop secret** as well as
@@ -106,3 +106,17 @@ Desktop authorization uses a system browser, random state, PKCE and a private
 loopback listener. Renderer-forwarded codes cannot bypass callback validation.
 Use the existing candidate workflow for macOS/Windows qualification; do not
 publish desktop packages until production promotion is explicitly requested.
+
+Legacy renderer token-read endpoints retain their JSON shape but return null
+credentials and `managed_by: api`. Legacy user/settings token writes are rejected
+with `googleCalendar.updateRequired`; Google identity login remains supported.
+This prevents older installed clients from creating duplicate events or sending
+patient invitations alongside the API worker. Existing connected users still sync
+on appointment changes through the server. Upgrade the desktop app for connection,
+manual sync and preference controls; no forced reconnection or token deletion is
+part of this compatibility change.
+
+The nullable `users.google_token_key_id` routes queue work by an encryption-key
+fingerprint. Local and hosted APIs sharing staging must not claim each other’s
+credentials; unknown legacy ciphertext is claimed only by a worker that can
+decrypt it. A matching worker stamps the fingerprint without re-encrypting data.

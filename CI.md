@@ -584,7 +584,7 @@ this patch; reuse these gates and avoid a duplicate local production build.
 Google approved project `opticai-465420` on November 9, 2026 for `calendar` and
 `calendar.events`. The Calendar candidate uses API-owned synchronization and an
 API-owned retry consumer, independent of Agents24. Apply additive Alembic
-`0064_google_calendar_sync` before the new API. Web and desktop use the same
+`0064_google_calendar_sync` and `0065_google_calendar_key_routing` before the new API. Web and desktop use the same
 owner-scoped event mappings; retire renderer/IPC Calendar writers together with
 the new clients. Keep the public web callback `https://app.prysm.co.il/oauth/callback`
 registered; API credentials must include the desktop secret for legacy refresh.
@@ -600,7 +600,9 @@ staging candidate.
 Migration note: `0064_google_calendar_sync` preserves encrypted tokens and legacy
 appointment event IDs, adds nullable expiry/client provenance and an RLS-enabled
 mapping/retry table. No historical export, duplicate cleanup or consent backfill.
-The owner-authorized staging target has this revision; production remains unchanged.
+Revision `0065_google_calendar_key_routing` adds nullable encryption-key routing so
+local and hosted APIs sharing staging cannot consume each other’s credentials.
+The owner-authorized staging target has both revisions; production remains unchanged.
 
 Staging verification now waits for the independent API, worker and web builds in
 parallel and checks every exit status, removing serial polling delay while

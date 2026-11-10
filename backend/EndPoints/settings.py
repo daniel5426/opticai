@@ -205,6 +205,8 @@ def save_all(
             db_user = get_scoped_user(db, current_user, payload.user_id)
 
             update_fields = payload.user.dict(exclude_unset=True)
+            if update_fields.get("google_access_token") or update_fields.get("google_refresh_token"):
+                raise HTTPException(409, "googleCalendar.updateRequired")
             if update_fields.get('profile_picture'):
                 try:
                     update_fields['profile_picture'] = upload_base64_image(update_fields['profile_picture'], f"users/{payload.user_id}/profile")

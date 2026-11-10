@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import requests
+from sqlalchemy import or_
 from auth import decrypt_secret, encrypt_secret
 from config import settings
 from models import Appointment, Client, Clinic, GoogleCalendarSync, User
@@ -20,6 +21,12 @@ class CalendarError(Exception):
     def __init__(self, code, reconnect=False, retry=True):
         self.code, self.reconnect, self.retry = code, reconnect, retry
         super().__init__(code)
+
+
+def token_key_id():
+    # A non-secret routing fingerprint; tokens remain encrypted. Local/staging
+    # APIs can share a DB without consuming credentials encrypted by another key.
+    return hashlib.sha256(('prysm-calendar-key:' + (settings.TOKEN_ENCRYPTION_KEY or settings.SECRET_KEY)).encode()).hexdigest()
 
 
 def credentials(kind):
@@ -144,6 +151,12 @@ def payload(db, appointment):
 def process(db, row):
     appointment = db.query(Appointment).filter_by(id=row.appointment_id).execution_options(include_deleted=True).with_for_update().first()
     owner = db.query(User).filter_by(id=row.user_id).with_for_update().first()
+    if owner and owner.google_token_key_id and owner.google_token_key_id != token_key_id():
+        raise CalendarError('wrong_worker_key')
+    if owner and owner.google_token_key_id is None and owner.google_account_connected:
+        if (owner.google_access_token or owner.google_refresh_token) and not (decrypt_secret(owner.google_access_token) or decrypt_secret(owner.google_refresh_token)):
+            raise CalendarError('wrong_worker_key')
+        owner.google_token_key_id = token_key_id()
     if not appointment or not owner or appointment.company_id != owner.company_id:
         raise CalendarError('scope', retry=False)
     if row.account_email and row.account_email != owner.google_account_email:
@@ -182,15 +195,27 @@ def process(db, row):
 def run_once(db):
     # Parent then mapping then user locks: same order as enqueues and concurrent
     # mutations. One network operation group per transaction, skip busy records.
-    parent = db.query(Appointment).join(GoogleCalendarSync, GoogleCalendarSync.appointment_id == Appointment.id).filter(
-        GoogleCalendarSync.status == 'pending', GoogleCalendarSync.available_at <= now()).order_by(
-        GoogleCalendarSync.available_at, GoogleCalendarSync.id).execution_options(include_deleted=True).with_for_update(
-        of=Appointment, skip_locked=True).first()
+    candidates = db.query(GoogleCalendarSync.appointment_id, User.google_token_key_id,
+        User.google_access_token, User.google_refresh_token, User.google_account_connected).join(
+        User, GoogleCalendarSync.user_id == User.id).filter(
+        GoogleCalendarSync.status == 'pending', GoogleCalendarSync.available_at <= now(),
+        or_(User.google_token_key_id == token_key_id(), User.google_token_key_id.is_(None))).order_by(
+        GoogleCalendarSync.available_at, GoogleCalendarSync.id).limit(50).all()
+    parent = None
+    for appointment_id, key_id, access, refresh_token, connected in candidates:
+        if key_id is None and connected and (access or refresh_token) and not (decrypt_secret(access) or decrypt_secret(refresh_token)):
+            continue  # An older token owned by another encryption realm.
+        parent = db.query(Appointment).filter_by(id=appointment_id).execution_options(
+            include_deleted=True).with_for_update(skip_locked=True).first()
+        if parent:
+            break
     if not parent:
         db.rollback()
         return False
-    row = db.query(GoogleCalendarSync).filter_by(appointment_id=parent.id, status='pending').filter(
-        GoogleCalendarSync.available_at <= now()).order_by(GoogleCalendarSync.id).with_for_update(skip_locked=True).first()
+    row = db.query(GoogleCalendarSync).join(User, GoogleCalendarSync.user_id == User.id).filter(
+        GoogleCalendarSync.appointment_id == parent.id, GoogleCalendarSync.status == 'pending',
+        GoogleCalendarSync.available_at <= now(), or_(User.google_token_key_id == token_key_id(), User.google_token_key_id.is_(None))).order_by(
+        GoogleCalendarSync.id).with_for_update(of=GoogleCalendarSync, skip_locked=True).first()
     if not row:
         db.rollback()
         return False
@@ -200,6 +225,9 @@ def run_once(db):
     except (CalendarError, requests.RequestException, ValueError) as error:
         if not isinstance(error, CalendarError):
             error = CalendarError('provider_unavailable')
+        if error.code == 'wrong_worker_key':
+            db.rollback()
+            return False
         row.error_code = error.code
         row.status = 'reconnect' if error.reconnect else ('pending' if error.retry and row.attempts < 10 else 'failed')
         row.available_at = now() + timedelta(seconds=min(3600, 15 * 2 ** min(row.attempts, 8)))

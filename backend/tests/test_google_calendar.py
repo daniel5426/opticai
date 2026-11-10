@@ -10,7 +10,7 @@ from auth import encrypt_secret, decrypt_secret, get_current_user
 from database import get_db
 from models import Appointment, GoogleCalendarSync, User
 from services import google_calendar as calendar
-from EndPoints import google_calendar as endpoints, appointments
+from EndPoints import google_calendar as endpoints, appointments, auth, users
 from backend.tests.test_company_client_records import scope
 
 
@@ -36,6 +36,8 @@ def setup(scope, monkeypatch):
     app = FastAPI()
     app.include_router(endpoints.router)
     app.include_router(appointments.router)
+    app.include_router(auth.router)
+    app.include_router(users.router)
     app.dependency_overrides[get_db] = lambda: s.db
     app.dependency_overrides[get_current_user] = lambda: s.user
     s.http = TestClient(app)
@@ -245,3 +247,40 @@ def test_manual_sync_does_not_export_history(setup):
     r=s.http.post('/google/calendar/sync')
     assert r.json()['queued']==0
     assert s.db.query(GoogleCalendarSync).count()==0
+
+
+def test_legacy_renderer_cannot_retrieve_calendar_credentials_or_replace_tokens(setup):
+    s = setup
+    for path in ['/auth/google-tokens', f'/users/{s.user.id}/google-tokens']:
+        result=s.http.get(path)
+        assert result.status_code==200
+        assert result.json()['managed_by']=='api'
+        assert result.json()['access_token'] is result.json()['refresh_token'] is None
+        assert 'access-marker' not in result.text and 'refresh-marker' not in result.text
+    assert s.http.get(f'/users/{s.user.id+100}/google-tokens').status_code==403
+    s.user.role_level=4;s.db.commit()
+    result=s.http.put(f'/users/{s.user.id}',json={'google_access_token':'legacy-marker'})
+    assert result.status_code==409, result.text
+    assert decrypt_secret(s.user.google_access_token)=='access-marker'
+
+
+def test_worker_does_not_consume_another_api_encryption_realm(setup):
+    s=setup
+    _,job=queued(s)
+    s.user.google_token_key_id='another-encryption-key-fingerprint';s.db.commit()
+    assert calendar.run_once(s.db) is False
+    assert job.status=='pending' and job.attempts==0
+    s.network.assert_not_called()
+    s.user.google_token_key_id=calendar.token_key_id();s.db.commit()
+    assert calendar.run_once(s.db) is True
+    assert job.status=='synced'
+
+
+def test_unknown_legacy_encryption_realm_is_not_mistaken_for_revoked_consent(setup):
+    s=setup
+    _,job=queued(s)
+    s.user.google_access_token='unreadable-ciphertext'
+    s.user.google_refresh_token='unreadable-ciphertext';s.db.commit()
+    assert calendar.run_once(s.db) is False
+    assert job.status=='pending' and job.attempts==0
+    s.network.assert_not_called()

@@ -102,6 +102,7 @@ class User(Base):
     google_access_token = Column(String)
     google_refresh_token = Column(String)
     google_calendar_sync_enabled = Column(Boolean, default=False)
+    google_token_key_id = Column(String(64), nullable=True)
     google_oauth_client_type = Column(String, nullable=True)
     google_token_expiry = Column(DateTime(timezone=True), nullable=True)
     va_format = Column(String, default="meter") # "meter" or "decimal"
