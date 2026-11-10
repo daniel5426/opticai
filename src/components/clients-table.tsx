@@ -11,6 +11,10 @@ import { deleteClient } from "@/lib/db/clients-db"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TableFiltersBar, type TableFiltersBarSelect } from "@/components/table-filters-bar"
+import { Input } from "@/components/ui/input"
+import { canvasSurfaceClassName } from "@/components/ui/canvas-surface"
+import { TABLE_SEARCH_DEBOUNCE_MS } from "@/lib/list-page-search"
+import { cn } from "@/utils/tailwind"
 import { TablePagination } from "@/components/table-pagination"
 import { GENDER_FILTER_OPTIONS } from "@/lib/table-filters"
 import { SortableTableHead } from "@/components/sortable-table-head"
@@ -73,6 +77,8 @@ interface ClientsTableProps {
   sort?: SortState
   onSortChange?: (sort: SortState) => void
   columnFilters?: ColumnFilters
+  /** Search by first name, last name, ID and phone in separate boxes instead of one. */
+  fieldSearch?: boolean
   onColumnFiltersChange?: (filters: ColumnFilters) => void
   mergeMode?: boolean
   selectedMergeClientIds?: number[]
@@ -98,6 +104,48 @@ const CLIENT_COLUMN_FILTERS: ColumnFilterDefinition<Client>[] = [
   { key: "email", label: "אימייל", kind: "text", getValue: (client) => client.email },
   { key: "family_role", label: "תפקיד במשפחה", kind: "text", getValue: (client) => client.family_role },
 ]
+
+// Searches each field on its own, through that column's filter.
+const SEARCH_FIELDS = [
+  ["first_name", "firstName"],
+  ["last_name", "lastName"],
+  ["national_id", "nationalId"],
+  ["phone_mobile", "phone"],
+] as const
+
+function ClientFieldSearch({ filters, onChange }: { filters: ColumnFilters; onChange: (filters: ColumnFilters) => void }) {
+  const { t } = useTranslation()
+  const { direction } = useAppLocale()
+  const applied = Object.fromEntries(SEARCH_FIELDS.map(([key]) => [key, typeof filters[key] === "string" ? (filters[key] as string) : ""]))
+  const appliedKey = JSON.stringify(applied)
+  const [values, setValues] = React.useState(applied)
+  const latestFilters = React.useRef(filters)
+  latestFilters.current = filters
+  // Follows the URL, e.g. after "clear" or a column's own filter.
+  React.useEffect(() => setValues(JSON.parse(appliedKey)), [appliedKey])
+  React.useEffect(() => {
+    if (JSON.stringify(values) === appliedKey) return
+    const timer = setTimeout(() => onChange({ ...latestFilters.current, ...values }), TABLE_SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [values])
+  return (
+    <>
+      {SEARCH_FIELDS.map(([key, label]) => (
+        <Input
+          key={key}
+          aria-label={t(`companyClients.search.${label}`)}
+          placeholder={t(`companyClients.search.${label}`)}
+          value={values[key]}
+          onChange={(event) => setValues((previous) => ({ ...previous, [key]: event.target.value }))}
+          inputMode={key === "national_id" || key === "phone_mobile" ? "numeric" : undefined}
+          data-canvas-surface=""
+          className={cn(canvasSurfaceClassName, "h-9 w-[140px]")}
+          dir={direction}
+        />
+      ))}
+    </>
+  )
+}
 
 export function ClientsTable({
   data,
@@ -128,7 +176,8 @@ export function ClientsTable({
   onToggleMergeClient,
   fillHeight = false,
   columnFilters: externalColumnFilters,
-  onColumnFiltersChange
+  onColumnFiltersChange,
+  fieldSearch = false
 }: ClientsTableProps) {
   const { t } = useTranslation()
   const columnFilters = useColumnFilterState(externalColumnFilters, onColumnFiltersChange)
@@ -284,8 +333,9 @@ export function ClientsTable({
         <TableFiltersBar
           exportTable="clients"
           searchValue={searchQuery}
-          onSearchChange={handleSearchChange}
+          onSearchChange={fieldSearch ? undefined : handleSearchChange}
           searchPlaceholder="חיפוש לקוחות…"
+          leadingControls={fieldSearch ? <ClientFieldSearch filters={columnFilters.filters} onChange={columnFilters.setFilters} /> : undefined}
           filters={[
             {
               key: "gender",
