@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiClient } from '@/lib/api-client';
 import { useAppLocale } from '@/localization/use-app-locale';
@@ -17,10 +17,12 @@ export function GoogleCalendarRouting() {
   const [calendars, setCalendars] = useState<Calendar[]>([]);
   const [clinic, setClinic] = useState('');
   const [draft, setDraft] = useState<Route>({});
+  const inFlight = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const run = async (action: 'load' | 'save' | 'create') => {
-    if (busy) return;
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true); setError(null);
     try {
       let routing: Routing;
@@ -32,7 +34,7 @@ export function GoogleCalendarRouting() {
       setClinic(selected); setDraft(routing.routes[selected] || {});
       setCalendars(await apiClient.googleCalendarRequest<Calendar[]>('calendars'));
     } catch (e) { setError(e instanceof Error && e.message.startsWith('googleCalendar.') ? e.message : 'googleCalendar.failed'); }
-    finally { setBusy(false); }
+    finally { inFlight.current = false; setBusy(false); }
   };
   return <div className="space-y-3 border-t pt-4" dir={direction}>
     <Button variant="outline" disabled={busy} onClick={() => void run('load')}>{t('googleCalendar.routing')}</Button>

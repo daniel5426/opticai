@@ -217,6 +217,10 @@ def save_route(payload: ClinicRoute, db: Session = Depends(get_db), user: User =
             raise HTTPException(403, 'googleCalendar.routeDenied')
     if payload.calendar_id != 'primary' and payload.calendar_id not in {v['id'] for v in list_calendars(user)}:
         raise HTTPException(400, 'googleCalendar.calendarUnavailable')
+    db.commit()  # Release any token refresh before taking the preference lock.
+    user = db.query(User).filter_by(id=user.id).populate_existing().with_for_update().one()
+    if (payload.all_workers or payload.workers) and user.role_level < 4:
+        raise HTTPException(403, 'googleCalendar.routeDenied')
     user.google_calendar_routes = {**(user.google_calendar_routes or {}), str(payload.clinic_id): payload.model_dump(exclude={'clinic_id'})}
     db.commit()
     queue_upcoming(db, user)
@@ -236,11 +240,13 @@ def create_calendar(payload: CreateCalendar, db: Session = Depends(get_db), user
     clinic = next((c for c in routing_clinics(db, user) if c.id == payload.clinic_id), None)
     if not clinic:
         raise HTTPException(403, 'googleCalendar.routeDenied')
-    user = db.query(User).filter_by(id=user.id).with_for_update().one()
+    user = db.query(User).filter_by(id=user.id).populate_existing().with_for_update().one()
     route = (user.google_calendar_routes or {}).get(str(clinic.id), {})
     if route.get('creation_pending'):
         raise HTTPException(409, 'googleCalendar.creationUncertain')
-    user.google_calendar_routes = {**(user.google_calendar_routes or {}), str(clinic.id): {**route, 'creation_pending': True}}
+    import uuid
+    operation = uuid.uuid4().hex
+    user.google_calendar_routes = {**(user.google_calendar_routes or {}), str(clinic.id): {**route, 'creation_pending': True, 'creation_token': operation}}
     db.commit()  # An uncertain insert must never be retried automatically.
     try:
         response = calendar_request(user, 'POST', 'https://www.googleapis.com/calendar/v3/calendars', json={
@@ -252,6 +258,10 @@ def create_calendar(payload: CreateCalendar, db: Session = Depends(get_db), user
     except (CalendarError, requests.RequestException, ValueError):
         db.commit()
         raise HTTPException(502, 'googleCalendar.creationUncertain')
+    db.commit()
+    user = db.query(User).filter_by(id=user.id).populate_existing().with_for_update().one()
+    if (user.google_calendar_routes or {}).get(str(clinic.id), {}).get('creation_token') != operation:
+        raise HTTPException(409, 'googleCalendar.creationUncertain')
     user.google_calendar_routes = {**(user.google_calendar_routes or {}), str(clinic.id): {**route, 'calendar_id': calendar_id}}
     db.commit()
     queue_upcoming(db, user)
