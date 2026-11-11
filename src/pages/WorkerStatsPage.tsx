@@ -16,6 +16,7 @@ import {
   IconChartBar,
   IconPlus,
   IconTrash,
+  IconPencil,
 } from "@tabler/icons-react";
 import { apiClient } from "@/lib/api-client";
 import { User, WorkShift } from "@/lib/db/schema-interface";
@@ -120,6 +121,9 @@ export default function WorkerStatsPage() {
     start_time: "",
     end_time: "",
   });
+  // The shift whose hours a CEO is changing in the same window; none when adding one.
+  const [editingShift, setEditingShift] = useState<WorkShift | null>(null);
+  const canEditShifts = isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo);
 
   const usersQuery = useQuery({
     queryKey: workerStatsQueryKeys.users(clinicId),
@@ -195,6 +199,17 @@ export default function WorkerStatsPage() {
       workShift: Omit<WorkShift, "id" | "created_at" | "updated_at">,
     ) => {
       const response = await apiClient.createWorkShift(workShift);
+      if (response.error) throw new Error(response.error);
+      return response.data;
+    },
+    onSuccess: async () => {
+      await invalidateSelectedWorkerData();
+    },
+  });
+
+  const updateShiftMutation = useMutation({
+    mutationFn: async ({ id, ...changes }: Partial<WorkShift> & { id: number }) => {
+      const response = await apiClient.updateWorkShift(id, changes);
       if (response.error) throw new Error(response.error);
       return response.data;
     },
@@ -336,17 +351,28 @@ export default function WorkerStatsPage() {
         (endTime.getTime() - startTime.getTime()) / (1000 * 60),
       );
 
-      const shiftData = {
-        user_id: effectiveSelectedUserId,
-        start_time: newShiftData.start_time,
-        end_time: newShiftData.end_time,
-        duration_minutes: durationMinutes,
-        date: selectedDate,
-        status: "completed" as const,
-      };
+      if (editingShift?.id) {
+        await updateShiftMutation.mutateAsync({
+          id: editingShift.id,
+          start_time: newShiftData.start_time,
+          end_time: newShiftData.end_time,
+          duration_minutes: durationMinutes,
+          status: "completed",
+        });
+      } else {
+        const shiftData = {
+          user_id: effectiveSelectedUserId,
+          start_time: newShiftData.start_time,
+          end_time: newShiftData.end_time,
+          duration_minutes: durationMinutes,
+          date: selectedDate,
+          status: "completed" as const,
+        };
 
-      await createShiftMutation.mutateAsync(shiftData);
+        await createShiftMutation.mutateAsync(shiftData);
+      }
       setIsCreateModalOpen(false);
+      setEditingShift(null);
       setNewShiftData({ start_time: "", end_time: "" });
     } catch (error) {
       console.error("Error creating shift:", error);
@@ -354,6 +380,15 @@ export default function WorkerStatsPage() {
       isCreatingShiftRef.current = false;
       setIsCreatingShift(false);
     }
+  };
+
+  const openEditShift = (shift: WorkShift) => {
+    setEditingShift(shift);
+    setNewShiftData({
+      start_time: (shift.start_time || "").slice(0, 5),
+      end_time: (shift.end_time || "").slice(0, 5),
+    });
+    setIsCreateModalOpen(true);
   };
 
   const handleDeleteShift = async (shiftId: number) => {
@@ -620,6 +655,18 @@ export default function WorkerStatsPage() {
                                             ? "פעילה"
                                             : "בוטלה"}
                                       </Badge>
+                                      {canEditShifts && shift.id && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => openEditShift(shift)}
+                                          className="h-8 w-8 p-0"
+                                          title="עריכת שעות המשמרת"
+                                          aria-label="עריכת שעות המשמרת"
+                                        >
+                                          <IconPencil className="h-4 w-4" />
+                                        </Button>
+                                      )}
                                       {isRoleAtLeast(
                                         currentUser?.role_level,
                                         ROLE_LEVELS.manager,
@@ -721,14 +768,15 @@ export default function WorkerStatsPage() {
         onClose={() => {
           if (isCreatingShift) return;
           setIsCreateModalOpen(false);
+          setEditingShift(null);
           setNewShiftData({ start_time: "", end_time: "" });
         }}
-        title="הוספת משמרת חדשה"
+        title={editingShift ? "עריכת שעות המשמרת" : "הוספת משמרת חדשה"}
         subtitle={`תאריך: ${new Date(selectedDate).toLocaleDateString("he-IL")}`}
         width="max-w-md"
         className="px-2"
         onConfirm={handleCreateShift}
-        confirmText="הוספה"
+        confirmText={editingShift ? "שמירה" : "הוספה"}
         showCloseButton={false}
         cancelText="ביטול"
         isLoading={isCreatingShift}
