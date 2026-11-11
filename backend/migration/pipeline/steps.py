@@ -1,7 +1,16 @@
 from services.company_record_ownership import validate_records
 from .common import *
+from collections import Counter
 from pathlib import Path
 from services import order_group_service  # Register legacy import/group compatibility hooks.
+
+
+# A typed brand becomes a lookup only once orders use it this often; the rest are typos and variants.
+FRAME_BRAND_MIN_ORDERS = 10
+
+
+def frame_brand_lookup_names(brand_counts: Counter) -> List[str]:
+    return sorted(brand for brand, count in brand_counts.items() if brand and count >= FRAME_BRAND_MIN_ORDERS)
 
 
 def migrate_lookups(db: Session, csv_dir: str, clinic_ids: List[int]):
@@ -19,7 +28,7 @@ def migrate_lookups(db: Session, csv_dir: str, clinic_ids: List[int]):
         ("optic_tv_lens_color.csv", LookupColor),
         ("optic_tv_lens_coat.csv", LookupCoating),
         ("optic_tv_frame_model.csv", LookupFrameModel),
-        ("optic_tv_frame_manuf.csv", LookupManufacturer),
+        ("optic_tv_frame_manuf.csv", LookupSupplier),  # frame suppliers, despite the name
         ("optic_tv_contact_type.csv", LookupContactLensType),
         ("optic_tv_contact_model.csv", LookupContactEyeLensType),
         ("optic_tv_contact_manuf.csv", LookupManufacturer),
@@ -43,6 +52,11 @@ def migrate_lookups(db: Session, csv_dir: str, clinic_ids: List[int]):
             }
         )
         lookup_names.append((model, names))
+    # OpticSoft has no frame brand table; the brand is typed into the order's frame_supplier column.
+    brand_counts = Counter(clean_legacy_text(r.get("frame_supplier")) for r in read_csv_streaming(csv_dir, "optic_glasses_presc.csv"))
+    brand_names = frame_brand_lookup_names(brand_counts)
+    print(f"[lookups] optic_glasses_presc.csv frame brands: {len(brand_names)}", flush=True)
+    lookup_names.append((LookupManufacturer, brand_names))
     # Active OpticSoft workers are the order advisors ("יועץ").
     advisor_names = sorted(set(_build_account_name_map(csv_dir, "WORK", active_only=True).values()))
     print(f"[lookups] account.csv WORK advisors: {len(advisor_names)}", flush=True)
@@ -1249,11 +1263,12 @@ def migrate_regular_orders(
         }
 
         frame_supplied_by, legacy_frame_supplied_by = _normalize_supplied_by(r.get("frame_supply_by"), ui_default=True)
+        # OpticSoft's frame_supplier column holds the brand and frame_manuf the supplier.
         frame = {
             "color": clean_legacy_text(r.get("frame_color")),
-            "supplier": clean_legacy_text(r.get("frame_supplier")),
+            "supplier": clean_legacy_text(r.get("frame_manuf")),
             "model": clean_legacy_text(r.get("frame_model")),
-            "manufacturer": clean_legacy_text(r.get("frame_manuf")),
+            "manufacturer": clean_legacy_text(r.get("frame_supplier")),
             "supplied_by": frame_supplied_by,
             "bridge": frame_bridge if frame_bridge is not None else parse_float(r.get("frame_bridge")),
             "width": frame_width if frame_width is not None else parse_float(r.get("frame_width")),
@@ -1372,7 +1387,7 @@ def migrate_regular_orders(
                     ),
                     (
                         clean_legacy_text(r.get("frame_model")) or "Frame",
-                        clean_legacy_text(r.get("frame_supplier")),
+                        clean_legacy_text(r.get("frame_manuf")),
                         parse_float(r.get("frame_price")),
                         1.0,
                         parse_float(r.get("frame_discount")),
