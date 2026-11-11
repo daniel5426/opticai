@@ -130,7 +130,10 @@
     "prescriptionSourceOrder": "Order",
     "prescriptionSourceDateSearch": "Search by date",
     "prescriptionSourceNoOrders": "No orders",
-    "prescriptionSourceNoExams": "No exams with a prescription"
+    "prescriptionSourceNoExams": "No exams with a prescription",
+    "prescriptionSourceExamsTab": "Exam prescriptions",
+    "prescriptionSourceExamsHintGlasses": "Taken from the Final Prescription card of the client's exams.",
+    "prescriptionSourceExamsHintContact": "Taken from the Contact Lens Exam card of the client's exams."
   },
   "he": {
     "orderPrescriptionFinalTitle": "מרשם סופי",
@@ -263,7 +266,10 @@
     "prescriptionSourceOrder": "הזמנה",
     "prescriptionSourceDateSearch": "חיפוש לפי תאריך",
     "prescriptionSourceNoOrders": "אין הזמנות",
-    "prescriptionSourceNoExams": "אין בדיקות עם מרשם"
+    "prescriptionSourceNoExams": "אין בדיקות עם מרשם",
+    "prescriptionSourceExamsTab": "מרשמים מבדיקה",
+    "prescriptionSourceExamsHintGlasses": "נשאב מהרכיב ״מרשם סופי״ ⁨(Final Prescription)⁩ בבדיקות של הלקוח.",
+    "prescriptionSourceExamsHintContact": "נשאב מהרכיב ״מרשם עדשות מגע״ ⁨(Contact Lens Exam)⁩ בבדיקות של הלקוח."
   },
   "fr": {
     "orderPrescriptionFinalTitle": "Prescription finale",
@@ -396,6 +402,9 @@
     "prescriptionSourceOrder": "Commande",
     "prescriptionSourceDateSearch": "Rechercher par date",
     "prescriptionSourceNoOrders": "Aucune commande",
-    "prescriptionSourceNoExams": "Aucun examen avec prescription"
+    "prescriptionSourceNoExams": "Aucun examen avec prescription",
+    "prescriptionSourceExamsTab": "Prescriptions d’examen",
+    "prescriptionSourceExamsHintGlasses": "Repris de la fiche « Prescription finale » des examens du client.",
+    "prescriptionSourceExamsHintContact": "Repris de la fiche « Prescription de lentilles » des examens du client."
   }
 }

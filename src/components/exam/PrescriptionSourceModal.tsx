@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader2, Search } from "lucide-react";
+import { Info, Loader2, Search } from "lucide-react";
 import { CustomModal } from "@/components/ui/custom-modal";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Order } from "@/lib/db/schema-interface";
 import { formatIsoDate } from "@/lib/iso-date";
 import {
@@ -97,7 +98,17 @@ export function PrescriptionSourceModal({ isOpen, onClose, clientId, kind, onSel
         <Tabs value={source} onValueChange={(value) => setSource(value as Source)} dir={direction}>
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="orders">{t("prescriptionSourceOrdersTab")}</TabsTrigger>
-            <TabsTrigger value="exams">{examTabLabel}</TabsTrigger>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <TabsTrigger value="exams" className="gap-1.5">
+                  {t("prescriptionSourceExamsTab")}
+                  <Info className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
+                </TabsTrigger>
+              </TooltipTrigger>
+              <TooltipContent dir={direction} className="max-w-80 text-center" sideOffset={6}>
+                {t(kind === "glasses" ? "prescriptionSourceExamsHintGlasses" : "prescriptionSourceExamsHintContact")}
+              </TooltipContent>
+            </Tooltip>
           </TabsList>
         </Tabs>
 
