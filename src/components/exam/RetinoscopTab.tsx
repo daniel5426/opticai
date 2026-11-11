@@ -25,7 +25,7 @@ interface RetinoscopTabProps {
 
 export function RetinoscopTab({
   retinoscopData,
-  onRetinoscopChange,
+  onRetinoscopChange: onFieldChange,
   isEditing,
   hideEyeLabels = false,
   needsMiddleSpacer = false
@@ -33,6 +33,17 @@ export function RetinoscopTab({
   const { direction } = useAppLocale();
   const { t } = useTranslation();
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
+
+  // A new card opens on the autorefractor; an older card with values and no saved method was a retinoscopy.
+  const hasValues = Object.entries(retinoscopData).some(
+    ([field, value]) => /^(r|l|comb)_/.test(field) && value !== null && value !== undefined && value !== "",
+  );
+  const method = retinoscopData.method || (hasValues ? "retinoscopy" : "auto_refractor");
+  const onRetinoscopChange = (field: keyof RetinoscopExam, value: string) => {
+    // Keep the shown default once the card gets a value, or it would read as a retinoscopy.
+    if (field !== "method" && !retinoscopData.method && !hasValues) onFieldChange("method", "auto_refractor");
+    onFieldChange(field, value);
+  };
 
   const { fieldWarnings, handleAxisChange, handleAxisBlur } = useAxisWarning(
     retinoscopData,
@@ -120,7 +131,7 @@ export function RetinoscopTab({
         <div className="space-y-3">
           <div className="flex h-9 items-start justify-center mb-1 -translate-y-2">
             <Tabs
-              value={retinoscopData.method || "retinoscopy"}
+              value={method}
               onValueChange={(val) => onRetinoscopChange("method", val)}
               className="w-fit"
               dir={direction}
