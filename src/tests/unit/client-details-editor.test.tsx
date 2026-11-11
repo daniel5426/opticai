@@ -196,6 +196,21 @@ describe("ClientDetailsTab select display", () => {
     expect(screen.queryByDisplayValue("03-5555555")).not.toBeInTheDocument()
   })
 
+  test("the fax field shows only for a client with a fax, editing or not", () => {
+    const props = { formRef: { current: null }, onFieldChange: vi.fn() }
+    const view = render(<ClientDetailsTab draft={{ id: 1 } as Client} isEditing={false} {...props} />)
+    expect(document.querySelector('input[name="fax"]')).toBeNull()
+    view.rerender(<ClientDetailsTab draft={{ id: 1 } as Client} isEditing {...props} />)
+    expect(document.querySelector('input[name="fax"]')).toBeNull()
+    view.unmount()
+
+    const withFax = render(<ClientDetailsTab draft={{ id: 2, fax: "03-1234567" } as Client} isEditing={false} {...props} />)
+    expect(screen.getByDisplayValue("03-1234567")).toHaveAttribute("name", "fax")
+    // Clearing it while editing keeps the field.
+    withFax.rerender(<ClientDetailsTab draft={{ id: 2, fax: "" } as Client} isEditing {...props} />)
+    expect(document.querySelector('input[name="fax"]')).not.toBeNull()
+  })
+
   test("selecting a family emits a numeric family_id for new-client drafts", async () => {
     const onFieldChange = vi.fn()
 
