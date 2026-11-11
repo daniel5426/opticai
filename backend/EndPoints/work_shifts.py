@@ -6,7 +6,7 @@ from database import get_db
 from models import WorkShift, User, Clinic
 from schemas import WorkShiftCreate, WorkShiftUpdate, WorkShift as WorkShiftSchema, WorkforceAnalyticsResponse
 from auth import get_current_user
-from security.scope import get_scoped_user, resolve_company_id
+from security.scope import CEO_LEVEL, get_scoped_user, resolve_company_id
 from services.analytics_service import add_to_series, empty_series, metric_payload, resolve_analytics_window
 
 router = APIRouter(prefix="/work-shifts", tags=["work-shifts"])
@@ -203,6 +203,10 @@ def update_work_shift(
     get_scoped_user(db, current_user, db_work_shift.user_id)
     if work_shift.user_id is not None:
         get_scoped_user(db, current_user, work_shift.user_id)
+    # Workers update their own shift (clocking out, cancelling); only a CEO changes someone else's.
+    owners = {db_work_shift.user_id, work_shift.user_id or db_work_shift.user_id}
+    if owners != {current_user.id} and (current_user.role_level or 1) < CEO_LEVEL:
+        raise HTTPException(status_code=403, detail="Only a CEO can edit another user's shift")
     
     for field, value in work_shift.dict(exclude_unset=True).items():
         setattr(db_work_shift, field, value)
