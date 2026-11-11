@@ -138,7 +138,9 @@ export function AddComponentDrawer({
           style={{ scrollbarWidth: "none" }}
         >
           {registeredComponents.map((component) => {
-            const prescriptionSource = component.id === "final-prescription" || component.id === "contact-lens-exam";
+            const prescriptionSource = component.id === "final-prescription" || component.id === "contact-lens-exam" || component.id === "new-contact-lenses";
+            const sourceTitle = component.id === "final-prescription" ? "orderPrescriptionFinalTitle" : component.id === "new-contact-lenses" ? "contactLensDetails.newLensesTitle" : "orderPrescriptionContactTitle";
+            const sourceHint = component.id === "new-contact-lenses" ? "newContactLensesSourceHint" : "orderPrescriptionSourceHint";
             const selected = selectedType === component.id;
             const button = (
             <Button
@@ -150,7 +152,7 @@ export function AddComponentDrawer({
               }}
             >
               <span dir={direction} className={cn("mb-1 inline-flex items-center gap-1.5 text-lg font-semibold", prescriptionSource && (selected ? "text-primary-foreground" : "text-primary"))}>
-                {prescriptionSource ? t(component.id === "final-prescription" ? "orderPrescriptionFinalTitle" : "orderPrescriptionContactTitle") : component.description}
+                {prescriptionSource ? t(sourceTitle) : component.description}
                 {prescriptionSource && <Info className="size-3.5 shrink-0" aria-hidden="true" />}
               </span>
               <span className="text-muted-foreground text-sm">
@@ -161,7 +163,7 @@ export function AddComponentDrawer({
             return prescriptionSource ? <Tooltip key={component.id}>
               <TooltipTrigger asChild>{button}</TooltipTrigger>
               <TooltipContent dir={direction} className="max-w-64 text-center" sideOffset={6}>
-                {t("orderPrescriptionSourceHint")}
+                {t(sourceHint)}
               </TooltipContent>
             </Tooltip> : button;
           })}

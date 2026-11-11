@@ -2504,7 +2504,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
               onChange={getChangeHandler(item.type, item.id)}
               isEditing={mode === "detail" ? detailProps!.isEditing : false}
               hideEyeLabels={finalHideEyeLabels}
-              title={item.type === "new-contact-lenses" ? t("contactLensDetails.newLensesTitle") : undefined}
+              isNewLenses={item.type === "new-contact-lenses"}
             />
           </div>
         );

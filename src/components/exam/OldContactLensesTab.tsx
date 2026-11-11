@@ -12,6 +12,7 @@ import { CylTitle } from "./shared/CylTitle"
 import { useAxisWarning } from "./shared/useAxisWarning"
 import { AxisWarningInput } from "./shared/AxisWarningInput"
 import { ToggleTextNumberInput } from "./shared/ToggleTextNumberInput"
+import { OrderPrescriptionTitle } from "./shared/OrderPrescriptionTitle"
 
 interface OldContactLensesTabProps {
   data: OldContactLenses;
@@ -19,9 +20,11 @@ interface OldContactLensesTabProps {
   isEditing: boolean;
   hideEyeLabels?: boolean;
   title?: string;
+  /** The new lenses card: its data fills the old lenses of the client's next exam. */
+  isNewLenses?: boolean;
 }
 
-export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels = false, title = "Old Contact Lenses" }: OldContactLensesTabProps) {
+export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels = false, title = "Old Contact Lenses", isNewLenses = false }: OldContactLensesTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null)
 
   const { fieldWarnings, handleAxisChange, handleAxisBlur } = useAxisWarning(
@@ -96,7 +99,11 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
       <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
         <div className="space-y-3">
           <div className="text-center">
-            <h3 className="font-medium text-muted-foreground">{title}</h3>
+            {isNewLenses ? (
+              <OrderPrescriptionTitle titleKey="contactLensDetails.newLensesTitle" hintKey="newContactLensesSourceHint" />
+            ) : (
+              <h3 className="font-medium text-muted-foreground">{title}</h3>
+            )}
           </div>
           <div className={`grid ${hideEyeLabels ? 'grid-cols-[2fr_2fr_2fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr]' : 'grid-cols-[20px_2fr_2fr_2fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
