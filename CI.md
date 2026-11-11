@@ -648,8 +648,10 @@ remains an explicit, dry-run-by-default operation and was not applied.
 
 Includes Calendar routing, reviewed exam and order fixes, SoftOptic import
 corrections, client filters, and the desktop field context menu. Apply Alembic
-through `0067_merge_layout_color` before the updated API. Existing routing
-preferences and data remain intact. SoftOptic backfills are separate operations.
+through `0068_calendar_pull` before the updated API. This includes the additive
+schema revision already applied to staging, with Calendar pull behavior reserved
+for a later release. Existing routing preferences and data remain intact.
+SoftOptic backfills are separate operations.
 
 Reuse the scoped PR verification and run the Calendar and release migration tests
 on the committed candidate. Run exact-SHA Web and Backend CI and desktop candidate
