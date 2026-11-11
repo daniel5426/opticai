@@ -161,7 +161,7 @@ export function AddComponentDrawer({
             return prescriptionSource ? <Tooltip key={component.id}>
               <TooltipTrigger asChild>{button}</TooltipTrigger>
               <TooltipContent dir={direction} className="max-w-64 text-center" sideOffset={6}>
-                {t("orderPrescriptionSourceHint")}
+                {t(component.id === "contact-lens-exam" ? "orderPrescriptionContactSourceHint" : "orderPrescriptionSourceHint")}
               </TooltipContent>
             </Tooltip> : button;
           })}

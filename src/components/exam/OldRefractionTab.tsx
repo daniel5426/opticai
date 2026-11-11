@@ -39,6 +39,7 @@ interface OldRefractionTabProps {
   onUpdateType?: (tabIdx: number, newType: string) => void;
   allTabsData?: OldRefractionExam[];
   hideTabs?: boolean;
+  onShowOrdersHistory?: () => void;
 }
 
 export const OldRefractionTab = React.memo(function OldRefractionTab({
@@ -56,6 +57,7 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
   onUpdateType,
   allTabsData = [],
   hideTabs = false,
+  onShowOrdersHistory,
 }: OldRefractionTabProps) {
   const { t } = useTranslation();
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
@@ -255,6 +257,7 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
             onDuplicateTab={onDuplicateTab}
             onUpdateType={onUpdateType}
             hideTabs={hideTabs}
+            onShowOrdersHistory={onShowOrdersHistory}
             tabLabel={(oldRefractionData as { legacy_glasses_type?: string }).legacy_glasses_type || oldRefractionData.r_glasses_type}
           />
 

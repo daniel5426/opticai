@@ -16,7 +16,7 @@ export function OrderPrescriptionTitle({ contact = false }: { contact?: boolean 
         </span>
       </TooltipTrigger>
       <TooltipContent dir={direction} className="max-w-64 text-center" sideOffset={6}>
-        {t('orderPrescriptionSourceHint')}
+        {t(contact ? 'orderPrescriptionContactSourceHint' : 'orderPrescriptionSourceHint')}
       </TooltipContent>
     </Tooltip>
   </h3>;

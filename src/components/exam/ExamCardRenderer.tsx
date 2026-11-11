@@ -106,7 +106,8 @@ import { NPCTab } from "@/components/exam/NPCTab";
 import { v4 as uuidv4 } from "uuid";
 import { ExamDetailsCard } from "@/components/exam/ExamDetailsCard";
 import { NotesCard } from "@/components/ui/notes-card";
-import { OrdersHistoryModal } from "@/components/exam/OrdersHistoryModal";
+import { PrescriptionSourceModal } from "@/components/exam/PrescriptionSourceModal";
+import { contactOrderLenses } from "@/lib/old-contact-lenses-source";
 import { Order } from "@/lib/db/schema-interface";
 import { inputSyncManager } from "./shared/OptimizedInputs";
 import {
@@ -883,6 +884,23 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
 
     const handleSelectOrder = (order: Order) => {
       setIsOrdersHistoryOpen(false);
+      if (item.type === "old-contact-lenses") {
+        const lenses = contactOrderLenses(order);
+        if (!Object.keys(lenses).length) {
+          toast.info(t("oldContactLensesNoOrderLenses"));
+          return;
+        }
+        inputSyncManager.flush();
+        const key = `old-contact-lenses-${item.id}`;
+        detailProps?.setExamFormData?.((previous) => ({
+          ...previous,
+          [key]: {
+            ...((previous[key] as any) || {}),
+            ...Object.fromEntries(Object.entries(lenses).map(([field, value]) => [field, String(value)])),
+          },
+        }));
+        return;
+      }
       if (!order.order_data || item.type !== "old-refraction") return;
 
       // Flush any pending changes from currently blurred/typing inputs
@@ -998,8 +1016,8 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
           if (sourceData["comb_va"] !== undefined)
             updateFieldRaw("comb_va", sourceData["comb_va"]);
         } else {
-          // Regular orders use r_ad/r_va etc
-          ["r_ad", "l_ad", "r_va", "l_va", "comb_va"].forEach((key) => {
+          // A glasses prescription shows no VA (any stored there is hidden), so only ADD is taken.
+          ["r_ad", "l_ad"].forEach((key) => {
             updateFieldRaw(key, sourceData[key]);
           });
         }
@@ -1018,6 +1036,9 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
     // Determine the final hideEyeLabels value based on item.showEyeLabels
     const finalHideEyeLabels = item.showEyeLabels ? false : hideEyeLabels;
 
+    // Filling a card from an order only happens while editing; the button sits beside the card's title.
+    const showOrdersHistory =
+      mode === "detail" && detailProps?.isEditing ? () => setIsOrdersHistoryOpen(true) : undefined;
     const toolbox =
       mode === "detail" && detailProps?.isEditing ? (
         <ExamToolbox
@@ -1042,11 +1063,6 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
           onCopyToLeftEye={
             componentsWithEyeRowCopy.includes(item.type)
               ? onCopyToLeftEye
-              : undefined
-          }
-          onShowOrdersHistory={
-            item.type === "old-refraction"
-              ? () => setIsOrdersHistoryOpen(true)
               : undefined
           }
         />
@@ -1467,9 +1483,10 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
                 detailProps?.updateOldRefractionTabType?.(item.id, idx, type)
               }
               allTabsData={allTabsData}
+              onShowOrdersHistory={showOrdersHistory}
             />
             {isOrdersHistoryOpen && (
-              <OrdersHistoryModal
+              <PrescriptionSourceModal
                 isOpen={isOrdersHistoryOpen}
                 onClose={() => setIsOrdersHistoryOpen(false)}
                 clientId={
@@ -1477,7 +1494,8 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
                   detailProps?.formData?.client_id ||
                   0
                 }
-                onSelectOrder={handleSelectOrder}
+                kind="glasses"
+                onSelect={handleSelectOrder}
               />
             )}
           </div>
@@ -2505,7 +2523,17 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
               isEditing={mode === "detail" ? detailProps!.isEditing : false}
               hideEyeLabels={finalHideEyeLabels}
               title={item.type === "new-contact-lenses" ? t("contactLensDetails.newLensesTitle") : undefined}
+              onShowOrdersHistory={item.type === "old-contact-lenses" ? showOrdersHistory : undefined}
             />
+            {isOrdersHistoryOpen && (
+              <PrescriptionSourceModal
+                isOpen={isOrdersHistoryOpen}
+                onClose={() => setIsOrdersHistoryOpen(false)}
+                clientId={detailProps?.exam?.client_id || detailProps?.formData?.client_id || 0}
+                kind="contact"
+                onSelect={handleSelectOrder}
+              />
+            )}
           </div>
         );
       case "over-refraction":
