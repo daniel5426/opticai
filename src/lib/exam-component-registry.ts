@@ -366,6 +366,14 @@ examComponentRegistry.register('old-contact-lenses', {
   showInLayoutEditor: true
 })
 
+// The same fields as the old lenses, for the lenses being fitted now.
+examComponentRegistry.register('new-contact-lenses', {
+  name: 'עדשות מגע חדשות',
+  component: () => import('../components/exam/OldContactLensesTab'),
+  order: 24.5,
+  showInLayoutEditor: true
+})
+
 examComponentRegistry.register('over-refraction', {
   name: 'רפרקציה נוספת',
   component: () => import('../components/exam/OverRefractionTab'),

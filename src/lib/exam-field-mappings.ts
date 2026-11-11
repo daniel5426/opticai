@@ -81,6 +81,7 @@ export type ExamComponentType =
   | 'contact-lens-order'
   | 'over-refraction'
   | 'old-contact-lenses'
+  | 'new-contact-lenses'
   | 'sensation-vision-stability'
   | 'diopter-adjustment-panel'
   | 'fusion-range'
@@ -132,6 +133,7 @@ export const fullExamsList: ExamComponentType[] = [
   'contact-lens-order',
   'over-refraction',
   'old-contact-lenses',
+  'new-contact-lenses',
   'sensation-vision-stability',
   'diopter-adjustment-panel',
   'fusion-range',
@@ -192,6 +194,7 @@ export const examComponentTypeToExamFields: Record<ExamComponentType, ExamCompon
   'contact-lens-order': [],
   'over-refraction': [],
   'old-contact-lenses': [],
+  'new-contact-lenses': [],
   'sensation-vision-stability': [],
   'diopter-adjustment-panel': [],
   'fusion-range': [],
@@ -263,6 +266,7 @@ export class ExamFieldMapper {
     'contact-lens-order': [],
     'over-refraction': fullExamsList,
     'old-contact-lenses': fullExamsList,
+    'new-contact-lenses': fullExamsList,
     'sensation-vision-stability': fullExamsList,
     'diopter-adjustment-panel': fullExamsList,
     'fusion-range': fullExamsList,
@@ -377,6 +381,7 @@ export class ExamFieldMapper {
           'comb_va', 'comb_j',
         ];
       case 'old-contact-lenses':
+      case 'new-contact-lenses':
         return [
           'r_lens_type', 'r_model', 'r_supplier', 'r_bc', 'r_diam', 'r_sph', 'r_cyl', 'r_ax', 'r_va', 'r_j',
           'l_lens_type', 'l_model', 'l_supplier', 'l_bc', 'l_diam', 'l_sph', 'l_cyl', 'l_ax', 'l_va', 'l_j',
