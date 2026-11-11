@@ -12,7 +12,7 @@ import React, {
 } from "react";
 import { useParams, useNavigate, useSearch } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/site-header";
-import { findLatestNewContactLenses, fillOldContactLenses } from "@/lib/new-contact-lenses-source";
+import { findLatestContactLensOrderLenses, fillOldContactLenses } from "@/lib/old-contact-lenses-source";
 import { examPageDataQueryKey, getExamPageData, getExamsByClientId } from "@/lib/db/exams-db";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getOrdersByClientId } from "@/lib/db/orders-db";
@@ -989,7 +989,7 @@ export default function ExamDetailPage({
   const { currentClient, setActiveTab: setSidebarActiveTab } =
     useClientSidebar();
 
-  // A new exam's Old Contact Lenses start as the New Contact Lenses of the client's latest exam that has them.
+  // A new exam's Old Contact Lenses start as the lenses of the client's latest contact lens order.
   // Once per loaded layout instance: a reload of the layout starts a new one and is filled again.
   const oldLensesKeys = Object.keys(examFormData).filter((key) => key.startsWith("old-contact-lenses-")).join(",");
   useEffect(() => {
@@ -997,7 +997,7 @@ export default function ExamDetailPage({
     if (newLensesFilledInstanceRef.current === activeInstanceId) return;
     newLensesFilledInstanceRef.current = activeInstanceId;
     let cancelled = false;
-    void findLatestNewContactLenses(Number(clientId)).then((lenses) => {
+    void findLatestContactLensOrderLenses(Number(clientId)).then((lenses) => {
       if (cancelled || !lenses) return;
       const wasClean = !checkDirty();
       setExamFormData((previous) => fillOldContactLenses(previous, lenses));

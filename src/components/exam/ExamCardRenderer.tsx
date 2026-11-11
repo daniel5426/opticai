@@ -107,6 +107,7 @@ import { v4 as uuidv4 } from "uuid";
 import { ExamDetailsCard } from "@/components/exam/ExamDetailsCard";
 import { NotesCard } from "@/components/ui/notes-card";
 import { OrdersHistoryModal } from "@/components/exam/OrdersHistoryModal";
+import { contactOrderLenses } from "@/lib/old-contact-lenses-source";
 import { Order } from "@/lib/db/schema-interface";
 import { inputSyncManager } from "./shared/OptimizedInputs";
 import {
@@ -883,6 +884,23 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
 
     const handleSelectOrder = (order: Order) => {
       setIsOrdersHistoryOpen(false);
+      if (item.type === "old-contact-lenses") {
+        const lenses = contactOrderLenses(order);
+        if (!Object.keys(lenses).length) {
+          toast.info(t("oldContactLensesNoOrderLenses"));
+          return;
+        }
+        inputSyncManager.flush();
+        const key = `old-contact-lenses-${item.id}`;
+        detailProps?.setExamFormData?.((previous) => ({
+          ...previous,
+          [key]: {
+            ...((previous[key] as any) || {}),
+            ...Object.fromEntries(Object.entries(lenses).map(([field, value]) => [field, String(value)])),
+          },
+        }));
+        return;
+      }
       if (!order.order_data || item.type !== "old-refraction") return;
 
       // Flush any pending changes from currently blurred/typing inputs
@@ -1045,7 +1063,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
               : undefined
           }
           onShowOrdersHistory={
-            item.type === "old-refraction"
+            item.type === "old-refraction" || item.type === "old-contact-lenses"
               ? () => setIsOrdersHistoryOpen(true)
               : undefined
           }
@@ -2504,8 +2522,17 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
               onChange={getChangeHandler(item.type, item.id)}
               isEditing={mode === "detail" ? detailProps!.isEditing : false}
               hideEyeLabels={finalHideEyeLabels}
-              isNewLenses={item.type === "new-contact-lenses"}
+              title={item.type === "new-contact-lenses" ? t("contactLensDetails.newLensesTitle") : undefined}
             />
+            {isOrdersHistoryOpen && (
+              <OrdersHistoryModal
+                isOpen={isOrdersHistoryOpen}
+                onClose={() => setIsOrdersHistoryOpen(false)}
+                clientId={detailProps?.exam?.client_id || detailProps?.formData?.client_id || 0}
+                onSelectOrder={handleSelectOrder}
+                defaultType="contact"
+              />
+            )}
           </div>
         );
       case "over-refraction":

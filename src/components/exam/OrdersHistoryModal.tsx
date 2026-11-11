@@ -13,15 +13,17 @@ interface OrdersHistoryModalProps {
     onClose: () => void;
     clientId: number;
     onSelectOrder: (order: Order) => void;
+    /** The order kind the list opens on. */
+    defaultType?: 'all' | 'regular' | 'contact';
 }
 
 const ITEMS_PER_PAGE = 15;
 
-export function OrdersHistoryModal({ isOpen, onClose, clientId, onSelectOrder }: OrdersHistoryModalProps) {
+export function OrdersHistoryModal({ isOpen, onClose, clientId, onSelectOrder, defaultType = 'all' }: OrdersHistoryModalProps) {
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(false);
     const [dateFilter, setDateFilter] = useState('');
-    const [typeFilter, setTypeFilter] = useState('all');
+    const [typeFilter, setTypeFilter] = useState<string>(defaultType);
     const [displayCount, setDisplayCount] = useState(ITEMS_PER_PAGE);
     const listRef = useRef<HTMLDivElement>(null);
 

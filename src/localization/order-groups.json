@@ -3,7 +3,6 @@
     "orderPrescriptionFinalTitle": "Final prescription",
     "orderPrescriptionContactTitle": "Contact lens prescription",
     "orderPrescriptionSourceHint": "The prescription from this card is imported into orders.",
-    "newContactLensesSourceHint": "These lenses fill Old contact lenses in the client's next exam.",
     "orderGroupEmptyOrder": "Empty order",
     "orderGroupLastOrder": "Last order",
     "orderGroupLastExam": "Last exam",
@@ -121,13 +120,13 @@
     "orderGroupUnpaid": "Unpaid",
     "orderGroupPartiallyPaid": "Partially paid",
     "orderGroupQuickPayment": "Payment: {{status}} · {{balance}} remaining",
-    "orderGroupPaymentHistoryError": "Could not load payment history."
+    "orderGroupPaymentHistoryError": "Could not load payment history.",
+    "oldContactLensesNoOrderLenses": "This order has no lens details."
   },
   "he": {
     "orderPrescriptionFinalTitle": "מרשם סופי",
     "orderPrescriptionContactTitle": "מרשם עדשות מגע",
     "orderPrescriptionSourceHint": "המרשם מכרטיס זה מיובא להזמנות.",
-    "newContactLensesSourceHint": "העדשות מכרטיס זה ימולאו כ״עדשות מגע ישנות״ בבדיקה הבאה של הלקוח.",
     "orderGroupEmptyOrder": "הזמנה ריקה",
     "orderGroupLastOrder": "הזמנה אחרונה",
     "orderGroupLastExam": "בדיקה אחרונה",
@@ -245,13 +244,13 @@
     "orderGroupUnpaid": "לא שולם",
     "orderGroupPartiallyPaid": "שולם חלקית",
     "orderGroupQuickPayment": "תשלום: {{status}} · יתרה {{balance}}",
-    "orderGroupPaymentHistoryError": "לא ניתן לטעון את היסטוריית התשלומים."
+    "orderGroupPaymentHistoryError": "לא ניתן לטעון את היסטוריית התשלומים.",
+    "oldContactLensesNoOrderLenses": "בהזמנה זו אין פרטי עדשות."
   },
   "fr": {
     "orderPrescriptionFinalTitle": "Prescription finale",
     "orderPrescriptionContactTitle": "Prescription de lentilles",
     "orderPrescriptionSourceHint": "La prescription de cette fiche est importée dans les commandes.",
-    "newContactLensesSourceHint": "Ces lentilles remplissent « Vieilles lentilles de contact » au prochain examen du client.",
     "orderGroupEmptyOrder": "Commande vide",
     "orderGroupLastOrder": "Dernière commande",
     "orderGroupLastExam": "Dernier examen",
@@ -369,6 +368,7 @@
     "orderGroupUnpaid": "Non payé",
     "orderGroupPartiallyPaid": "Partiellement payé",
     "orderGroupQuickPayment": "Paiement : {{status}} · solde {{balance}}",
-    "orderGroupPaymentHistoryError": "Impossible de charger l’historique des paiements."
+    "orderGroupPaymentHistoryError": "Impossible de charger l’historique des paiements.",
+    "oldContactLensesNoOrderLenses": "Cette commande n’a pas de détails de lentilles."
   }
 }
