@@ -1016,8 +1016,8 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
           if (sourceData["comb_va"] !== undefined)
             updateFieldRaw("comb_va", sourceData["comb_va"]);
         } else {
-          // Regular orders use r_ad/r_va etc
-          ["r_ad", "l_ad", "r_va", "l_va", "comb_va"].forEach((key) => {
+          // A glasses prescription shows no VA (any stored there is hidden), so only ADD is taken.
+          ["r_ad", "l_ad"].forEach((key) => {
             updateFieldRaw(key, sourceData[key]);
           });
         }

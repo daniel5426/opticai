@@ -50,7 +50,7 @@ const plain = (value: unknown) => (value === undefined || value === null ? "" : 
 
 // The columns the card fills, as its own headings name them.
 const PREVIEW_COLUMNS: Record<PrescriptionKind, Array<[string, string, (value: unknown) => string]>> = {
-  glasses: [["SPH", "sph", formatPower], ["CYL", "cyl", formatPower], ["AX", "ax", plain], ["PRISM", "pris", plain], ["BASE", "base", plain], ["VA", "va", plain], ["ADD", "ad", formatPower]],
+  glasses: [["SPH", "sph", formatPower], ["CYL", "cyl", formatPower], ["AX", "ax", plain], ["PRISM", "pris", plain], ["BASE", "base", plain], ["ADD", "ad", formatPower]],
   contact: [["BC", "bc", plain], ["DIAM", "diam", plain], ["SPH", "sph", formatPower], ["CYL", "cyl", formatPower], ["AX", "ax", plain], ["VA", "va", plain]],
 };
 
