@@ -88,6 +88,9 @@ function PrescriptionPreview({ kind, source }: { kind: PrescriptionKind; source:
   );
 }
 
+// The sliding highlight draws the selected tab, so the tab itself stays clear.
+const SLIDING_TAB = "relative z-10 data-[state=active]:bg-transparent data-[state=active]:shadow-none text-muted-foreground data-[state=active]:text-foreground transition-colors duration-300";
+
 /** Where a card's earlier prescription comes from: the client's orders or the prescription of an earlier exam. */
 export function PrescriptionSourceModal({ isOpen, onClose, clientId, kind, onSelect }: PrescriptionSourceModalProps) {
   const { t } = useTranslation();
@@ -147,14 +150,23 @@ export function PrescriptionSourceModal({ isOpen, onClose, clientId, kind, onSel
     >
       <div className="flex h-full flex-col gap-3" dir={direction}>
         <Tabs value={source} onValueChange={(value) => setSource(value as Source)} dir={direction}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="orders">{t("prescriptionSourceOrdersTab")}</TabsTrigger>
+          <TabsList className="relative grid w-full grid-cols-2">
+            {/* The selection slides between the tabs. */}
+            <span
+              aria-hidden="true"
+              className="bg-background absolute inset-y-[3px] rounded-md shadow-sm transition-[inset-inline-start] duration-300 ease-out motion-reduce:transition-none"
+              style={{ width: "calc(50% - 3px)", insetInlineStart: source === "orders" ? "3px" : "50%" }}
+            />
+            <TabsTrigger value="orders" className={SLIDING_TAB}>{t("prescriptionSourceOrdersTab")}</TabsTrigger>
             <Tooltip>
+              {/* On a wrapper: as the trigger itself, the tooltip's state would replace the tab's selected state. */}
               <TooltipTrigger asChild>
-                <TabsTrigger value="exams" className="gap-1.5">
-                  {t("prescriptionSourceExamsTab")}
-                  <Info className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
-                </TabsTrigger>
+                <span className="relative flex">
+                  <TabsTrigger value="exams" className={`${SLIDING_TAB} gap-1.5`}>
+                    {t("prescriptionSourceExamsTab")}
+                    <Info className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
+                  </TabsTrigger>
+                </span>
               </TooltipTrigger>
               <TooltipContent dir={direction} className="max-w-80 text-center" sideOffset={6}>
                 {t(kind === "glasses" ? "prescriptionSourceExamsHintGlasses" : "prescriptionSourceExamsHintContact")}
