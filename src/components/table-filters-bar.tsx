@@ -61,6 +61,8 @@ interface TableFiltersBarProps {
   searchPlaceholder?: string;
   searchAriaLabel?: string;
   filters?: TableFiltersBarSelect[];
+  /** Shown where the search box is, for tables that search by field instead. */
+  leadingControls?: React.ReactNode;
   inlineControls?: React.ReactNode;
   navigation?: React.ReactNode;
   actions?: React.ReactNode;
@@ -78,6 +80,7 @@ export function TableFiltersBar({
   searchPlaceholder,
   searchAriaLabel,
   filters = [],
+  leadingControls,
   inlineControls,
   navigation,
   actions,
@@ -167,6 +170,8 @@ export function TableFiltersBar({
               />
             </div>
           ) : null}
+
+          {leadingControls}
 
           {onReset && hasActiveFilters ? (
             <Button

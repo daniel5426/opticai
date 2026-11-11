@@ -429,6 +429,7 @@ export default function ClientsPage() {
                 onClientDeleteFailed={handleClientDeleteFailed}
                 searchQuery={searchInput}
                 onSearchChange={handleSearchInputChange}
+                fieldSearch
                 serverFiltered
                 columnFilters={columnFilters}
                 onColumnFiltersChange={(filters) =>

@@ -27,7 +27,13 @@
       "deleteClinic": "A clinic context is required to delete this record",
       "instanceExam": "Layout instance exam cannot change",
       "tasks": "Follow-up tasks",
-      "clinicNumber": "Clinic #{{id}}"
+      "clinicNumber": "Clinic #{{id}}",
+      "search": {
+        "firstName": "First name",
+        "lastName": "Last name",
+        "nationalId": "ID",
+        "phone": "Phone"
+      }
     }
   },
   "he": {
@@ -58,7 +64,13 @@
       "deleteClinic": "יש לבחור מרפאה כדי למחוק את הרשומה",
       "instanceExam": "לא ניתן לשייך את כרטיס הבדיקה לבדיקה אחרת",
       "tasks": "משימות מעקב",
-      "clinicNumber": "מרפאה #{{id}}"
+      "clinicNumber": "מרפאה #{{id}}",
+      "search": {
+        "firstName": "שם פרטי",
+        "lastName": "שם משפחה",
+        "nationalId": "ת.ז.",
+        "phone": "טלפון"
+      }
     }
   },
   "fr": {
@@ -89,7 +101,13 @@
       "deleteClinic": "Sélectionnez une clinique pour supprimer cet enregistrement",
       "instanceExam": "L’examen de cette fiche ne peut pas être modifié",
       "tasks": "Tâches de suivi",
-      "clinicNumber": "Clinique n° {{id}}"
+      "clinicNumber": "Clinique n° {{id}}",
+      "search": {
+        "firstName": "Prénom",
+        "lastName": "Nom",
+        "nationalId": "N° d’identité",
+        "phone": "Téléphone"
+      }
     }
   }
 }
