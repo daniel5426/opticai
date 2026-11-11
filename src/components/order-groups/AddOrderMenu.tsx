@@ -93,6 +93,7 @@ export function AddOrderMenu({ clientId, disabled }: { clientId?: number; disabl
             <ChevronRight className="size-4" />
           </DropdownMenuSubTrigger>
           <DropdownMenuPortal><DropdownMenuSubContent dir={direction} sideOffset={4}>
+            <DropdownMenuItem onSelect={() => select({ kind })}>{t('orderGroupEmptyOrder')}</DropdownMenuItem>
             {(['order', 'exam'] as const).map(source => <DropdownMenuItem key={source}
               disabled={Boolean(clientId) && (context.isFetching || !context.data || !sourceId(context.data, { kind, source }))}
               onSelect={() => select({ kind, source })}>
