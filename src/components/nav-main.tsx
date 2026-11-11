@@ -1,6 +1,6 @@
 import React from "react";
 import { IconCirclePlusFilled, IconMail, type Icon } from "@tabler/icons-react";
-import { useLocation } from "@tanstack/react-router";
+import { useSidebarActive } from "@/components/use-sidebar-active";
 
 import {
   SidebarGroup,
@@ -28,25 +28,7 @@ export function NavMain({
   renderQuickAction?: (action: SidebarQuickAction) => React.ReactNode;
 }) {
   const { t } = useTranslation();
-  const location = useLocation();
-
-  const normalizePath = (path: string) => {
-    if (!path || path === "/") return "/";
-    return path.replace(/\/+$/, "");
-  };
-
-  const isRouteActive = (url: string) => {
-    const normalizedTarget = normalizePath(url);
-    const currentPath = normalizePath(location.pathname);
-
-    if (normalizedTarget === "/") {
-      return currentPath === "/";
-    }
-    return (
-      currentPath === normalizedTarget ||
-      currentPath.startsWith(`${normalizedTarget}/`)
-    );
-  };
+  const isRouteActive = useSidebarActive(items.map((item) => item.url));
 
   return (
     <SidebarGroup>
