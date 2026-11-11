@@ -284,17 +284,28 @@ export default function ExamDetailPage({
     if (content) content.scrollTop = 0;
   }, [activeInstanceId]);
 
-  const [formData, setFormData] = useState<Partial<OpticalExam>>(
+  const [formDraft, setFormData] = useState<Partial<OpticalExam>>(
     isNewMode
       ? {
           client_id: Number(clientId),
           exam_date: new Date().toISOString().split("T")[0],
           test_name: "",
           user_id: currentUser?.id,
-          dominant_eye: null,
           type: config.dbType,
         }
       : {},
+  );
+  const { data: defaultDominantEye } = useQuery({
+    queryKey: ["exam-dominant-eye-history", clientId, currentClinic?.id],
+    queryFn: () => getExamsByClientId(Number(clientId)),
+    enabled: isNewMode && Boolean(clientId),
+    select: (exams) => exams.find((exam) => exam.dominant_eye)?.dominant_eye,
+  });
+  const formData = useMemo(
+    () => isNewMode && formDraft.dominant_eye === undefined && defaultDominantEye
+      ? { ...formDraft, dominant_eye: defaultDominantEye }
+      : formDraft,
+    [isNewMode, formDraft, defaultDominantEye],
   );
 
   const initialCardRows: CardRow[] = [
@@ -344,12 +355,12 @@ export default function ExamDetailPage({
   const getSerializedState = useCallback(
     () =>
       JSON.stringify({
-        formData: sortKeysDeep(formData),
+        formData: sortKeysDeep(formDraft),
         examFormData: sortKeysDeep(examFormData),
         examFormDataByInstance: sortKeysDeep(examFormDataByInstance),
         layouts: layoutTabs.filter(isPersistableLayoutTab).map(tab => ({ id: tab.id, layout_id: tab.layout_id, layout_data: tab.layout_data })),
       }),
-    [formData, examFormData, examFormDataByInstance, layoutTabs],
+    [formDraft, examFormData, examFormDataByInstance, layoutTabs],
   );
 
   const {
@@ -975,23 +986,6 @@ export default function ExamDetailPage({
 
   const { currentClient, setActiveTab: setSidebarActiveTab } =
     useClientSidebar();
-
-  // A new exam starts with the dominant eye of the client's latest exam that has one.
-  useEffect(() => {
-    if (!isNewMode || !clientId) return;
-    let cancelled = false;
-    void getExamsByClientId(Number(clientId)).then((exams) => {
-      const dominantEye = exams.find((exam) => exam.dominant_eye)?.dominant_eye;
-      if (cancelled || !dominantEye) return;
-      const wasClean = !checkDirty();
-      setFormData((prev) => (prev.dominant_eye ? prev : { ...prev, dominant_eye: dominantEye }));
-      // A prefilled value is not an unsaved change.
-      if (wasClean && baselineInitializedRef.current) setTimeout(() => setBaseline(), 0);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [isNewMode, clientId]);
 
   // Auto-import order data to old refraction
   useEffect(() => {

@@ -29,6 +29,7 @@
       "tasks": "Follow-up tasks",
       "clinicNumber": "Clinic #{{id}}",
       "search": {
+        "general": "Search clients…",
         "firstName": "First name",
         "lastName": "Last name",
         "nationalId": "ID",
@@ -66,6 +67,7 @@
       "tasks": "משימות מעקב",
       "clinicNumber": "מרפאה #{{id}}",
       "search": {
+        "general": "חיפוש לקוחות…",
         "firstName": "שם פרטי",
         "lastName": "שם משפחה",
         "nationalId": "ת.ז.",
@@ -103,6 +105,7 @@
       "tasks": "Tâches de suivi",
       "clinicNumber": "Clinique n° {{id}}",
       "search": {
+        "general": "Rechercher des clients…",
         "firstName": "Prénom",
         "lastName": "Nom",
         "nationalId": "N° d’identité",

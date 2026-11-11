@@ -1,6 +1,7 @@
 {
   "en": {
     "title": "Contact lens details",
+    "newLensesTitle": "New Contact Lenses",
     "type": "Type",
     "manufacturer": "Manufacturer",
     "model": "Model",
@@ -14,6 +15,7 @@
   },
   "he": {
     "title": "פרטי עדשות מגע",
+    "newLensesTitle": "עדשות מגע חדשות",
     "type": "סוג",
     "manufacturer": "יצרן",
     "model": "דגם",
@@ -27,6 +29,7 @@
   },
   "fr": {
     "title": "Détails des lentilles",
+    "newLensesTitle": "Nouvelles lentilles de contact",
     "type": "Type",
     "manufacturer": "Fabricant",
     "model": "Modèle",

@@ -8,17 +8,22 @@ vi.mock("@tanstack/react-router", () => ({ useNavigate: () => vi.fn() }))
 beforeEach(() => { vi.useFakeTimers() })
 afterEach(() => { vi.useRealTimers() })
 
-test("searches first name, last name, ID and phone in separate boxes", async () => {
-  await i18n.changeLanguage("he")
+test.each([
+  ["he", "rtl", "חיפוש לקוחות…", "שם פרטי", "שם משפחה", "ת.ז.", "טלפון"],
+  ["en", "ltr", "Search clients…", "First name", "Last name", "ID", "Phone"],
+  ["fr", "ltr", "Rechercher des clients…", "Prénom", "Nom", "N° d’identité", "Téléphone"],
+])("keeps the existing search visible alongside the separate filters in %s", async (locale, direction, search, first, last, id, phone) => {
+  await i18n.changeLanguage(locale)
   const onChange = vi.fn()
-  render(<ClientsTable data={[]} serverFiltered fieldSearch columnFilters={{ gender: "f" } as any} onColumnFiltersChange={onChange} />)
-  expect(screen.queryByPlaceholderText("חיפוש לקוחות…")).toBeNull()
-  fireEvent.change(screen.getByLabelText("שם משפחה"), { target: { value: "טקץ" } })
-  fireEvent.change(screen.getByLabelText("טלפון"), { target: { value: "0506" } })
+  render(<ClientsTable data={[]} serverFiltered fieldSearch searchQuery="שם מלא" columnFilters={{ gender: "f" } as any} onColumnFiltersChange={onChange} />)
+  expect(screen.getByPlaceholderText(search)).toHaveValue("שם מלא")
+  expect(screen.getByPlaceholderText(search)).toHaveAttribute("dir", direction)
+  fireEvent.change(screen.getByLabelText(last), { target: { value: "טקץ" } })
+  fireEvent.change(screen.getByLabelText(phone), { target: { value: "0506" } })
   expect(onChange).not.toHaveBeenCalled()
   act(() => { vi.advanceTimersByTime(400) })
   expect(onChange).toHaveBeenCalledTimes(1)
   expect(onChange.mock.calls[0][0]).toMatchObject({ gender: "f", last_name: "טקץ", phone_mobile: "0506" })
-  expect(screen.getByLabelText("שם פרטי")).toBeTruthy()
-  expect(screen.getByLabelText("ת.ז.")).toBeTruthy()
+  expect(screen.getByLabelText(first)).toBeTruthy()
+  expect(screen.getByLabelText(id)).toHaveAttribute("dir", "ltr")
 })

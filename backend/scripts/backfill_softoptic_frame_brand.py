@@ -6,9 +6,9 @@ A value is swapped only while it still equals the column the older import read i
 edited since the import is left alone.
 
 The lookups are name lists that orders do not point at. The frame suppliers (OpticSoft's
-optic_tv_frame_manuf, read from the import's export bundle) are added to the supplier lookup and
-taken out of the brand lookup, except a name that is also a contact lens manufacturer or a frame
-brand. The brands the orders use often enough are added to the brand lookup.
+optic_tv_frame_manuf, read from the import's export bundle) are added to the supplier lookup.
+Only brand rows recorded as created by this import can be removed. Names used for contact lenses
+or as frame brands stay. The brands the orders use often enough are added to the brand lookup.
 
 Dry run by default; pass --apply to write.
 
@@ -24,6 +24,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Dict, List, Set, Tuple
 
+from sqlalchemy import select
 from sqlalchemy.orm.attributes import flag_modified
 
 from database import SessionLocal
@@ -111,6 +112,17 @@ def _names(csv_dir: str, filename: str) -> Set[str]:
     return {name for name in (clean_legacy_text(r.get("name")) for r in read_csv(csv_dir, filename)) if name}
 
 
+def _imported_brand_ids(job: SoftOpticMigrationJob):
+    return select(MigrationSourceLink.target_id).where(
+        MigrationSourceLink.source_system == "softoptic",
+        MigrationSourceLink.source_table == "LookupManufacturer",
+        MigrationSourceLink.target_model == "LookupManufacturer",
+        MigrationSourceLink.clinic_id == job.clinic_id,
+        MigrationSourceLink.company_id == job.company_id,
+        MigrationSourceLink.migration_job_id == job.id,
+    )
+
+
 def plan_lookups(db, job: SoftOpticMigrationJob, csv_dir: str) -> Dict[str, List[str]]:
     """The supplier names to add, and the brand names to add and to remove, for the job's clinic."""
     suppliers = _names(csv_dir, "optic_tv_frame_manuf.csv")
@@ -131,10 +143,16 @@ def plan_lookups(db, job: SoftOpticMigrationJob, csv_dir: str) -> Dict[str, List
         return {name for (name,) in db.query(model.name).filter(model.clinic_id == job.clinic_id)}
 
     current_suppliers, current_brands = existing(LookupSupplier), existing(LookupManufacturer)
+    imported_brands = {
+        name for (name,) in db.query(LookupManufacturer.name).filter(
+            LookupManufacturer.clinic_id == job.clinic_id,
+            LookupManufacturer.id.in_(_imported_brand_ids(job)),
+        )
+    }
     return {
         "add_suppliers": sorted(suppliers - current_suppliers),
         "add_brands": sorted(used_brands - current_brands),
-        "remove_brands": sorted((suppliers & current_brands) - contact_manufacturers - used_brands),
+        "remove_brands": sorted((suppliers & imported_brands) - contact_manufacturers - used_brands),
     }
 
 
@@ -143,7 +161,9 @@ def apply_lookups(db, job: SoftOpticMigrationJob, lookups: Dict[str, List[str]])
     db.add_all(LookupManufacturer(clinic_id=job.clinic_id, name=name) for name in lookups["add_brands"])
     if lookups["remove_brands"]:
         db.query(LookupManufacturer).filter(
-            LookupManufacturer.clinic_id == job.clinic_id, LookupManufacturer.name.in_(lookups["remove_brands"])
+            LookupManufacturer.clinic_id == job.clinic_id,
+            LookupManufacturer.name.in_(lookups["remove_brands"]),
+            LookupManufacturer.id.in_(_imported_brand_ids(job)),
         ).delete(synchronize_session=False)
 
 

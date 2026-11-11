@@ -767,7 +767,7 @@ export function OrdersTable({
                         </Button>
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuItem onClick={() => handleCreateOrder("regular")}>הזמנה ריקה</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleCreateOrder("regular")}>{t("orderGroupEmptyOrder")}</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
 
@@ -840,7 +840,7 @@ export function OrdersTable({
                         </Button>
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuItem onClick={() => handleCreateOrder("contact")}>הזמנה ריקה</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleCreateOrder("contact")}>{t("orderGroupEmptyOrder")}</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </>

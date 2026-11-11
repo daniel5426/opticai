@@ -1320,3 +1320,4 @@ def test_softoptic_prescription_values_read_like_opticsoft_shows_them():
     assert [common.parse_softoptic_power(v) for v in ("+225 ", "-0050", "Plano", "Balan", "   ", "+3575")] == [22.5, -0.5, 0.0, "Balance", None, 35.75]
     assert [common.parse_softoptic_base(v) for v in ("Down", "up", "ln", "IN", "ESO", " ")] == ["DOWN", "UP", "IN", "IN", "ESO", None]
     assert [common.parse_softoptic_lens_diameter(v) for v in ("3444", " 70", "708 ", "0   ", "")] == ["34/44", "70", "70/80", None, None]
+    assert [common.parse_softoptic_lens_diameter(v) for v in ("65.5", "65,5", "65  ")] == ["65.5", "65.5", "65"]

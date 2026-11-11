@@ -359,10 +359,13 @@ def parse_softoptic_base(value: Optional[str]) -> Optional[str]:
 
 def parse_softoptic_lens_diameter(value: Optional[str]) -> Optional[str]:
     """OpticSoft shows a four-digit lens diameter as two: "3444" is 34/44."""
-    text = _softoptic_fixed_width(value, 4)
-    if not text or not text.isdigit() or not int(text):
+    original = serialize_number(value)
+    if not original or not float(original):
         return None
-    return f"{text[:2]}/{text[2:]}" if len(text) == 4 else text
+    if "." in original or len(original) < 3:
+        return original
+    text = _softoptic_fixed_width(value, 4)
+    return f"{text[:2]}/{text[2:]}" if text and text.isdigit() and len(text) == 4 else original
 
 
 def parse_int(value: Optional[str]) -> Optional[int]:

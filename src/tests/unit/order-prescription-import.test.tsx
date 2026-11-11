@@ -1,6 +1,6 @@
 import React from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { findExamComponentData } from '@/lib/exam-component-data';
@@ -71,6 +71,23 @@ it('reopens a saved order with a text prescription intact', async () => {
   expect(JSON.parse(output.textContent!)).toMatchObject({ r_sph: 'Balance', l_sph: 0 });
 });
 
+it('reports the saved order and prescription in the first workspace snapshot after saving', async () => {
+  const entry = workspace();
+  entry.record = { id: 100, client_id: 1, order_data: { 'final-prescription': { r_sph: -1 } } };
+  wrap(<LegacyOrderDetailPage mode="view" clientId="1" workspace={entry} />);
+  const handle = await waitFor(() => {
+    const ready = entry.register.mock.calls.find((call:any) => call[1]?.ready)?.[1];
+    expect(ready).toBeDefined();
+    return ready;
+  });
+  entry.onChange.mockClear();
+  const order = { ...entry.record, clinic_id: 7, order_data: { 'final-prescription': { r_sph: -2 } } };
+  act(() => handle.applySaved({ order }));
+  const firstSnapshot = JSON.parse(entry.onChange.mock.calls[0][1]);
+  expect(firstSnapshot.formData.clinic_id).toBe(7);
+  expect(firstSnapshot.finalPrescriptionFormData.r_sph).toBe(-2);
+});
+
 it.each(['regular', 'contact'])('imports only the prescription from a previous %s order', async kind => {
   fixture.search = { importSourceId: '88', importSourceType: 'order-prescription', ...(kind === 'contact' ? { type: 'contact' } : {}) };
   const source = { id: 88, client_id: 1, type: 'Old type', user_id: 99, dominant_eye: 'left', order_data: {
@@ -90,6 +107,7 @@ it.each(['regular', 'contact'])('imports only the prescription from a previous %
   expect(JSON.parse(output.textContent!)).toMatchObject(kind === 'contact' ? source.order_data['contact-lens-exam'] : source.order_data['final-prescription']);
   expect(kind === 'contact' ? fixture.contactSource : fixture.regularSource).toHaveBeenCalledWith(88);
   expect(kind === 'contact' ? fixture.regularSource : fixture.contactSource).not.toHaveBeenCalled();
+  await waitFor(() => expect(entry.register.mock.calls.some((call:any) => call[1]?.ready)).toBe(true));
   const handle = entry.register.mock.calls.filter((call:any) => call[1]?.ready).at(-1)[1];
   const serialized = handle.serialize().order;
   expect(JSON.stringify(serialized)).not.toMatch(/Old note|Old status|Old frame|Old supplier|Old type|900/);

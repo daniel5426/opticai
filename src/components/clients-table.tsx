@@ -77,7 +77,7 @@ interface ClientsTableProps {
   sort?: SortState
   onSortChange?: (sort: SortState) => void
   columnFilters?: ColumnFilters
-  /** Search by first name, last name, ID and phone in separate boxes instead of one. */
+  /** Add first name, last name, ID and phone filters to the search toolbar. */
   fieldSearch?: boolean
   onColumnFiltersChange?: (filters: ColumnFilters) => void
   mergeMode?: boolean
@@ -120,14 +120,16 @@ function ClientFieldSearch({ filters, onChange }: { filters: ColumnFilters; onCh
   const appliedKey = JSON.stringify(applied)
   const [values, setValues] = React.useState(applied)
   const latestFilters = React.useRef(filters)
+  const latestOnChange = React.useRef(onChange)
   latestFilters.current = filters
+  latestOnChange.current = onChange
   // Follows the URL, e.g. after "clear" or a column's own filter.
   React.useEffect(() => setValues(JSON.parse(appliedKey)), [appliedKey])
   React.useEffect(() => {
     if (JSON.stringify(values) === appliedKey) return
-    const timer = setTimeout(() => onChange({ ...latestFilters.current, ...values }), TABLE_SEARCH_DEBOUNCE_MS)
+    const timer = setTimeout(() => latestOnChange.current({ ...latestFilters.current, ...values }), TABLE_SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(timer)
-  }, [values])
+  }, [appliedKey, values])
   return (
     <>
       {SEARCH_FIELDS.map(([key, label]) => (
@@ -140,7 +142,7 @@ function ClientFieldSearch({ filters, onChange }: { filters: ColumnFilters; onCh
           inputMode={key === "national_id" || key === "phone_mobile" ? "numeric" : undefined}
           data-canvas-surface=""
           className={cn(canvasSurfaceClassName, "h-9 w-[140px]")}
-          dir={direction}
+          dir={key === "national_id" || key === "phone_mobile" ? "ltr" : direction}
         />
       ))}
     </>
@@ -333,8 +335,8 @@ export function ClientsTable({
         <TableFiltersBar
           exportTable="clients"
           searchValue={searchQuery}
-          onSearchChange={fieldSearch ? undefined : handleSearchChange}
-          searchPlaceholder="חיפוש לקוחות…"
+          onSearchChange={handleSearchChange}
+          searchPlaceholder={fieldSearch ? t("companyClients.search.general") : "חיפוש לקוחות…"}
           leadingControls={fieldSearch ? <ClientFieldSearch filters={columnFilters.filters} onChange={columnFilters.setFilters} /> : undefined}
           filters={[
             {
