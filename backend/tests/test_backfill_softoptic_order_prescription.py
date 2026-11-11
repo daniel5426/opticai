@@ -62,3 +62,34 @@ def test_reads_imported_prescriptions_like_opticsoft_and_keeps_edits():
     assert "left_diameter" not in data["lens"]
     # Running it again changes nothing.
     assert plan(db, job)[0] == []
+
+
+def test_adds_a_prescription_with_only_the_near_pd():
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(bind=engine)
+    db = sessionmaker(bind=engine)()
+    company = Company(name="A", owner_full_name="A")
+    db.add(company)
+    db.flush()
+    clinic = Clinic(company_id=company.id, name="A", unique_id="a")
+    db.add(clinic)
+    db.flush()
+    client = Client(company_id=company.id, clinic_id=clinic.id, first_name="A")
+    job = SoftOpticMigrationJob(id="job", clinic_id=clinic.id, company_id=company.id, user_id=1)
+    db.add_all([client, job])
+    db.flush()
+    order = Order(client_id=client.id, clinic_id=clinic.id, order_data={"details": {"bag_number": "7"}})
+    db.add(order)
+    db.flush()
+    db.add(MigrationSourceLink(
+        source_system="softoptic", source_primary_key_parts=[], clinic_id=clinic.id, company_id=company.id,
+        migration_job_id="job", source_table="optic_glasses_presc.csv", raw_row_ref="o", target_model="Order", target_id=order.id,
+        raw_payload={"pd_near": "62.00"},
+    ))
+    db.commit()
+
+    apply_changes(plan(db, job)[0])
+    db.commit()
+    db.expire_all()
+
+    assert db.get(Order, order.id).order_data == {"details": {"bag_number": "7"}, "final-prescription": {"comb_pd_close": 62.0}}

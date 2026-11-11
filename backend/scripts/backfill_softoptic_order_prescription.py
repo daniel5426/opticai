@@ -102,6 +102,9 @@ def plan(db, job: SoftOpticMigrationJob) -> Tuple[List[tuple], Counter]:
             raw = raw_by_order[order.id] or {}
             data = copy.deepcopy(order.order_data or {})
             changed = _fix_prescription(data.get("final-prescription"), raw, counts)
+            if "final-prescription" not in data and parse_float(raw.get("pd_near")) is not None:
+                # The import left out a prescription with nothing but this near PD; a new import makes one.
+                data["final-prescription"] = {}
             changed = _add_near_pd(data.get("final-prescription"), raw, counts) or changed
             changed = _fix_lens(data.get("lens"), raw, counts) or changed
             for tab in data.get("lens_frame_tabs") or []:
