@@ -245,6 +245,7 @@ export default function ExamDetailPage({
   const [layoutTabs, setLayoutTabs] = useState<LayoutTab[]>([]);
   const [isAddingLayouts, setIsAddingLayouts] = useState(false);
   const layoutTabsRef = useRef<LayoutTab[]>([]);
+  const lastLayoutTabIdRef = useRef<number | null>(null);
   const tempLayoutIdCounterRef = useRef(0);
   const latestLoadIdRef = useRef(0);
   const { currentUser, currentClinic } = useUser();
@@ -1499,6 +1500,10 @@ export default function ExamDetailPage({
   }, [exam]);
 
   useEffect(() => {
+    if (activeInstanceId != null && !isVirtualFullDataTabId(activeInstanceId)) lastLayoutTabIdRef.current = Number(activeInstanceId);
+  }, [activeInstanceId]);
+
+  useEffect(() => {
     if (activeInstanceId != null && !isVirtualFullDataTabId(activeInstanceId)) {
       const currentBucket = examFormDataByInstance[activeInstanceId] || {};
       if (!shallowEqual(currentBucket, examFormData)) {
@@ -2006,7 +2011,17 @@ export default function ExamDetailPage({
               activeInstanceId={activeInstanceId}
               onTabClick={id => {if (!isSaveInFlight) handleLayoutTabChange(id)}}
               onTabDrop={(id,index) => {if (!isSaveInFlight) {setIsEditing(true); void handleLayoutTabDrop(id,index)}}}
-              onFullDataClick={() => {if (!isSaveInFlight) handleActivateFullDataTab()}}
+              onFullDataClick={() => {
+                if (isSaveInFlight) return
+                // A second click on the active All data tab returns to the layout tab it replaced.
+                if (isVirtualFullDataTabId(activeInstanceId)) {
+                  const layoutTabsOnly = layoutTabs.filter((tab) => !isVirtualFullDataTabId(tab.id))
+                  const back = layoutTabsOnly.find((tab) => tab.id === lastLayoutTabIdRef.current) || layoutTabsOnly[0]
+                  if (back) handleLayoutTabChange(back.id)
+                  return
+                }
+                handleActivateFullDataTab()
+              }}
               hasTabData={(tab) =>
                 Object.entries(
                   tab.id === activeInstanceId
