@@ -329,6 +329,42 @@ def parse_float(value: Optional[str]) -> Optional[float]:
         return None
 
 
+def _softoptic_fixed_width(value: Optional[str], width: int) -> Optional[str]:
+    """OpticSoft pads a short number with trailing spaces in its fixed-width field; those are missing zeros."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    match = re.fullmatch(r"([+-]?)(\d+)( +)", str(value).lstrip())
+    if match and len(match.group(2)) + len(match.group(3)) == width:
+        return match.group(1) + match.group(2) + "0" * len(match.group(3))
+    return text
+
+
+def parse_softoptic_power(value: Optional[str]) -> Optional[Any]:
+    """An OpticSoft SPH or CYL: "+225 " is +22.50, and "Balan" is the Balance lens."""
+    text = _softoptic_fixed_width(value, 4)
+    if text and text.lower().startswith("balan"):
+        return "Balance"
+    return parse_optical_float(text)
+
+
+SOFTOPTIC_PRISM_BASES = {"in": "IN", "ln": "IN", "out": "OUT", "up": "UP", "down": "DOWN"}
+
+
+def parse_softoptic_base(value: Optional[str]) -> Optional[str]:
+    """OpticSoft's prism base in the IN/OUT/UP/DOWN form Prysm's base field lists; anything else as typed."""
+    text = clean_legacy_text(value)
+    return SOFTOPTIC_PRISM_BASES.get(text.lower(), text) if text else None
+
+
+def parse_softoptic_lens_diameter(value: Optional[str]) -> Optional[str]:
+    """OpticSoft shows a four-digit lens diameter as two: "3444" is 34/44."""
+    text = _softoptic_fixed_width(value, 4)
+    if not text or not text.isdigit() or not int(text):
+        return None
+    return f"{text[:2]}/{text[2:]}" if len(text) == 4 else text
+
+
 def parse_int(value: Optional[str]) -> Optional[int]:
     serialized = serialize_number(value)
     if serialized is None:
