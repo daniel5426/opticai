@@ -25,7 +25,7 @@ interface RetinoscopDilationTabProps {
 
 export function RetinoscopDilationTab({
   retinoscopDilationData,
-  onRetinoscopDilationChange,
+  onRetinoscopDilationChange: onFieldChange,
   isEditing,
   hideEyeLabels = false,
   needsMiddleSpacer = false
@@ -33,6 +33,17 @@ export function RetinoscopDilationTab({
   const { direction } = useAppLocale();
   const { t } = useTranslation();
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
+
+  // A new card opens on the autorefractor; an older card with values and no saved method was a retinoscopy.
+  const hasValues = Object.entries(retinoscopDilationData).some(
+    ([field, value]) => /^(r|l|comb)_/.test(field) && value !== null && value !== undefined && value !== "",
+  );
+  const method = retinoscopDilationData.method || (hasValues ? "retinoscopy" : "auto_refractor");
+  const onRetinoscopDilationChange = (field: keyof RetinoscopDilationExam, value: string) => {
+    // Keep the shown default once the card gets a value, or it would read as a retinoscopy.
+    if (field !== "method" && !retinoscopDilationData.method && !hasValues) onFieldChange("method", "auto_refractor");
+    onFieldChange(field, value);
+  };
 
   const { fieldWarnings, handleAxisChange, handleAxisBlur } = useAxisWarning(
     retinoscopDilationData,
@@ -118,7 +129,7 @@ export function RetinoscopDilationTab({
         <div className="space-y-3">
           <div className="flex justify-center mb-1">
             <Tabs
-              value={retinoscopDilationData.method || "retinoscopy"}
+              value={method}
               onValueChange={(val) => onRetinoscopDilationChange("method", val)}
               className="w-fit -translate-y-1"
               dir={direction}
