@@ -1,5 +1,5 @@
 import { arrangeOpticPlusExam } from "@/lib/opticplus-exam-layout";
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ExamCardRenderer,
   CardItem,
@@ -90,20 +90,7 @@ export function ExamLayoutRenderer({
   );
 
   const isImportedLayout = savedLayoutItems.some(card => card.type.startsWith("opticplus-"));
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [availableWidth, setAvailableWidth] = useState(Infinity);
-  useLayoutEffect(() => {
-    const element = containerRef.current;
-    if (!isImportedLayout || !element) return;
-    const style = getComputedStyle(element);
-    setAvailableWidth(Math.floor(element.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0)));
-    const observer = new ResizeObserver(([entry]) => {
-      if (entry) setAvailableWidth(Math.floor(entry.contentRect.width));
-    });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [isImportedLayout]);
-  const layoutItems = useMemo(() => isImportedLayout ? arrangeOpticPlusExam(savedLayoutItems, availableWidth) : savedLayoutItems, [isImportedLayout, savedLayoutItems, availableWidth]);
+  const layoutItems = useMemo(() => isImportedLayout ? arrangeOpticPlusExam(savedLayoutItems) : savedLayoutItems, [isImportedLayout, savedLayoutItems]);
 
   const rowRenderKey = useMemo(
     () =>
@@ -241,7 +228,6 @@ export function ExamLayoutRenderer({
 
   return (
     <div
-      ref={containerRef}
       data-clinical-nav-scope="true"
       dir="ltr"
       className="no-scrollbar flex min-w-0 flex-1 flex-col p-4"

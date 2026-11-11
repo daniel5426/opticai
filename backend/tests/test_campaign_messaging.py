@@ -65,7 +65,7 @@ def state(monkeypatch):
     monkeypatch.setattr(settings,'CAMPAIGN_SENDING_ENABLED',True)
     monkeypatch.setattr(providers,'email_ready',lambda:True)
     monkeypatch.setattr(providers,'send_email',lambda *args: providers.Outcome('submitted','email-1'))
-    app=FastAPI();app.include_router(campaigns.router);app.include_router(messaging.router);app.include_router(messaging.admin_router)
+    app=FastAPI();app.include_router(campaigns.router);app.include_router(messaging.router);app.include_router(messaging.callback_router);app.include_router(messaging.admin_router)
     def session():
         with sessions() as current:yield current
     app.dependency_overrides[get_db]=session
@@ -289,6 +289,122 @@ def test_resend_reconciliation_uses_the_campaign_account_key(state, monkeypatch)
     monkeypatch.setattr(providers.httpx,'get',get)
     assert messaging.reconcile_delivery(delivery.id,s.user,s.db)=={'status':'delivered'}
     assert delivery.settled and s.acct.reserved==0
+
+
+@pytest.mark.parametrize('channel', ['email', 'sms'])
+@pytest.mark.parametrize('outcome', ['submitted', 'not_sent'])
+def test_owner_resolves_unknown_delivery_once_without_resending(state, monkeypatch, channel, outcome):
+    s = state
+    s.acct.allowance_override = 0
+    s.db.commit()
+    run = quote_run(s)
+    delivery = s.db.query(CampaignDelivery).filter_by(run_id=run.id).one()
+    delivery.channel, delivery.provider = channel, 'resend' if channel == 'email' else 'micropay'
+    delivery.status, delivery.provider_id = 'uncertain', None
+    s.db.commit()
+    path = f'/admin/messaging/deliveries/{delivery.id}/resolve'
+    body = {'outcome': outcome, 'evidence': 'Provider support case 123 confirmed this outcome'}
+    assert s.http.post(path, json=body).status_code == 403  # Tenant CEO is not the owner.
+    monkeypatch.setattr(settings, 'OWNER_USER_IDS', str(s.user.id))
+    original = s.acct.balance
+    response = s.http.post(path, json=body)
+    assert response.status_code == 200, response.text
+    assert s.http.post(path, json=body).status_code == 200
+    assert s.http.post(path, json={**body, 'outcome': 'not_sent' if outcome == 'submitted' else 'submitted'}).status_code == 409
+    s.db.expire_all()
+    assert delivery.settled and s.acct.reserved == 0
+    assert s.acct.balance == original - (delivery.cost if outcome == 'submitted' else 0)
+    assert s.db.query(MessagingLedger).filter_by(key='settle:' + delivery.id).count() == 1
+    assert s.db.query(CampaignContactClaim).count() == (1 if outcome == 'submitted' else 0)
+    assert s.db.get(MessagingEvent, 'owner-resolution:' + delivery.id).payload['evidence'] == body['evidence']
+    assert not deliver_once(s.sessions)
+
+
+def test_owner_resolution_requires_evidence_and_an_uncertain_delivery(state, monkeypatch):
+    s = state
+    run = quote_run(s)
+    row = s.db.query(CampaignDelivery).filter_by(run_id=run.id).one()
+    monkeypatch.setattr(settings, 'OWNER_USER_IDS', str(s.user.id))
+    path = f'/admin/messaging/deliveries/{row.id}/resolve'
+    body = {'outcome': 'not_sent', 'evidence': 'Provider confirmed no submission'}
+    assert s.http.post(path, json=body).status_code == 409
+    row.status = 'uncertain'
+    s.db.commit()
+    assert s.http.post(path, json={**body, 'evidence': ' ' * 20}).status_code == 422
+    assert s.http.post(path, json={**body, 'outcome': 'retry'}).status_code == 422
+    s.db.expire_all()
+    assert not row.settled
+
+
+def test_owner_resolution_cannot_reassign_another_delivery_provider_id(state, monkeypatch):
+    s = state
+    run = quote_run(s)
+    row = s.db.query(CampaignDelivery).filter_by(run_id=run.id).one()
+    row.status, row.provider = 'uncertain', 'resend'
+    other = CampaignDelivery(id=uid(), run_id=run.id, campaign_id=s.c.id, company_id=s.company.id,
+        clinic_id=s.clinic.id, channel='email', destination='other@example.com', content='Other',
+        status='submitted', provider='resend', provider_id='existing-message', settled=True)
+    s.db.add(other)
+    s.db.commit()
+    monkeypatch.setattr(settings, 'OWNER_USER_IDS', str(s.user.id))
+    response = s.http.post(f'/admin/messaging/deliveries/{row.id}/resolve', json={
+        'outcome': 'submitted', 'provider_id': 'existing-message', 'evidence': 'Provider support verified submission'})
+    assert response.status_code == 409
+    s.db.expire_all()
+    assert row.provider_id is None and not row.settled
+
+
+def test_postgres_concurrent_owner_resolutions_settle_once(state):
+    s = state
+    if s.db.get_bind().dialect.name != 'postgresql': pytest.skip('Requires disposable PostgreSQL')
+    from concurrent.futures import ThreadPoolExecutor
+    from models import SubscriptionAuditEvent
+    s.acct.allowance_override = 0
+    s.db.commit()
+    run = quote_run(s)
+    row = s.db.query(CampaignDelivery).filter_by(run_id=run.id).one()
+    row.status, row.provider = 'uncertain', 'resend'
+    delivery_id, owner_id = row.id, s.user.id
+    s.db.commit()
+    def resolve(_):
+        with s.sessions() as db:
+            return messaging.resolve_delivery(delivery_id, messaging.DeliveryResolution(
+                outcome='submitted', evidence='Provider support ticket 123 confirmed acceptance'),
+                owner=db.get(User, owner_id), db=db)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(resolve, range(2)))
+    assert results == [{'status': 'submitted'}] * 2
+    s.db.expire_all()
+    assert s.acct.reserved == 0 and s.acct.balance == 100_000_000 - row.cost
+    assert s.db.query(MessagingLedger).filter_by(key='usage:' + row.id).count() == 1
+    assert s.db.query(SubscriptionAuditEvent).filter_by(action='messaging_delivery_resolution').count() == 1
+
+
+def test_existing_unsubscribe_survives_disabled_campaign_authoring(state, monkeypatch):
+    import importlib
+    import main
+    s = state
+    run = quote_run(s)
+    row = s.db.query(CampaignDelivery).filter_by(run_id=run.id).one()
+    token = engine.unsubscribe_url(row.id).rsplit('/', 1)[-1]
+    monkeypatch.setattr(settings, 'CAMPAIGNS_ENABLED', False)
+    try:
+        main = importlib.reload(main)
+        def session():
+            with s.sessions() as db: yield db
+        main.app.dependency_overrides[get_db] = session
+        client = TestClient(main.app)
+        assert client.get('/api/v1/campaigns/catalog').status_code == 404
+        assert client.get('/api/v1/messaging/summary').status_code == 404
+        assert client.get('/api/v1/messaging/unsubscribe/' + token).status_code == 200
+        assert s.db.query(MessagingSuppression).count() == 0
+        assert client.post('/api/v1/messaging/unsubscribe/' + token).status_code == 200
+        s.db.expire_all()
+        assert s.db.query(MessagingSuppression).count() == 1
+    finally:
+        main.app.dependency_overrides.clear()
+        monkeypatch.undo()
+        importlib.reload(main)
 
 
 

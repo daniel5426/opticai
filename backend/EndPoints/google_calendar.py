@@ -11,6 +11,7 @@ from config import settings
 from database import get_db
 from models import Appointment, GoogleCalendarSync, User
 from services.google_calendar import CALENDAR_SCOPE, enqueue, now, token_key_id, eligible
+from services.google_calendar_pull import REJECTED_EDITS
 
 router = APIRouter(prefix='/google/calendar', tags=['Google Calendar'])
 
@@ -21,14 +22,20 @@ class Connection(BaseModel):
 
 
 class Preferences(BaseModel):
-    enabled: bool
+    enabled: bool | None = None
+    import_enabled: bool | None = None
 
 
 def status_for(db, user):
     counts = dict(db.query(GoogleCalendarSync.status, func.count(GoogleCalendarSync.id)).filter_by(user_id=user.id).group_by(GoogleCalendarSync.status).all())
+    importing = user.google_calendar_pull_at is not None
+    rejected = db.query(GoogleCalendarSync.id).filter_by(user_id=user.id, status='synced').filter(
+        GoogleCalendarSync.error_code.in_(REJECTED_EDITS)).count() if importing else 0
+    pull_error = user.google_calendar_pull_error if importing and user.google_calendar_sync_enabled else None
     return {'connected': bool(user.google_account_connected), 'email': user.google_account_email,
         'enabled': bool(user.google_calendar_sync_enabled), 'pending': counts.get('pending', 0),
-        'failed': counts.get('failed', 0), 'reconnect': counts.get('reconnect', 0)}
+        'failed': counts.get('failed', 0), 'reconnect': counts.get('reconnect', 0) + int(pull_error == 'reconnect'),
+        'import_enabled': importing, 'import_failed': pull_error == 'failed', 'import_rejected': rejected}
 
 
 def queue_upcoming(db, user):
@@ -73,7 +80,7 @@ def connect(payload: Connection, db: Session = Depends(get_db), user: User = Dep
             raise HTTPException(400, 'googleCalendar.permission')
     except (requests.RequestException, ValueError):
         raise HTTPException(502, 'googleCalendar.failed')
-    user = db.query(User).filter_by(id=user.id).with_for_update().one()
+    user = db.query(User).filter_by(id=user.id).populate_existing().with_for_update().one()
     same_account = user.google_account_email == info['email']
     if not payload.refresh_token and (not same_account or not user.google_refresh_token or user.google_oauth_client_type not in (None, kinds[audience])):
         raise HTTPException(400, 'googleCalendar.reconnect')
@@ -86,6 +93,11 @@ def connect(payload: Connection, db: Session = Depends(get_db), user: User = Dep
     user.google_token_key_id = token_key_id()
     user.google_oauth_client_type = kinds[audience]
     user.google_token_expiry = now() + timedelta(seconds=int(data.get('expires_in', 3600)))
+    if not same_account:
+        user.google_calendar_pull_at = user.google_calendar_pull_since = None
+    elif user.google_calendar_pull_at is not None:
+        user.google_calendar_pull_at = now()
+    user.google_calendar_pull_error = None
     # Release the credential row before taking appointment/mapping locks. The
     # worker takes those locks before refreshing the owner, so holding both in
     # reverse order here would deadlock reconnect against an in-flight sync.
@@ -102,6 +114,7 @@ def connect(payload: Connection, db: Session = Depends(get_db), user: User = Dep
             row.status = 'paused'
             row.retired_events = []
             row.calendar_id = 'primary'
+            row.remote_etag = None
         db.query(Appointment).filter_by(user_id=user.id, company_id=user.company_id).update({'google_calendar_event_id': None}, synchronize_session='fetch')
     if user.google_calendar_sync_enabled:
         queue_upcoming(db, user)
@@ -113,9 +126,11 @@ def connect(payload: Connection, db: Session = Depends(get_db), user: User = Dep
 
 @router.post('/disconnect')
 def disconnect(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    user = db.query(User).filter_by(id=user.id).populate_existing().with_for_update().one()
     user.google_account_connected = False
     user.google_calendar_sync_enabled = False
     user.google_access_token = user.google_refresh_token = user.google_token_expiry = user.google_oauth_client_type = None
+    user.google_calendar_pull_at = user.google_calendar_pull_since = user.google_calendar_pull_error = None
     db.commit()
     # Keep account identity/mappings for safe reconnect; no provider writes.
     db.query(GoogleCalendarSync).filter_by(user_id=user.id, status='pending').update({'status': 'reconnect'}, synchronize_session='fetch')
@@ -125,13 +140,25 @@ def disconnect(db: Session = Depends(get_db), user: User = Depends(get_current_u
 
 @router.post('/preferences')
 def preferences(payload: Preferences, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    if payload.enabled and not user.google_account_connected:
+    user = db.query(User).filter_by(id=user.id).populate_existing().with_for_update().one()
+    if (payload.enabled or payload.import_enabled) and not user.google_account_connected:
         raise HTTPException(409, 'googleCalendar.reconnect')
-    user.google_calendar_sync_enabled = payload.enabled
+    enabled = user.google_calendar_sync_enabled if payload.enabled is None else payload.enabled
+    if payload.import_enabled and not enabled:
+        raise HTTPException(409, 'googleCalendar.enableAutoSync')
+    if payload.import_enabled is False:
+        user.google_calendar_pull_at = user.google_calendar_pull_since = user.google_calendar_pull_error = None
+    elif payload.import_enabled and user.google_calendar_pull_at is None:
+        user.google_calendar_pull_at = user.google_calendar_pull_since = now()
+    if user.google_calendar_pull_at is not None and enabled != user.google_calendar_sync_enabled:
+        # Invalidate an in-flight poll when pausing. Resume from the time auto sync is re-enabled.
+        user.google_calendar_pull_at = user.google_calendar_pull_since = now()
+        user.google_calendar_pull_error = None
+    user.google_calendar_sync_enabled = enabled
     db.commit()
-    if payload.enabled:
+    if payload.enabled is True:
         queue_upcoming(db, user)
-    else:
+    elif payload.enabled is False:
         db.query(GoogleCalendarSync).filter_by(user_id=user.id, action='upsert', status='pending').update({'status': 'paused'}, synchronize_session='fetch')
     db.commit()
     return status_for(db, user)

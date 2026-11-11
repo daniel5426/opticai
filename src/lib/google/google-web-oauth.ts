@@ -4,9 +4,14 @@ import { normalizeApiBaseUrl } from '@/services/api-base-url';
 const oauthBase = `${normalizeApiBaseUrl(import.meta.env.VITE_API_URL)}/auth/google/oauth`;
 const channelName = 'google-oauth-channel';
 
-function errorText(code: string): string {
+function errorKey(code: string): string {
   const key = `authLogin.google.${code}`;
-  return i18n.exists(key) ? String(i18n.t(key)) : String(i18n.t('authLogin.google.failed'));
+  return i18n.exists(key) ? key : 'authLogin.google.failed';
+}
+
+function failureKey(error: unknown): string {
+  const key = error instanceof Error ? error.message : '';
+  return key.startsWith('authLogin.google.') && i18n.exists(key) ? key : errorKey('failed');
 }
 
 async function request(path: string, data?: unknown) {
@@ -14,7 +19,7 @@ async function request(path: string, data?: unknown) {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
   });
   const result = await response.json();
-  if (!response.ok) throw new Error(errorText(result.detail?.code || 'failed'));
+  if (!response.ok) throw new Error(errorKey(result.detail?.code || 'failed'));
   return result;
 }
 
@@ -25,7 +30,7 @@ function base64url(bytes: Uint8Array): string {
 export async function authenticateGoogleWeb(): Promise<any> {
   // Open during the click gesture, before fetching configuration or generating PKCE.
   const popup = window.open('about:blank', 'google-oauth', 'width=500,height=600');
-  if (!popup) return { success: false, error: errorText('popupBlocked') };
+  if (!popup) return { success: false, error: errorKey('popupBlocked') };
 
   const state = base64url(crypto.getRandomValues(new Uint8Array(32)));
   const verifier = base64url(crypto.getRandomValues(new Uint8Array(32)));
@@ -43,10 +48,10 @@ export async function authenticateGoogleWeb(): Promise<any> {
       popup.close();
       resolve(result);
     };
-    const fail = (error: unknown) => finish({ success: false, error: error instanceof Error ? error.message : errorText('failed') });
-    const timeout = setTimeout(() => fail(new Error(errorText('timeout'))), 120000);
+    const fail = (error: unknown) => finish({ success: false, error: failureKey(error) });
+    const timeout = setTimeout(() => fail(new Error(errorKey('timeout'))), 120000);
     const closedCheck = setInterval(() => {
-      if (popup.closed) fail(new Error(errorText('cancelled')));
+      if (popup.closed) fail(new Error(errorKey('cancelled')));
     }, 500);
 
     channel.onmessage = async ({ data }) => {
@@ -54,13 +59,13 @@ export async function authenticateGoogleWeb(): Promise<any> {
       // A matching callback can arrive twice in React StrictMode. Exchange once.
       channel.onmessage = null;
       clearInterval(closedCheck);
-      if (data.error || !data.code) return fail(new Error(errorText('cancelled')));
+      if (data.error || !data.code) return fail(new Error(errorKey('cancelled')));
       try {
         const tokens = await request('exchange', { code: data.code, redirect_uri: redirectUri, code_verifier: verifier });
         const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
           headers: { Authorization: `Bearer ${tokens.access_token}` },
         });
-        if (!userResponse.ok) throw new Error(errorText('failed'));
+        if (!userResponse.ok) throw new Error(errorKey('failed'));
         finish({ success: true, tokens, userInfo: await userResponse.json() });
       } catch (error) { fail(error); }
     };
@@ -85,7 +90,7 @@ export async function refreshGoogleWebToken(refreshToken: string): Promise<any> 
     const tokens = await request('refresh', { refresh_token: refreshToken });
     return { success: true, ...tokens, refresh_token: tokens.refresh_token || refreshToken };
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : errorText('failed') };
+    return { success: false, error: failureKey(error) };
   }
 }
 

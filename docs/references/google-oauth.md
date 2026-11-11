@@ -93,9 +93,9 @@ failed counts in Settings. Disabling auto sync pauses queued upserts; removals
 already requested still reconcile. Manual sync deliberately retries current
 upcoming appointments and failed removals.
 
-This is one-way export to the owner's primary calendar. Events are private and
+The default is one-way export to the user's primary calendar. Events are private and
 include patient name, exam, appointment notes and clinic; no attendee invitations
-are added or emailed. Google-side edits do not update clinic records. Calendar
+are added or emailed. Calendar
 data, tokens and integration state remain excluded from AI inputs. Disconnecting
 stops writes and preserves events/mappings for reconnect. Switching accounts
 creates fresh event IDs and leaves the previous account's events intact.
@@ -153,3 +153,23 @@ unchanged. No historical bulk export or production activation is implied.
 Appointment clinic ownership remains immutable under the existing clinical-record
 contract. New bookings use their own clinic destination; this upgrade does not
 introduce reassignment of a clinical record to a different clinic.
+
+## Rescheduling from Google
+
+In personal settings, enable automatic sync and **Allow rescheduling from Google
+Calendar**. A change to the date, time, or duration of a linked event
+updates the same Prysm appointment. Other enabled copies receive the new time.
+Anyone who can edit that linked event in Google can reschedule it in Prysm. Clinic
+scope, active membership, workspace write access, and overlap checks still apply.
+The source event version is recorded so the worker does not echo the edit back.
+
+The API checks each opted-in account approximately once per minute, using a
+cursor per account and only examining details of mapped events. Existing Prysm
+writes waiting to export take priority. The clinic calendar refreshes when an
+import is accepted. Conflicting or unsupported changes leave the Prysm booking in
+place and appear in Calendar settings. Google-only events, cancellations and
+edits to patient details do not change Prysm records. **Send to Google now**
+explicitly sends Prysm's current schedule. Auto sync off pauses both directions.
+
+Migration note: Apply `0068_calendar_pull` before the API. The new preference is
+off for existing users and the existing Calendar OAuth scope covers both directions.

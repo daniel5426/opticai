@@ -148,10 +148,36 @@ const history = isWebBrowser
       initialEntries: [resolveInitialEntry()],
     });
 
+// Browser history length includes entries outside the app. Track the end of
+// the router's own stack, resetting it when a push discards the forward branch.
+const browserNavigation = isWebBrowser
+  ? (window as Window & {
+      navigation?: {
+        currentEntry: { index: number } | null;
+        entries(): { sameDocument: boolean }[];
+      };
+    }).navigation
+  : undefined;
+const forwardEntries = browserNavigation?.entries().slice(
+  (browserNavigation.currentEntry?.index ?? -1) + 1,
+) ?? [];
+const firstOtherDocument = forwardEntries.findIndex((entry) => !entry.sameDocument);
+let lastHistoryIndex = history.location.state.__TSR_index +
+  (firstOtherDocument === -1 ? forwardEntries.length : firstOtherDocument);
+
+history.subscribe(({ action, location }) => {
+  const index = location.state.__TSR_index;
+  lastHistoryIndex = action.type === "PUSH" ? index : Math.max(lastHistoryIndex, index);
+});
+
+export const routerHistory = Object.assign(history, {
+  canGoForward: () => history.location.state.__TSR_index < lastHistoryIndex,
+});
+
 // Create router with error handlers
 export const router = createRouter({
   routeTree: rootTree,
-  history: history,
+  history: routerHistory,
   defaultErrorComponent: RouteError,
   defaultPreloadStaleTime: 0,
   defaultStaleTime: 0,
@@ -174,8 +200,6 @@ if (typeof window !== 'undefined') {
     console.error('[Router] Failed to persist initial path/context:', error);
   }
 }
-
-export const routerHistory = history;
 
 // Inject router into authService to avoid circular dependency issues
 import { authService } from "@/lib/auth/AuthService";

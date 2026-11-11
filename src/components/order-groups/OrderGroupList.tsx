@@ -48,13 +48,27 @@ export function OrderGroupList({clientId,enabled=true}:{clientId?:number;enabled
  const open=(group:OrderGroup)=>{const target=clientId||group.payer_client_id||group.entries[0]?.order.client_id;if(target)navigate({to:'/clients/$clientId/orders/$orderId',params:{clientId:String(target),orderId:group.legacy_order?String(group.legacy_order.id):`group-${group.id}`},search:{type:group.legacy_order?.kind==='contact'?'contact':undefined} as any})};
  const remove=async()=>{if(!removing)return;setDeleting(true);try{await removeOrderListRow(backend,removing);setRemoving(null);if(query.data?.items.length===1&&page>1)setPage(page-1);await cache.invalidateQueries({queryKey:['order-groups']});await cache.invalidateQueries({queryKey:['order-group-count']});await cache.invalidateQueries({queryKey:['client']})}catch{toast.error(t('orderGroupConflict'))}finally{setDeleting(false)}};
  const clientLink=(group:OrderGroup,id:number)=>{const client=group.clients.find(client=>client.id===id);return client?<Link to="/clients/$clientId" params={{clientId:String(id)}} search={{tab:'orders'}} className="rounded-sm text-blue-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={event=>event.stopPropagation()}>{`${client.first_name||''} ${client.last_name||''}`.trim()}</Link>:null};
+ const headerSelects = [
+   ...(!clientId ? [{ ...clinicSelect, columnKey: 'clinic', showInColumn: true }] : []),
+   {
+     key: 'kind', columnKey: 'kinds', showInColumn: backend === 'legacy',
+     value: kind, onChange: (value: string) => { setKind(value); setPage(1); },
+     placeholder: t('orderGroupKinds'),
+     options: [{ value: 'all', label: t('orderGroupAllKinds') }, { value: 'regular', label: t('orderGroupGlasses') }, { value: 'contact', label: t('orderGroupContact') }],
+   },
+   {
+     key: 'status', columnKey: 'status', showInColumn: backend === 'legacy',
+     value: status, onChange: (value: string) => { setStatus(value); setPage(1); },
+     placeholder: t('orderGroupStatus'),
+     options: [{ value: 'all', label: t('orderGroupAllStatuses') }, ...ORDER_STATUS_OPTIONS.map(value => ({ value, label: statusLabel(value) }))],
+   },
+ ];
  const headerClass='text-start';
- return <ColumnFiltersProvider filters={columnFilterState.filters} definitions={backend==='groups'?columnFilterDefinitions:[]} onChange={setColumnFilters}><TableListLayout fillHeight columnCount={8} loading={capabilities.isPending||query.isLoading}
+ return <ColumnFiltersProvider filters={columnFilterState.filters} definitions={backend==='groups'?columnFilterDefinitions:[]} onChange={setColumnFilters} headerSelects={headerSelects} moveClinicScope><TableListLayout fillHeight columnCount={8} loading={capabilities.isPending||query.isLoading}
  emptyState={!capabilities.isError&&!query.isError&&!query.data?.items.length?t('orderGroupNone'):undefined}
- toolbar={{exportConfig:!clientId?{table:'orders',clinicId:selectedClinicId,sort:`date_${sort.direction}`,columnFilters:filters}:undefined,hasActiveFilters:Boolean(search.trim())||kind!=='all'||status!=='all'||columnFilterState.active,onReset:()=>{setSearch('');setQ('');setKind('all');setStatus('all');columnFilterState.setFilters({});setPage(1)},searchValue:search,
+ toolbar={{exportConfig:!clientId?{table:'orders',clinicId:selectedClinicId,sort:`date_${sort.direction}`,columnFilters:filters}:undefined,hasActiveFilters:Boolean(search.trim()),onReset:()=>{setSearch('');setQ('');setPage(1)},searchValue:search,
 onSearchChange:setSearch,
 searchPlaceholder:t('orderGroupSearch'),
-filters:[...(!clientId?[clinicSelect]:[]),{key:'kind',value:kind,onChange:value=>{setKind(value);setPage(1)},placeholder:t('orderGroupKinds'),widthClassName:'w-[190px]',options:[{value:'all',label:t('orderGroupAllKinds')},{value:'regular',label:t('orderGroupGlasses')},{value:'contact',label:t('orderGroupContact')}]},{key:'status',value:status,onChange:value=>{setStatus(value);setPage(1)},placeholder:t('orderGroupStatus'),widthClassName:'w-[190px]',options:[{value:'all',label:t('orderGroupAllStatuses')},...ORDER_STATUS_OPTIONS.map(value=>({value,label:statusLabel(value)}))]}],
 actions:<AddOrderMenu clientId={clientId} disabled={!capabilities.data||(currentUser?.role_level||1)<2}/>}}
  header={<TableRow><SortableTableHead className={headerClass} sortKey="date" sort={sort} onSortChange={value=>{setSort(value);setPage(1)}}>{t('orderGroupGroupDate')}</SortableTableHead><ClinicTableHead /><TableHead className={headerClass}><FilterableHeaderLabel filterKey="clients">{t('orderGroupClients')}</FilterableHeaderLabel></TableHead><TableHead className={headerClass}><FilterableHeaderLabel filterKey="kinds">{t('orderGroupKinds')}</FilterableHeaderLabel></TableHead><TableHead className={headerClass}><FilterableHeaderLabel filterKey="status">{t('orderGroupStatus')}</FilterableHeaderLabel></TableHead><TableHead className={headerClass}><FilterableHeaderLabel filterKey="payer">{t('orderGroupPayer')}</FilterableHeaderLabel></TableHead><TableHead className={headerClass}>{t('orderGroupBalance')}</TableHead><TableHead className={headerClass}/></TableRow>}
  pagination={{page,pageSize:25,total:query.data?.total??count.data??null,hasMore:query.data?.hasMore,loading:capabilities.isPending||query.isFetching,onPageChange:setPage}}>

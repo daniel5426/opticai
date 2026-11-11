@@ -1,6 +1,6 @@
 import React from 'react';
 import { afterEach, expect, test, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { ExamLayoutRenderer } from '@/components/exam/ExamLayoutRenderer';
 
 vi.mock('@/components/exam/ExamCardRenderer', () => ({
@@ -10,14 +10,7 @@ vi.mock('@/components/exam/ExamCardRenderer', () => ({
 }));
 afterEach(() => {cleanup(); vi.unstubAllGlobals();});
 
-test('pane resizing reflows cards without a window resize, remount or loss of unsaved input', () => {
-  let resize: ResizeObserverCallback;
-  const disconnect = vi.fn();
-  vi.stubGlobal('ResizeObserver', class {
-    constructor(callback: ResizeObserverCallback) {resize = callback;}
-    observe() {}
-    disconnect = disconnect;
-  });
+test('pane resizing preserves imported card widths, rows and unsaved input', () => {
   const props = {
     cardRows: [], customWidths: {}, gridItems: [
       {id:'measurement', type:'opticplus-measurements', x:0, y:0, w:6},
@@ -26,19 +19,17 @@ test('pane resizing reflows cards without a window resize, remount or loss of un
     ], detailProps: {}, activeCoverTestTabs: {}, computedCoverTestTabs: {},
     activeOldRefractionTabs: {}, computedOldRefractionTabs: {}, activeOldRefractionExtensionTabs: {}, computedOldRefractionExtensionTabs: {},
   } as unknown as React.ComponentProps<typeof ExamLayoutRenderer>;
-  const view = render(<ExamLayoutRenderer {...props} />);
-  const setWidth = (width: number) => act(() => resize!([{contentRect:{width}} as ResizeObserverEntry], {} as ResizeObserver));
-  setWidth(1600);
+  const view = render(<div style={{width:1600}}><ExamLayoutRenderer {...props} /></div>);
   const input = screen.getByLabelText('measurement');
   fireEvent.change(input, {target:{value:'unsaved edit'}});
-  expect(input.closest('[style*="grid-column"]')?.getAttribute('style')).toContain('span 6');
-  setWidth(720);
+  const width = input.parentElement!.parentElement!.style.width;
+  expect(width).toBeTruthy();
+  view.rerender(<div style={{width:720}}><ExamLayoutRenderer {...props} /></div>);
   expect(screen.getByLabelText('measurement')).toBe(input);
   expect((input as HTMLInputElement).value).toBe('unsaved edit');
-  expect(input.closest('[style*="grid-column"]')?.getAttribute('style')).toContain('span 24');
-  setWidth(1600);
-  expect(input.closest('[style*="grid-column"]')?.getAttribute('style')).toContain('span 6');
+  expect(input.parentElement!.parentElement!.style.width).toBe(width);
+  view.rerender(<div style={{width:1600}}><ExamLayoutRenderer {...props} /></div>);
+  expect(input.parentElement!.parentElement!.style.width).toBe(width);
   expect(screen.getAllByRole('textbox')).toHaveLength(3);
   view.unmount();
-  expect(disconnect).toHaveBeenCalledOnce();
 });

@@ -59,6 +59,7 @@ export default function CampaignsPage() {
   const [maxCost,setMaxCost] = useState('');
   const [zone,setZone] = useState('Asia/Jerusalem');
   const [runDetails,setRunDetails] = useState<CampaignDeliveries | null>(null);
+  const deliveryRequest = useRef(0);
   useAgentDraft('campaign',()=>draft);
   const tr = (key:string) => t(`campaign.${key}`);
   const canManage = (currentUser?.role_level || 1) >= 3;
@@ -68,10 +69,10 @@ export default function CampaignsPage() {
     catch { setError(true); } finally { setLoading(false); }
   },[currentClinic?.id]);
   useEffect(() => { const run=agent?.runtime?.controller?.activeRunId||null;if(previousAgentRun.current&&!run)void refresh();previousAgentRun.current=run; },[agent?.runtime?.controller?.activeRunId,refresh]);
-  useEffect(() => { editorSession.current++; loadedCampaign.current=undefined; setDraft(null); setQuote(null); setDirty(false); void refresh(); void campaignApi<CampaignCatalog>('/campaigns/catalog').then(setCatalog).catch(()=>setError(true)); },[refresh]);
-  useEffect(() => { let active=true; if (!search.campaign) { editorSession.current++; loadedCampaign.current=undefined; setDraft(null); setQuote(null); setDirty(false); } if (search.campaign && loadedCampaign.current !== search.campaign) void campaignApi<CampaignDraft>(`/campaigns/${search.campaign}`).then(value=>{if(active&&value.clinic_id===currentClinic?.id){loadedCampaign.current=value.id;setDraft(value);setDirty(false);setQuote(null);setPreviewError(false);
+  useEffect(() => { editorSession.current++; loadedCampaign.current=undefined; setDraft(null); setRunDetails(null); setQuote(null); setDirty(false); void refresh(); void campaignApi<CampaignCatalog>('/campaigns/catalog').then(setCatalog).catch(()=>setError(true)); },[refresh]);
+  useEffect(() => { let active=true; if (!search.campaign) { editorSession.current++; loadedCampaign.current=undefined; setDraft(null); setQuote(null); setDirty(false); } if (search.campaign && loadedCampaign.current !== search.campaign) { editorSession.current++; setRunDetails(null); void campaignApi<CampaignDraft>(`/campaigns/${search.campaign}`).then(value=>{if(active&&value.clinic_id===currentClinic?.id){loadedCampaign.current=value.id;setDraft(value);setDirty(false);setQuote(null);setPreviewError(false);
       const schedule=value.schedule;setKind(typeof schedule?.kind==='string'?schedule.kind:'once');setStart(typeof schedule?.start==='string'?schedule.start:'');setZone(typeof schedule?.timezone==='string'?schedule.timezone:'Asia/Jerusalem');setDays(Number(schedule?.days)||1);setMaxCost(value.max_cost==null?'':String(value.max_cost/1_000_000));
-    }}).catch(()=>{if(active)setError(true);});return()=>{active=false;}; },[search.campaign,currentClinic?.id]);
+    }}).catch(()=>{if(active)setError(true);}); } return()=>{active=false;}; },[search.campaign,currentClinic?.id]);
   useEffect(() => {
     if (!draft?.id) return;
     let active = true;
@@ -145,6 +146,12 @@ export default function CampaignsPage() {
   });
   const pause = () => void act(async()=>{if(!draft?.id)return;const value=await campaignApi<CampaignDraft>(`/campaigns/${draft.id}/pause`,{});setDraft(value);setQuote(null);await refresh();});
   const archive = () => void act(async()=>{if(!draft?.id)return;await campaignApi(`/campaigns/${draft.id}`,undefined,'DELETE');setDraft(null);await refresh();});
+  const openDeliveries = (runId:string, page=1) => void act(async()=>{
+    if(!draft?.id)return;
+    const session=editorSession.current, request=++deliveryRequest.current;
+    const rows=await campaignApi<CampaignDeliveries>(`/campaigns/${draft.id}/runs/${runId}/deliveries?offset=${(page-1)*50}`);
+    if(session===editorSession.current&&request===deliveryRequest.current)setRunDetails({...rows,runId,page});
+  });
   const closeDraft = () => {editorSession.current++;loadedCampaign.current=undefined;setDraft(null);setDirty(false);void navigate({to:'/campaigns',search:{}});};
   const createWithAi = () => {agent?.openCampaignDraft(tr('prompt'));};
   const visibleItems=items.filter(c=>c.name.toLowerCase().includes(query.trim().toLowerCase()));
@@ -175,7 +182,8 @@ export default function CampaignsPage() {
       onPause={pause} onArchive={archive}
       onRetry={(runId)=>{setRetryRun(runId);setQuote(null);setTab('review');void preview(runId);}}
       onCancelRun={(runId)=>void act(async()=>{if(!draft.id)return;await campaignApi(`/campaigns/${draft.id}/runs/${runId}/cancel`,{});})}
-      onOpenDeliveries={(runId)=>void act(async()=>{if(!draft.id)return;setRunDetails(await campaignApi(`/campaigns/${draft.id}/runs/${runId}/deliveries`));})}
+      onOpenDeliveries={openDeliveries}
+      onDeliveryPageChange={(page)=>{if(runDetails?.runId)openDeliveries(runDetails.runId,page);}}
     />}
     <Dialog open={confirm} onOpenChange={setConfirm}><DialogContent dir={direction}><DialogHeader><DialogTitle>{tr('confirm')}</DialogTitle><DialogDescription>{tr('confirmText')}</DialogDescription></DialogHeader><p>{tr('email')}: {quote?.emails} · {tr('sms')}: {quote?.sms} · {money(quote?.total_cost||0,locale)}</p><DialogFooter><Button variant="outline" onClick={()=>setConfirm(false)}>{tr('cancel')}</Button><Button disabled={busy} onClick={send}>{tr('send')}</Button></DialogFooter></DialogContent></Dialog>
   </TableListPageContent></>;

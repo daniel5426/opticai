@@ -3,6 +3,7 @@ import { SaveStatus } from "@/components/SaveStatus";
 import { useSaveController } from "@/hooks/shared/useSaveController";
 import { stableSaveJson } from "@/lib/exam-workspace";
 import { CenteredLayoutWidth } from "@/components/exam/CenteredLayoutWidth";
+import { ExamLayoutLane, examCardColumnOffset, examColumnFromPointer, examColumnPitch, examLaneColumnLimit } from "@/components/exam/ExamLayoutLane";
 import { LayoutEditorHelp } from "@/components/exam/LayoutEditorHelp";
 import React, {
   useCallback,
@@ -50,13 +51,13 @@ import { useUser } from "@/contexts/UserContext";
 import {
   EXAM_LAYOUT_GRID_COLUMNS,
   GridLayoutItem,
-  canPlaceGridItem,
+  findCollision,
+  getOccupiedExamColumns,
   clampResizeWidth,
   clampResizeLeft,
   computeCardGridCols,
   computeCardMinGridCols,
   findNearestAvailableGridPlacement,
-  getExamLayoutSizeScale,
   normalizeGridItem,
   parseLayoutData,
   serializeGridLayoutData,
@@ -230,23 +231,13 @@ export default function ExamLayoutEditorPage() {
   const dragPointerRef = useRef<{ x: number; y: number } | null>(null);
   const autoScrollFrameRef = useRef<number | null>(null);
   const scrollContainerRef = useRef<HTMLElement | Window | null>(null);
-  const [layoutSizeScale, setLayoutSizeScale] = useState(1);
+  const layoutSizeScale = 1;
   const [sideInsetPx, setSideInsetPx] = useState(0);
   const [layoutWidthPx, setLayoutWidthPx] = useState<number>();
 
   useEffect(() => {
     itemsRef.current = items;
   }, [items]);
-
-  useEffect(() => {
-    const updateScale = () => {
-      setLayoutSizeScale(getExamLayoutSizeScale(window.innerWidth));
-    };
-
-    updateScale();
-    window.addEventListener("resize", updateScale);
-    return () => window.removeEventListener("resize", updateScale);
-  }, []);
 
   useEffect(() => {
     if (isNewMode) {
@@ -322,12 +313,18 @@ export default function ExamLayoutEditorPage() {
     (lane: number, clientX: number, offsetCols = 0) => {
       const laneEl = laneRefs.current[lane];
       if (!laneEl) return 0;
-      const rect = laneEl.getBoundingClientRect();
-      const colWidth = rect.width / EXAM_LAYOUT_GRID_COLUMNS;
-      return Math.round((clientX - rect.left) / colWidth - offsetCols);
+      const laneItems = sortGridItems(itemsRef.current.filter(item => item.y === lane));
+      return examColumnFromPointer(laneEl, clientX, laneItems) - offsetCols;
     },
     [],
   );
+
+  const getLaneColumnLimit = useCallback((lane: number) => {
+    const laneItems = itemsRef.current.filter(item => item.y === lane);
+    const original = interactionRef.current?.originalItem;
+    if (original?.y === lane) laneItems.push(original);
+    return examLaneColumnLimit(laneRefs.current[lane], laneItems);
+  }, []);
 
   const getComponentLabel = useCallback((componentType: CardItem["type"]) => {
     const config = examComponentRegistry.getConfig(componentType);
@@ -399,16 +396,14 @@ export default function ExamLayoutEditorPage() {
           layoutSizeScale,
         ),
       );
-      const preferredX = Math.max(
-        0,
-        Math.min(EXAM_LAYOUT_GRID_COLUMNS - minWidth, x),
-      );
+      const columnLimit = getLaneColumnLimit(lane);
       const placement = findNearestAvailableGridPlacement(
         lane,
-        preferredX,
+        x,
         preferredWidth,
         minWidth,
         itemsRef.current,
+        columnLimit,
       );
       if (placement === null) {
         toast.error("אין מספיק מקום פנוי בשורה עבור הרכיב הזה.");
@@ -424,8 +419,8 @@ export default function ExamLayoutEditorPage() {
           w: placement.w,
           showEyeLabels: placement.x === 0,
         },
-        EXAM_LAYOUT_GRID_COLUMNS,
-        { sizeScale: layoutSizeScale },
+        columnLimit,
+        { enforceMinWidth: false },
       );
 
       const next = sortGridItems([...itemsRef.current, item]);
@@ -435,7 +430,7 @@ export default function ExamLayoutEditorPage() {
       setPendingPlacement(null);
       setDrawerOpen(false);
     },
-    [getComponentLabel, handleDuplicateComponent, layoutSizeScale],
+    [getLaneColumnLimit, handleDuplicateComponent, layoutSizeScale],
   );
 
   const handleSelectComponent = (componentType: CardItem["type"]) => {
@@ -463,24 +458,12 @@ export default function ExamLayoutEditorPage() {
     }
     if ((event.target as HTMLElement).closest("[data-grid-card]")) return;
     const x = getColumnFromPointer(lane, event.clientX);
-    const selectedWidth = selectedType
-      ? computeCardMinGridCols(
-          selectedType,
-          EXAM_LAYOUT_GRID_COLUMNS,
-          layoutSizeScale,
-        )
-      : 1;
-    const clampedX =
-      selectedType === null
-        ? Math.max(0, Math.min(EXAM_LAYOUT_GRID_COLUMNS - 1, x))
-        : Math.max(0, Math.min(EXAM_LAYOUT_GRID_COLUMNS - selectedWidth, x));
-
     if (selectedType) {
-      placeComponentAt(selectedType, lane, clampedX);
+      placeComponentAt(selectedType, lane, x);
       return;
     }
 
-    setPendingPlacement({ lane, x: clampedX });
+    setPendingPlacement({ lane, x });
     setDrawerOpen(true);
   };
 
@@ -502,29 +485,26 @@ export default function ExamLayoutEditorPage() {
 
       const lane = getLaneFromPointer(clientY);
       const original = interaction.originalItem;
-      const x = Math.max(
-        0,
-        Math.min(
-          EXAM_LAYOUT_GRID_COLUMNS - original.w,
-          getColumnFromPointer(lane, clientX, interaction.offsetCols),
-        ),
-      );
-      const candidate = normalizeGridItem(
-        { ...original, x, y: lane },
-        EXAM_LAYOUT_GRID_COLUMNS,
-        { sizeScale: layoutSizeScale },
-      );
-      const valid = canPlaceGridItem(
-        candidate,
-        itemsRef.current,
-        EXAM_LAYOUT_GRID_COLUMNS,
-        original.id,
-        layoutSizeScale,
-      );
-      setInvalidItemId(valid ? null : original.id);
-      updateItem(original.id, () => candidate);
+      const current = itemsRef.current.find(item => item.id === original.id);
+      const anchor = lane === original.y ? original : current;
+      let minX = 0;
+      let maxX = Math.max(0, getLaneColumnLimit(lane) - original.w);
+      if (anchor?.y === lane) {
+        for (const item of itemsRef.current) {
+          if (item.y !== lane || item.id === original.id) continue;
+          if (item.x < anchor.x) minX = Math.max(minX, item.x + item.w);
+          else maxX = Math.min(maxX, item.x - original.w);
+        }
+      }
+      if (minX > maxX) return;
+      const requestedX = getColumnFromPointer(lane, clientX, interaction.offsetCols);
+      const x = Math.max(minX, Math.min(maxX, requestedX));
+      const candidate = { ...original, x, y: lane };
+      const collision = findCollision(candidate, itemsRef.current, original.id);
+      setInvalidItemId(collision ? original.id : null);
+      if (!collision) updateItem(original.id, () => candidate);
     },
-    [getColumnFromPointer, getLaneFromPointer, layoutSizeScale],
+    [getColumnFromPointer, getLaneColumnLimit, getLaneFromPointer],
   );
 
   const finishInteraction = useCallback(() => {
@@ -534,38 +514,11 @@ export default function ExamLayoutEditorPage() {
     const current = itemsRef.current.find((item) => item.id === interaction.id);
     if (!current) return;
 
-    const finalItem =
-      interaction.type === "resize" && interaction.edge === "left"
-        ? {
-            ...current,
-            ...clampResizeLeft(
-              interaction.originalItem,
-              itemsRef.current,
-              Math.round(current.x),
-              EXAM_LAYOUT_GRID_COLUMNS,
-              layoutSizeScale,
-            ),
-          }
-        : normalizeGridItem(current, EXAM_LAYOUT_GRID_COLUMNS, {
-            sizeScale: layoutSizeScale,
-          });
-
-    const valid = canPlaceGridItem(
-      finalItem,
-      itemsRef.current,
-      EXAM_LAYOUT_GRID_COLUMNS,
-      finalItem.id,
-      layoutSizeScale,
-    );
-    if (!valid) {
-      updateItem(interaction.id, () => interaction.originalItem);
-    } else {
-      updateItem(interaction.id, () =>
-        normalizeGridItem(finalItem, EXAM_LAYOUT_GRID_COLUMNS, {
-          sizeScale: layoutSizeScale,
-        }),
-      );
-    }
+    const normalized = normalizeGridItem(current, getLaneColumnLimit(current.y), {
+      enforceMinWidth: false,
+    });
+    const collision = findCollision(normalized, itemsRef.current, normalized.id);
+    updateItem(interaction.id, () => collision ? interaction.originalItem : normalized);
 
     interactionRef.current = null;
     dragPointerRef.current = null;
@@ -581,7 +534,7 @@ export default function ExamLayoutEditorPage() {
     setInvalidItemId(null);
     document.body.style.userSelect = "";
     document.body.style.cursor = "";
-  }, [layoutSizeScale]);
+  }, [getLaneColumnLimit]);
 
   const getScrollContainer = useCallback((element: HTMLElement | null) => {
     let current = element?.parentElement ?? null;
@@ -665,8 +618,7 @@ export default function ExamLayoutEditorPage() {
 
       const laneEl = laneRefs.current[interaction.originalItem.y];
       if (!laneEl) return;
-      const colWidth =
-        laneEl.getBoundingClientRect().width / EXAM_LAYOUT_GRID_COLUMNS;
+      const colWidth = examColumnPitch();
       const deltaCols = (event.clientX - interaction.startX) / colWidth;
 
       if (interaction.edge === "left") {
@@ -692,6 +644,7 @@ export default function ExamLayoutEditorPage() {
         requestedWidth,
         EXAM_LAYOUT_GRID_COLUMNS,
         layoutSizeScale,
+        getLaneColumnLimit(interaction.originalItem.y),
       );
       updateItem(interaction.id, (item) => ({
         ...item,
@@ -713,6 +666,7 @@ export default function ExamLayoutEditorPage() {
     };
   }, [
     finishInteraction,
+    getLaneColumnLimit,
     layoutSizeScale,
     startAutoScrollLoop,
     updateDragPosition,
@@ -731,10 +685,7 @@ export default function ExamLayoutEditorPage() {
     event.preventDefault();
     event.stopPropagation();
 
-    const colWidth =
-      laneEl.getBoundingClientRect().width / EXAM_LAYOUT_GRID_COLUMNS;
-    const offsetCols =
-      (event.clientX - cardEl.getBoundingClientRect().left) / colWidth;
+    const offsetCols = examCardColumnOffset(item, event.clientX, cardEl.getBoundingClientRect());
     interactionRef.current = {
       type: "drag",
       id: item.id,
@@ -847,8 +798,8 @@ export default function ExamLayoutEditorPage() {
       const layoutData = {
         ...(targetClinicId !== null ? { clinic_id: targetClinicId } : {}),
         name: layoutName,
-        layout_data: serializeGridLayoutData(items, EXAM_LAYOUT_GRID_COLUMNS, {
-          sizeScale: layoutSizeScale,
+        layout_data: serializeGridLayoutData(items, Math.ceil(getOccupiedExamColumns(items)), {
+          enforceMinWidth: false,
           sideInsetPx,
           layoutWidthPx,
         }),
@@ -996,11 +947,8 @@ export default function ExamLayoutEditorPage() {
             return (
               <div
                 key={lane}
-                ref={(el) => {
-                  laneRefs.current[lane] = el;
-                }}
                 className={cn(
-                  "border-border group/row relative grid w-full gap-4 border-b p-3 transition-colors last:border-b-0",
+                  "border-border group/row relative w-full border-b transition-colors last:border-b-0",
                   selectedType && "hover:bg-primary/5 cursor-crosshair",
                 )}
                 style={{
@@ -1008,8 +956,6 @@ export default function ExamLayoutEditorPage() {
                     laneItems.length === 0
                       ? EXAM_LAYOUT_LANE_MIN_HEIGHT_PX
                       : undefined,
-                  gridTemplateColumns: `repeat(${EXAM_LAYOUT_GRID_COLUMNS}, minmax(0, 1fr))`,
-                  alignItems: "start",
                 }}
                 onClick={(event) => handlePlaceSelected(event, lane)}
               >
@@ -1027,19 +973,13 @@ export default function ExamLayoutEditorPage() {
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 )}
-                {laneItems.map((item) => {
-                  const renderStart = Math.floor(item.x);
-                  const renderEnd = Math.ceil(item.x + item.w);
-                  const renderSpan = Math.max(1, renderEnd - renderStart);
-                  const renderWidth = `${Math.min(100, (item.w / renderSpan) * 100)}%`;
-                  const renderMarginLeft = `${Math.max(
-                    0,
-                    ((item.x - renderStart) / renderSpan) * 100,
-                  )}%`;
+                <ExamLayoutLane items={laneItems} ref={el => { laneRefs.current[lane] = el; }} className="p-3"
+                  style={{ minHeight: laneItems.length ? undefined : EXAM_LAYOUT_LANE_MIN_HEIGHT_PX }}>
+                {(item, _index, style) => {
                   return (
                     <div
                       key={item.id}
-                      data-grid-card
+                      data-grid-card={item.id}
                       onPointerDown={(event) => handleDragStart(event, item)}
                       className={cn(
                         "group/card relative min-w-0 cursor-grab transition-opacity active:cursor-grabbing",
@@ -1048,12 +988,7 @@ export default function ExamLayoutEditorPage() {
                         invalidItemId === item.id &&
                           "ring-destructive opacity-60 ring-2",
                       )}
-                      style={{
-                        gridColumn: `${renderStart + 1} / span ${renderSpan}`,
-                        gridRow: 1,
-                        width: renderWidth,
-                        marginLeft: renderMarginLeft,
-                      }}
+                      style={style}
                     >
                       <div
                         data-resize-handle
@@ -1114,9 +1049,10 @@ export default function ExamLayoutEditorPage() {
                       />
                     </div>
                   );
-                })}
+                }}
+                </ExamLayoutLane>
                 {laneItems.length === 0 && (
-                  <div className="text-muted-foreground col-span-full flex min-h-[168px] items-center justify-center rounded-md text-sm">
+                  <div className="text-muted-foreground pointer-events-none absolute inset-0 flex items-center justify-center rounded-md text-sm">
                     {selectedType
                       ? "לחץ כאן כדי למקם את הרכיב"
                       : "שורה פנויה - לחץ כדי להוסיף רכיב"}

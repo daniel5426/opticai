@@ -22,6 +22,9 @@ test('imported packing follows measured heights without remounting edited fields
 
 test('ordinary layouts preserve saved rows, columns and explicit empty lanes', () => {
   const {container}=render(<ExamGridLayout items={items} renderItem={item=><span>{item.id}</span>} />);
-  expect(screen.getByText('second').closest('[style*="grid-row"]')?.getAttribute('style')).toContain('grid-row: 3');
+  const lanes = container.querySelectorAll('[data-exam-lane]');
+  expect(lanes).toHaveLength(3);
+  expect(lanes[2]).toContainElement(screen.getByText('second'));
+  expect(lanes[1].textContent).toBe('');
   expect(container.querySelector('[style*="min-height"]')).toBeTruthy();
 });

@@ -26,8 +26,7 @@ interface TableListLayoutProps {
 export function TableListLayout({ toolbar, header, children, fillHeight = false, loading = false, columnCount, emptyState, pagination }: TableListLayoutProps) {
   const { direction } = useAppLocale();
   return <div data-slot="table-list-layout" className={fillHeight ? 'flex min-h-0 flex-1 flex-col gap-2.5' : 'space-y-2.5'} dir={direction} style={{ scrollbarWidth: 'none' }}>
-    <TableFiltersBar {...toolbar} />
-    <ActiveColumnFilters />
+    <TableFiltersBar {...toolbar} filterSummary={<ActiveColumnFilters />} />
     <div className={fillHeight ? 'flex min-h-0 flex-col' : undefined}>
       <Table
         dir={direction}

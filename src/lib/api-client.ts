@@ -2310,6 +2310,10 @@ class ApiClient {
     return this.request(`/dashboard/home?${qs}`);
   }
 
+  async getDashboardCalendarRevision(clinicId: number) {
+    return this.request<{ calendar_revision: number }>(`/dashboard/calendar-revision?clinic_id=${clinicId}`);
+  }
+
   // Unified search
   async unifiedSearch(query: string, clinicId?: number, options?: { limit?: number; offset?: number; signal?: AbortSignal }) {
     const params = new URLSearchParams();

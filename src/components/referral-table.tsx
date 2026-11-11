@@ -88,10 +88,6 @@ export function ReferralTable({
 }: ReferralTableProps) {
   const { t } = useTranslation()
   const columnFilters = useColumnFilterState(externalColumnFilters, onColumnFiltersChange)
-  const columnFilterDefinitions = React.useMemo(
-    () => (clientId === 0 ? REFERRAL_COLUMN_FILTERS : REFERRAL_COLUMN_FILTERS.filter((definition) => definition.key !== "client")),
-    [clientId]
-  )
   const [searchTerm, setSearchTerm] = useState("")
   const [localSort, setLocalSort] = useState<SortState | undefined>()
   const searchValue = externalSearch !== undefined ? externalSearch : searchTerm
@@ -140,8 +136,14 @@ export function ReferralTable({
   }
 
   const referralTypeOptions = React.useMemo(() => {
-    return Array.from(new Set(referrals.map((referral) => referral.type).filter(Boolean)))
+    return Array.from(new Set(referrals.map((referral) => referral.type).filter((type): type is string => Boolean(type))))
   }, [referrals])
+  const columnFilterDefinitions = React.useMemo(() => REFERRAL_COLUMN_FILTERS
+    .filter(definition => clientId === 0 || definition.key !== "client")
+    .map(definition => definition.key === "type"
+      ? { ...definition, options: referralTypeOptions.map(type => ({ value: type, label: type })) }
+      : definition
+    ), [clientId, referralTypeOptions])
 
   const filteredReferrals = React.useMemo(() => {
     return referrals.filter((referral) => {
@@ -273,47 +275,46 @@ export function ReferralTable({
     }
   }
 
+  const headerSelects = [
+    {
+      key: "urgency",
+      columnKey: "urgency",
+      value: urgencyFilter,
+      onChange: handleUrgencyFilterChange,
+      placeholder: t("tableExport.column.urgency"),
+      options: REFERRAL_URGENCY_OPTIONS.map(option => ({ ...option, label: t(option.value === ALL_FILTER_VALUE ? "tableExport.all" : `tableExport.value.${option.value}`) })),
+      widthClassName: "w-[160px]"
+    },
+    {
+      key: "type",
+      columnKey: "type",
+      value: referralTypeFilter,
+      onChange: handleReferralTypeFilterChange,
+      placeholder: t("tableExport.column.type"),
+      options: [
+        { value: ALL_FILTER_VALUE, label: t("tableExport.all") },
+        ...referralTypeOptions.map((type) => ({
+          value: type || "unknown",
+          label: type || "unknown"
+        }))
+      ],
+      widthClassName: "w-[190px]"
+    }
+  ]
+
   return (
-    <ColumnFiltersProvider filters={columnFilters.filters} definitions={columnFilterDefinitions} onChange={columnFilters.setFilters}>
+    <ColumnFiltersProvider filters={columnFilters.filters} definitions={columnFilterDefinitions} onChange={columnFilters.setFilters} headerSelects={headerSelects} moveClinicScope>
     <div className={fillHeight ? "flex min-h-0 flex-1 flex-col gap-2.5" : "space-y-2.5"} style={{ scrollbarWidth: "none" }}>
       <TableFiltersBar
           exportTable="referrals"
         searchValue={searchValue}
         onSearchChange={(value) => (onSearchChange ? onSearchChange(value) : setSearchTerm(value))}
         searchPlaceholder="חיפוש הפניות…"
-        filters={[
-          {
-            key: "urgency",
-            value: urgencyFilter,
-            onChange: handleUrgencyFilterChange,
-            placeholder: "דחיפות",
-            options: REFERRAL_URGENCY_OPTIONS,
-            widthClassName: "w-[160px]"
-          },
-          {
-            key: "type",
-            value: referralTypeFilter,
-            onChange: handleReferralTypeFilterChange,
-            placeholder: "סוג הפניה",
-            options: [
-              { value: ALL_FILTER_VALUE, label: "כל הסוגים" },
-              ...referralTypeOptions.map((type) => ({
-                value: type || "unknown",
-                label: type || "unknown"
-              }))
-            ],
-            widthClassName: "w-[190px]"
-          }
-        ]}
-        hasActiveFilters={
-          Boolean(searchValue.trim()) || urgencyFilter !== ALL_FILTER_VALUE || referralTypeFilter !== ALL_FILTER_VALUE || columnFilters.active
-        }
+        filterSummary={<ActiveColumnFilters />}
+        hasActiveFilters={Boolean(searchValue.trim())}
         onReset={() => {
           if (onSearchChange) onSearchChange("")
           else setSearchTerm("")
-          handleUrgencyFilterChange(ALL_FILTER_VALUE)
-          handleReferralTypeFilterChange(ALL_FILTER_VALUE)
-          columnFilters.setFilters({})
         }}
         actions={
           clientId > 0 ? (
@@ -336,7 +337,6 @@ export function ReferralTable({
           )
         }
       />
-      <ActiveColumnFilters />
 
       <div className={fillHeight ? "min-h-0 flex-1" : undefined} style={{ scrollbarWidth: "none" }}>
         <Table

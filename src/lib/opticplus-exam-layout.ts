@@ -1,7 +1,7 @@
 import type { GridLayoutItem } from '@/pages/exam-detail/utils';
 
 /** A display arrangement for imported cards; never overwrites the saved layout. */
-export function arrangeOpticPlusExam(items: GridLayoutItem[], availableWidth = Infinity): GridLayoutItem[] {
+export function arrangeOpticPlusExam(items: GridLayoutItem[]): GridLayoutItem[] {
   const remaining = [...items];
   const result: GridLayoutItem[] = [];
   let y = 0;
@@ -19,19 +19,15 @@ export function arrangeOpticPlusExam(items: GridLayoutItem[], availableWidth = I
   const rows = (cards: GridLayoutItem[], count: number) => {
     for (let i = 0; i < cards.length; i += count) row(cards.slice(i, i + count));
   };
-  // Use the actual exam pane, which changes independently of the browser width.
-  const clinicalColumns = Math.max(1, Math.min(3, Math.floor((availableWidth + 16) / 456)));
-  const prescriptionColumns = availableWidth >= 1280 ? 2 : 1;
-  const detailColumns = availableWidth >= 896 ? 2 : 1;
-  const noteColumns = Math.max(1, Math.min(3, Math.floor((availableWidth + 16) / 376)));
+  // Keep the display arrangement stable while individual rows consume space or scroll.
+  const clinicalColumns = 3;
+  const prescriptionColumns = 2;
+  const detailColumns = 2;
+  const noteColumns = 3;
   const assessment = items.some(item => item.type === 'opticplus-ocular-health' || item.type === 'opticplus-questionnaire');
   if (assessment) {
     const small = take(['opticplus-measurements','schirmer-test','ocular-motor-assessment','anamnesis']);
-    const widths: Record<string,number> = availableWidth >= 1400
-      ? {'opticplus-measurements':6,'schirmer-test':4,'ocular-motor-assessment':4,anamnesis:10}
-      : availableWidth >= 896
-        ? {'opticplus-measurements':12,'schirmer-test':6,'ocular-motor-assessment':6,anamnesis:24}
-        : {'opticplus-measurements':24,'schirmer-test':12,'ocular-motor-assessment':12,anamnesis:24};
+    const widths: Record<string,number> = {'opticplus-measurements':6,'schirmer-test':4,'ocular-motor-assessment':4,anamnesis:10};
     row(small,small.map(card => widths[card.type]));
     rows(take(['opticplus-ocular-health','opticplus-binocular','opticplus-questionnaire']), clinicalColumns);
   } else if (items.some(item => item.type === 'opticplus-contact-fitting')) {

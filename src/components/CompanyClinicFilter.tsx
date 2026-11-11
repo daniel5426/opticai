@@ -10,6 +10,7 @@ export function useCompanyClinicSelect({ filter, allClients = false }: Props): T
   return {
     key: "clinic",
     value: filter.value,
+    defaultValue: filter.defaultValue,
     onChange: filter.setValue,
     placeholder: t("companyClients.clinicFilter"),
     options: [

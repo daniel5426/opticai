@@ -1,5 +1,7 @@
 {
   "en": {
+    "role": "Role",
+    "roleLevel": { "2": "Worker", "3": "Manager", "4": "CEO" },
     "filterColumn": "Filter {{column}}",
     "clear": "Clear",
     "clearAll": "Clear all",
@@ -16,6 +18,8 @@
     "noClinic": "No clinic"
   },
   "he": {
+    "role": "תפקיד",
+    "roleLevel": { "2": "עובד", "3": "מנהל", "4": "מנכ״ל" },
     "filterColumn": "סינון לפי {{column}}",
     "clear": "נקה",
     "clearAll": "נקה הכל",
@@ -32,6 +36,8 @@
     "noClinic": "ללא מרפאה"
   },
   "fr": {
+    "role": "Rôle",
+    "roleLevel": { "2": "Employé", "3": "Responsable", "4": "Direction générale" },
     "filterColumn": "Filtrer par {{column}}",
     "clear": "Effacer",
     "clearAll": "Tout effacer",

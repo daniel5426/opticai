@@ -38,6 +38,13 @@ describe.each(['he','en','fr'] as const)('shared Orders and Exams layout in %s',
     expect(exams.querySelector('[data-slot="table-list-layout"]')).toHaveAttribute('dir',locale==='he'?'rtl':'ltr');
     expect(within(exams).getByRole('textbox',{name:i18n.t('examList.search')})).toBeInTheDocument();
     expect(within(orders).getByRole('textbox',{name:i18n.t('orderGroupSearch')})).toBeInTheDocument();
+    const ordersToolbar=within(orders.querySelector('[data-canvas-toolbar]')!);
+    expect(ordersToolbar.queryByRole('combobox')).not.toBeInTheDocument();
+    fireEvent.click(within(orders).getByRole('button',{name:i18n.t('columnFilters.filterColumn',{column:i18n.t('orderGroupKinds')})}));
+    fireEvent.click(screen.getByRole('checkbox',{name:i18n.t('orderGroupGlasses')}));
+    expect(ordersToolbar.getByRole('group',{name:i18n.t('columnFilters.activeFilters')})).toHaveTextContent(i18n.t('orderGroupGlasses'));
+    fireEvent.click(ordersToolbar.getByRole('button',{name:i18n.t('columnFilters.removeFilter',{column:i18n.t('orderGroupKinds')})}));
+    expect(ordersToolbar.queryByRole('group',{name:i18n.t('columnFilters.activeFilters')})).not.toBeInTheDocument();
     const orderSearch=within(orders).getByRole('textbox');
     fireEvent.change(orderSearch,{target:{value:'Test'}});
     fireEvent.click(within(orders).getByRole('button',{name:i18n.t('clear')}));

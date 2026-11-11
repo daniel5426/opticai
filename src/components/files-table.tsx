@@ -404,8 +404,20 @@ export function FilesTable({
     return onSortChange ? filteredData : sortRows(filteredData, activeSort, sortColumns)
   }, [activeSort, filteredData, onSortChange, sortColumns])
 
+  const headerSelects = [
+    {
+      key: "file-category",
+      columnKey: "type",
+      value: fileCategoryFilter,
+      onChange: handleFileCategoryFilterChange,
+      placeholder: t("tableExport.column.category"),
+      options: FILE_CATEGORY_OPTIONS.map(option => ({ ...option, label: t(option.value === ALL_FILTER_VALUE ? "tableExport.all" : `tableExport.value.${option.value}`) })),
+      widthClassName: "w-[170px]"
+    }
+  ]
+
   return (
-    <ColumnFiltersProvider filters={columnFilters.filters} definitions={columnFilterDefinitions} onChange={columnFilters.setFilters}>
+    <ColumnFiltersProvider filters={columnFilters.filters} definitions={columnFilterDefinitions} onChange={columnFilters.setFilters} headerSelects={headerSelects} moveClinicScope>
     <div
       className={fillHeight ? "relative flex min-h-0 flex-1 flex-col gap-2.5" : "relative space-y-2.5"}
       style={{ scrollbarWidth: "none" }}
@@ -428,22 +440,11 @@ export function FilesTable({
         searchValue={searchValue}
         onSearchChange={(value) => (onSearchChange ? onSearchChange(value) : setSearchQuery(value))}
         searchPlaceholder="חיפוש מסמכים…"
-        filters={[
-          {
-            key: "file-category",
-            value: fileCategoryFilter,
-            onChange: handleFileCategoryFilterChange,
-            placeholder: "קטגוריה",
-            options: FILE_CATEGORY_OPTIONS,
-            widthClassName: "w-[170px]"
-          }
-        ]}
-        hasActiveFilters={Boolean(searchValue.trim()) || fileCategoryFilter !== ALL_FILTER_VALUE || columnFilters.active}
+        filterSummary={<ActiveColumnFilters />}
+        hasActiveFilters={Boolean(searchValue.trim())}
         onReset={() => {
           if (onSearchChange) onSearchChange("")
           else setSearchQuery("")
-          handleFileCategoryFilterChange(ALL_FILTER_VALUE)
-          columnFilters.setFilters({})
         }}
         actions={
           <Button onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
@@ -452,7 +453,6 @@ export function FilesTable({
           </Button>
         }
       />
-      <ActiveColumnFilters />
 
       <input ref={fileInputRef} type="file" className="hidden" multiple onChange={handleFileInputChange} />
 

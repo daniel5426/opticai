@@ -968,8 +968,36 @@ export function AppointmentsTable({
     }
   };
 
+  const headerSelects = [
+    {
+      key: "date-scope",
+      columnKey: "date",
+      showInColumn: true,
+      value: dateScopeFilter,
+      onChange: handleDateScopeFilterChange,
+      placeholder: t("tableExport.dates"),
+      options: APPOINTMENT_DATE_SCOPE_OPTIONS.map(option => ({ ...option, label: t(option.value === ALL_FILTER_VALUE ? "tableExport.all" : `tableExport.value.${option.value}`) })),
+      widthClassName: "w-[160px]",
+    },
+    {
+      key: "exam-type",
+      columnKey: "exam_name",
+      value: examTypeFilter,
+      onChange: handleExamTypeFilterChange,
+      placeholder: t("tableExport.column.exam_name"),
+      options: [
+        { value: ALL_FILTER_VALUE, label: t("tableExport.all") },
+        ...uniqueExamTypes.map((type) => ({
+          value: type || "unknown",
+          label: type || "unknown",
+        })),
+      ],
+      widthClassName: "w-[190px]",
+    },
+  ]
+
   return (
-    <ColumnFiltersProvider filters={columnFilters.filters} definitions={columnFilterDefinitions} onChange={columnFilters.setFilters}>
+    <ColumnFiltersProvider filters={columnFilters.filters} definitions={columnFilterDefinitions} onChange={columnFilters.setFilters} headerSelects={headerSelects} moveClinicScope>
     <div
       className={
         fillHeight ? "flex min-h-0 flex-1 flex-col gap-2.5" : "space-y-2.5"
@@ -983,42 +1011,11 @@ export function AppointmentsTable({
           onSearchChange ? onSearchChange(value) : setSearchQuery(value)
         }
         searchPlaceholder="חיפוש תורים…"
-        filters={[
-          {
-            key: "date-scope",
-            value: dateScopeFilter,
-            onChange: handleDateScopeFilterChange,
-            placeholder: "טווח תאריכים",
-            options: APPOINTMENT_DATE_SCOPE_OPTIONS,
-            widthClassName: "w-[160px]",
-          },
-          {
-            key: "exam-type",
-            value: examTypeFilter,
-            onChange: handleExamTypeFilterChange,
-            placeholder: "סוג בדיקה",
-            options: [
-              { value: ALL_FILTER_VALUE, label: "כל הבדיקות" },
-              ...uniqueExamTypes.map((type) => ({
-                value: type || "unknown",
-                label: type || "unknown",
-              })),
-            ],
-            widthClassName: "w-[190px]",
-          },
-        ]}
-        hasActiveFilters={
-          Boolean(searchValue.trim()) ||
-          examTypeFilter !== ALL_FILTER_VALUE ||
-          dateScopeFilter !== ALL_FILTER_VALUE ||
-          columnFilters.active
-        }
+        filterSummary={<ActiveColumnFilters />}
+        hasActiveFilters={Boolean(searchValue.trim())}
         onReset={() => {
           if (onSearchChange) onSearchChange("");
           else setSearchQuery("");
-          handleExamTypeFilterChange(ALL_FILTER_VALUE);
-          handleDateScopeFilterChange(ALL_FILTER_VALUE);
-          columnFilters.setFilters({});
         }}
         actions={
           clientId > 0 ? (
@@ -1047,7 +1044,6 @@ export function AppointmentsTable({
           )
         }
       />
-      <ActiveColumnFilters />
 
       {/* Client Select Modal */}
       <ClientSelectModal

@@ -48,6 +48,7 @@ Prysm uses a restrained, operational interface for optical-clinic workflows. The
 - Use `ListPageHeader` for the title, optional subtitle, and page-level actions so sibling list pages share the same top spacing and hierarchy.
 - Use `TableListPageContent` for list page padding and `TableListLayout` for the toolbar, table, loading rows, empty state, and pagination. Orders and exams share these wrappers; keep spacing, scrolling, and header placement in the wrappers.
 - Use `TableFiltersBar` for search, filters, secondary navigation, and actions. Pass its props through `TableListLayout.toolbar` on shared list pages.
+- Use column header filters for fields that already have a table filter. Place the active-filter chips beside search, allowing them to wrap on narrow screens.
 - Table/card view switches belong in that shared toolbar. Both views retain the same search state and item-opening behavior, and remember the chosen view across visits.
 - Keep search and filters out of a `Card`. Controls that sit on the canvas — search, filter menus, page actions, and pagination — use the shared canvas surface: `rounded-xl`, no border, `bg-card`, and `shadow-sm` in both appearance styles. `canvasSurfaceClassName` and `data-canvas-toolbar` own that treatment.
 - List tables use the same canvas surface on the table container (`elevated`, the default). Do not add a second card shell around them. Nested tables inside an existing panel pass `elevated={false}`.
@@ -89,7 +90,8 @@ Prysm uses a restrained, operational interface for optical-clinic workflows. The
 - One clear primary action per page section; secondary actions use outline, secondary, or menu treatments.
 - Keep common controls at the shared 36px height (`h-9`).
 - Build forms with shared `Input`, `Textarea`, `Select`, `DateInput`, and `TimeInput`; do not substitute native selects or browser date/time fields. Dates and times are locally LTR and centered, with symmetric icon clearance. General fields keep comfortable inline padding; clinical cards retain their compact insets. Width classes on `Input` also size its wrapper so numeric steppers and affixes stay inside the control. Use `wrapperClassName` for surrounding layout.
-- Hide visible scrollbars with `no-scrollbar` while retaining scrolling, including nested editor surfaces.
+- Visible scrollbars show only a slim rounded thumb on a transparent track, without rails, arrows, or corner backgrounds. Use `no-scrollbar` for surfaces that intentionally hide them; exam rows use `app-scrollbar` so horizontal overflow stays discoverable inside those surfaces.
+- Exam cards use preferred widths based on the 1280px layout reference. As the pane narrows, close empty gaps first, then temporarily shrink widened cards toward their default minimum. Scroll a row horizontally once its cards reach their minimum widths. Restore preferred widths as space returns.
 - Use concise labels. Icons support labels and should not replace them unless the action is universally understood and has an accessible name.
 - Horizontal tab labels stay on one line. Never squeeze them into wrapped words or taller tabs; use concise translations, intrinsic tab widths, and horizontal scrolling when necessary.
 - Settings tabs and their active section's filters/export actions share one toolbar, with tabs at logical start and actions at logical end. Wrap whole groups only when space runs out; keep the table below the toolbar.

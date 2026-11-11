@@ -24,7 +24,7 @@ export function CatalogProductAction({ onAction, label, compact = false, disable
     <button type="button" disabled={busy || disabled} aria-busy={busy} aria-label={label} title={label} onClick={() => void run()}
       className={compact
         ? 'text-muted-foreground hover:bg-card hover:text-foreground focus-visible:ring-ring/50 flex size-6 shrink-0 items-center justify-center rounded-sm outline-none focus-visible:ring-2 disabled:opacity-50'
-        : 'catalog-product-surface bg-sidebar text-sidebar-foreground hover:brightness-95 focus-visible:ring-ring/50 flex min-h-10 w-full min-w-0 items-center gap-2 rounded-md px-3 py-2 text-start text-xs outline-none focus-visible:ring-2 disabled:opacity-50'}>
+        : 'bg-canvas text-foreground hover:brightness-95 focus-visible:ring-ring/50 flex min-h-10 w-full min-w-0 items-center gap-2 rounded-md px-3 py-2 text-start text-xs shadow-sm outline-none focus-visible:ring-2 disabled:opacity-50'}>
       {!compact && <span className="min-w-0 flex-1 break-words">{label}</span>}
       <Icon aria-hidden="true" className={`size-3.5 shrink-0 ${busy ? 'animate-spin motion-reduce:animate-none' : ''}`} />
     </button>

@@ -17,6 +17,8 @@ def test_release_migrations_preserve_existing_clients_and_fit_version_table(pg_e
         connection.execute(text('CREATE ROLE authenticated'))
         # These additive campaign tables are newer than the stamped release fixture.
         connection.execute(text('ALTER TABLE users DROP COLUMN google_calendar_routes'))
+        connection.execute(text('ALTER TABLE users DROP COLUMN google_calendar_pull_at, DROP COLUMN google_calendar_pull_since, DROP COLUMN google_calendar_pull_error'))
+        connection.execute(text('ALTER TABLE clinics DROP COLUMN google_calendar_revision'))
         connection.execute(text('DROP TABLE google_calendar_sync'))
         connection.execute(text('ALTER TABLE users DROP COLUMN google_token_key_id'))
         connection.execute(text('ALTER TABLE users DROP COLUMN google_oauth_client_type'))

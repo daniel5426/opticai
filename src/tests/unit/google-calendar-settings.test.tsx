@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import i18n from '@/localization/i18n';
 import { GoogleCalendarIntegration, type CalendarStatus } from '@/components/settings/GoogleCalendarIntegration';
@@ -28,17 +28,35 @@ for (const locale of ['he', 'en', 'fr']) {
       fireEvent.click(button);
       await screen.findByText('synthetic@example.com');
       expect(mocks.request).toHaveBeenLastCalledWith('connect', { access_token: 'marker', refresh_token: 'refresh-marker' });
-      expect(mocks.setUser).toHaveBeenCalledWith(expect.objectContaining({ google_account_connected: true }), true);
+      expect(mocks.setUser).not.toHaveBeenCalled();
       expect(screen.getByText(i18n.t('googleCalendar.dataHint'))).toBeVisible();
     });
     it('offers manual sync, automatic sync and a visible reconnect state', async () => {
       mocks.request.mockResolvedValue({ ...connected, enabled: true, reconnect: 1 });
       render(<GoogleCalendarIntegration />);
       expect(await screen.findByRole('button', { name: i18n.t('googleCalendar.reconnectButton') })).toBeEnabled();
-      expect(screen.getByRole('button', { name: i18n.t('googleCalendar.sync') })).toBeDisabled();
+      expect(screen.queryByRole('button', { name: i18n.t('googleCalendar.sync') })).not.toBeInTheDocument();
       expect(screen.getByRole('switch')).toHaveAccessibleName(i18n.t('googleCalendar.autoSync'));
       expect(screen.getByRole('switch')).toBeDisabled();
       expect(screen.getByText(i18n.t('googleCalendar.reconnect'))).toBeVisible();
+    });
+    it('explains when Google is not configured', async () => {
+      mocks.authenticate.mockResolvedValue({ success: false, error: 'authLogin.google.google_not_configured' });
+      render(<GoogleCalendarIntegration />);
+      fireEvent.click(await screen.findByRole('button', { name: i18n.t('googleCalendar.connect') }));
+      expect(await screen.findByRole('alert')).toHaveTextContent(i18n.t('authLogin.google.google_not_configured'));
+      expect(mocks.request).toHaveBeenCalledTimes(1);
+    });
+    it('enables Google rescheduling without changing the export preference', async () => {
+      const status = { ...connected, enabled: true, import_enabled: false };
+      mocks.request.mockResolvedValueOnce(status).mockResolvedValueOnce({ ...status, import_enabled: true });
+      render(<GoogleCalendarIntegration />);
+      const control = await screen.findByRole('switch', { name: i18n.t('googleCalendar.importEdits') });
+      expect(control).not.toBeChecked();
+      fireEvent.click(control);
+      await waitFor(() => expect(control).toBeChecked());
+      expect(mocks.request).toHaveBeenLastCalledWith('preferences', { import_enabled: true });
+      expect(mocks.setUser).not.toHaveBeenCalled();
     });
   });
 }
@@ -64,7 +82,11 @@ it('prevents overlapping requests and keeps disconnect mappings on the API', asy
   mocks.request.mockResolvedValueOnce(connected).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
   render(<GoogleCalendarIntegration />);
   const disconnect = await screen.findByRole('button', { name: i18n.t('googleCalendar.disconnect') });
-  fireEvent.click(disconnect); fireEvent.click(disconnect);
+  fireEvent.click(disconnect);
+  const dialog = await screen.findByRole('dialog');
+  expect(mocks.request).toHaveBeenCalledTimes(1);
+  const confirm = within(dialog).getByRole('button', { name: i18n.t('googleCalendar.disconnect') });
+  fireEvent.click(confirm); fireEvent.click(confirm);
   expect(mocks.request).toHaveBeenCalledTimes(2);
   await act(async () => { finish(disconnected); });
   await waitFor(() => expect(screen.getByRole('button', { name: i18n.t('googleCalendar.connect') })).toBeEnabled());

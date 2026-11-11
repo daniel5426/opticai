@@ -191,6 +191,7 @@ export default function HomePage() {
   const loadedStartRef = useRef<Date | null>(null);
   const loadedEndRef = useRef<Date | null>(null);
   const loadedClinicIdRef = useRef<number | null>(null);
+  const calendarRevisionRef = useRef<number | undefined>(undefined);
 
   const calendarHolidayMap = useMemo(
     () => holidaysByDate(calendarHolidays),
@@ -228,15 +229,17 @@ export default function HomePage() {
   }, [currentClinic?.id, currentDate.getFullYear()]);
 
   const loadData = useCallback(
-    async (startDate: Date, endDate: Date) => {
+    async (startDate: Date, endDate: Date, shouldApply?: () => boolean) => {
       try {
-        setLoading(true);
+        if (!shouldApply) setLoading(true);
 
         if (currentClinic?.id) {
           const s = format(startDate, "yyyy-MM-dd");
           const e = format(endDate, "yyyy-MM-dd");
 
           const data = await getDashboardHome(currentClinic.id, s, e);
+          if (shouldApply && (!shouldApply() || data.calendar_revision === undefined)) return;
+          calendarRevisionRef.current = data.calendar_revision;
           setAppointments(data.appointments);
           setClients(data.clients);
           setDashboardSettings(data.settings);
@@ -255,7 +258,7 @@ export default function HomePage() {
       } catch (error) {
         console.error("Error loading dashboard data:", error);
       } finally {
-        setLoading(false);
+        if (!shouldApply) setLoading(false);
       }
     },
     [currentClinic?.id, currentUser],
@@ -337,10 +340,6 @@ export default function HomePage() {
   const APPOINTMENT_DURATION = activeSettings?.appointment_duration || 30;
   const BREAK_START = activeSettings?.break_start_time || "";
   const BREAK_END = activeSettings?.break_end_time || "";
-
-  const workStartMinutes = timeToMinutes(WORK_START);
-  const workEndMinutes = timeToMinutes(WORK_END);
-  const totalWorkMinutes = Math.max(0, workEndMinutes - workStartMinutes);
 
   // Memoized user color mapping with conflict resolution
   const userColorMap = useMemo(() => {
@@ -465,6 +464,24 @@ export default function HomePage() {
     [appointmentsByDate],
   );
 
+  const { workStartMinutes, workEndMinutes } = useMemo(() => {
+    let start = timeToMinutes(WORK_START);
+    let end = timeToMinutes(WORK_END);
+    if (view !== 'month') {
+      for (const date of visibleDates) {
+        for (const appointment of getAppointmentsForDate(date)) {
+          const at = timeToMinutes(appointment.time || '');
+          if (!Number.isFinite(at) || at < 0 || at >= 1440) continue;
+          if (at < start) start = Math.floor(at / 60) * 60;
+          const endsAt = at + getAppointmentDuration(appointment);
+          if (endsAt > end) end = Math.min(1440, Math.ceil(endsAt / 60) * 60);
+        }
+      }
+    }
+    return { workStartMinutes: start, workEndMinutes: end };
+  }, [WORK_START, WORK_END, view, visibleDates, getAppointmentsForDate, getAppointmentDuration]);
+  const totalWorkMinutes = Math.max(0, workEndMinutes - workStartMinutes);
+
   // Memoized client lookup for performance
   const clientsMap = useMemo(() => {
     if (!clients.length) return new Map<number, Client>();
@@ -498,6 +515,39 @@ export default function HomePage() {
     updateAppointment,
     setAppointments,
   });
+
+  useEffect(() => {
+    const clinicId = currentClinic?.id;
+    if (!clinicId || loading || saving || isSavingNewClientAppointment || editingAppointment || movingAppointment || draggedData || resizeData) return;
+    let cancelled = false;
+    let checking = false;
+    const refresh = async () => {
+      const start = loadedStartRef.current;
+      const end = loadedEndRef.current;
+      if (checking || document.hidden || loadedClinicIdRef.current !== clinicId || calendarRevisionRef.current === undefined || !start || !end) return;
+      checking = true;
+      try {
+        const { data } = await apiClient.getDashboardCalendarRevision(clinicId);
+        if (!cancelled && data && data.calendar_revision !== calendarRevisionRef.current) {
+          await loadData(start, end, () => !cancelled && loadedClinicIdRef.current === clinicId && loadedStartRef.current === start);
+        }
+      } catch (error) {
+        console.debug('Could not check calendar updates', error);
+      } finally {
+        checking = false;
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 30000);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [currentClinic?.id, loading, saving, isSavingNewClientAppointment, editingAppointment, movingAppointment, draggedData, resizeData, loadData]);
 
   // Get dynamic appointment time range for resizing (must be after useDragAndResize)
   const getDynamicTimeRange = useCallback(

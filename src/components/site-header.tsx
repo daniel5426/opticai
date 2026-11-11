@@ -1,5 +1,5 @@
 import { AgentEntryButtons } from '@/components/agent/AgentVoice';
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useSyncExternalStore } from "react";
 import { useClientExamDatesQuery } from "@/hooks/client/useClientTabQueries";
 import { createPortal } from "react-dom";
 import { Separator } from "@/components/ui/separator";
@@ -16,6 +16,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Link, useCanGoBack, useLocation, useNavigate, useRouter } from "@tanstack/react-router";
+import type { RouterHistory } from "@tanstack/history";
 import { User, Phone, IdCard, Calendar, Hash, ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Client } from "@/lib/db/schema-interface";
@@ -46,31 +47,74 @@ interface SiteHeaderProps {
   };
 }
 
-/** Back to the previous screen; a page opened directly goes to its parent instead. */
-function HeaderBackButton({ fallback }: { fallback?: () => void }) {
-  const router = useRouter();
-  const canGoBack = useCanGoBack();
-  const { runGuard } = useNavigationGuard();
-  const { direction } = useAppLocale();
-  const { t } = useTranslation();
-  if (!canGoBack && !fallback) return null;
-  const Icon = direction === "rtl" ? ArrowRight : ArrowLeft;
+function HistoryButton({
+  icon: Icon,
+  label,
+  disabled,
+  onClick,
+}: {
+  icon: typeof ArrowLeft;
+  label: string;
+  disabled: boolean;
+  onClick: () => void;
+}) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 shrink-0"
-          aria-label={t("goBack")}
-          onClick={() => runGuard(() => (canGoBack ? router.history.back() : fallback?.()))}
-        >
-          <Icon className="h-4 w-4" />
-        </Button>
+        <span className="inline-flex">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            aria-label={label}
+            disabled={disabled}
+            onClick={onClick}
+          >
+            <Icon className="size-4" />
+          </Button>
+        </span>
       </TooltipTrigger>
-      <TooltipContent>{t("goBack")}</TooltipContent>
+      <TooltipContent side="bottom">{label}</TooltipContent>
     </Tooltip>
+  );
+}
+
+const noForwardHistory = () => false;
+
+function HeaderNavigation({
+  fallback,
+  showSidebarTrigger,
+}: {
+  fallback?: () => void;
+  showSidebarTrigger: boolean;
+}) {
+  const history: RouterHistory & { canGoForward?: () => boolean } = useRouter().history;
+  const canGoBack = useCanGoBack();
+  const canGoForward = useSyncExternalStore(
+    history.subscribe,
+    history.canGoForward ?? noForwardHistory,
+    noForwardHistory,
+  );
+  const { runGuard } = useNavigationGuard();
+  const { direction } = useAppLocale();
+  const { t } = useTranslation();
+  return (
+    <div className="flex shrink-0 items-center">
+      <HistoryButton
+        icon={direction === "rtl" ? ArrowRight : ArrowLeft}
+        label={t("goBack")}
+        disabled={!canGoBack && !fallback}
+        onClick={() => runGuard(() => (canGoBack ? history.back() : fallback?.()))}
+      />
+      {showSidebarTrigger && <SidebarTrigger />}
+      <HistoryButton
+        icon={direction === "rtl" ? ArrowLeft : ArrowRight}
+        label={t("goForward")}
+        disabled={!canGoForward}
+        onClick={() => runGuard(() => history.forward())}
+      />
+    </div>
   );
 }
 
@@ -262,7 +306,9 @@ export function SiteHeader({
     >
       <div
         data-header-scroll-row={hasCustomExamInfo ? "" : undefined}
-        className={`flex w-full items-center justify-between px-4 lg:px-6 ${
+        className={`flex w-full items-center justify-between pe-4 lg:pe-6 ${
+          isInSidebarContext ? "ps-1" : "ps-4 lg:ps-6"
+        } ${
           tabs ? "py-1" : "py-2"
         } ${hasCustomExamInfo ? "no-scrollbar min-w-0 flex-nowrap gap-x-4 overflow-x-auto whitespace-nowrap" : ""}`}
       >
@@ -271,14 +317,11 @@ export function SiteHeader({
           className={`flex items-center gap-1 lg:gap-2 ${hasCustomExamInfo ? "shrink-0" : ""}`}
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
         >
-          {isInSidebarContext && <SidebarTrigger className="-mr-1" />}
-          {isInSidebarContext && (
-            <Separator
-              orientation="vertical"
-              className="mx-2 data-[orientation=vertical]:h-4"
-            />
-          )}
-          <HeaderBackButton fallback={backFallback} />
+          <HeaderNavigation fallback={backFallback} showSidebarTrigger={isInSidebarContext} />
+          <Separator
+            orientation="vertical"
+            className="mx-2 data-[orientation=vertical]:h-4"
+          />
           {backLink || parentTitle || grandparentTitle ? (
             <div className={`flex items-center gap-2 ${hasCustomExamInfo ? "shrink-0" : ""}`}>
               {grandparentTitle &&

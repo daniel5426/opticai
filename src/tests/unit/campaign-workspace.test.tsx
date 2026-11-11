@@ -49,6 +49,29 @@ describe.each(['he','en','fr'])('campaign workspace in %s',locale=>{
   expect(screen.getByRole('tab',{name:i18n.t('campaign.audience')})).toBeInTheDocument();
   expect(mocks.request.mock.calls.every(([,body,method])=>body===undefined&&method===undefined)).toBe(true);
  });
+ it('pages through all delivery results with the locale direction',async()=>{
+  await i18n.changeLanguage(locale);
+  const fallback=mocks.request.getMockImplementation()!;
+  mocks.request.mockImplementation(async(path:string,body:unknown,method?:string)=>{
+   if(path==='/campaigns/1/runs')return [{id:'run-page',status:'completed',created_at:'2026-11-10T10:00:00Z',charged:0,counts:{delivered:51},snapshot:{cost:0}}];
+   if(path.includes('/deliveries?offset='))return {total:51,items:[{id:path.endsWith('50')?'last':'first',channel:'email',destination:path.endsWith('50')?'last@example.com':'first@example.com',status:'delivered',cost:0}]};
+   return fallback(path,body,method);
+  });
+  render(<CampaignsPage/>);
+  fireEvent.click(await screen.findByRole('button',{name:'Recall'}));
+  fireEvent.mouseDown(screen.getByRole('tab',{name:i18n.t('campaign.results')}),{button:0,ctrlKey:false});
+  const result=await screen.findByRole('button',{name:content=>content.includes(i18n.t('campaign.completed'))});
+  fireEvent.click(result);
+  expect(await screen.findByText('first@example.com')).toBeInTheDocument();
+  const next=screen.getByRole('button',{name:i18n.t('orderGroupNext')});
+  expect(next.closest('[dir]')).toHaveAttribute('dir',locale==='he'?'rtl':'ltr');
+  fireEvent.click(next);
+  expect(await screen.findByText('last@example.com')).toBeInTheDocument();
+  expect(mocks.request).toHaveBeenCalledWith('/campaigns/1/runs/run-page/deliveries?offset=50',undefined,undefined);
+  expect(screen.getByRole('button',{name:i18n.t('orderGroupNext')})).toBeDisabled();
+  fireEvent.click(screen.getByRole('button',{name:i18n.t('orderGroupPrevious')}));
+  expect(await screen.findByText('first@example.com')).toBeInTheDocument();
+ });
  it('opens the general agent with an editable localized starter instead of the old modal',async()=>{
   await i18n.changeLanguage(locale);render(<CampaignsPage/>);
   const button=await screen.findByRole('button',{name:i18n.t('campaign.ai')});fireEvent.click(button);

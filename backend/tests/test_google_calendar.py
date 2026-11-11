@@ -1,5 +1,5 @@
 """Synthetic API/consumer qualification. Never call a provider or a clinic DB."""
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from types import SimpleNamespace as NS
 from unittest.mock import Mock
 import pytest
@@ -10,7 +10,8 @@ from auth import encrypt_secret, decrypt_secret, get_current_user
 from database import get_db
 from models import Appointment, GoogleCalendarSync, User
 from services import google_calendar as calendar
-from EndPoints import google_calendar as endpoints, appointments, auth, users
+from services import google_calendar_pull as pull
+from EndPoints import google_calendar as endpoints, appointments, auth, dashboard, users
 from backend.tests.test_company_client_records import scope
 
 
@@ -36,6 +37,7 @@ def setup(scope, monkeypatch):
     app = FastAPI()
     app.include_router(endpoints.router)
     app.include_router(appointments.router)
+    app.include_router(dashboard.router)
     app.include_router(auth.router)
     app.include_router(users.router)
     app.dependency_overrides[get_db] = lambda: s.db
@@ -55,6 +57,71 @@ def queued(s, **kwargs):
     appt = appointment(s, **kwargs)
     calendar.enqueue(s.db, appt); s.db.commit()
     return appt, s.db.query(GoogleCalendarSync).filter_by(appointment_id=appt.id, user_id=s.user.id).one()
+
+
+def enable_import(s):
+    result = s.http.post('/google/calendar/preferences', json={'import_enabled': True})
+    assert result.status_code == 200 and result.json()['import_enabled']
+
+
+def google_move(s, appt, mapping, at='12:15', day=None, **event_fields):
+    starts = datetime.combine(day or appt.date + timedelta(days=1), datetime.strptime(at, '%H:%M').time(), pull.CLINIC_TIME)
+    etag = 'moved-google-version'
+    event = {'id': mapping.event_id, 'etag': etag, 'updated': calendar.now().isoformat(), 'status': 'confirmed',
+        'start': {'dateTime': starts.isoformat()}, 'end': {'dateTime': (starts + timedelta(minutes=45)).isoformat()}, **event_fields}
+    s.network.reset_mock()
+    s.network.side_effect = [response(data={'items': [{'id': 'unrelated-event', 'etag': 'personal'}, {'id': mapping.event_id, 'etag': etag}]}), response(data=event)]
+    return starts.date()
+
+
+def test_google_move_updates_existing_booking_and_exports_to_owner_copy(setup):
+    s = setup
+    s.user.clinic_id = s.a.id
+    manager = User(company_id=s.user.company_id, clinic_id=s.a.id, username='pull-manager', role_level=4,
+        google_account_connected=True, google_account_email='manager@example.invalid', google_calendar_sync_enabled=True,
+        google_access_token=encrypt_secret('manager-token'), google_calendar_routes={str(s.a.id): {'all_workers': True}})
+    s.db.add(manager)
+    s.db.flush()
+    appt, mapping = queued(s)
+    s.network.return_value = response(data={'etag': 'exported-version'})
+    assert calendar.run_once(s.db) and calendar.run_once(s.db)
+    assert s.http.get('/google/calendar/status').json()['import_enabled'] is False
+    assert not pull.run_pull_once(s.db)
+    enable_import(s)
+    yesterday = calendar.now().astimezone(pull.CLINIC_TIME).date() - timedelta(days=1)
+    day = google_move(s, appt, mapping, at='04:30', day=yesterday)
+    assert pull.run_pull_once(s.db)
+    assert (appt.date, appt.time, appt.duration) == (day, '04:30', 45)
+    assert s.http.get('/dashboard/calendar-revision', params={'clinic_id': s.a.id}).json() == {'calendar_revision': 1}
+    assert s.http.get('/dashboard/calendar-revision', params={'clinic_id': s.c.id}).status_code == 403
+    assert s.db.query(Appointment).count() == 1
+    assert mapping.status == 'synced' and mapping.remote_etag == 'moved-google-version'
+    assert s.db.query(GoogleCalendarSync).filter_by(user_id=manager.id).one().status == 'pending'
+    assert [call.args[0] for call in s.network.call_args_list] == ['GET', 'GET']
+    assert s.network.call_args.kwargs['headers']['If-None-Match'] == 'exported-version'
+    assert 'unrelated-event' not in s.network.call_args.args[1]
+
+
+@pytest.mark.parametrize('blocked', ['overlap', 'all-day', 'deleted'])
+def test_google_move_does_not_apply_unsupported_or_conflicting_changes(setup, blocked):
+    s = setup
+    s.user.clinic_id = s.a.id
+    appt, mapping = queued(s)
+    assert calendar.run_once(s.db)
+    enable_import(s)
+    fields = {}
+    if blocked == 'all-day':
+        fields = {'start': {'date': str(appt.date)}, 'end': {'date': str(appt.date + timedelta(days=1))}}
+    elif blocked == 'deleted':
+        fields = {'status': 'cancelled'}
+    day = google_move(s, appt, mapping, **fields)
+    if blocked == 'overlap':
+        conflict = appointment(s)
+        conflict.date, conflict.time = day, '12:30'
+        s.db.commit()
+    assert pull.run_pull_once(s.db)
+    assert appt.time == '10:00' and appt.deleted_at is None and s.a.google_calendar_revision == 0
+    assert s.http.get('/google/calendar/status').json()['import_rejected'] == int(blocked != 'deleted')
 
 
 def test_own_appointment_api_commits_queue_without_provider_calls(setup):

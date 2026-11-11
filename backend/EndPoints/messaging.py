@@ -17,6 +17,7 @@ from services import messaging_billing as money, campaign_engine as engine, camp
 from services.saas_billing import audit
 
 router = APIRouter(prefix='/messaging', tags=['messaging'])
+callback_router = APIRouter(prefix='/messaging', tags=['messaging-callbacks'])
 
 class TopupRequest(BaseModel):
     amount_minor: int = Field(gt=0)
@@ -149,7 +150,7 @@ def reconcile(topup_id: str, user: User = Depends(get_current_user), db: Session
     return topup_dict(money.reconcile(db, row.id))
 
 
-@router.get('/unsubscribe/{token}', response_class=HTMLResponse)
+@callback_router.get('/unsubscribe/{token}', response_class=HTMLResponse)
 def unsubscribe_page(token: str, db: Session = Depends(get_db)):
     row = db.get(CampaignDelivery, engine.decode_unsubscribe(token))
     if not row: money.reject('invalid_link', 404)
@@ -158,7 +159,7 @@ def unsubscribe_page(token: str, db: Session = Depends(get_db)):
     return HTMLResponse(page(), headers={'Cache-Control':'no-store','Referrer-Policy':'no-referrer'})
 
 
-@router.post('/unsubscribe/{token}')
+@callback_router.post('/unsubscribe/{token}')
 def unsubscribe(token: str, request: Request, db: Session = Depends(get_db)):
     row = db.get(CampaignDelivery, engine.decode_unsubscribe(token))
     if not row: money.reject('invalid_link', 404)
@@ -172,7 +173,7 @@ def unsubscribe(token: str, request: Request, db: Session = Depends(get_db)):
     return {'unsubscribed': True}
 
 
-@router.post('/webhooks/{provider}')
+@callback_router.post('/webhooks/{provider}')
 async def webhook(provider: str, request: Request, db: Session = Depends(get_db)):
     body = await request.body()
     if len(body) > 65536: raise HTTPException(413)
@@ -187,7 +188,7 @@ async def webhook(provider: str, request: Request, db: Session = Depends(get_db)
     return {'received': True}
 
 
-@router.api_route('/webhooks/micropay/{secret}', methods=['GET', 'HEAD', 'POST'])
+@callback_router.api_route('/webhooks/micropay/{secret}', methods=['GET', 'HEAD', 'POST'])
 async def micropay_webhook(secret: str, request: Request, db: Session = Depends(get_db)):
     import hmac
     from config import settings
@@ -369,6 +370,50 @@ def reconcile_delivery(delivery_id: str, owner: User = Depends(require_owner), d
     audit(db,row.company_id,owner.id,'messaging_reconcile','Verified provider response',{}, {'delivery_id':row.id,'status':row.status})
     db.commit()
     return {'status':row.status}
+
+
+class DeliveryResolution(BaseModel):
+    outcome: Literal['submitted', 'not_sent']
+    evidence: str = Field(min_length=10, max_length=1000)
+    provider_id: str | None = Field(default=None, min_length=1, max_length=160)
+
+
+@admin_router.post('/deliveries/{delivery_id}/resolve')
+def resolve_delivery(delivery_id: str, payload: DeliveryResolution,
+                     owner: User = Depends(require_owner), db: Session = Depends(get_db)):
+    """Owner attestation after checking provider records; never infer failure from a timeout."""
+    evidence = payload.evidence.strip()
+    if len(evidence) < 10: money.reject('provider_evidence_required', 422)
+    provider_id = payload.provider_id.strip() if payload.provider_id is not None else None
+    if provider_id == '': money.reject('provider_evidence_required', 422)
+    stub = db.get(CampaignDelivery, delivery_id)
+    if not stub: money.reject('delivery_not_found', 404)
+    money.account(db, stub.company_id)
+    row = db.query(CampaignDelivery).filter_by(id=delivery_id).with_for_update().populate_existing().one()
+    key = 'owner-resolution:' + row.id
+    decision = {'outcome': payload.outcome, 'provider_id': provider_id, 'evidence': evidence}
+    previous = db.get(engine.MessagingEvent, key)
+    if previous:
+        if previous.payload != decision: money.reject('request_conflict')
+        db.commit()
+        return {'status': row.status}
+    if row.status != 'uncertain' or row.settled: money.reject('resolution_not_available')
+    if provider_id:
+        if row.provider_id and row.provider_id != provider_id: money.reject('provider_evidence_required')
+        # Serialize evidence associations across companies, not just within one wallet.
+        db.query(MessagingCatalog).filter_by(id=1).with_for_update().one()
+        duplicate = db.query(CampaignDelivery.id).filter(CampaignDelivery.provider == row.provider,
+            CampaignDelivery.provider_id == provider_id, CampaignDelivery.id != row.id).first()
+        if duplicate: money.reject('provider_evidence_required')
+    before = {'status': row.status, 'provider_id': row.provider_id}
+    engine.apply_outcome(db, row, providers.Outcome(
+        'submitted' if payload.outcome == 'submitted' else 'failed',
+        provider_id, code='owner_verified_' + payload.outcome))
+    db.add(engine.MessagingEvent(key=key, delivery_id=row.id, kind='owner_resolution', payload=decision))
+    audit(db, row.company_id, owner.id, 'messaging_delivery_resolution', evidence,
+          before, {'delivery_id': row.id, **decision, 'status': row.status})
+    db.commit()
+    return {'status': row.status}
 
 
 # Compact SMS links live at the origin root; old email/queued links remain valid.

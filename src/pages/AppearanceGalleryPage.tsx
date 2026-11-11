@@ -9,6 +9,9 @@ import { OrderField, OrderSection } from "@/components/orders/layout/OrderSheet"
 import type { CatalogVariant } from "@/lib/inventory";
 import { useSaveController } from "@/hooks/shared/useSaveController";
 import { OpticPlusMigrationCard } from "@/components/exam/OpticPlusMigrationCard";
+import { CenteredLayoutWidth } from "@/components/exam/CenteredLayoutWidth";
+import { ExamGridLayout } from "@/components/exam/ExamGridLayout";
+import type { GridLayoutItem } from "@/pages/exam-detail/utils";
 import React, { useEffect, useState } from "react";
 import { I18nextProvider, useTranslation } from "react-i18next";
 import appI18n from "@/localization/i18n";
@@ -72,6 +75,7 @@ function CatalogDialog() {
 }
 
 function OpticPlusFixture() {
+  const [layoutWidth, setLayoutWidth] = useState<number>();
   const [measurements, setMeasurements] = useState<Record<string, unknown>>({ card_instance_id: 'opticplus-demo-measurements', source_table: 'tb_comp', source_key: 'demo', gijr: '0', gijl: '7', tbr: '12', tbl: '13' });
   const [questionnaire, setQuestionnaire] = useState<Record<string, unknown>>({ card_instance_id: 'opticplus-demo-questionnaire', source_table: 'tb_quest', source_key: 'demo', qyes1: true, qno1: false, remk1: '0', a1: false, a2: true });
   const [extra, setExtra] = useState<Record<string, Record<string, unknown>>>({
@@ -79,10 +83,23 @@ function OpticPlusFixture() {
     'opticplus-binocular': {card_instance_id:'demo-binocular',source_table:'tb_gnrl_tests',source_key:'demo',tst35:'cover test d',tst36:'cover test n',tst38:'bo 6m',tst39:'bi 6m',tst40:'bo 40cm',tst41:'bi 40cm',tst47:'fcc',tst48:'nra',tst49:'pra'},
     'opticplus-contact-fitting': {card_instance_id:'demo-fitting',source_table:'adchecks',source_key:'demo',cnrtype:'right lens type',cnltype:'left lens type',cnrcomp:'right company',cnlcomp:'left company',cnrkoter:'-3.00',cnlkoter:'-4.25'},
   });
-  return <div className="grid gap-4 lg:grid-cols-2" data-testid="gallery-opticplus">
-    <OpticPlusMigrationCard type="opticplus-measurements" data={measurements} isEditing onChange={(field,value) => setMeasurements(previous => ({...previous,[field]:value}))} />
-    <OpticPlusMigrationCard type="opticplus-questionnaire" data={questionnaire} isEditing onChange={(field,value) => setQuestionnaire(previous => ({...previous,[field]:value}))} />
-    {Object.entries(extra).map(([type,data]) => <OpticPlusMigrationCard key={type} type={type as import('@/lib/opticplus-cards').OpticPlusCardType} data={data} isEditing onChange={(field,value) => setExtra(previous => ({...previous,[type]:{...previous[type],[field]:value}}))} />)}
+  const items: GridLayoutItem[] = [
+    { id: 'measurement', type: 'opticplus-measurements', x: 0, y: 0, w: 6 },
+    { id: 'questionnaire', type: 'opticplus-questionnaire', x: 8, y: 0, w: 16 },
+    ...Object.keys(extra).map((type, index) => ({ id: type, type: type as GridLayoutItem['type'], x: index * 8, y: 1, w: 8 })),
+  ];
+  return <div className="no-scrollbar min-w-0" data-testid="gallery-opticplus">
+    <CenteredLayoutWidth layoutWidthPx={layoutWidth} onChange={setLayoutWidth}>
+      <ExamGridLayout items={items} renderItem={item => {
+        const type = item.type as import('@/lib/opticplus-cards').OpticPlusCardType;
+        const data = item.id === 'measurement' ? measurements : item.id === 'questionnaire' ? questionnaire : extra[type];
+        return <OpticPlusMigrationCard type={type} data={data} isEditing onChange={(field, value) => {
+          if (item.id === 'measurement') setMeasurements(previous => ({ ...previous, [field]: value }));
+          else if (item.id === 'questionnaire') setQuestionnaire(previous => ({ ...previous, [field]: value }));
+          else setExtra(previous => ({ ...previous, [type]: { ...previous[type], [field]: value } }));
+        }} />;
+      }} />
+    </CenteredLayoutWidth>
   </div>;
 }
 

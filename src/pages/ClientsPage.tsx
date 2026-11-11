@@ -55,8 +55,6 @@ export default function ClientsPage() {
   const isFamilyMode = search.mode === "families"
   const activeSort = React.useMemo(() => parseSortSearch(search.sort, { key: "id", direction: "desc" }), [search.sort])
   const columnFilters = React.useMemo(() => parseColumnFilters(search.filters), [search.filters])
-  // The company clinic filter's "all" leaves clinicId unset; list rows then show their branch.
-  const viewsAllClinics = clinicId === undefined
   const clinicNames = React.useMemo(
     () => Object.fromEntries(clinicFilter.clinics.map((clinic) => [clinic.id, clinic.name])),
     [clinicFilter.clinics]
@@ -429,7 +427,6 @@ export default function ClientsPage() {
                 onClientDeleteFailed={handleClientDeleteFailed}
                 searchQuery={searchInput}
                 onSearchChange={handleSearchInputChange}
-                fieldSearch
                 serverFiltered
                 columnFilters={columnFilters}
                 onColumnFiltersChange={(filters) =>
@@ -439,7 +436,7 @@ export default function ClientsPage() {
                 onGenderFilterChange={(gender) =>
                   void navigate({ to: "/clients", search: buildSearchState({ gender, page: 1 }) })
                 }
-                clinicNames={viewsAllClinics ? clinicNames : undefined}
+                clinicNames={clinicNames}
                 hideNewButton
                 loading={clientsLoading}
                 fillHeight

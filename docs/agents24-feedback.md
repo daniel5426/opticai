@@ -393,3 +393,20 @@ Campaign consent is enforced independently of audience filters. The Agent catalo
 now exposes that policy explicitly, preventing an otherwise reasonable request for
 an unavailable consent filter. This was reproduced with a real local draft run;
 no patient data or message dispatch was involved in the Agent request.
+
+### Campaign filter rejection diagnostics (2026-11-10)
+
+Local draft qualification with Python SDK 0.7.27 produced `operator: "equal"`
+instead of the catalog's `equals`. The signed Artifact endpoint correctly
+returned `agent.operationFailed` for these invalid filters. The platform thread
+reported `ARTIFACT_EXECUTION_FAILED` / `ARTIFACT_HANDLER_FAILED` with an internal
+failure category instead, making an input correction look like an internal crash.
+Reproduction: run `prepare_campaign` with a text filter using `equal`; no draft
+is persisted. Safe failure IDs: `f71b4066-2c88-46f0-8278-34089058f482` and
+`328e42a3-c09b-42ca-9223-d62f2c1b55b2`.
+
+Verification question: the thread's structural catalog preview shows empty
+operator arrays and says omitted content cannot be retrieved. Check whether the
+model receives the complete catalog independently of that preview. Preserve the
+safe Artifact error code in trace diagnostics so application rejection and
+handler crashes can be distinguished. No platform workaround was added.

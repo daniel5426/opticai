@@ -83,9 +83,12 @@ def calendar_request(owner, method, url, **kwargs):
     # must not be invented. Known expired tokens refresh before the API call.
     if not token or expiry and expiry <= now() + timedelta(seconds=60):
         token = refresh(owner)
+    params = kwargs.pop('params', {'sendUpdates': 'none'} if method != 'GET' and '/events' in url else {})
+    headers = kwargs.pop('headers', {})
+
     def send(access):
-        return requests.request(method, url, headers={'Authorization': 'Bearer ' + access},
-            params=kwargs.pop('params', {'sendUpdates': 'none'} if '/events' in url else {}), timeout=15, **kwargs)
+        return requests.request(method, url, headers={**headers, 'Authorization': 'Bearer ' + access},
+            params=params, timeout=15, **kwargs)
     response = send(token)
     if response.status_code == 401:
         response = send(refresh(owner))
@@ -122,7 +125,7 @@ def eligible(owner, appointment):
     return owner.role_level >= 4 and appointment.user_id is not None and (route.get('all_workers', False) or appointment.user_id in route.get('workers', []))
 
 
-def enqueue(db, appointment, previous_owner_id=None, previous_event_id=None, *, force=False, receiver_id=None):
+def enqueue(db, appointment, previous_owner_id=None, previous_event_id=None, *, force=False, receiver_id=None, skip_receiver_id=None):
     """Caller commits queue intent atomically with the appointment mutation."""
     db.flush()
     # Serialize the mapping lookup, including first creation, on its parent row.
@@ -133,6 +136,7 @@ def enqueue(db, appointment, previous_owner_id=None, previous_event_id=None, *, 
                   if eligible(u, appointment) and u.google_account_connected)
     if receiver_id is not None:
         owners = {receiver_id}
+    owners.discard(skip_receiver_id)
     for owner_id in sorted(owners):
         owner = db.get(User, owner_id)
         if not owner or owner.company_id != appointment.company_id:
@@ -162,6 +166,7 @@ def enqueue(db, appointment, previous_owner_id=None, previous_event_id=None, *, 
             row.generation += 1
             row.event_id = event_id(appointment.id, owner_id, row.generation)
             row.calendar_id = target
+            row.remote_etag = None
         if row.status == 'deleted' and not deleting:
             row.generation += 1
             row.event_id = event_id(appointment.id, owner_id, row.generation)
@@ -211,6 +216,7 @@ def process(db, row):
         if response.status_code not in (200, 204, 404, 410):
             raise CalendarError('provider_rejected', retry=False)
         row.status = 'deleted'
+        row.remote_etag = None
         if appointment.user_id == owner.id and appointment.google_calendar_event_id == row.event_id:
             appointment.google_calendar_event_id = None
     else:
@@ -233,6 +239,7 @@ def process(db, row):
                 response = calendar_request(owner, 'PUT', f'{base}/{quote(row.event_id, safe="")}', json=body)
         if response.status_code not in (200, 201):
             raise CalendarError('provider_rejected', retry=False)
+        row.remote_etag = response.json().get('etag')
         if appointment.user_id == owner.id:
             appointment.google_calendar_event_id = row.event_id
         row.account_email = owner.google_account_email

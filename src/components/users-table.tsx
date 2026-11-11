@@ -18,6 +18,7 @@ import { ActiveColumnFilters, ColumnFiltersProvider, useColumnFilterState } from
 import { matchesColumnFilters, type ColumnFilterDefinition, type ColumnFilters } from "@/lib/column-filters"
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
 import { DateSearchHelper } from "@/lib/date-search-helper"
+import { useTranslation } from "react-i18next"
 
 interface UserWithClinic extends User {
   clinic_name?: string
@@ -109,6 +110,7 @@ export function UsersTable({
   sort,
   onSortChange
 }: UsersTableProps) {
+  const { t } = useTranslation()
   const columnFilters = useColumnFilterState(externalColumnFilters, onColumnFiltersChange)
   const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
   const [selectedRole, setSelectedRole] = React.useState<string>(ALL_FILTER_VALUE)
@@ -249,44 +251,50 @@ export function UsersTable({
     }
   }
 
+  const headerSelects = [
+    {
+      key: "role",
+      columnKey: "role",
+      value: roleFilter,
+      onChange: handleRoleFilterChange,
+      placeholder: t("columnFilters.role"),
+      options: USER_ROLE_FILTER_OPTIONS.map(option => ({
+        ...option,
+        label: t(option.value === ALL_FILTER_VALUE ? "tableExport.all" : `columnFilters.roleLevel.${option.value}`),
+      })),
+      widthClassName: "w-[150px]"
+    },
+    ...(companyId && currentClinicId
+      ? [
+          {
+            key: "clinic-scope",
+            columnKey: "clinic",
+            showInColumn: true,
+            value: clinicScopeFilter,
+            onChange: handleClinicScopeFilterChange,
+            placeholder: t("companyClients.clinic"),
+            options: USER_CLINIC_SCOPE_OPTIONS.map(option => ({
+              ...option,
+              label: t(option.value === ALL_FILTER_VALUE ? "companyClients.allClinics" : "companyClients.currentClinic"),
+            })),
+            widthClassName: "w-[170px]"
+          }
+        ]
+      : [])
+  ]
+
   return (
-    <ColumnFiltersProvider filters={columnFilters.filters} definitions={USER_COLUMN_FILTERS} onChange={columnFilters.setFilters}>
+    <ColumnFiltersProvider filters={columnFilters.filters} definitions={USER_COLUMN_FILTERS} onChange={columnFilters.setFilters} headerSelects={headerSelects}>
     <div className={fillHeight ? "flex min-h-0 flex-1 flex-col gap-2.5" : "space-y-2.5"} dir="rtl">
       {!hideSearch && (
         <TableFiltersBar
           searchValue={searchQuery}
           onSearchChange={handleSearchChange}
           searchPlaceholder="חיפוש משתמשים…"
-          filters={[
-            {
-              key: "role",
-              value: roleFilter,
-              onChange: handleRoleFilterChange,
-              placeholder: "תפקיד",
-              options: USER_ROLE_FILTER_OPTIONS,
-              widthClassName: "w-[150px]"
-            },
-            ...(companyId && currentClinicId
-              ? [
-                  {
-                    key: "clinic-scope",
-                    value: clinicScopeFilter,
-                    onChange: handleClinicScopeFilterChange,
-                    placeholder: "מרפאה",
-                    options: USER_CLINIC_SCOPE_OPTIONS,
-                    widthClassName: "w-[170px]"
-                  }
-                ]
-              : [])
-          ]}
-          hasActiveFilters={
-            Boolean(searchQuery.trim()) || roleFilter !== ALL_FILTER_VALUE || clinicScopeFilter !== ALL_FILTER_VALUE || columnFilters.active
-          }
+          filterSummary={<ActiveColumnFilters />}
+          hasActiveFilters={Boolean(searchQuery.trim())}
           onReset={() => {
             handleSearchChange("")
-            handleRoleFilterChange(ALL_FILTER_VALUE)
-            handleClinicScopeFilterChange(ALL_FILTER_VALUE)
-            columnFilters.setFilters({})
           }}
           actions={
             !hideNewButton && onNewUser ? (
@@ -298,7 +306,7 @@ export function UsersTable({
           }
         />
       )}
-      <ActiveColumnFilters />
+      {hideSearch && <ActiveColumnFilters />}
 
       <Table
           dir="rtl"

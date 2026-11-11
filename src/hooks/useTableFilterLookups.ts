@@ -27,7 +27,11 @@ export function useTableFilterLookups(definitions: readonly ColumnFilterDefiniti
       { value: '__none__', label: t('columnFilters.noClinic') },
     ] };
     if (definition.key === 'examiner') return { ...definition, kind: 'options' as const, options: (users.data ?? []).map(user => ({value: String(user.id), label: user.full_name || user.username || String(user.id)})) };
-    if (definition.key === 'type' && definition.kind === 'text') return { ...definition, kind: 'options' as const, options: (referralTypes.data ?? []).map(item => ({value: item.name, label: item.name})) };
+    if (definition.key === 'type' && definition.kind === 'text') {
+      const options = new Map((definition.options ?? []).map(option => [option.value, option]));
+      for (const item of referralTypes.data ?? []) options.set(item.name, { value: item.name, label: item.name });
+      return { ...definition, kind: 'options' as const, options: [...options.values()] };
+    }
     return definition;
   });
 }

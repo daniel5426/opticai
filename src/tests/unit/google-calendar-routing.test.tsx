@@ -16,8 +16,12 @@ for(const locale of ['he','en','fr']) it(`preserves primary/self-only defaults w
  expect(container.firstChild).toHaveAttribute('dir',locale==='he'?'rtl':'ltr');
  expect(screen.getByRole('checkbox',{name:i18n.t('googleCalendar.allWorkers')})).not.toBeChecked();
  expect(screen.getByRole('checkbox',{name:'Synthetic examiner'})).not.toBeChecked();
- fireEvent.click(screen.getByRole('button',{name:i18n.t('googleCalendar.saveRouting')}));
- await waitFor(()=>expect(mocks.request).toHaveBeenCalledWith('routing',{clinic_id:1,calendar_id:'primary',all_workers:false,workers:[]},'PUT'));
+ const save = screen.getByRole('button',{name:i18n.t('googleCalendar.saveRouting')});
+ expect(save).toBeDisabled();
+ fireEvent.click(screen.getByRole('checkbox',{name:'Synthetic examiner'}));
+ expect(save).toBeEnabled();
+ fireEvent.click(save);
+ await waitFor(()=>expect(mocks.request).toHaveBeenCalledWith('routing',{clinic_id:1,calendar_id:'primary',all_workers:false,workers:[2]},'PUT'));
 });
 it('hides owner subscription controls from workers',async()=>{
  mocks.request.mockImplementation(async(action:string)=>action==='calendars'?[]:{...data,can_include_workers:false});

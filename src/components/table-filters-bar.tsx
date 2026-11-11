@@ -31,6 +31,11 @@ export type TableFiltersBarSelect = {
   options: readonly FilterOption[] | FilterOption[];
   widthClassName?: string;
   ariaLabel?: string;
+  /** Associate a select with a column while retaining its value for exports and older links. */
+  columnKey?: string;
+  defaultValue?: string;
+  /** Expose scope controls and legacy-only filters in the column popover. */
+  showInColumn?: boolean;
 };
 
 export const TableFiltersContext = React.createContext<TableFiltersBarSelect[]>([]);
@@ -38,7 +43,7 @@ export const TableFiltersContext = React.createContext<TableFiltersBarSelect[]>(
 export function TableFilterSelect({ filter }: { filter: TableFiltersBarSelect }) {
   const { direction } = useAppLocale();
   return (
-    <Select value={filter.value} onValueChange={filter.onChange} dir={direction}>
+    <Select value={filter.value} onValueChange={filter.onChange} dir={direction} clearable={!filter.columnKey}>
       <SelectTrigger
         aria-label={filter.ariaLabel || filter.placeholder}
         data-canvas-surface=""
@@ -61,8 +66,7 @@ interface TableFiltersBarProps {
   searchPlaceholder?: string;
   searchAriaLabel?: string;
   filters?: TableFiltersBarSelect[];
-  /** Shown where the search box is, for tables that search by field instead. */
-  leadingControls?: React.ReactNode;
+  filterSummary?: React.ReactNode;
   inlineControls?: React.ReactNode;
   navigation?: React.ReactNode;
   actions?: React.ReactNode;
@@ -70,6 +74,7 @@ interface TableFiltersBarProps {
   hasActiveFilters?: boolean;
   className?: string;
   compact?: boolean;
+  showColumnSelects?: boolean;
   exportConfig?: ExportConfig;
   exportTable?: ExportTable;
 }
@@ -80,7 +85,7 @@ export function TableFiltersBar({
   searchPlaceholder,
   searchAriaLabel,
   filters = [],
-  leadingControls,
+  filterSummary,
   inlineControls,
   navigation,
   actions,
@@ -88,11 +93,13 @@ export function TableFiltersBar({
   hasActiveFilters = false,
   className,
   compact = false,
+  showColumnSelects = false,
   exportConfig: explicitExportConfig,
   exportTable,
 }: TableFiltersBarProps) {
   const { direction } = useAppLocale();
   const { t } = useTranslation();
+  const searchInput = React.useRef<HTMLInputElement>(null);
   const resolvedSearchPlaceholder = searchPlaceholder ?? `${t("search")}…`;
   const inheritedExportConfig = React.useContext(TableExportContext);
   const exportConfig = explicitExportConfig || (inheritedExportConfig?.table === exportTable ? inheritedExportConfig : null);
@@ -108,7 +115,9 @@ export function TableFiltersBar({
   const clinicFilter = effectiveFilters.find(filter => filter.key === "clinic");
   const clinicName = exportConfig?.clinicId == null ? t("tableExport.allClinics") : clinicFilter?.value === "current" ? t("companyClients.currentClinic") : clinicFilter?.options.find(option => option.value === String(exportConfig.clinicId))?.label || String(exportConfig.clinicId);
   const exportButton = exportConfig ? <TableExportButton snapshot={{ ...exportConfig, search: searchValue, filters: [...exportFilters, ...(exportConfig.filters || [])], clinicName }} /> : null;
-  const orderedFilters = direction === "rtl" ? [...effectiveFilters].reverse() : effectiveFilters;
+  const visibleFilters = effectiveFilters.filter(filter => showColumnSelects || !filter.columnKey);
+  const orderedFilters = direction === "rtl" ? [...visibleFilters].reverse() : visibleFilters;
+  const clearSearch = Boolean(filterSummary && onSearchChange && onReset && hasActiveFilters && visibleFilters.length === 0);
   const navigationOrder =
     direction === "ltr"
       ? "order-2 flex shrink-0 flex-wrap items-center justify-end gap-2"
@@ -153,27 +162,35 @@ export function TableFiltersBar({
         >
           {onSearchChange ? (
             <div
-              className="relative min-w-[220px] flex-1 md:max-w-[320px]"
+              className="relative min-w-[min(220px,100%)] flex-1 md:max-w-[320px]"
             >
               <Search
                 aria-hidden="true"
                 className="text-muted-foreground pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
               />
               <Input
+                ref={searchInput}
                 aria-label={searchAriaLabel || resolvedSearchPlaceholder}
                 placeholder={resolvedSearchPlaceholder}
                 value={searchValue}
                 onChange={(event) => onSearchChange(event.target.value)}
                 data-canvas-surface=""
-                className={cn(canvasSurfaceClassName, "h-9 ps-9")}
+                className={cn(canvasSurfaceClassName, "h-9 pl-9", clearSearch && "pr-9")}
                 dir={direction}
               />
+              {clearSearch && (
+                <Button type="button" variant="ghost" size="icon-sm" aria-label={t("clear")}
+                  onClick={() => { onReset?.(); searchInput.current?.focus(); }}
+                  className="absolute right-1 top-1/2 -translate-y-1/2">
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </Button>
+              )}
             </div>
           ) : null}
 
-          {leadingControls}
+          {filterSummary}
 
-          {onReset && hasActiveFilters ? (
+          {onReset && hasActiveFilters && !clearSearch ? (
             <Button
               type="button"
               variant="ghost"
@@ -190,7 +207,6 @@ export function TableFiltersBar({
           {orderedFilters.map(filter => <TableFilterSelect key={filter.key} filter={filter} />)}
 
           {inlineControls ? <div dir={direction}>{inlineControls}</div> : null}
-
         </div>
       </div>
     </div>

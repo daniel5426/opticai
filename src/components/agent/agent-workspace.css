@@ -97,7 +97,7 @@
 .agent-workspace__suggestion-arrow { opacity: 0; }
 .agent-workspace__suggestion:hover .agent-workspace__suggestion-arrow, .agent-workspace__suggestion:focus-visible .agent-workspace__suggestion-arrow { opacity: 1; }
 .agent-results { position: absolute; z-index: 3; bottom: 100%; inset-inline: 0; min-width: 0; padding: 0 16px 8px; pointer-events: none; }
-.agent-results__rail { overflow-x: auto; overscroll-behavior-inline: contain; scroll-padding-inline: 2px; scrollbar-width: thin; border-radius: var(--radius-xl); pointer-events: auto; }
+.agent-results__rail { overflow-x: auto; overscroll-behavior-inline: contain; scroll-padding-inline: 2px; border-radius: var(--radius-xl); pointer-events: auto; }
 .agent-results__rail:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
 .agent-results__list { display: flex; gap: 8px; margin: 0; padding: 2px 0 6px; list-style: none; }
 .agent-results__card {

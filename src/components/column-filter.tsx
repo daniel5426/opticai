@@ -1,6 +1,7 @@
 import * as React from "react"
 import { useTableFilterLookups } from "@/hooks/useTableFilterLookups"
 import { TableExportContext } from "@/components/table-export/context"
+import { TableFilterSelect, TableFiltersContext, type TableFiltersBarSelect } from "@/components/table-filters-bar"
 import { Check, Filter, X } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
@@ -11,7 +12,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import {
   serializeColumnFilters,
   describeColumnFilter,
-  hasColumnFilters,
   isActiveColumnFilter,
   setColumnFilter,
   type ColumnFilterDefinition,
@@ -37,13 +37,36 @@ export function ColumnFiltersProvider({
   filters,
   definitions,
   onChange,
+  headerSelects = [],
+  moveClinicScope = false,
   children,
-}: ColumnFiltersContextValue & { children: React.ReactNode }) {
+}: ColumnFiltersContextValue & {
+  headerSelects?: TableFiltersBarSelect[]
+  moveClinicScope?: boolean
+  children: React.ReactNode
+}) {
   const { t } = useTranslation()
   const value = React.useMemo(() => ({ filters, definitions: definitions.map(definition => definition.key === 'clinic' ? {...definition, label: t('companyClients.clinic')} : definition), onChange }), [filters, definitions, onChange, t])
   const exportConfig = React.useContext(TableExportContext)
   const filteredExport = React.useMemo(() => exportConfig ? { ...exportConfig, columnFilters: serializeColumnFilters(filters) } : null, [exportConfig, filters])
-  return <TableExportContext.Provider value={filteredExport}><ColumnFiltersContext.Provider value={value}>{children}</ColumnFiltersContext.Provider></TableExportContext.Provider>
+  const inheritedSelects = React.useContext(TableFiltersContext)
+  const selects = [
+    ...headerSelects,
+    ...inheritedSelects.map(select => moveClinicScope && select.key === "clinic"
+      ? { ...select, columnKey: "clinic", showInColumn: true }
+      : select),
+  ]
+  return (
+    <TableExportContext.Provider value={filteredExport}>
+      <TableFiltersContext.Provider value={selects}>
+        <ColumnFiltersContext.Provider value={value}>{children}</ColumnFiltersContext.Provider>
+      </TableFiltersContext.Provider>
+    </TableExportContext.Provider>
+  )
+}
+
+function isActiveSelect(select: TableFiltersBarSelect) {
+  return Boolean(select.value) && select.value !== (select.defaultValue ?? "all")
 }
 
 /** Column filters for a table: controlled by the page (URL/server) when provided, otherwise local. */
@@ -57,7 +80,7 @@ export function useColumnFilterState(
     (next: ColumnFilters) => (onControlledChange ? onControlledChange(next) : setLocal(next)),
     [onControlledChange],
   )
-  return { filters, setFilters, active: hasColumnFilters(filters) }
+  return { filters, setFilters }
 }
 
 function isLookupFilter(definition: ColumnFilterDefinition<any>) {
@@ -113,10 +136,13 @@ export function ColumnFilterControl({ filterKey }: { filterKey?: string }) {
   const { t } = useTranslation()
   const { direction } = useAppLocale()
   const filter = useColumnFilter(filterKey)
+  const select = React.useContext(TableFiltersContext).find(item => item.columnKey === filterKey && item.showInColumn)
   const [open, setOpen] = React.useState(false)
-  if (!filter) return null
-  const { definition, active } = filter
-  const label = t("columnFilters.filterColumn", { column: definition.label })
+  if (!filter && !select) return null
+  const definition = filter?.definition
+  const active = filter?.active || (select && isActiveSelect(select))
+  const columnLabel = definition?.label ?? (select?.key === "clinic" ? t("companyClients.clinic") : select?.placeholder)
+  const label = t("columnFilters.filterColumn", { column: columnLabel })
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -140,15 +166,15 @@ export function ColumnFilterControl({ filterKey }: { filterKey?: string }) {
       <PopoverContent
         align="start"
         dir={direction}
-        className={definition.kind === "date" ? "w-[min(360px,calc(100vw-2rem))] p-0" : "w-64 p-0"}
+        className={definition?.kind === "date" ? "w-[min(360px,calc(100vw-2rem))] p-0" : "w-64 p-0"}
         onOpenAutoFocus={(event) => {
           // Let the text field take focus itself; other kinds keep the popover's default focus.
-          if (definition.kind === "text") event.preventDefault()
+          if (!select && definition?.kind === "text") event.preventDefault()
         }}
       >
         <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
-          <span className="truncate text-sm font-medium">{definition.label}</span>
-          {active && (
+          <span className="truncate text-sm font-medium">{columnLabel}</span>
+          {filter?.active && (
             <button
               type="button"
               onClick={() => filter.setValue(undefined)}
@@ -158,7 +184,8 @@ export function ColumnFilterControl({ filterKey }: { filterKey?: string }) {
             </button>
           )}
         </div>
-        <div className="p-3">
+        {select && <div className="p-3"><TableFilterSelect filter={select} /></div>}
+        {filter && definition && <div className={cn("p-3", select && "border-t")}>
           {isLookupFilter(definition) && <LookupFilterEditor definition={definition} value={filter.value} onChange={filter.setValue} />}
           {!isLookupFilter(definition) && definition.kind === "text" && (
             <TextFilterEditor value={typeof filter.value === "string" ? filter.value : ""} onChange={filter.setValue} onSubmit={() => setOpen(false)} />
@@ -176,7 +203,7 @@ export function ColumnFilterControl({ filterKey }: { filterKey?: string }) {
               onChange={filter.setValue}
             />
           )}
-        </div>
+        </div>}
       </PopoverContent>
     </Popover>
   )
@@ -339,48 +366,58 @@ function DateFilterEditor({
 }
 
 /** Chips summarizing every active column filter, with per-filter removal and a clear-all action. */
-export function ActiveColumnFilters({ className }: { className?: string }) {
+export function ActiveColumnFilters({ className, showSelects = true }: { className?: string; showSelects?: boolean }) {
   const { t } = useTranslation()
+  const { direction } = useAppLocale()
   const context = React.useContext(ColumnFiltersContext)
+  const selects = React.useContext(TableFiltersContext)
   const formatDate = useFormatFilterDate()
-  if (!context || !hasColumnFilters(context.filters)) return null
+  if (!context) return null
   const { filters, definitions, onChange } = context
   const active = definitions.filter((definition) => isActiveColumnFilter(filters[definition.key]))
-  if (active.length === 0) return null
+  const activeSelects = showSelects ? selects.filter(select => select.columnKey && isActiveSelect(select)) : []
+  if (active.length === 0 && activeSelects.length === 0) return null
 
   return (
-    <div className={cn("flex flex-wrap items-center gap-1.5", className)} role="group" aria-label={t("columnFilters.activeFilters")}>
+    <div dir={direction} className={cn("flex min-w-0 flex-wrap items-center gap-1.5", className)} role="group" aria-label={t("columnFilters.activeFilters")}>
       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
         <Filter className="h-3 w-3" />
         {t("columnFilters.activeFilters")}
       </span>
       {active.map((definition) => {
         const summary = describeColumnFilter(definition, filters[definition.key], formatDate)
-        return (
-          <span
-            key={definition.key}
-            className="inline-flex h-7 max-w-[18rem] items-center gap-1 rounded-full bg-primary/10 ps-2.5 pe-1 text-xs text-primary"
-          >
-            <span className="truncate">
-              <span className="font-medium">{definition.label}:</span> {isLookupFilter(definition) ? <LookupFilterSummary definition={definition} value={filters[definition.key]} /> : summary}
-            </span>
-            <button
-              type="button"
-              aria-label={t("columnFilters.removeFilter", { column: definition.label })}
-              onClick={() => onChange(setColumnFilter(filters, definition.key, undefined))}
-              className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full hover:bg-primary/15"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          </span>
-        )
+        return <FilterChip key={definition.key} label={definition.label} onRemove={() => onChange(setColumnFilter(filters, definition.key, undefined))}>
+          {isLookupFilter(definition) ? <LookupFilterSummary definition={definition} value={filters[definition.key]} /> : summary}
+        </FilterChip>
       })}
+      {activeSelects.map(select => (
+        <FilterChip key={select.key} label={select.key === "clinic" ? t("companyClients.clinic") : select.placeholder} onRemove={() => select.onChange(select.defaultValue ?? "all")}>
+          {select.options.find(option => option.value === select.value)?.label ?? select.value}
+        </FilterChip>
+      ))}
       {active.length > 1 && (
         <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => onChange({})}>
           {t("columnFilters.clearAll")}
         </Button>
       )}
     </div>
+  )
+}
+
+function FilterChip({ label, onRemove, children }: { label: string; onRemove: () => void; children: React.ReactNode }) {
+  const { t } = useTranslation()
+  return (
+    <span className="inline-flex h-7 max-w-[min(18rem,100%)] items-center gap-1 rounded-full bg-primary/10 ps-2.5 pe-1 text-xs text-primary">
+      <span className="truncate"><span className="font-medium">{label}:</span> {children}</span>
+      <button
+        type="button"
+        aria-label={t("columnFilters.removeFilter", { column: label })}
+        onClick={onRemove}
+        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full hover:bg-primary/15"
+      >
+        <X className="h-3 w-3" />
+      </button>
+    </span>
   )
 }
 

@@ -2,6 +2,7 @@ import { apiClient } from '../api-client'
 import { Appointment, Client, Settings, User } from './schema-interface'
 
 export type DashboardHomeResponse = {
+  calendar_revision?: number
   appointments: Appointment[]
   clients: Client[]
   settings: Settings | null
@@ -20,6 +21,7 @@ export async function getDashboardHome(
   }
   const data = (resp as any).data as DashboardHomeResponse
   return {
+    calendar_revision: data?.calendar_revision,
     appointments: data?.appointments || [],
     clients: data?.clients || [],
     settings: data?.settings || null,

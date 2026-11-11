@@ -3,15 +3,27 @@ from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import date
 from database import get_db
-from models import Appointment, Client, User, Settings
+from models import Appointment, Client, Clinic, User, Settings
 from auth import get_current_user
 from sqlalchemy import and_
-from security.scope import assert_clinic_scope
+from security.scope import resolve_company_id, validate_loaded_clinic_scope
 
 
 CEO_LEVEL = 4
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+
+
+def calendar_revision(db, current_user, clinic_id):
+    clinic = db.get(Clinic, clinic_id)
+    validate_loaded_clinic_scope(current_user, clinic, resolve_company_id(db, current_user))
+    return clinic.google_calendar_revision
+
+
+@router.get('/calendar-revision')
+def get_calendar_revision(clinic_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return {'calendar_revision': calendar_revision(db, current_user, clinic_id)}
+
 
 @router.get("/home")
 def get_home_dashboard(
@@ -21,7 +33,7 @@ def get_home_dashboard(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    assert_clinic_scope(db, current_user, clinic_id)
+    revision = calendar_revision(db, current_user, clinic_id)
 
     # Appointments in range with only required fields
     filters = [Appointment.clinic_id == clinic_id]
@@ -142,6 +154,7 @@ def get_home_dashboard(
     ]
 
     return {
+        "calendar_revision": revision,
         "appointments": appointments,
         "clients": clients,
         "settings": settings,

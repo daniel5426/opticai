@@ -10,8 +10,9 @@ export function useCompanyClinicFilter(defaultAll = false) {
   const { currentClinic, currentUser } = useUser()
   const companyId = currentUser?.company_id ?? currentClinic?.company_id
   const [selection, setSelection] = useState<{ companyId?: number; currentClinicId?: number; value: string }>()
+  const defaultValue = defaultAll ? "all" : "current"
   const value = selection?.companyId === companyId && selection?.currentClinicId === currentClinic?.id
-    ? selection.value : defaultAll ? "all" : "current"
+    ? selection.value : defaultValue
   const clinicId = value === "all" ? undefined : value === "current" ? currentClinic?.id : Number(value)
   const clinics = useQuery({
     queryKey: ["company-record-clinics", companyId],
@@ -29,6 +30,6 @@ export function useCompanyClinicFilter(defaultAll = false) {
       return response.data ?? []
     },
   })
-  return { value, clinicId, companyId, clinics: clinics.data ?? [],
+  return { value, defaultValue, clinicId, companyId, clinics: clinics.data ?? [],
     setValue: (value: string) => setSelection({ companyId, currentClinicId: currentClinic?.id, value }) }
 }

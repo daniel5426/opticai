@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { importedExamName } from "@/lib/opticplus-cards";
+import { arrangeOpticPlusExam } from "@/lib/opticplus-exam-layout";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { CustomModal } from "@/components/ui/custom-modal";
 import { getExamPageData } from "@/lib/db/exams-db";
@@ -119,10 +120,10 @@ export function ExamPreviewModal({
     );
   }, [oldRefractionExtensionTabs, activeOldRefractionExtensionTabs]);
 
-  const previewItems = useMemo(
-    () => (gridItems.length ? gridItems : legacyRowsToGridItems(cardRows)),
-    [gridItems, cardRows],
-  );
+  const previewItems = useMemo(() => {
+    const items = gridItems.length ? gridItems : legacyRowsToGridItems(cardRows);
+    return items.some(item => item.type.startsWith("opticplus-")) ? arrangeOpticPlusExam(items) : items;
+  }, [gridItems, cardRows]);
 
   const previewLanes = useMemo(() => {
     const maxLane = previewItems.reduce(

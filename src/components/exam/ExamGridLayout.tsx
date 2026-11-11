@@ -1,5 +1,6 @@
 import React from "react";
 import { cn } from "@/lib/utils";
+import { ExamLayoutLane } from "./ExamLayoutLane";
 import {
   EXAM_LAYOUT_GRID_COLUMNS,
   GridLayoutItem,
@@ -66,6 +67,26 @@ export function ExamGridLayout({
     );
   }, [lanes, sortedItems]);
 
+  if (!compact) {
+    return (
+      <div className={cn("flex w-full min-w-0 flex-col gap-4", separators && "gap-0", className)} dir="ltr">
+        {resolvedLanes.map(lane => {
+          const laneItems = sortedItems.filter(item => item.y === lane);
+          return (
+            <ExamLayoutLane key={lane} items={laneItems} columns={columns}
+              style={{ minHeight: laneItems.length ? undefined : EXAM_LAYOUT_LANE_MIN_HEIGHT_PX }}>
+              {(item, index, style) => (
+                <div className={cn("min-w-0", item.type === "notes" && "h-full self-stretch", separators && "border-border border px-5 py-3", itemClassName)} style={style}>
+                  {renderItem(item, index, laneItems)}
+                </div>
+              )}
+            </ExamLayoutLane>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn("grid w-full gap-4", separators && "gap-0", className)}
@@ -105,7 +126,7 @@ export function ExamGridLayout({
             aria-hidden="true"
             className="pointer-events-none relative self-stretch"
             style={{
-              gridColumn: `${item.x + 1} / span ${item.w}`,
+              gridColumn: `${Math.floor(item.x) + 1} / span ${Math.ceil(item.w)}`,
               gridRow: item.y + 1,
             }}
           >
@@ -134,7 +155,7 @@ export function ExamGridLayout({
               itemClassName,
             )}
             style={{
-              gridColumn: compact ? `span ${item.w}` : `${item.x + 1} / span ${item.w}`,
+              gridColumn: `span ${Math.ceil(item.w)}`,
               gridRow: compact ? `span ${heights[item.id] || 200}` : item.y + 1,
             }}
           >

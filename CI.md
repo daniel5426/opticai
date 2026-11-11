@@ -579,6 +579,75 @@ parallel afterward. Desktop candidates already build concurrently and publicatio
 reuses their verified artifacts. No additional workflow change is warranted for
 this patch; reuse these gates and avoid a duplicate local production build.
 
+## Campaign recovery hardening (not activated)
+
+Production campaign authoring, finance, sending and AI drafts remain disabled.
+`VITE_CAMPAIGNS_ENABLED` is an explicit frontend build flag: release builds default
+to false, development defaults to true, and an explicit false disables either.
+An eventual reviewed staging build can opt in without exposing production.
+
+Public unsubscribe links and signed/secret provider callbacks remain registered
+independently of `CAMPAIGNS_ENABLED`; disabling the feature must not strand links
+or settlement for earlier deliveries. The sending flag and catalog switch remain
+the dispatch kill switches.
+
+Unknown submissions are never retried automatically. The owner-only
+`POST /api/v1/admin/messaging/deliveries/{id}/resolve` requires an evidence reference
+from verified provider records, and records one immutable, audited decision.
+Confirmed acceptance consumes the original reservation; confirmed non-submission
+releases it and permits an explicit new attempt. A timeout or absent provider ID
+is not evidence of non-submission. Concurrent/replayed decisions settle once;
+conflicting decisions and provider-ID reassignment are rejected.
+
+Delivery details use paginated results. The adjacent owner portal retains wallet
+adjustment idempotency keys across uncertain responses and overlapping clicks,
+refreshes operations after mutations, and polls operations every thirty seconds.
+
+Qualification: focused campaign backend, callbacks, release-gate and Agent tests;
+all campaign database tests against a fresh disposable loopback PostgreSQL cluster;
+frontend workspace/flag tests in Hebrew, English and French; disabled web release
+build; portal adjustment retry tests, lint and type check. Browser checks use only
+synthetic intercepted local API responses; no provider sends or funding operations.
+
+Migration note: No schema migration. The resolution endpoint is additive and uses
+existing delivery, event, ledger and audit records. Existing clients and queued
+deliveries remain compatible; no production activation is part of this change.
+
+### Local provider requalification — 2026-11-10
+
+The synthetic staging company received one real Resend email and two real
+Micropay SMS, all delivered through authentic callbacks. One SMS consumed an
+included unit; the paid SMS's deliberately lost submission response was recovered
+through the audited owner endpoint and its durable pending callback. Resolution
+and callback replays settled once without resending. Micropay remaining credit:
+9,995 units. Scheduling was exercised without another send; pausing cancelled
+the queued delivery and released its reservation. Public email/SMS unsubscribe
+GET stayed read-only and repeated POST created one company-scoped suppression.
+
+The separate Allpay redirect sandbox passed card decline, successful ₪100
+payment, signed callbacks, repeated reconciliation, and two ₪50 refunds covering
+the full amount. The genuine local portal showed the refunded return state.
+Exactly one wallet top-up credit was recorded. Receipt generation remains
+unqualified: Allpay returned no receipt URL; configure and verify a sandbox
+accounting connection before claiming accounting-document readiness.
+
+Reuse the unchanged-input results: 67 campaign tests on disposable PostgreSQL,
+21 callback/Agent/release-gate tests, 53 frontend campaign/flag tests, two portal
+adjustment tests, disabled production web build, portal types and scoped lint.
+No production deployment, flag change, payment-mode change or Agent publication
+was performed. The temporary Micropay callback was restored to its original
+blank/GET setting; Resend uses the current app-owned temporary callback tunnel.
+Stable production callback/unsubscribe origins, suitable Resend capacity,
+approved SMS sender and coordinated Agent publication remain activation gates.
+
+The isolated draft Agent completed explicit tool-review approval and saved one
+inactive campaign with zero runs. An initial invented `equal` operator was safely
+rejected; an explicit `equals` filter completed successfully. The misleading
+platform failure diagnostics are recorded in `docs/agents24-feedback.md`.
+
+Migration note: Not needed for this qualification; existing schema and audited
+fixture records were used. Production campaign features remain disabled.
+
 ## Google Calendar staging candidate
 
 Google approved project `opticai-465420` on November 9, 2026 for `calendar` and
@@ -656,3 +725,18 @@ SoftOptic backfills are separate operations.
 Reuse the scoped PR verification and run the Calendar and release migration tests
 on the committed candidate. Run exact-SHA Web and Backend CI and desktop candidate
 builds alongside staging verification. Publish their verified artifacts after promotion.
+
+## Release v1.0.105
+
+Includes attendance for company owners, PRs #91–#97, Calendar pull and
+appointment refresh, campaign recovery safeguards, exam layout and table
+updates, and the page background with a small shadow on the frame and lens
+catalog buttons.
+
+Apply the existing Alembic head, `0068_calendar_pull`, through the release
+gate before starting the updated API. Keep campaign activation controlled by
+the environment's existing flags. SoftOptic backfills run separately.
+
+Reuse focused local results and the public dependency receipt for pre-push.
+Run Web CI, Backend CI, staging verification and desktop candidates in
+parallel. Publish the verified desktop candidates after production promotion.

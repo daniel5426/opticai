@@ -11,10 +11,6 @@ import { deleteClient } from "@/lib/db/clients-db"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TableFiltersBar, type TableFiltersBarSelect } from "@/components/table-filters-bar"
-import { Input } from "@/components/ui/input"
-import { canvasSurfaceClassName } from "@/components/ui/canvas-surface"
-import { TABLE_SEARCH_DEBOUNCE_MS } from "@/lib/list-page-search"
-import { cn } from "@/utils/tailwind"
 import { TablePagination } from "@/components/table-pagination"
 import { GENDER_FILTER_OPTIONS } from "@/lib/table-filters"
 import { SortableTableHead } from "@/components/sortable-table-head"
@@ -77,8 +73,6 @@ interface ClientsTableProps {
   sort?: SortState
   onSortChange?: (sort: SortState) => void
   columnFilters?: ColumnFilters
-  /** Add first name, last name, ID and phone filters to the search toolbar. */
-  fieldSearch?: boolean
   onColumnFiltersChange?: (filters: ColumnFilters) => void
   mergeMode?: boolean
   selectedMergeClientIds?: number[]
@@ -104,50 +98,6 @@ const CLIENT_COLUMN_FILTERS: ColumnFilterDefinition<Client>[] = [
   { key: "email", label: "אימייל", kind: "text", getValue: (client) => client.email },
   { key: "family_role", label: "תפקיד במשפחה", kind: "text", getValue: (client) => client.family_role },
 ]
-
-// Searches each field on its own, through that column's filter.
-const SEARCH_FIELDS = [
-  ["first_name", "firstName"],
-  ["last_name", "lastName"],
-  ["national_id", "nationalId"],
-  ["phone_mobile", "phone"],
-] as const
-
-function ClientFieldSearch({ filters, onChange }: { filters: ColumnFilters; onChange: (filters: ColumnFilters) => void }) {
-  const { t } = useTranslation()
-  const { direction } = useAppLocale()
-  const applied = Object.fromEntries(SEARCH_FIELDS.map(([key]) => [key, typeof filters[key] === "string" ? (filters[key] as string) : ""]))
-  const appliedKey = JSON.stringify(applied)
-  const [values, setValues] = React.useState(applied)
-  const latestFilters = React.useRef(filters)
-  const latestOnChange = React.useRef(onChange)
-  latestFilters.current = filters
-  latestOnChange.current = onChange
-  // Follows the URL, e.g. after "clear" or a column's own filter.
-  React.useEffect(() => setValues(JSON.parse(appliedKey)), [appliedKey])
-  React.useEffect(() => {
-    if (JSON.stringify(values) === appliedKey) return
-    const timer = setTimeout(() => latestOnChange.current({ ...latestFilters.current, ...values }), TABLE_SEARCH_DEBOUNCE_MS)
-    return () => clearTimeout(timer)
-  }, [appliedKey, values])
-  return (
-    <>
-      {SEARCH_FIELDS.map(([key, label]) => (
-        <Input
-          key={key}
-          aria-label={t(`companyClients.search.${label}`)}
-          placeholder={t(`companyClients.search.${label}`)}
-          value={values[key]}
-          onChange={(event) => setValues((previous) => ({ ...previous, [key]: event.target.value }))}
-          inputMode={key === "national_id" || key === "phone_mobile" ? "numeric" : undefined}
-          data-canvas-surface=""
-          className={cn(canvasSurfaceClassName, "h-9 w-[140px]")}
-          dir={key === "national_id" || key === "phone_mobile" ? "ltr" : direction}
-        />
-      ))}
-    </>
-  )
-}
 
 export function ClientsTable({
   data,
@@ -179,9 +129,12 @@ export function ClientsTable({
   fillHeight = false,
   columnFilters: externalColumnFilters,
   onColumnFiltersChange,
-  fieldSearch = false
 }: ClientsTableProps) {
   const { t } = useTranslation()
+  const columnDefinitions = React.useMemo(() => CLIENT_COLUMN_FILTERS.map(definition => ({
+    ...definition,
+    label: t(`tableExport.column.${definition.key}`, { defaultValue: definition.label }),
+  })), [t])
   const columnFilters = useColumnFilterState(externalColumnFilters, onColumnFiltersChange)
   const { direction, locale } = useAppLocale()
   const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
@@ -328,32 +281,33 @@ export function ClientsTable({
       ? "לא נמצאו לקוחות במשפחה זו"
       : "לא נמצאו לקוחות לתצוגה"
 
+  const genderSelect: TableFiltersBarSelect = {
+    key: "gender",
+    columnKey: !compactMode && (!serverFiltered || onColumnFiltersChange) ? "gender" : undefined,
+    value: genderFilter,
+    onChange: handleGenderFilterChange,
+    placeholder: t("tableExport.column.gender"),
+    options: GENDER_FILTER_OPTIONS.map(option => ({ ...option, label: t(option.value === "all" ? "tableExport.all" : `tableExport.value.${option.value}`) })),
+    widthClassName: "w-[130px]",
+  }
+
   return (
-    <ColumnFiltersProvider filters={columnFilters.filters} definitions={CLIENT_COLUMN_FILTERS} onChange={columnFilters.setFilters}>
+    <ColumnFiltersProvider filters={columnFilters.filters} definitions={columnDefinitions} onChange={columnFilters.setFilters}
+      headerSelects={[genderSelect]} moveClinicScope={showClinicColumn}>
     <div className={fillHeight ? "flex min-h-0 flex-1 flex-col gap-2.5" : "space-y-2.5"} dir={direction} style={{ scrollbarWidth: "none" }}>
       {!hideSearch && (
         <TableFiltersBar
           exportTable="clients"
           searchValue={searchQuery}
           onSearchChange={handleSearchChange}
-          searchPlaceholder={fieldSearch ? t("companyClients.search.general") : "חיפוש לקוחות…"}
-          leadingControls={fieldSearch ? <ClientFieldSearch filters={columnFilters.filters} onChange={columnFilters.setFilters} /> : undefined}
-          filters={[
-            {
-              key: "gender",
-              value: genderFilter,
-              onChange: handleGenderFilterChange,
-              placeholder: "מגדר",
-              options: GENDER_FILTER_OPTIONS,
-              widthClassName: "w-[130px]"
-            },
-            ...extraFilters
-          ]}
-          hasActiveFilters={Boolean(searchQuery.trim()) || genderFilter !== "all" || columnFilters.active || extraFiltersActive}
+          searchPlaceholder={t("companyClients.search.general")}
+          filters={extraFilters}
+          showColumnSelects={viewMode === "cards"}
+          filterSummary={<ActiveColumnFilters showSelects={viewMode === "table"} />}
+          hasActiveFilters={Boolean(searchQuery.trim()) || extraFiltersActive || ((!genderSelect.columnKey || viewMode === "cards") && genderFilter !== "all")}
           onReset={() => {
             handleSearchChange("")
-            handleGenderFilterChange("all")
-            columnFilters.setFilters({})
+            if (!genderSelect.columnKey || viewMode === "cards") handleGenderFilterChange("all")
             onResetExtraFilters?.()
           }}
           actions={
@@ -385,7 +339,7 @@ export function ClientsTable({
           }
         />
       )}
-      <ActiveColumnFilters />
+      {hideSearch && <ActiveColumnFilters />}
 
       <div className={fillHeight ? "min-h-0 flex-1" : undefined}>
         {viewMode === "cards" ? (

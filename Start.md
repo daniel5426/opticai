@@ -9,6 +9,10 @@ Google sign-in uses separate web and desktop clients. Local web exchange needs
 `GOOGLE_WEB_CLIENT_ID` and `GOOGLE_WEB_CLIENT_SECRET` in `backend/.env`; see
 [Google OAuth configuration](docs/references/google-oauth.md) for exact callbacks
 and desktop credentials. Restart the local instance after changing API env.
+If the Google popup closes before the account chooser, check
+`http://localhost:8000/api/v1/auth/google/oauth/config`. A `google_not_configured`
+response means the web client ID or secret is missing from the running API;
+setting the secret in the repository root `.env` alone does not configure it.
 Run `devdesk doctor opticai` before diagnosing dependencies. App-owned workers, relay and renderer start and stop with OpticAI. The configured Agents24 API and hosted/shared clinic database are external dependencies and must already be available; they are never stopped with the app. The legacy demo database uses a shared native PostgreSQL host, which is an independent host prerequisite. App-exclusive local database services must declare automatic lifecycle commands in `devdesk.json`. Clinic mode uses `backend/.venv/bin/python` and protected `backend/.env`; demo uses `.venv-agent-dev/bin/python` and `.env.agent-dev`. Required variable names and the authoritative database, clinic, resource and Ask-policy checks are in [the local development runbook](docs/references/agents24-local-development.md).
 
 Hosted Agents24 clinic ports: 8000, 8001, 4316, 5126. Legacy local-draft clinic mode uses Artifact port 4317. Demo ports: 8016, 4316, 5136. Ports stay fixed; conflicts report the owner. Do not kill another stack or silently change the port. The underlying entrypoint remains `scripts/clinic-dev.py up --browser` (omit `--browser` for Electron); demo uses `scripts/agent-dev.py`.
@@ -123,10 +127,8 @@ Dismissing it stores only a device-local preference; pairing tokens are unchange
 
 ## Google Calendar consumer
 
-The API owns the Calendar retry consumer. It starts/stops with the app, uses the
-same database and needs no Agents24 connection or separate service. Apply Alembic
-`0064_google_calendar_sync` and `0065_google_calendar_key_routing` explicitly before running the updated API; startup
-never mutates schema. Provider writes are queued only by connected users' explicit
-sync or enabled appointment synchronization. Tokens and event mappings persist
-across restarts. See the [Google OAuth runbook](docs/references/google-oauth.md)
-for API credentials, status/reconnect handling and one-way export behavior.
+The API owns Calendar export and the optional Google rescheduling worker. They
+start and stop with the app and use the same database. Apply Alembic through
+`0068_calendar_pull` before running the updated API. Startup never mutates the
+schema. See the [Google OAuth runbook](docs/references/google-oauth.md) for
+credentials, reconnect handling and Calendar settings.

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { authenticateGoogleWeb, publishGoogleOAuthCallback, refreshGoogleWebToken } from '@/lib/google/google-web-oauth';
 import { GOOGLE_CONFIG } from '@/lib/google/google-config';
 
-vi.mock('@/localization/i18n', () => ({ default: { exists: () => true, t: (key: string) => key } }));
+vi.mock('@/localization/i18n', () => ({ default: { exists: () => true, t: (key: string) => `translated:${key}` } }));
 
 class Channel {
   static instances: Channel[] = [];
@@ -58,7 +58,7 @@ it('fails locally when the popup is blocked', async () => {
   expect(fetchMock).not.toHaveBeenCalled();
 });
 
-it('closes the popup and returns a translated error for missing server config', async () => {
+it('closes the popup and preserves the missing-config error key for the caller', async () => {
   const popup = { close: vi.fn(), closed: false };
   vi.spyOn(window, 'open').mockReturnValue(popup as any);
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: async () => ({ detail: { code: 'google_not_configured' } }) }));

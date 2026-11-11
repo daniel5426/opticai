@@ -337,7 +337,7 @@ export const computeCardMinGridCols = (
 
 const normalizeGridNumber = (value: unknown, fallback: number) => {
   const numberValue = Number(value);
-  return Number.isFinite(numberValue) ? Math.round(numberValue) : fallback;
+  return Number.isFinite(numberValue) ? numberValue : fallback;
 };
 
 type GridItemNormalizeOptions = {
@@ -363,7 +363,7 @@ export const normalizeGridItem = (
     ? Math.max(minWidth, rawWidth)
     : Math.max(1, rawWidth);
   const x = Math.max(0, Math.min(columns - w, normalizeGridNumber(item.x, 0)));
-  const y = Math.max(0, normalizeGridNumber(item.y, 0));
+  const y = Math.max(0, Math.round(normalizeGridNumber(item.y, 0)));
   return {
     ...item,
     x,
@@ -378,6 +378,12 @@ export const sortGridItems = (items: GridLayoutItem[]) =>
     if (a.x !== b.x) return a.x - b.x;
     return a.id.localeCompare(b.id);
   });
+
+export const getOccupiedExamColumns = (items: GridLayoutItem[]) =>
+  items.reduce(
+    (columns, item) => Math.max(columns, item.x + item.w),
+    EXAM_LAYOUT_GRID_COLUMNS,
+  );
 
 export const gridItemsToRowsForMetadata = (
   items: GridLayoutItem[],
@@ -518,6 +524,9 @@ export const serializeGridLayoutData = (
   options: GridItemNormalizeOptions = {},
 ) => JSON.stringify(createGridLayoutData(items, columns, options));
 
+const gridSpansOverlap = (start: number, end: number, otherStart: number, otherEnd: number) =>
+  Math.min(end, otherEnd) - Math.max(start, otherStart) > 1e-9;
+
 export const findCollision = (
   candidate: GridLayoutItem,
   items: GridLayoutItem[],
@@ -527,7 +536,7 @@ export const findCollision = (
   return items.find((item) => {
     if (item.id === excludeId || item.y !== candidate.y) return false;
     const itemEnd = item.x + item.w;
-    return candidate.x < itemEnd && candidateEnd > item.x;
+    return gridSpansOverlap(candidate.x, candidateEnd, item.x, itemEnd);
   });
 };
 
@@ -554,15 +563,22 @@ export const findNearestAvailableGridX = (
   const maxX = Math.max(0, columns - clampedWidth);
   const targetX = Math.max(0, Math.min(maxX, Math.round(requestedX)));
   const laneItems = items.filter((item) => item.y === lane);
+  const positions = new Set([0, maxX]);
+  for (let x = 1; x <= maxX; x += 1) positions.add(x);
+  for (const item of laneItems) {
+    positions.add(item.x + item.w);
+    positions.add(item.x - clampedWidth);
+  }
 
   let bestX: number | null = null;
   let bestDistance = Number.POSITIVE_INFINITY;
 
-  for (let x = 0; x <= maxX; x += 1) {
+  for (const x of positions) {
+    if (x < 0 || x > maxX) continue;
     const candidateEnd = x + clampedWidth;
     const collides = laneItems.some((item) => {
       const itemEnd = item.x + item.w;
-      return x < itemEnd && candidateEnd > item.x;
+      return gridSpansOverlap(x, candidateEnd, item.x, itemEnd);
     });
     if (collides) continue;
 
@@ -620,6 +636,7 @@ export const clampResizeWidth = (
   requestedWidth: number,
   columns = EXAM_LAYOUT_GRID_COLUMNS,
   sizeScale = 1,
+  maxColumns = columns,
 ) => {
   const nextBlockingItem = items
     .filter(
@@ -629,7 +646,7 @@ export const clampResizeWidth = (
     .sort((a, b) => a.x - b.x)[0];
   const maxByNeighbor = nextBlockingItem
     ? nextBlockingItem.x - item.x
-    : columns - item.x;
+    : maxColumns - item.x;
   const minWidth = Math.min(
     computeCardMinGridCols(item.type, columns, sizeScale),
     maxByNeighbor,
@@ -656,9 +673,7 @@ export const clampResizeLeft = (
   const minX = previousBlockingItem
     ? previousBlockingItem.x + previousBlockingItem.w
     : 0;
-  const maxX =
-    Math.min(columns, rightEdge) -
-    computeCardMinGridCols(item.type, columns, sizeScale);
+  const maxX = rightEdge - computeCardMinGridCols(item.type, columns, sizeScale);
   const x = Math.max(minX, Math.min(requestedX, maxX));
   return {
     x,

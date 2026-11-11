@@ -403,6 +403,45 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* Scrollbars share the surrounding surface; only the rounded thumb is painted. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--muted-foreground) / 0.35);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+  border-radius: 9999px;
+}
+
+*::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Chromium otherwise prefers its native rail over the thumb pseudo-elements. */
+@supports selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
+}
+
 .no-scrollbar,
 .no-scrollbar * {
   -ms-overflow-style: none;
@@ -415,9 +454,23 @@
   display: none;
 }
 
+/* Rows opt into a visible thumb even inside the exam's hidden vertical scroller. */
+.app-scrollbar,
+.no-scrollbar .app-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
+}
+
+.app-scrollbar::-webkit-scrollbar,
+.no-scrollbar .app-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+  display: block;
+}
+
 .catalog-dropdown-scroll {
   scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
 }
 
 .catalog-dropdown-scroll::-webkit-scrollbar {
@@ -429,10 +482,19 @@
 }
 
 .catalog-dropdown-scroll::-webkit-scrollbar-thumb {
-  background-color: var(--border);
+  background-color: hsl(var(--muted-foreground) / 0.35);
   background-clip: content-box;
   border: 2px solid transparent;
   border-radius: 9999px;
+}
+
+@supports selector(::-webkit-scrollbar) {
+  .app-scrollbar,
+  .no-scrollbar .app-scrollbar,
+  .catalog-dropdown-scroll {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
 }
 
 .__react-dnd-preview {

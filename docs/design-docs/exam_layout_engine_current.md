@@ -17,6 +17,10 @@ The exam system is the heaviest and most custom part of the renderer. It is layo
 ## Current Behavior
 
 - Exam cards are rendered from layout rows and item metadata.
+- Preferred card widths use the 1280px reference grid in the viewer, preview, and editor. Empty columns collapse first, then widened cards shrink to their minimums before the row scrolls. This affects rendering only, so wider panes restore the saved sizes and the cards stay mounted.
+- Cards can be positioned to the edge of the available row. Dragging within a row stops at adjacent cards. The existing version-2 layout records the occupied columns and keeps fractional card positions and widths.
+- Imported OpticPlus cards keep one stable display arrangement instead of changing their widths and rows with the pane.
+- Migration note: Not needed; existing layouts load directly. Use the updated editor when saving layouts with positions beyond the original 24 columns or fractional spans.
 - Many card types support multi-instance or tabbed behavior.
 - Unified exam data is loaded and saved by layout instance.
 - Specialized optimized inputs try to reduce render churn on large forms.

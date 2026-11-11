@@ -35,27 +35,3 @@ test('contact fitting stays with over-refraction and unknown cards are retained'
   expect(result.find(card => card.type === 'opticplus-contact-fitting')!.y).toBe(result.find(card => card.type === 'over-refraction')!.y);
   expect(result.find(card => card.type === 'keratometer')).toBeTruthy();
 });
-
-test.each([720, 1000, 1600])('assessment reflows within a %i px pane without squeezing bilateral measurements', width => {
-  const source = cards(['opticplus-measurements', 'schirmer-test', 'ocular-motor-assessment', 'anamnesis', 'opticplus-ocular-health', 'opticplus-binocular', 'opticplus-questionnaire']);
-  const result = arrangeOpticPlusExam(source, width);
-  const ocular = result.find(card => card.type === 'opticplus-ocular-health')!;
-  expect(ocular.w).toBe(width < 896 ? 24 : width < 1352 ? 12 : 8);
-  const measurements = result.find(card => card.type === 'opticplus-measurements')!;
-  const pixels = (width + 16) * measurements.w / 24 - 16;
-  expect(pixels).toBeGreaterThanOrEqual(320);
-  expect(result.map(card => card.id).sort()).toEqual(source.map(card => card.id).sort());
-});
-
-test('opening and closing a sidebar restores the wide layout without changing saved data or card identity', () => {
-  const source = cards(['final-prescription', 'addition', 'opticplus-prescription-details', 'uncorrected-va', 'notes', 'notes', 'notes']);
-  const original = structuredClone(source);
-  const wide = arrangeOpticPlusExam(source, 1600);
-  const narrow = arrangeOpticPlusExam(source, 720);
-  expect(narrow.find(card => card.type === 'final-prescription')!.w).toBe(24);
-  expect(narrow.find(card => card.type === 'addition')!.y).not.toBe(narrow.find(card => card.type === 'final-prescription')!.y);
-  expect(new Set(narrow.filter(card => card.type === 'notes').map(card => card.y)).size).toBe(3);
-  expect(narrow.map(card => card.id)).toEqual(wide.map(card => card.id));
-  expect(arrangeOpticPlusExam(source, 1600)).toEqual(wide);
-  expect(source).toEqual(original);
-});

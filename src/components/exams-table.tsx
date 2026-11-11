@@ -226,34 +226,34 @@ export function ExamsTable({
     setIsDeleteModalOpen(false)
   }
 
+  const headerSelects = [
+    {
+      key: "test-name",
+      columnKey: "test_name",
+      value: testNameFilter,
+      onChange: handleTestNameFilterChange,
+      placeholder: t("examList.kind"),
+      options: [
+        { value: ALL_FILTER_VALUE, label: t("examList.all") },
+        ...uniqueTestNames.map((testName) => ({
+          value: testName || "unknown",
+          label: importedExamName(t, testName) || t("examList.unknown")
+        }))
+      ],
+      widthClassName: "w-[190px]"
+    }
+  ]
+
   return (
-    <ColumnFiltersProvider filters={columnFilters.filters} definitions={columnFilterDefinitions} onChange={columnFilters.setFilters}>
+    <ColumnFiltersProvider filters={columnFilters.filters} definitions={columnFilterDefinitions} onChange={columnFilters.setFilters} headerSelects={headerSelects} moveClinicScope>
       <TableListLayout fillHeight={fillHeight} columnCount={clientId === 0 ? 6 : 5} loading={loading}
         toolbar={{exportTable:'exams',searchValue:searchValue,
 onSearchChange:(value) => (onSearchChange ? onSearchChange(value) : setSearchQuery(value)),
 searchPlaceholder:t("examList.search"),
-filters:[
-          {
-            key: "test-name",
-            value: testNameFilter,
-            onChange: handleTestNameFilterChange,
-            placeholder: t("examList.kind"),
-            options: [
-              { value: ALL_FILTER_VALUE, label: t("examList.all") },
-              ...uniqueTestNames.map((testName) => ({
-                value: testName || "unknown",
-                label: importedExamName(t, testName) || t("examList.unknown")
-              }))
-            ],
-            widthClassName: "w-[190px]"
-          }
-        ],
-hasActiveFilters:Boolean(searchValue.trim()) || testNameFilter !== ALL_FILTER_VALUE || columnFilters.active,
+hasActiveFilters:Boolean(searchValue.trim()),
 onReset:() => {
           if (onSearchChange) onSearchChange("")
           else setSearchQuery("")
-          handleTestNameFilterChange(ALL_FILTER_VALUE)
-          columnFilters.setFilters({})
         },
 actions:clientId > 0 ? (
             (

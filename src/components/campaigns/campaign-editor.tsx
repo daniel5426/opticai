@@ -12,13 +12,14 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { TablePagination } from '@/components/table-pagination';
 import { CampaignChoice, CampaignField, CampaignSetting, campaignRuleTrackClassName, campaignSurfaceClassName } from '@/components/campaigns/campaign-form-controls';
 import { money, type CampaignDraft, type Condition, type Quote, type Run } from '@/lib/campaigns';
 import { useAppLocale } from '@/localization/use-app-locale';
 import { cn } from '@/utils/tailwind';
 
 export type CampaignCatalog = { fields: Record<string, { label: string; type: string }>; operators: Record<string, string[]>; placeholders: string[] };
-export type CampaignDeliveries = { total: number; items: { id: string; channel: string; destination: string; status: string; cost: number; error?: string }[] };
+export type CampaignDeliveries = { total: number; runId?: string; page?: number; items: { id: string; channel: string; destination: string; status: string; cost: number; error?: string }[] };
 
 export type CampaignTestTarget = { email?: string; sms?: string };
 
@@ -38,7 +39,7 @@ export function CampaignEditor({
   kind, start, days, maxCost, zone,
   onTabChange, onChange, onConditions, onBack, onSave, onPreview, onRequestSend, onActivate,
   onKindChange, onStartChange, onDaysChange, onMaxCostChange, onZoneChange, onTestPreview, onTestSend,
-  onPause, onArchive, onRetry, onCancelRun, onOpenDeliveries,
+  onPause, onArchive, onRetry, onCancelRun, onOpenDeliveries, onDeliveryPageChange,
 }: {
   draft: CampaignDraft;
   catalog: CampaignCatalog | null;
@@ -76,6 +77,7 @@ export function CampaignEditor({
   onRetry: (runId: string) => void;
   onCancelRun: (runId: string) => void;
   onOpenDeliveries: (runId: string) => void;
+  onDeliveryPageChange: (page: number) => void;
 }) {
   const { t, i18n } = useTranslation();
   const { direction, locale } = useAppLocale();
@@ -180,7 +182,7 @@ export function CampaignEditor({
                 <div className="flex flex-wrap gap-2">{Object.entries(run.counts).map(([key, value]) => <Badge variant="secondary" key={key}>{tr(key)}: {value}</Badge>)}</div>
                 {canManage && <div className="flex flex-wrap gap-2 border-t border-border/60 pt-3"><Button type="button" variant="outline" disabled={busy || !run.counts.failed} onClick={() => onRetry(run.id)}>{tr('retry')}</Button><Button type="button" variant="ghost" disabled={busy} onClick={() => onCancelRun(run.id)}>{tr('cancelRun')}</Button></div>}
               </article>)}
-              {deliveries && <section className={campaignSurfaceClassName}><div className="overflow-x-auto"><table className="w-full text-start text-sm"><thead><tr className="border-b text-muted-foreground">{['destination', 'channel', 'status', 'cost'].map((key) => <th key={key} className="px-2 pb-3 text-start font-normal">{tr(key)}</th>)}</tr></thead><tbody>{deliveries.items.map((item) => <tr key={item.id} className="border-b border-border/40 last:border-0"><td className="px-2 py-3"><bdi>{item.destination}</bdi></td><td className="px-2 py-3">{tr(item.channel)}</td><td className="px-2 py-3">{tr(item.status)}</td><td className="px-2 py-3 tabular-nums">{money(item.cost, locale)}</td></tr>)}</tbody></table></div></section>}
+              {deliveries && <section className={campaignSurfaceClassName}><div className="overflow-x-auto"><table className="w-full text-start text-sm"><thead><tr className="border-b text-muted-foreground">{['destination', 'channel', 'status', 'cost'].map((key) => <th key={key} className="px-2 pb-3 text-start font-normal">{tr(key)}</th>)}</tr></thead><tbody>{deliveries.items.map((item) => <tr key={item.id} className="border-b border-border/40 last:border-0"><td className="px-2 py-3"><bdi>{item.destination}</bdi></td><td className="px-2 py-3">{tr(item.channel)}</td><td className="px-2 py-3">{tr(item.status)}</td><td className="px-2 py-3 tabular-nums">{money(item.cost, locale)}</td></tr>)}</tbody></table></div><TablePagination page={deliveries.page || 1} pageSize={50} total={deliveries.total} loading={busy} onPageChange={onDeliveryPageChange} /></section>}
             </TabsContent>
           </div>
           {tab === 'content' && <aside className="min-w-0" aria-label={tr('schedule')}><fieldset disabled={locked} className={cn(campaignSurfaceClassName, 'min-w-0 space-y-4')}>

@@ -66,6 +66,7 @@ class Clinic(Base):
     maintenance_reason = Column(String)
     maintenance_job_id = Column(String)
     maintenance_started_at = Column(DateTime(timezone=True))
+    google_calendar_revision = Column(Integer, nullable=False, server_default='0')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
@@ -103,6 +104,9 @@ class User(Base):
     google_refresh_token = Column(String)
     google_calendar_routes = Column(JSON, nullable=True)
     google_calendar_sync_enabled = Column(Boolean, default=False)
+    google_calendar_pull_at = Column(DateTime(timezone=True), nullable=True)
+    google_calendar_pull_since = Column(DateTime(timezone=True), nullable=True)
+    google_calendar_pull_error = Column(String, nullable=True)
     google_token_key_id = Column(String(64), nullable=True)
     google_oauth_client_type = Column(String, nullable=True)
     google_token_expiry = Column(DateTime(timezone=True), nullable=True)
@@ -1574,5 +1578,7 @@ class GoogleCalendarSync(Base):
     available_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     error_code = Column(String, nullable=True)
     synced_at = Column(DateTime(timezone=True), nullable=True)
+    remote_etag = Column(Text, nullable=True)
     __table_args__ = (UniqueConstraint('appointment_id', 'user_id', name='uq_google_calendar_owner'),
-                     Index('ix_google_calendar_pending', 'status', 'available_at'))
+                     Index('ix_google_calendar_pending', 'status', 'available_at'),
+                     Index('ix_google_calendar_user_status', 'user_id', 'status'))

@@ -10,7 +10,13 @@ def test_campaign_routes_disabled_without_removing_scanner_or_clinic_routes(monk
     try:
         main = importlib.reload(main)
         paths = {route.path for route in main.app.routes}
-        assert not any(path.startswith(('/api/v1/campaigns', '/api/v1/messaging', '/api/v1/admin/messaging')) for path in paths)
+        assert not any(path.startswith(('/api/v1/campaigns', '/api/v1/admin/messaging')) for path in paths)
+        assert '/api/v1/messaging/summary' not in paths
+        assert '/api/v1/messaging/topups' not in paths
+        assert '/api/v1/messaging/unsubscribe/{token}' in paths
+        assert '/api/v1/messaging/webhooks/{provider}' in paths
+        assert '/api/v1/messaging/webhooks/micropay/{secret}' in paths
+        assert '/s/{token}' in paths
         assert '/api/v1/scanner/status' in paths
         assert '/api/v1/orders/' in paths
     finally:
