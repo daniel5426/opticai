@@ -12,7 +12,7 @@ import React, {
 } from "react";
 import { useParams, useNavigate, useSearch } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/site-header";
-import { examPageDataQueryKey, getExamPageData } from "@/lib/db/exams-db";
+import { examPageDataQueryKey, getExamPageData, getExamsByClientId } from "@/lib/db/exams-db";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getOrdersByClientId } from "@/lib/db/orders-db";
 import { OpticalExam, Client, ExamLayout } from "@/lib/db/schema-interface";
@@ -975,6 +975,23 @@ export default function ExamDetailPage({
 
   const { currentClient, setActiveTab: setSidebarActiveTab } =
     useClientSidebar();
+
+  // A new exam starts with the dominant eye of the client's latest exam that has one.
+  useEffect(() => {
+    if (!isNewMode || !clientId) return;
+    let cancelled = false;
+    void getExamsByClientId(Number(clientId)).then((exams) => {
+      const dominantEye = exams.find((exam) => exam.dominant_eye)?.dominant_eye;
+      if (cancelled || !dominantEye) return;
+      const wasClean = !checkDirty();
+      setFormData((prev) => (prev.dominant_eye ? prev : { ...prev, dominant_eye: dominantEye }));
+      // A prefilled value is not an unsaved change.
+      if (wasClean && baselineInitializedRef.current) setTimeout(() => setBaseline(), 0);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isNewMode, clientId]);
 
   // Auto-import order data to old refraction
   useEffect(() => {
