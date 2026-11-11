@@ -77,6 +77,10 @@ export function ClientDetailsTab({
   const showEditableFields = isEditing || isNewMode
   const { currentClinic } = useUser()
   const formData = draft
+  // Shown when the client has a fax: decided outside editing, so clearing it while editing keeps the field.
+  const faxShown = React.useRef(Boolean(draft.fax))
+  faxShown.current = showEditableFields ? faxShown.current || Boolean(draft.fax) : Boolean(draft.fax)
+  const savedFax = faxShown.current
   // Checked live while the ID is typed, when opening a client or editing one.
   const duplicateClient = useDuplicateNationalId(formData.national_id, currentClinic?.id, {
     enabled: showEditableFields,
@@ -593,7 +597,7 @@ export function ClientDetailsTab({
                     className={`h-9 text-sm disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`} />
                 </TabsContent>)}
               </Tabs>
-              {(showEditableFields || formData.fax) && <div className="space-y-2">
+              {savedFax && <div className="space-y-2">
                 <ModernLabel>{t('opticplusCards.fields.fax')}</ModernLabel>
                 <Input type="tel" name="fax" aria-label={t('opticplusCards.fields.fax')} dir="ltr"
                   value={formData.fax || ''} onChange={handleInputChange} disabled={!showEditableFields || isSaving}
