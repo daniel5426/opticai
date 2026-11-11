@@ -133,7 +133,9 @@
     "prescriptionSourceNoExams": "No exams with a prescription",
     "prescriptionSourceExamsTab": "Exam prescriptions",
     "prescriptionSourceExamsHintGlasses": "Taken from the Final Prescription card of the client's exams.",
-    "prescriptionSourceExamsHintContact": "Taken from the Contact Lens Exam card of the client's exams."
+    "prescriptionSourceExamsHintContact": "Taken from the Contact Lens Exam card of the client's exams.",
+    "prescriptionSourcePreview": "Preview",
+    "prescriptionSourcePreviewTitle": "This is what the card will get:"
   },
   "he": {
     "orderPrescriptionFinalTitle": "מרשם סופי",
@@ -269,7 +271,9 @@
     "prescriptionSourceNoExams": "אין בדיקות עם מרשם",
     "prescriptionSourceExamsTab": "מרשמים מבדיקה",
     "prescriptionSourceExamsHintGlasses": "נשאב מהרכיב ״מרשם סופי״ ⁨(Final Prescription)⁩ בבדיקות של הלקוח.",
-    "prescriptionSourceExamsHintContact": "נשאב מהרכיב ״מרשם עדשות מגע״ ⁨(Contact Lens Exam)⁩ בבדיקות של הלקוח."
+    "prescriptionSourceExamsHintContact": "נשאב מהרכיב ״מרשם עדשות מגע״ ⁨(Contact Lens Exam)⁩ בבדיקות של הלקוח.",
+    "prescriptionSourcePreview": "תצוגה מקדימה",
+    "prescriptionSourcePreviewTitle": "זה מה שיישאב לכרטיס:"
   },
   "fr": {
     "orderPrescriptionFinalTitle": "Prescription finale",
@@ -405,6 +409,8 @@
     "prescriptionSourceNoExams": "Aucun examen avec prescription",
     "prescriptionSourceExamsTab": "Prescriptions d’examen",
     "prescriptionSourceExamsHintGlasses": "Repris de la fiche « Prescription finale » des examens du client.",
-    "prescriptionSourceExamsHintContact": "Repris de la fiche « Prescription de lentilles » des examens du client."
+    "prescriptionSourceExamsHintContact": "Repris de la fiche « Prescription de lentilles » des examens du client.",
+    "prescriptionSourcePreview": "Aperçu",
+    "prescriptionSourcePreviewTitle": "Voici ce que la fiche recevra :"
   }
 }
