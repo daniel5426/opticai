@@ -62,15 +62,24 @@ const emptyWorkerStats: WorkerStats = {
   averageMinutes: 0,
 };
 
-const getWorkerUsers = async (clinicId: number) => {
+const getAttendanceUsers = async (clinicId: number, viewer: User) => {
   const response = await apiClient.getUsersByClinic(clinicId);
   if (response.error) throw new Error(response.error);
 
+  // The clinic endpoint also returns company owners without a clinic assignment.
+  // Match the shift API's read scope so every listed person has a readable log.
   return (response.data || []).filter(
     (user) =>
-      user.clinic_id === clinicId &&
-      isRoleAtLeast(user.role_level, ROLE_LEVELS.worker),
+      user.id === viewer.id ||
+      isRoleAtLeast(viewer.role_level, ROLE_LEVELS.ceo) ||
+      (isRoleAtLeast(viewer.role_level, ROLE_LEVELS.manager) && user.clinic_id === clinicId),
   );
+};
+
+const shiftDurationMinutes = (start: string, end: string) => {
+  const [startHours, startMinutes] = start.split(":").map(Number);
+  const [endHours, endMinutes] = end.split(":").map(Number);
+  return ((endHours - startHours) * 60 + endMinutes - startMinutes + 1440) % 1440;
 };
 
 const getDayShifts = async (userId: number, date: string) => {
@@ -126,9 +135,9 @@ export default function WorkerStatsPage() {
   const canEditShifts = isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo);
 
   const usersQuery = useQuery({
-    queryKey: workerStatsQueryKeys.users(clinicId),
-    queryFn: () => getWorkerUsers(clinicId!),
-    enabled: !!clinicId,
+    queryKey: [...workerStatsQueryKeys.users(clinicId), currentUser?.id, currentUser?.role_level],
+    queryFn: () => getAttendanceUsers(clinicId!, currentUser!),
+    enabled: !!clinicId && !!currentUser?.id,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
     refetchInterval: 60_000,
@@ -343,13 +352,7 @@ export default function WorkerStatsPage() {
     isCreatingShiftRef.current = true;
     setIsCreatingShift(true);
     try {
-      const startTime = new Date(
-        `${selectedDate}T${newShiftData.start_time}:00`,
-      );
-      const endTime = new Date(`${selectedDate}T${newShiftData.end_time}:00`);
-      const durationMinutes = Math.floor(
-        (endTime.getTime() - startTime.getTime()) / (1000 * 60),
-      );
+      const durationMinutes = shiftDurationMinutes(newShiftData.start_time, newShiftData.end_time);
 
       if (editingShift?.id) {
         await updateShiftMutation.mutateAsync({
@@ -357,7 +360,6 @@ export default function WorkerStatsPage() {
           start_time: newShiftData.start_time,
           end_time: newShiftData.end_time,
           duration_minutes: durationMinutes,
-          status: "completed",
         });
       } else {
         const shiftData = {
@@ -655,14 +657,14 @@ export default function WorkerStatsPage() {
                                             ? "פעילה"
                                             : "בוטלה"}
                                       </Badge>
-                                      {canEditShifts && shift.id && (
+                                      {canEditShifts && shift.status === "completed" && shift.id != null && (
                                         <Button
                                           variant="ghost"
                                           size="sm"
                                           onClick={() => openEditShift(shift)}
                                           className="h-8 w-8 p-0"
-                                          title="עריכת שעות המשמרת"
-                                          aria-label="עריכת שעות המשמרת"
+                                          title={t("attendanceEditShift")}
+                                          aria-label={t("attendanceEditShift")}
                                         >
                                           <IconPencil className="h-4 w-4" />
                                         </Button>
@@ -747,7 +749,9 @@ export default function WorkerStatsPage() {
                             {user.full_name || user.username}
                           </span>
                           <span className="text-muted-foreground shrink-0 text-xs">
-                            {isRoleAtLeast(user.role_level, ROLE_LEVELS.manager)
+                            {isRoleAtLeast(user.role_level, ROLE_LEVELS.ceo)
+                              ? t("attendanceRoleOwner")
+                              : isRoleAtLeast(user.role_level, ROLE_LEVELS.manager)
                               ? t("attendanceRoleAdmin")
                               : t("attendanceRoleStaff")}
                           </span>
@@ -771,12 +775,12 @@ export default function WorkerStatsPage() {
           setEditingShift(null);
           setNewShiftData({ start_time: "", end_time: "" });
         }}
-        title={editingShift ? "עריכת שעות המשמרת" : "הוספת משמרת חדשה"}
+        title={editingShift ? t("attendanceEditShift") : "הוספת משמרת חדשה"}
         subtitle={`תאריך: ${new Date(selectedDate).toLocaleDateString("he-IL")}`}
         width="max-w-md"
         className="px-2"
         onConfirm={handleCreateShift}
-        confirmText={editingShift ? "שמירה" : "הוספה"}
+        confirmText={editingShift ? t("timePickerSave") : "הוספה"}
         showCloseButton={false}
         cancelText="ביטול"
         isLoading={isCreatingShift}
@@ -824,18 +828,7 @@ export default function WorkerStatsPage() {
             <div className="bg-muted/50 rounded-lg p-3 text-center">
               <div className="text-muted-foreground text-sm">משך המשמרת</div>
               <div className="font-medium">
-                {(() => {
-                  const start = new Date(
-                    `${selectedDate}T${newShiftData.start_time}:00`,
-                  );
-                  const end = new Date(
-                    `${selectedDate}T${newShiftData.end_time}:00`,
-                  );
-                  const duration = Math.floor(
-                    (end.getTime() - start.getTime()) / (1000 * 60),
-                  );
-                  return formatDuration(duration);
-                })()}
+                {formatDuration(shiftDurationMinutes(newShiftData.start_time, newShiftData.end_time))}
               </div>
             </div>
           )}
