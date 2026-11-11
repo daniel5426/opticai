@@ -1,5 +1,6 @@
 import { useCompanyClinicFilter } from "@/hooks/client/useCompanyClinicFilter";
-import { CompanyClinicFilter } from "@/components/CompanyClinicFilter";
+import { CompanyClinicFilter, useCompanyClinicSelect } from "@/components/CompanyClinicFilter";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { importedExamName } from "@/lib/opticplus-cards";
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "@tanstack/react-router";
@@ -75,6 +76,8 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
   }
 
   const clinicFilter = useCompanyClinicFilter();
+  const searchClinicFilter = { ...clinicFilter, setValue: (value: string) => { clinicFilter.setValue(value); setPage(1) } };
+  const clinicSelect = useCompanyClinicSelect({ filter: searchClinicFilter, allClients: true });
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -477,10 +480,11 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
         className={`pointer-events-auto relative ${inModal ? "flex items-center gap-2 border-b px-3" : ""}`}
         style={{ pointerEvents: "auto" }}
       >
+        {/* In the search window every control has its own place in the row, so none covers the text. */}
         <Search
-          className={`text-muted-foreground pointer-events-none absolute top-1/2 -translate-y-1/2 transform ${inModal ? "start-3 h-4 w-4" : "start-3 h-3 w-4"}`}
+          className={`text-muted-foreground pointer-events-none ${inModal ? "size-4 shrink-0" : "absolute top-1/2 start-3 h-3 w-4 -translate-y-1/2 transform"}`}
         />
-        <CompanyClinicFilter filter={{ ...clinicFilter, setValue: value => { clinicFilter.setValue(value); setPage(1) } }} allClients />
+        {!inModal && <CompanyClinicFilter filter={searchClinicFilter} allClients />}
         <Input
           ref={inputRef}
           type="text"
@@ -496,11 +500,28 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
             setIsOpen(true);
           }}
           onKeyDown={handleSearchKeyDown}
-          className={`${inModal ? "h-auto w-0 flex-1 rounded-none border-0 bg-transparent py-3 ps-8 pe-28 text-base shadow-none focus-visible:ring-0" : "h-7 w-lg border-1 border-cyan-800/30 ps-10 pe-28 text-sm"} pointer-events-auto`}
+          className={`${inModal ? "h-auto w-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-1 py-3 text-base shadow-none focus-visible:ring-0" : "h-7 w-lg border-1 border-cyan-800/30 ps-10 pe-28 text-sm"} pointer-events-auto`}
           style={{ direction, pointerEvents: "auto" }}
+          wrapperClassName={inModal ? "min-w-0 flex-1" : undefined}
         />
+        {inModal && (
+          <Select value={clinicSelect.value} onValueChange={clinicSelect.onChange} dir={direction}>
+            <SelectTrigger
+              aria-label={clinicSelect.placeholder}
+              title={clinicSelect.placeholder}
+              className="text-muted-foreground hover:text-foreground hover:bg-muted/60 data-[state=open]:bg-muted/60 h-7 w-auto max-w-40 shrink-0 gap-1 rounded-full border-0 bg-transparent px-2.5 text-xs shadow-none transition-colors focus-visible:ring-2 [&>span]:truncate"
+            >
+              <SelectValue placeholder={clinicSelect.placeholder} />
+            </SelectTrigger>
+            <SelectContent dir={direction} align="end">
+              {clinicSelect.options.map((option) => (
+                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <div
-          className={`absolute top-1/2 flex -translate-y-1/2 items-center gap-1 ${inModal ? "end-3" : "end-1"}`}
+          className={`flex items-center gap-1 ${inModal ? "shrink-0 border-s ps-2" : "absolute top-1/2 end-1 -translate-y-1/2"}`}
         >
           <Button
             variant="ghost"
