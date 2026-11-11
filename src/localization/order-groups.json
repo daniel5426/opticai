@@ -122,7 +122,8 @@
     "orderGroupPartiallyPaid": "Partially paid",
     "orderGroupQuickPayment": "Payment: {{status}} · {{balance}} remaining",
     "orderGroupPaymentHistoryError": "Could not load payment history.",
-    "oldContactLensesNoOrderLenses": "This order has no lens details."
+    "oldContactLensesNoOrderLenses": "This order has no lens details.",
+    "ordersHistoryButton": "Fill from an order"
   },
   "he": {
     "orderPrescriptionFinalTitle": "מרשם סופי",
@@ -247,7 +248,8 @@
     "orderGroupPartiallyPaid": "שולם חלקית",
     "orderGroupQuickPayment": "תשלום: {{status}} · יתרה {{balance}}",
     "orderGroupPaymentHistoryError": "לא ניתן לטעון את היסטוריית התשלומים.",
-    "oldContactLensesNoOrderLenses": "בהזמנה זו אין פרטי עדשות."
+    "oldContactLensesNoOrderLenses": "בהזמנה זו אין פרטי עדשות.",
+    "ordersHistoryButton": "שאיבה מהזמנה"
   },
   "fr": {
     "orderPrescriptionFinalTitle": "Prescription finale",
@@ -372,6 +374,7 @@
     "orderGroupPartiallyPaid": "Partiellement payé",
     "orderGroupQuickPayment": "Paiement : {{status}} · solde {{balance}}",
     "orderGroupPaymentHistoryError": "Impossible de charger l’historique des paiements.",
-    "oldContactLensesNoOrderLenses": "Cette commande n’a pas de détails de lentilles."
+    "oldContactLensesNoOrderLenses": "Cette commande n’a pas de détails de lentilles.",
+    "ordersHistoryButton": "Remplir depuis une commande"
   }
 }

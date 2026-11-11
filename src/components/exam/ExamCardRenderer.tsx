@@ -1036,6 +1036,9 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
     // Determine the final hideEyeLabels value based on item.showEyeLabels
     const finalHideEyeLabels = item.showEyeLabels ? false : hideEyeLabels;
 
+    // Filling a card from an order only happens while editing; the button sits beside the card's title.
+    const showOrdersHistory =
+      mode === "detail" && detailProps?.isEditing ? () => setIsOrdersHistoryOpen(true) : undefined;
     const toolbox =
       mode === "detail" && detailProps?.isEditing ? (
         <ExamToolbox
@@ -1060,11 +1063,6 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
           onCopyToLeftEye={
             componentsWithEyeRowCopy.includes(item.type)
               ? onCopyToLeftEye
-              : undefined
-          }
-          onShowOrdersHistory={
-            item.type === "old-refraction" || item.type === "old-contact-lenses"
-              ? () => setIsOrdersHistoryOpen(true)
               : undefined
           }
         />
@@ -1485,6 +1483,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
                 detailProps?.updateOldRefractionTabType?.(item.id, idx, type)
               }
               allTabsData={allTabsData}
+              onShowOrdersHistory={showOrdersHistory}
             />
             {isOrdersHistoryOpen && (
               <OrdersHistoryModal
@@ -2523,6 +2522,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
               isEditing={mode === "detail" ? detailProps!.isEditing : false}
               hideEyeLabels={finalHideEyeLabels}
               title={item.type === "new-contact-lenses" ? t("contactLensDetails.newLensesTitle") : undefined}
+              onShowOrdersHistory={item.type === "old-contact-lenses" ? showOrdersHistory : undefined}
             />
             {isOrdersHistoryOpen && (
               <OrdersHistoryModal

@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import { GLASSES_TYPES } from "@/components/exam/data/exam-constants";
+import { OrdersHistoryButton } from "./OrdersHistoryButton";
 
 interface RefractionTabsHeaderProps {
   title: string;
@@ -25,6 +26,8 @@ interface RefractionTabsHeaderProps {
   /** Shows only this card's title, for views where each refraction already has its own page tab. */
   hideTabs?: boolean;
   tabLabel?: string;
+  /** Shows the orders button beside the title. */
+  onShowOrdersHistory?: () => void;
 }
 
 export function RefractionTabsHeader({
@@ -41,6 +44,7 @@ export function RefractionTabsHeader({
   onUpdateType,
   hideTabs = false,
   tabLabel,
+  onShowOrdersHistory,
 }: RefractionTabsHeaderProps) {
   const [menuIndex, setMenuIndex] = useState<number | null>(null);
   const { direction } = useAppLocale();
@@ -48,8 +52,9 @@ export function RefractionTabsHeader({
   if (hideTabs) {
     return (
       <div className="text-center">
-        <h3 className="text-muted-foreground font-medium">
+        <h3 className="text-muted-foreground inline-flex items-center gap-1 font-medium">
           {tabLabel ? `${title} · ${tabLabel}` : title}
+          {onShowOrdersHistory && <OrdersHistoryButton onClick={onShowOrdersHistory} />}
         </h3>
       </div>
     );
@@ -166,7 +171,10 @@ export function RefractionTabsHeader({
         </DropdownMenu>
       </div>
       <div className="flex-1 text-center">
-        <h3 className="text-muted-foreground font-medium">{title}</h3>
+        <h3 className="text-muted-foreground inline-flex items-center gap-1 font-medium">
+          {title}
+          {onShowOrdersHistory && <OrdersHistoryButton onClick={onShowOrdersHistory} />}
+        </h3>
       </div>
     </div>
   );
