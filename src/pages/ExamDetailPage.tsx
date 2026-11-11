@@ -251,7 +251,6 @@ export default function ExamDetailPage({
   const latestLoadIdRef = useRef(0);
   const { currentUser, currentClinic } = useUser();
   const autoImportAttemptedRef = useRef(false);
-  const newLensesFilledInstanceRef = useRef<number | string | null>(null);
 
   useEffect(() => {
     layoutTabsRef.current = layoutTabs;
@@ -440,6 +439,18 @@ export default function ExamDetailPage({
       ...prev,
       [instanceKey]: initialData,
     }));
+  };
+
+  const prepareNewExamFormData = async (instanceKey: number, layoutData?: string) => {
+    const initialData = createInitialFormDataBucket(instanceKey, layoutData);
+    if (!clientId || !Object.keys(initialData).some((key) => key.startsWith("old-contact-lenses-"))) {
+      return initialData;
+    }
+    const lenses = await queryClient.fetchQuery({
+      queryKey: ["exam-old-contact-lenses-source", clientId, currentClinic?.id],
+      queryFn: () => findLatestContactLensOrderLenses(Number(clientId)),
+    });
+    return lenses ? fillOldContactLenses(initialData, lenses) : initialData;
   };
 
   const applyLayoutStructure = (layoutData?: string) => {
@@ -990,27 +1001,6 @@ export default function ExamDetailPage({
   const { currentClient, setActiveTab: setSidebarActiveTab } =
     useClientSidebar();
 
-  // A new exam's Old Contact Lenses start as the lenses of the client's latest contact lens order.
-  // Once per loaded layout instance: a reload of the layout starts a new one and is filled again.
-  const oldLensesKeys = Object.keys(examFormData).filter((key) => key.startsWith("old-contact-lenses-")).join(",");
-  useEffect(() => {
-    if (!isNewMode || !clientId || !oldLensesKeys || activeInstanceId == null) return;
-    if (newLensesFilledInstanceRef.current === activeInstanceId) return;
-    newLensesFilledInstanceRef.current = activeInstanceId;
-    let cancelled = false;
-    void findLatestContactLensOrderLenses(Number(clientId)).then((lenses) => {
-      if (cancelled || !lenses) return;
-      const wasClean = !checkDirty();
-      setExamFormData((previous) => fillOldContactLenses(previous, lenses));
-      // Filled from the client's history, not typed: not an unsaved change.
-      if (wasClean && baselineInitializedRef.current) setTimeout(() => setBaseline(), 0);
-    });
-    return () => {
-      cancelled = true;
-      if (newLensesFilledInstanceRef.current === activeInstanceId) newLensesFilledInstanceRef.current = null;
-    };
-  }, [isNewMode, clientId, oldLensesKeys, activeInstanceId]);
-
   // Auto-import order data to old refraction
   useEffect(() => {
     const performAutoImport = async () => {
@@ -1163,6 +1153,7 @@ export default function ExamDetailPage({
 
   useEffect(() => {
     if (reconciledExamId.current && Number(examId) === reconciledExamId.current) return;
+    let cancelled = false;
     baselineInitializedRef.current = false;
     setHasImportedExamData(false);
     setSoftopticTab(null);
@@ -1176,6 +1167,7 @@ export default function ExamDetailPage({
         setClipboardContentType(getClipboardContentType());
         if (examId && !isNewMode) {
           const pageData = prefetched ?? (await getExamPageData(Number(examId)));
+          if (cancelled) return;
           if (pageData) {
             queryClient.setQueryData(pageDataKey, pageData);
             const {
@@ -1401,6 +1393,7 @@ export default function ExamDetailPage({
           }
         } else {
           const layoutsTree = await getAllExamLayouts(currentClinic?.id);
+          if (cancelled) return;
           setAvailableLayouts(layoutsTree as ExamLayout[]);
 
           if (layoutIdFromSearch) {
@@ -1413,6 +1406,7 @@ export default function ExamDetailPage({
             const fromTree = map.get(selectedLayoutId);
             const selectedLayout =
               fromTree || (await getExamLayoutById(selectedLayoutId));
+            if (cancelled) return;
 
             if (selectedLayout) {
               setFormData((prev) => ({
@@ -1427,49 +1421,48 @@ export default function ExamDetailPage({
                 : [selectedLayout];
 
               if (layoutsToOpen.length > 0) {
-                const tempTabs: LayoutTab[] = [];
-                const buckets: Record<
-                  number | string,
-                  Record<string, any>
-                > = {};
-                let activeTempId: number | null = null;
+                const openedAt = Date.now();
+                const tempTabs: LayoutTab[] = layoutsToOpen.map((layout, index) => ({
+                  id: -openedAt - index,
+                  layout_id: layout.id || 0,
+                  name: layout.name || "",
+                  layout_data: layout.layout_data || "[]",
+                  isActive: index === 0,
+                }));
+                const entries = await Promise.all(
+                  tempTabs.map(async (tab) => [
+                    tab.id,
+                    await prepareNewExamFormData(tab.id, tab.layout_data),
+                  ] as const),
+                );
+                if (cancelled) return;
 
-                layoutsToOpen.forEach((layout, idx) => {
-                  const tempInstanceId = -Date.now() - idx;
-                  if (idx === 0) activeTempId = tempInstanceId;
-                  tempTabs.push({
-                    id: tempInstanceId,
-                    layout_id: layout.id || 0,
-                    name: layout.name || "",
-                    layout_data: layout.layout_data || "[]",
-                    isActive: idx === 0,
-                  });
-                  buckets[tempInstanceId] = createInitialFormDataBucket(
-                    tempInstanceId,
-                    layout.layout_data || "",
-                  );
-                });
-
-                applyLayoutStructure(layoutsToOpen[0].layout_data || "[]");
+                const buckets = Object.fromEntries(entries);
+                const activeTab = tempTabs[0];
+                applyLayoutStructure(activeTab.layout_data);
                 setLayoutTabs(tempTabs);
-                setActiveInstanceId(activeTempId);
+                setActiveInstanceId(activeTab.id);
                 // Replace, not merge: a repeated load would otherwise leave the earlier tabs' data, saved as layout-less instances.
                 setExamFormDataByInstance(buckets);
-                if (activeTempId != null) {
-                  setExamFormData(buckets[activeTempId] || {});
-                }
+                setExamFormData(buckets[activeTab.id]);
               }
             }
           }
         }
       } catch (error) {
-        toast.error("שגיאה בטעינת נתוני הבדיקה");
+        if (!cancelled) toast.error("שגיאה בטעינת נתוני הבדיקה");
       } finally {
-        setLoading(false);
-        setLoadVersion((version) => version + 1);
+        if (!cancelled) {
+          setLoading(false);
+          setLoadVersion((version) => version + 1);
+        }
       }
     };
     loadData();
+    return () => {
+      cancelled = true;
+      ++latestLoadIdRef.current;
+    };
   }, [
     clientId,
     examId,

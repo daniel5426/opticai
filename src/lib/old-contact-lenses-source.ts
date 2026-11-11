@@ -16,8 +16,8 @@ export function contactOrderLenses(order: Order): Record<string, unknown> {
       data = {};
     }
   }
-  const details = data["contact-lens-details"] || {};
-  const prescription = data["contact-lens-exam"] || {};
+  const details = data?.["contact-lens-details"] || {};
+  const prescription = data?.["contact-lens-exam"] || {};
   const lenses: Record<string, unknown> = {};
   for (const eye of ["r", "l"]) {
     for (const field of DETAIL_FIELDS) {

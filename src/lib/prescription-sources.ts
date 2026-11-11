@@ -14,7 +14,7 @@ const filled = (value: unknown) => value !== undefined && value !== null && Stri
 const parse = (value: unknown): Record<string, any> => {
   if (typeof value !== "string") return (value as Record<string, any>) || {};
   try {
-    return JSON.parse(value);
+    return JSON.parse(value) || {};
   } catch {
     return {};
   }

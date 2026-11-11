@@ -1039,6 +1039,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
     // Filling a card from an order only happens while editing; the button sits beside the card's title.
     const showOrdersHistory =
       mode === "detail" && detailProps?.isEditing ? () => setIsOrdersHistoryOpen(true) : undefined;
+    const sourceClientId = detailProps?.exam?.client_id || detailProps?.formData?.client_id || 0;
     const toolbox =
       mode === "detail" && detailProps?.isEditing ? (
         <ExamToolbox
@@ -1487,13 +1488,10 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
             />
             {isOrdersHistoryOpen && (
               <PrescriptionSourceModal
+                key={sourceClientId}
                 isOpen={isOrdersHistoryOpen}
                 onClose={() => setIsOrdersHistoryOpen(false)}
-                clientId={
-                  detailProps?.exam?.client_id ||
-                  detailProps?.formData?.client_id ||
-                  0
-                }
+                clientId={sourceClientId}
                 kind="glasses"
                 onSelect={handleSelectOrder}
               />
@@ -2527,9 +2525,10 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
             />
             {isOrdersHistoryOpen && (
               <PrescriptionSourceModal
+                key={sourceClientId}
                 isOpen={isOrdersHistoryOpen}
                 onClose={() => setIsOrdersHistoryOpen(false)}
-                clientId={detailProps?.exam?.client_id || detailProps?.formData?.client_id || 0}
+                clientId={sourceClientId}
                 kind="contact"
                 onSelect={handleSelectOrder}
               />
