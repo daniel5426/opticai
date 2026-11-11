@@ -643,3 +643,14 @@ renumbering existing revisions. Apply the combined graph through Alembic before
 the updated API. Allowlisted staging is at 0067; its existing manually added
 color column was preserved. Production is unchanged. The contact-fit backfill
 remains an explicit, dry-run-by-default operation and was not applied.
+
+## Release v1.0.104
+
+Includes Calendar routing, reviewed exam and order fixes, SoftOptic import
+corrections, client filters, and the desktop field context menu. Apply Alembic
+through `0067_merge_layout_color` before the updated API. Existing routing
+preferences and data remain intact. SoftOptic backfills are separate operations.
+
+Reuse the scoped PR verification and run the Calendar and release migration tests
+on the committed candidate. Run exact-SHA Web and Backend CI and desktop candidate
+builds alongside staging verification. Publish their verified artifacts after promotion.
