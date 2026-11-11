@@ -262,6 +262,8 @@ export function useExamSave({
           const data = examComponentRegistry.prepareData(id, saveBuckets[id] || {});
           const originalData = original ? examComponentRegistry.prepareData(id, original.exam_data || {}) : undefined;
           if (id > 0 && !original) continue;
+          // A new instance exists only as a tab; data left from an earlier load of the page has none.
+          if (id < 0 && !tab) continue;
           if (id > 0 && stableSaveJson(data) === stableSaveJson(originalData) && (!tab || tab.layout_data === (original.instance.layout_data || original.layout?.layout_data))) continue;
           instances.push({ ...(id > 0 ? { id } : {}), client_key: String(id),
             ...(tab?.layout_id ? { layout_id: tab.layout_id } : {}),

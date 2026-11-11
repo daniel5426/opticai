@@ -1435,7 +1435,8 @@ export default function ExamDetailPage({
                 applyLayoutStructure(layoutsToOpen[0].layout_data || "[]");
                 setLayoutTabs(tempTabs);
                 setActiveInstanceId(activeTempId);
-                setExamFormDataByInstance((prev) => ({ ...prev, ...buckets }));
+                // Replace, not merge: a repeated load would otherwise leave the earlier tabs' data, saved as layout-less instances.
+                setExamFormDataByInstance(buckets);
                 if (activeTempId != null) {
                   setExamFormData(buckets[activeTempId] || {});
                 }

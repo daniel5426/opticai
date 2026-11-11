@@ -14,13 +14,13 @@ vi.mock('@/lib/exam-component-registry',()=>({examComponentRegistry:{prepareData
 const page=(count:number)=>({save_token:'a'.repeat(64),exam:{id:1,client_id:2,clinic_id:3,user_id:4,type:'exam',test_name:'Synthetic',exam_date:'2026-11-07'},
   instances:Array.from({length:count},(_,index)=>({instance:{id:index+10,layout_id:1,layout_data:'[]',order:index},layout:{id:1,layout_data:'[]'},exam_data:{notes:{text:'Original'}}}))});
 
-function Editor({initial,newMode=false}:{initial:ReturnType<typeof page>;newMode?:boolean}) {
+function Editor({initial,newMode=false,extraBuckets={}}:{initial:ReturnType<typeof page>;newMode?:boolean;extraBuckets?:Record<number,any>}) {
   const [exam,setExam]=React.useState<any>(newMode?null:initial.exam);
   const [form,setForm]=React.useState<any>(initial.exam);
   const [data,setData]=React.useState<any>({notes:{text:'Changed'}});
-  const [buckets,setBuckets]=React.useState<any>(Object.fromEntries(initial.instances.map(row=>[row.instance.id,row.exam_data])));
+  const [buckets,setBuckets]=React.useState<any>({...Object.fromEntries(initial.instances.map(row=>[row.instance.id,row.exam_data])),...extraBuckets});
   const [tabs,setTabs]=React.useState<any>(initial.instances.map(row=>({...row.instance,name:'Synthetic',isActive:row.instance.id===10})));
-  const [active,setActive]=React.useState<number|null>(10);
+  const [active,setActive]=React.useState<number|null>(initial.instances[0]?.instance.id??10);
   const [busy,setBusy]=React.useState(false);
   const formRef=React.useRef<HTMLFormElement>(null);
   const baseline=React.useRef('');
@@ -64,4 +64,13 @@ it('retains the draft on a failed write without a success callback',async()=>{
   await waitFor(()=>expect(screen.getByText('ready')).toBeInTheDocument());
   expect(screen.getByLabelText('content')).toHaveValue('Latest typed value');
   expect(fixture.onSave).not.toHaveBeenCalled();
+});
+
+it('does not save data a repeated load left without a tab as a layout-less instance',async()=>{
+  const initial=page(1);initial.instances[0].instance.id=-1794348488919;
+  vi.mocked(saveExamWorkspace).mockRejectedValue(new Error('stop'));
+  render(<QueryClientProvider client={new QueryClient()}><Editor initial={initial} newMode extraBuckets={{[-1794348488606]:{notes:{text:"Earlier load"}}}}/></QueryClientProvider>);
+  fireEvent.click(screen.getByText('Save'));
+  await waitFor(()=>expect(saveExamWorkspace).toHaveBeenCalled());
+  expect(vi.mocked(saveExamWorkspace).mock.calls[0][1].instances.map((row:any)=>row.client_key)).toEqual(["-1794348488919"]);
 });
