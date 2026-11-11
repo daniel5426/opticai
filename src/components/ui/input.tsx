@@ -251,11 +251,17 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           const hasValue = rawValue !== "" && !isNaN(parsed);
 
           if (!hasValue) {
-            if (minValue !== undefined && !isNaN(minValue)) {
-              newVal = minValue;
-            } else {
-              newVal = 0;
-            }
+            // An empty field starts at 0, or at the range's nearest end when it does not reach 0.
+            const maxValue =
+              props.max !== undefined
+                ? parseFloat(props.max as string)
+                : undefined;
+            newVal =
+              minValue !== undefined && minValue > 0
+                ? minValue
+                : maxValue !== undefined && maxValue < 0
+                  ? maxValue
+                  : 0;
           } else {
             newVal = increment ? parsed + step : parsed - step;
           }
