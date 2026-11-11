@@ -12,6 +12,7 @@ import {
 import type { Client } from "@/lib/db/schema-interface";
 import type { OrderKind } from "@/lib/order-groups";
 import { OrderMetaFields, type OrderMetaValues } from "@/components/orders/OrderMetaStrip";
+import { formatIsoDate } from "@/lib/iso-date";
 import { cn } from "@/utils/tailwind";
 
 export interface OrderTabEntry {
@@ -127,6 +128,9 @@ export function OrderGroupTabs({
                 {initialsOf(entry.client)}
               </span>
               <span className="max-w-44 truncate font-medium">{entry.label}</span>
+              {entry.values.order_date && (
+                <span className="text-muted-foreground text-xs tabular-nums">{formatIsoDate(entry.values.order_date)}</span>
+              )}
               <DropdownMenu dir={direction}>
                 <DropdownMenuTrigger asChild>
                   <Button
