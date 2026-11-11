@@ -2149,8 +2149,14 @@ export function LegacyOrderDetailPage({
           setSchirmerData(previous => ({ ...previous, ...(data['schirmer-test'] || {}) }));
           setDiametersData(previous => ({ ...previous, ...(data['contact-lens-diameters'] || {}) }));
         } else {
+          // Set the form copies too: left to the [order] effect they change a render later, after the
+          // workspace has taken its saved baseline, and the saved order reads as unsaved changes.
           setOrder(saved as Order);
-          if (data['final-prescription']) setFinalPrescription(data['final-prescription']);
+          setFormData({ ...(saved as Order) });
+          if (data['final-prescription']) {
+            setFinalPrescription(data['final-prescription']);
+            setFinalPrescriptionFormData({ ...data['final-prescription'] });
+          }
           if (data.lens_frame_tabs?.[0]) setLensFrameTab(hydrateLensFrameTab(data.lens_frame_tabs[0], saved.id));
           if (data.details) setOrderDetailsFormData(normalizeOrderDetails(data.details, saved.id));
         }
