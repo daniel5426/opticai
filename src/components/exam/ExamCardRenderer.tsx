@@ -106,7 +106,7 @@ import { NPCTab } from "@/components/exam/NPCTab";
 import { v4 as uuidv4 } from "uuid";
 import { ExamDetailsCard } from "@/components/exam/ExamDetailsCard";
 import { NotesCard } from "@/components/ui/notes-card";
-import { OrdersHistoryModal } from "@/components/exam/OrdersHistoryModal";
+import { PrescriptionSourceModal } from "@/components/exam/PrescriptionSourceModal";
 import { contactOrderLenses } from "@/lib/old-contact-lenses-source";
 import { Order } from "@/lib/db/schema-interface";
 import { inputSyncManager } from "./shared/OptimizedInputs";
@@ -1486,7 +1486,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
               onShowOrdersHistory={showOrdersHistory}
             />
             {isOrdersHistoryOpen && (
-              <OrdersHistoryModal
+              <PrescriptionSourceModal
                 isOpen={isOrdersHistoryOpen}
                 onClose={() => setIsOrdersHistoryOpen(false)}
                 clientId={
@@ -1494,7 +1494,8 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
                   detailProps?.formData?.client_id ||
                   0
                 }
-                onSelectOrder={handleSelectOrder}
+                kind="glasses"
+                onSelect={handleSelectOrder}
               />
             )}
           </div>
@@ -2525,12 +2526,12 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
               onShowOrdersHistory={item.type === "old-contact-lenses" ? showOrdersHistory : undefined}
             />
             {isOrdersHistoryOpen && (
-              <OrdersHistoryModal
+              <PrescriptionSourceModal
                 isOpen={isOrdersHistoryOpen}
                 onClose={() => setIsOrdersHistoryOpen(false)}
                 clientId={detailProps?.exam?.client_id || detailProps?.formData?.client_id || 0}
-                onSelectOrder={handleSelectOrder}
-                defaultType="contact"
+                kind="contact"
+                onSelect={handleSelectOrder}
               />
             )}
           </div>

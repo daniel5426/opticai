@@ -123,7 +123,14 @@
     "orderGroupQuickPayment": "Payment: {{status}} · {{balance}} remaining",
     "orderGroupPaymentHistoryError": "Could not load payment history.",
     "oldContactLensesNoOrderLenses": "This order has no lens details.",
-    "ordersHistoryButton": "Fill from an order"
+    "ordersHistoryButton": "Fill from an order",
+    "prescriptionSourceGlasses": "Glasses",
+    "prescriptionSourceContact": "Contact lenses",
+    "prescriptionSourceOrdersTab": "Orders",
+    "prescriptionSourceOrder": "Order",
+    "prescriptionSourceDateSearch": "Search by date",
+    "prescriptionSourceNoOrders": "No orders",
+    "prescriptionSourceNoExams": "No exams with a prescription"
   },
   "he": {
     "orderPrescriptionFinalTitle": "מרשם סופי",
@@ -249,7 +256,14 @@
     "orderGroupQuickPayment": "תשלום: {{status}} · יתרה {{balance}}",
     "orderGroupPaymentHistoryError": "לא ניתן לטעון את היסטוריית התשלומים.",
     "oldContactLensesNoOrderLenses": "בהזמנה זו אין פרטי עדשות.",
-    "ordersHistoryButton": "שאיבה מהזמנה"
+    "ordersHistoryButton": "שאיבה מהזמנה",
+    "prescriptionSourceGlasses": "משקפיים",
+    "prescriptionSourceContact": "עדשות מגע",
+    "prescriptionSourceOrdersTab": "הזמנות",
+    "prescriptionSourceOrder": "הזמנה",
+    "prescriptionSourceDateSearch": "חיפוש לפי תאריך",
+    "prescriptionSourceNoOrders": "אין הזמנות",
+    "prescriptionSourceNoExams": "אין בדיקות עם מרשם"
   },
   "fr": {
     "orderPrescriptionFinalTitle": "Prescription finale",
@@ -375,6 +389,13 @@
     "orderGroupQuickPayment": "Paiement : {{status}} · solde {{balance}}",
     "orderGroupPaymentHistoryError": "Impossible de charger l’historique des paiements.",
     "oldContactLensesNoOrderLenses": "Cette commande n’a pas de détails de lentilles.",
-    "ordersHistoryButton": "Remplir depuis une commande"
+    "ordersHistoryButton": "Remplir depuis une commande",
+    "prescriptionSourceGlasses": "Lunettes",
+    "prescriptionSourceContact": "Lentilles de contact",
+    "prescriptionSourceOrdersTab": "Commandes",
+    "prescriptionSourceOrder": "Commande",
+    "prescriptionSourceDateSearch": "Rechercher par date",
+    "prescriptionSourceNoOrders": "Aucune commande",
+    "prescriptionSourceNoExams": "Aucun examen avec prescription"
   }
 }
