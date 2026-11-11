@@ -173,7 +173,7 @@ export function ExamLayoutTabs({
                 paddingBottom: isFullDataActive ? 7 : 6,
               }}
               aria-label={t("allData")}
-              title={t("allData")}
+              title={t("allDataHint")}
               disabled={!handleFullDataClick || isRegeneratingFullData}
             >
               <Combine
