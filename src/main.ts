@@ -31,6 +31,7 @@ import { GoogleOAuthService } from './lib/google/google-oauth';
 import { pruneSoftOpticExport } from "./lib/softoptic-prune";
 import { discoverOpticPlus, prepareOpticPlusInput, exportOpticPlus, type OpticPlusCandidate } from "./lib/opticplus-export";
 import registerListeners from "./helpers/ipc/listeners-register";
+import { installFieldContextMenu } from "./helpers/field-context-menu";
 import {
   installExtension,
   REACT_DEVELOPER_TOOLS,
@@ -379,6 +380,7 @@ function createWindow() {
     },
   });
   registerListeners(mainWindow);
+  installFieldContextMenu(mainWindow);
   addUserLogoutOnWindowClose(mainWindow);
 
   // Add keyboard shortcut for DevTools (both development and production)
