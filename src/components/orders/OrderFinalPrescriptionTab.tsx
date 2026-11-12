@@ -21,9 +21,10 @@ import { AxisWarningInput } from "@/components/exam/shared/AxisWarningInput";
 import { ToggleTextNumberInput } from "@/components/exam/shared/ToggleTextNumberInput";
 import { copyEyeRowFields } from "@/components/exam/shared/copyEyeRowFields";
 import {
-  ADDITION_ADD_TYPE_LABELS,
-  ADDITION_ADD_TYPES,
-  normalizeAdditionAddType,
+  ORDER_GLASSES_TYPE_LABELS,
+  ORDER_GLASSES_TYPES,
+  isAdditionAddType,
+  normalizeOrderGlassesType,
 } from "@/lib/addition-add-sources";
 import { getPrescriptionPowerWarningMessage } from "@/utils/optometry-utils";
 
@@ -45,8 +46,8 @@ export function OrderFinalPrescriptionTab({
 }: OrderFinalPrescriptionTabProps) {
   const { t } = useTranslation();
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
-  const selectedAddType = normalizeAdditionAddType(finalPrescriptionData.add_type) || "";
-  const visibleAddTypeOptions = [...ADDITION_ADD_TYPES];
+  const selectedAddType = normalizeOrderGlassesType(finalPrescriptionData.add_type) || "";
+  const visibleAddTypeOptions = [...ORDER_GLASSES_TYPES];
 
   const { fieldWarnings, handleAxisChange, handleAxisBlur } = useAxisWarning(
     finalPrescriptionData,
@@ -286,7 +287,7 @@ export function OrderFinalPrescriptionTab({
                       value={type}
                       className="justify-center text-xs font-medium"
                     >
-                      {ADDITION_ADD_TYPE_LABELS[type]}
+                      {ORDER_GLASSES_TYPE_LABELS[type]}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -309,8 +310,8 @@ export function OrderFinalPrescriptionTab({
                   <CylTitle onTranspose={handleManualTranspose} disabled={!isEditing} />
                 ) : (
                   <span className="text-center text-xs font-medium text-muted-foreground">
-                    {key === "ad" && selectedAddType
-                      ? `ADD ${ADDITION_ADD_TYPE_LABELS[selectedAddType]}`
+                    {key === "ad" && selectedAddType && isAdditionAddType(selectedAddType)
+                      ? `ADD ${ORDER_GLASSES_TYPE_LABELS[selectedAddType]}`
                       : label}
                   </span>
                 )}
