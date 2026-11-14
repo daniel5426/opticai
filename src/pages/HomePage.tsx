@@ -84,6 +84,8 @@ import { CalendarHoliday, holidaysByDate } from "@/lib/clinic-holidays";
 import { useTranslation } from "react-i18next";
 import { useAppLocale } from "@/localization/use-app-locale";
 
+const CALENDAR_REFRESH_MS = 4000;
+
 export default function HomePage() {
   const { t } = useTranslation();
   const { direction } = useAppLocale();
@@ -538,7 +540,8 @@ export default function HomePage() {
       }
     };
     void refresh();
-    const timer = window.setInterval(() => void refresh(), 30000);
+    // A cheap revision check, so another computer's appointment change shows within a few seconds.
+    const timer = window.setInterval(() => void refresh(), CALENDAR_REFRESH_MS);
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', refresh);
     return () => {
