@@ -442,6 +442,14 @@ export interface FinalPrescriptionExam {
   comb_high?: number;
   add_type?: string;
   addition_add_sources?: Record<string, { r_ad?: number; l_ad?: number }>;
+  /** Near/intermediate glasses: the addition type folded into SPH, with each eye's far SPH and addition. */
+  sph_add_type?: string;
+  /** "exam" when the addition came from an exam's Addition card. */
+  sph_add_source?: string;
+  r_sph_far?: number | string;
+  l_sph_far?: number | string;
+  r_sph_add?: number | string;
+  l_sph_add?: number | string;
 }
 
 export interface CompactPrescriptionExam {

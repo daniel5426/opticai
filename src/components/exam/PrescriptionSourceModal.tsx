@@ -15,10 +15,19 @@ import {
   orderPrescription,
   prescriptionAsOrder,
   prescriptionSummary,
+  withAddition,
   type ExamPrescription,
   type PrescriptionKind,
 } from "@/lib/prescription-sources";
 import { useAppLocale } from "@/localization/use-app-locale";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import {
+  ADDITION_ADD_TYPE_LABELS,
+  getAdditionAddTypeOptions,
+  type AdditionAddSourceMap,
+  type AdditionAddType,
+} from "@/lib/addition-add-sources";
 
 interface PrescriptionSourceModalProps {
   isOpen: boolean;
@@ -27,6 +36,8 @@ interface PrescriptionSourceModalProps {
   kind: PrescriptionKind;
   /** Fills the card from an order, or from an exam's prescription given in an order's shape. */
   onSelect: (order: Order) => void;
+  /** The order being edited, left out of its own sources. */
+  excludeOrderId?: number;
 }
 
 type Source = "orders" | "exams";
@@ -38,6 +49,8 @@ interface Row {
   summary: string;
   /** What the card would be filled from, in an order's shape. */
   source: Order;
+  /** An exam's Addition card, offered as the glasses type to take ADD from. */
+  additions?: AdditionAddSourceMap;
 }
 
 const formatPower = (value: unknown) => {
@@ -92,22 +105,24 @@ function PrescriptionPreview({ kind, source }: { kind: PrescriptionKind; source:
 const SLIDING_TAB = "relative z-10 data-[state=active]:bg-transparent data-[state=active]:shadow-none text-muted-foreground data-[state=active]:text-foreground transition-colors duration-300";
 
 /** Where a card's earlier prescription comes from: the client's orders or the prescription of an earlier exam. */
-export function PrescriptionSourceModal({ isOpen, onClose, clientId, kind, onSelect }: PrescriptionSourceModalProps) {
+export function PrescriptionSourceModal({ isOpen, onClose, clientId, kind, onSelect, excludeOrderId }: PrescriptionSourceModalProps) {
   const { t } = useTranslation();
   const { direction } = useAppLocale();
   const [source, setSource] = useState<Source>("orders");
   const [dateFilter, setDateFilter] = useState("");
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [exams, setExams] = useState<ExamPrescription[] | null>(null);
+  // The glasses type chosen for each exam row, whose addition the card takes.
+  const [chosenAddition, setChosenAddition] = useState<Record<string, AdditionAddType | undefined>>({});
 
   useEffect(() => {
     if (!isOpen || !clientId) return;
     let cancelled = false;
-    void loadOrders(clientId, kind).then((rows) => !cancelled && setOrders(rows)).catch(() => !cancelled && setOrders([]));
+    void loadOrders(clientId, kind).then((rows) => !cancelled && setOrders(rows.filter((order) => !excludeOrderId || order.id !== excludeOrderId))).catch(() => !cancelled && setOrders([]));
     return () => {
       cancelled = true;
     };
-  }, [isOpen, clientId, kind]);
+  }, [isOpen, clientId, kind, excludeOrderId]);
 
   useEffect(() => {
     if (!isOpen || !clientId || source !== "exams" || exams) return;
@@ -130,14 +145,19 @@ export function PrescriptionSourceModal({ isOpen, onClose, clientId, kind, onSel
         source: order,
       })) ?? null;
     }
-    return exams?.map(({ exam, prescription }) => ({
+    return exams?.map(({ exam, prescription, additions }) => ({
       key: `exam-${exam.id}`,
       date: exam.exam_date || "",
       title: exam.test_name || examTabLabel,
       summary: prescriptionSummary(prescription),
       source: prescriptionAsOrder(prescription, kind),
+      additions: kind === "glasses" ? additions : undefined,
     })) ?? null;
   }, [source, orders, exams, kind, t, examTabLabel]);
+  const fillFrom = (row: Row) => {
+    const type = chosenAddition[row.key];
+    return type && row.additions ? withAddition(row.source, type, row.additions) : row.source;
+  };
   const shown = rows?.filter((row) => !dateFilter.trim() || formatIsoDate(row.date).includes(dateFilter.trim()));
 
   return (
@@ -201,7 +221,7 @@ export function PrescriptionSourceModal({ isOpen, onClose, clientId, kind, onSel
               <div key={row.key} className="hover:bg-muted/60 hover:border-border flex items-center gap-1 rounded-lg border border-transparent pe-1.5 transition-colors">
               <button
                 type="button"
-                onClick={() => onSelect(row.source)}
+                onClick={() => onSelect(fillFrom(row))}
                 className="focus-visible:ring-ring flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2.5 text-start focus-visible:ring-2 focus-visible:outline-none"
               >
                 <div className="min-w-0 flex-1">
@@ -226,8 +246,39 @@ export function PrescriptionSourceModal({ isOpen, onClose, clientId, kind, onSel
                   </button>
                 </PopoverTrigger>
                 <PopoverContent side="bottom" align="end" className="w-auto min-w-56 p-3" dir={direction}>
+                  {row.additions && getAdditionAddTypeOptions(row.additions).length > 0 && (
+                    <div className="bg-muted/40 mb-3 rounded-md border p-2">
+                      <div className="text-xs font-medium">{t("prescriptionSourceAdditionTitle")}</div>
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {getAdditionAddTypeOptions(row.additions).map((type) => {
+                          const addition = row.additions![type]!;
+                          const checked = chosenAddition[row.key] === type;
+                          return (
+                            <label
+                              key={type}
+                              className={`flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors ${checked ? "border-primary bg-primary/5" : "bg-background hover:bg-muted"}`}
+                            >
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={(value) => setChosenAddition((previous) => ({ ...previous, [row.key]: value ? type : undefined }))}
+                              />
+                              <span className="font-medium">{ADDITION_ADD_TYPE_LABELS[type]}</span>
+                              <span className="text-muted-foreground tabular-nums" dir="ltr">
+                                {[["R", addition.r_ad], ["L", addition.l_ad]].map(([eye, value]) => `${eye} ${value === undefined ? "—" : formatPower(value)}`).join(" · ")}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                   <div className="text-muted-foreground mb-2 text-xs">{t("prescriptionSourcePreviewTitle")}</div>
-                  <PrescriptionPreview kind={kind} source={row.source} />
+                  <PrescriptionPreview kind={kind} source={fillFrom(row)} />
+                  {row.additions && getAdditionAddTypeOptions(row.additions).length > 0 && (
+                    <Button size="sm" className="mt-3 w-full" onClick={() => onSelect(fillFrom(row))}>
+                      {t("prescriptionSourceFill")}
+                    </Button>
+                  )}
                 </PopoverContent>
               </Popover>
               </div>

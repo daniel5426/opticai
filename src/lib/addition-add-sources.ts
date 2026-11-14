@@ -113,3 +113,77 @@ export const extractAdditionAddSourcesFromExamPageData = (
 
   return sources;
 };
+
+// Near and intermediate glasses carry their addition inside SPH.
+export const SPH_ADD_TYPES = ["read", "int"] as const;
+export type SphAddType = (typeof SPH_ADD_TYPES)[number];
+export const isSphAddType = (type: unknown): type is SphAddType =>
+  (SPH_ADD_TYPES as readonly unknown[]).includes(type);
+
+const EYES = ["r", "l"] as const;
+type Eye = (typeof EYES)[number];
+const round = (value: number) => Math.round(value * 100) / 100;
+// An empty SPH is plano; a text SPH (e.g. PRO) cannot take an addition.
+const sphNumber = (value: unknown): number | undefined => (hasValue(value) ? toNumberValue(value) : 0);
+
+/** The fields that record SPH taking an addition, all cleared. */
+export const CLEARED_SPH_ADD = { sph_add_type: "", sph_add_source: "", r_sph_far: "", l_sph_far: "", r_sph_add: "", l_sph_add: "" };
+
+/**
+ * An order's SPH for near or intermediate glasses: each eye's far SPH plus its addition,
+ * with the record the order keeps of the calculation. Null when no eye has an addition.
+ */
+export function sphWithAddition(
+  prescription: Record<string, unknown>,
+  type: SphAddType,
+  source: AdditionAddSource | undefined,
+  /** The addition came from an exam's Addition card, not from the order's own ADD. */
+  fromExam = false,
+): Record<string, string> | null {
+  const patch: Record<string, string> = { ...CLEARED_SPH_ADD };
+  let applied = false;
+  EYES.forEach((eye) => {
+    const far = sphNumber(prescription[`${eye}_sph`]);
+    const add = source?.[`${eye}_ad`];
+    if (far === undefined || add === undefined) return;
+    patch[`${eye}_sph`] = String(round(far + add));
+    patch[`${eye}_sph_far`] = String(far);
+    patch[`${eye}_sph_add`] = String(add);
+    applied = true;
+  });
+  if (!applied) return null;
+  patch.sph_add_type = type;
+  if (fromExam) patch.sph_add_source = "exam";
+  return patch;
+}
+
+export interface SphAdditionView {
+  type: SphAddType;
+  far: number;
+  add: number;
+  fromExam: boolean;
+}
+
+/** How an eye's SPH took an addition, while SPH still equals far + addition (a hand edit drops it). */
+export function sphAdditionFor(prescription: Record<string, unknown>, eye: "R" | "L"): SphAdditionView | null {
+  const side = eye.toLowerCase() as Eye;
+  const type = prescription.sph_add_type;
+  const far = toNumberValue(prescription[`${side}_sph_far`]);
+  const add = toNumberValue(prescription[`${side}_sph_add`]);
+  const sph = sphNumber(prescription[`${side}_sph`]);
+  if (!isSphAddType(type) || far === undefined || add === undefined || sph === undefined) return null;
+  return Math.abs(round(far + add) - sph) < 0.001 ? { type, far, add, fromExam: prescription.sph_add_source === "exam" } : null;
+}
+
+/** The far SPH back in place of an SPH that took an addition, for glasses that do not take one. */
+export function sphWithoutAddition(prescription: Record<string, unknown>): Record<string, string> | null {
+  const patch: Record<string, string> = { ...CLEARED_SPH_ADD };
+  let restored = false;
+  EYES.forEach((eye) => {
+    const view = sphAdditionFor(prescription, eye === "r" ? "R" : "L");
+    if (!view) return;
+    patch[`${eye}_sph`] = String(view.far);
+    restored = true;
+  });
+  return restored || prescription.sph_add_type ? patch : null;
+}

@@ -68,6 +68,11 @@
     "orderGroupBalance": "Balance due",
     "orderGroupAmount": "Amount",
     "orderGroupType": "Type",
+    "orderGlassesType": "Glasses type",
+    "orderSphAdditionTitle": "SPH includes the {{type}} addition",
+    "orderSphAdditionTitleFromExam": "SPH includes the {{type}} addition from the exam",
+    "orderSphAdditionFar": "Far SPH",
+    "orderSphAdditionResult": "Order SPH",
     "orderGroupPayment": "Payment",
     "orderGroupAdjustment": "Adjustment",
     "orderGroupNoPayments": "No payments",
@@ -135,7 +140,10 @@
     "prescriptionSourceExamsHintGlasses": "Taken from the Final Prescription card of the client's exams.",
     "prescriptionSourceExamsHintContact": "Taken from the Contact Lens Exam card of the client's exams.",
     "prescriptionSourcePreview": "Preview",
-    "prescriptionSourcePreviewTitle": "This is what the card will get:"
+    "prescriptionSourcePreviewTitle": "This is what the card will get:",
+    "prescriptionSourceAdditionTitle": "Which glasses is the exam's addition for?",
+    "prescriptionSourceFill": "Fill the card",
+    "prescriptionSourceEmpty": "There is no prescription to fill from here"
   },
   "he": {
     "orderPrescriptionFinalTitle": "מרשם סופי",
@@ -206,6 +214,11 @@
     "orderGroupBalance": "יתרה לתשלום",
     "orderGroupAmount": "סכום",
     "orderGroupType": "סוג",
+    "orderGlassesType": "סוג משקפיים",
+    "orderSphAdditionTitle": "ה-SPH כולל את תוספת ה-ADD ל{{type}}",
+    "orderSphAdditionTitleFromExam": "ה-SPH כולל את תוספת ה-ADD ל{{type}} מהבדיקה",
+    "orderSphAdditionFar": "SPH רחוק",
+    "orderSphAdditionResult": "SPH בהזמנה",
     "orderGroupPayment": "תשלום",
     "orderGroupAdjustment": "התאמה",
     "orderGroupNoPayments": "אין תשלומים להצגה",
@@ -273,7 +286,10 @@
     "prescriptionSourceExamsHintGlasses": "נשאב מהרכיב ״מרשם סופי״ ⁨(Final Prescription)⁩ בבדיקות של הלקוח.",
     "prescriptionSourceExamsHintContact": "נשאב מהרכיב ״מרשם עדשות מגע״ ⁨(Contact Lens Exam)⁩ בבדיקות של הלקוח.",
     "prescriptionSourcePreview": "תצוגה מקדימה",
-    "prescriptionSourcePreviewTitle": "זה מה שיישאב לכרטיס:"
+    "prescriptionSourcePreviewTitle": "זה מה שיישאב לכרטיס:",
+    "prescriptionSourceAdditionTitle": "לאיזה סוג משקפיים לשאוב את ה-Addition מהבדיקה?",
+    "prescriptionSourceFill": "שאב לכרטיס",
+    "prescriptionSourceEmpty": "אין כאן מרשם לשאיבה"
   },
   "fr": {
     "orderPrescriptionFinalTitle": "Prescription finale",
@@ -344,6 +360,11 @@
     "orderGroupBalance": "Solde dû",
     "orderGroupAmount": "Montant",
     "orderGroupType": "Type",
+    "orderGlassesType": "Type de lunettes",
+    "orderSphAdditionTitle": "La SPH inclut l’addition {{type}}",
+    "orderSphAdditionTitleFromExam": "La SPH inclut l’addition {{type}} de l’examen",
+    "orderSphAdditionFar": "SPH de loin",
+    "orderSphAdditionResult": "SPH commandée",
     "orderGroupPayment": "Paiement",
     "orderGroupAdjustment": "Ajustement",
     "orderGroupNoPayments": "Aucun paiement",
@@ -411,6 +432,9 @@
     "prescriptionSourceExamsHintGlasses": "Repris de la fiche « Prescription finale » des examens du client.",
     "prescriptionSourceExamsHintContact": "Repris de la fiche « Prescription de lentilles » des examens du client.",
     "prescriptionSourcePreview": "Aperçu",
-    "prescriptionSourcePreviewTitle": "Voici ce que la fiche recevra :"
+    "prescriptionSourcePreviewTitle": "Voici ce que la fiche recevra :",
+    "prescriptionSourceAdditionTitle": "Pour quel type de lunettes reprendre l’addition de l’examen ?",
+    "prescriptionSourceFill": "Remplir la fiche",
+    "prescriptionSourceEmpty": "Aucune prescription à reprendre ici"
   }
 }
