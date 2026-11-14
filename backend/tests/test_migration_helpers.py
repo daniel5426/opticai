@@ -1287,6 +1287,35 @@ def test_contact_order_migrates_type_aliases_price_rows_and_installments(tmp_pat
         assert line_item.price == 221.0
 
 
+def test_contact_order_is_dated_when_it_was_ordered(tmp_path):
+    with (tmp_path / "optic_contact_presc.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["code", "account_code", "branch_code", "presc_date", "order_date"])
+        writer.writeheader()
+        writer.writerow({"code": "1", "account_code": "101", "branch_code": "A", "presc_date": "2000-02-20", "order_date": "2001-02-13"})
+        writer.writerow({"code": "2", "account_code": "101", "branch_code": "A", "presc_date": "2003-05-01", "order_date": ""})
+
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base.metadata.create_all(bind=engine)
+
+    with SessionLocal() as db:
+        company = Company(name="A", owner_full_name="Owner A")
+        db.add(company)
+        db.flush()
+        clinic = Clinic(company_id=company.id, name="A", unique_id="a")
+        db.add(clinic)
+        db.flush()
+        user = User(company_id=company.id, clinic_id=clinic.id, username="admin", role_level=4, is_active=True)
+        client = Client(company_id=company.id, clinic_id=clinic.id, first_name="A")
+        db.add_all([user, client])
+        db.commit()
+
+        migration.migrate_contact_lens_orders(db, str(tmp_path), {"101": client.id}, {"A": clinic.id}, user.id)
+
+        # The order date, or the prescription date when OpticSoft has none.
+        assert sorted(str(order.order_date) for order in db.query(ContactLensOrder)) == ["2001-02-13", "2003-05-01"]
+
+
 def test_contact_order_without_billing_data_does_not_require_price_trace(tmp_path):
     with (tmp_path / "optic_contact_presc.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(

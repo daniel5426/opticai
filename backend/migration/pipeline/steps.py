@@ -888,7 +888,8 @@ def migrate_contact_lens_orders(
             skipped_count += 1
             continue
         clinic_id = resolve_migration_clinic_id(branch_to_clinic, r.get("branch_code"))
-        order_date = parse_date(r.get("presc_date"))
+        # OpticSoft keeps when the lenses were ordered apart from the prescription date; the order shows the former.
+        order_date = parse_date(r.get("order_date")) or parse_date(r.get("presc_date"))
         source_price_rows_to_trace: List[Tuple[Dict[str, Any], int]] = []
 
         supply_branch = clean_legacy_text(r.get("supply_branch"))
