@@ -83,6 +83,48 @@ def get_workforce_analytics(
         "series": series,
     }
 
+@router.get("/team-summary")
+def get_team_work_summary(
+    user_ids: str = Query(..., description="Comma-separated user IDs"),
+    start_date: date_type = Query(...),
+    end_date: date_type = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> List[Dict[str, Any]]:
+    """Hours each worker logged between two dates, for the workers the caller may read."""
+    if end_date < start_date:
+        raise HTTPException(status_code=422, detail="end_date is before start_date")
+    readable: List[int] = []
+    for raw in user_ids.split(","):
+        if not raw.strip().isdigit():
+            continue
+        try:
+            readable.append(get_scoped_user(db, current_user, int(raw)).id)
+        except HTTPException:
+            # Workers outside the caller's scope are left out, not reported as an error.
+            continue
+    if not readable:
+        return []
+    rows = (
+        db.query(WorkShift)
+        .filter(
+            WorkShift.user_id.in_(readable),
+            WorkShift.date >= start_date.isoformat(),
+            WorkShift.date <= end_date.isoformat(),
+        )
+        .all()
+    )
+    summary = {user_id: {"user_id": user_id, "total_minutes": 0, "shifts": 0, "active_days": set(), "open_shifts": 0} for user_id in readable}
+    for shift in rows:
+        entry = summary[shift.user_id]
+        entry["shifts"] += 1
+        entry["total_minutes"] += max(0, int(shift.duration_minutes or 0))
+        entry["active_days"].add(shift.date)
+        if not shift.end_time:
+            entry["open_shifts"] += 1
+    return [{**entry, "active_days": len(entry["active_days"])} for entry in summary.values()]
+
+
 @router.post("/", response_model=WorkShiftSchema)
 def create_work_shift(
     work_shift: WorkShiftCreate,
@@ -175,6 +217,27 @@ def get_work_shifts_by_user_and_month(
         WorkShift.date.like(f"{year:04d}-{month:02d}%")
     ).all()
     return work_shifts
+
+@router.get("/user/{user_id}/range", response_model=List[WorkShiftSchema])
+def get_work_shifts_by_user_and_range(
+    user_id: int,
+    start_date: date_type = Query(...),
+    end_date: date_type = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """A worker's shifts between two dates, in the order they were worked."""
+    get_scoped_user(db, current_user, user_id)
+    return (
+        db.query(WorkShift)
+        .filter(
+            WorkShift.user_id == user_id,
+            WorkShift.date >= start_date.isoformat(),
+            WorkShift.date <= end_date.isoformat(),
+        )
+        .order_by(WorkShift.date, WorkShift.start_time)
+        .all()
+    )
 
 @router.get("/user/{user_id}/date/{date}", response_model=List[WorkShiftSchema])
 def get_work_shifts_by_user_and_date(

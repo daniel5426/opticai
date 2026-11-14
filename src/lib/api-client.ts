@@ -1937,6 +1937,16 @@ class ApiClient {
     return this.request(`/work-shifts/user/${userId}/stats/${year}/${month}`);
   }
 
+  async getWorkShiftsByUserAndRange(userId: number, startDate: string, endDate: string) {
+    const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
+    return this.request<WorkShift[]>(`/work-shifts/user/${userId}/range?${params}`);
+  }
+
+  async getTeamWorkSummary(userIds: number[], startDate: string, endDate: string) {
+    const params = new URLSearchParams({ user_ids: userIds.join(','), start_date: startDate, end_date: endDate });
+    return this.request<Array<{ user_id: number; total_minutes: number; shifts: number; active_days: number; open_shifts: number }>>(`/work-shifts/team-summary?${params}`);
+  }
+
   async getWorkforceAnalytics(userId: number, range: AnalyticsRange) {
     const params = new URLSearchParams({
       start_date: range.startDate,
