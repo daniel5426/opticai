@@ -1,9 +1,9 @@
-"""Add an imported SoftOptic clinic's contact lens suppliers to its supplier lookup.
+"""Add an imported SoftOptic clinic's contact lens suppliers to its contact lens supplier lookup.
 
 OpticSoft lists contact lens suppliers in optic_tv_contact_manuf, and each contact lens order
 stores its eyes' supplier from right_manuf/left_manuf. Older imports put that list into the
-manufacturer lookup, so the contact lens supplier field, which reads the supplier lookup, did not
-offer them. New imports add them to the supplier lookup.
+manufacturer lookup, so the contact lens supplier field did not offer them. New imports add them to
+the contact lens supplier lookup. Run it after migration 0069, which creates that lookup.
 
 For one import job, this adds the supplier names its contact lens orders use, and the names in its
 optic_tv_contact_manuf export when the job's bundle (or --csv-dir) is available, to the job's
@@ -24,7 +24,7 @@ from typing import List, Optional, Set
 
 from database import SessionLocal
 from migration.pipeline.common import clean_legacy_text, read_csv
-from models import LookupSupplier, MigrationSourceLink, SoftOpticMigrationJob
+from models import LookupContactLensSupplier, MigrationSourceLink, SoftOpticMigrationJob
 
 
 def used_supplier_names(db, job: SoftOpticMigrationJob) -> Set[str]:
@@ -51,13 +51,13 @@ def listed_supplier_names(csv_dir: Optional[str]) -> Set[str]:
 
 
 def plan(db, job: SoftOpticMigrationJob, csv_dir: Optional[str] = None) -> List[str]:
-    """The contact lens supplier names the job's clinic is missing from its supplier lookup."""
-    existing = {name for (name,) in db.query(LookupSupplier.name).filter(LookupSupplier.clinic_id == job.clinic_id)}
+    """The contact lens supplier names the job's clinic is missing from its contact lens supplier lookup."""
+    existing = {name for (name,) in db.query(LookupContactLensSupplier.name).filter(LookupContactLensSupplier.clinic_id == job.clinic_id)}
     return sorted((used_supplier_names(db, job) | listed_supplier_names(csv_dir)) - existing)
 
 
 def apply(db, job: SoftOpticMigrationJob, names: List[str]) -> None:
-    db.add_all(LookupSupplier(clinic_id=job.clinic_id, name=name) for name in names)
+    db.add_all(LookupContactLensSupplier(clinic_id=job.clinic_id, name=name) for name in names)
 
 
 def main() -> None:

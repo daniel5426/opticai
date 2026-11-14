@@ -5316,6 +5316,18 @@ export const legacyStaticCopy = {
     "en": "Preferred supplier",
     "fr": "Fournisseur privilégié"
   },
+  "ספקי מסגרות": {
+    "en": "Frame suppliers",
+    "fr": "Fournisseurs de montures"
+  },
+  "ספקי עדשות": {
+    "en": "Lens suppliers",
+    "fr": "Fournisseurs de verres"
+  },
+  "ספקי עדשות מגע": {
+    "en": "Contact lens suppliers",
+    "fr": "Fournisseurs de lentilles"
+  },
   "ספקים": {
     "en": "Suppliers",
     "fr": "Fournisseurs"
@@ -5819,6 +5831,18 @@ export const legacyStaticCopy = {
   "צבעי המערכת": {
     "en": "The system colors",
     "fr": "Les couleurs du système"
+  },
+  "צבעי מסגרות": {
+    "en": "Frame colors",
+    "fr": "Couleurs de montures"
+  },
+  "צבעי עדשות": {
+    "en": "Lens colors",
+    "fr": "Couleurs de verres"
+  },
+  "צבעי עדשות מגע": {
+    "en": "Contact lens colors",
+    "fr": "Couleurs de lentilles"
   },
   "צבעים": {
     "en": "colors",

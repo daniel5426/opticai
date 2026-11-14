@@ -22,6 +22,10 @@ from backend.models import (
     LookupColor,
     LookupManufacturer,
     LookupSupplier,
+    LookupFrameSupplier,
+    LookupContactLensSupplier,
+    LookupFrameColor,
+    LookupContactLensColor,
     LookupContactLensModel,
     MedicalLog,
     OpticalExam,
@@ -732,6 +736,39 @@ def test_regular_order_keeps_opticsoft_glasses_type_and_lab_note_in_their_fields
         assert sun["details"]["notes"] == "הערה"
 
 
+def test_migrate_lookups_keeps_lens_frame_and_contact_lens_colors_apart(tmp_path):
+    for filename, name in (("optic_tv_lens_color.csv", "Brown 80%"), ("optic_tv_contact_color.csv", "Aqua")):
+        with (tmp_path / filename).open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=["name"])
+            writer.writeheader()
+            writer.writerow({"name": name})
+    with (tmp_path / "optic_glasses_presc.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["code", "frame_color"])
+        writer.writeheader()
+        writer.writerow({"code": "1", "frame_color": "Matte black"})
+        writer.writerow({"code": "2", "frame_color": ""})
+
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base.metadata.create_all(bind=engine)
+
+    with SessionLocal() as db:
+        company = Company(name="A", owner_full_name="Owner A")
+        db.add(company)
+        db.flush()
+        clinic = Clinic(company_id=company.id, name="A", unique_id="a")
+        db.add(clinic)
+        db.commit()
+
+        migration.migrate_lookups(db, str(tmp_path), [clinic.id])
+
+        names = lambda model: [name for (name,) in db.query(model.name).filter_by(clinic_id=clinic.id)]
+        assert names(LookupColor) == ["Brown 80%"]
+        assert names(LookupContactLensColor) == ["Aqua"]
+        # OpticSoft has no frame color list; the orders' frame colors make it.
+        assert names(LookupFrameColor) == ["Matte black"]
+
+
 def test_migrate_lookups_puts_contact_lens_models_in_the_contact_lens_model_list(tmp_path):
     with (tmp_path / "optic_tv_contact_model.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=["name"])
@@ -807,8 +844,9 @@ def test_migrate_lookups_puts_contact_lens_suppliers_with_the_suppliers(tmp_path
 
         migration.migrate_lookups(db, str(tmp_path), [clinic.id])
 
-        # The contact lens supplier field reads the supplier lookup, not the frame brands.
-        assert sorted(name for (name,) in db.query(LookupSupplier.name).filter_by(clinic_id=clinic.id)) == ["Bausch", "Shamir"]
+        # Contact lens suppliers get their own list, apart from the glasses lens suppliers and the frame brands.
+        assert [name for (name,) in db.query(LookupContactLensSupplier.name).filter_by(clinic_id=clinic.id)] == ["Bausch"]
+        assert [name for (name,) in db.query(LookupSupplier.name).filter_by(clinic_id=clinic.id)] == ["Shamir"]
         assert db.query(LookupManufacturer).filter_by(clinic_id=clinic.id, name="Bausch").count() == 0
 
 
@@ -1174,7 +1212,8 @@ def test_regular_order_resolves_opticsoft_fulfillment_codes(tmp_path):
         assert tab["frame"]["warranty_expiration"] == "2026-07-30"
         # OpticSoft keeps the brand in frame_supplier and the supplier in frame_manuf.
         assert (tab["frame"]["manufacturer"], tab["frame"]["supplier"]) == ("GIPSY", "18 פייר מרקטינג")
-        assert [name for (name,) in db.query(LookupSupplier.name).filter_by(clinic_id=clinic.id)] == ["18 פייר מרקטינג"]
+        assert [name for (name,) in db.query(LookupFrameSupplier.name).filter_by(clinic_id=clinic.id)] == ["18 פייר מרקטינג"]
+        assert not db.query(LookupSupplier).filter_by(clinic_id=clinic.id).count()
         # One order is too few for a typed brand to become a lookup.
         assert not db.query(LookupManufacturer).filter_by(clinic_id=clinic.id).count()
 

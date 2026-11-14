@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from models import (Appointment, Billing, BillingPayment, Client, Clinic, ContactLensOrder,
                     ExamLayoutInstance, File, MedicalLog, MigrationSourceLink, OpticalExam,
                     Order, OrderGroup, OrderGroupEntry, OrderLineItem, SoftOpticMigrationJob)
-from models import LookupSupplier, LookupLensModel, LookupManufacturer, LookupFrameModel, CatalogProduct, CatalogVariant
+from models import LookupSupplier, LookupFrameSupplier, LookupContactLensSupplier, LookupLensModel, LookupManufacturer, LookupFrameModel, CatalogProduct, CatalogVariant
 from migration.opticplus.clinical import (CLINICAL_TABLES, REFERENCE_TABLES, CLINICAL_REVISION, card_data, client_history,
                                          supplemental_cards, field_disposition, clinical_source_key)
 from migration.opticplus.repair import relocate_clinical_fields
@@ -36,7 +36,7 @@ from services.softoptic_migration_service import _safe_extract_zip, update_job, 
 BATCH_SIZE = 250
 MODELS = {m.__name__: m for m in [Client, OpticalExam, ExamLayoutInstance, Order, ContactLensOrder,
                                   OrderGroup, OrderGroupEntry, Billing, OrderLineItem, MedicalLog, Appointment, File]}
-MODELS.update({m.__name__: m for m in [LookupSupplier, LookupLensModel, LookupManufacturer, LookupFrameModel, CatalogProduct, CatalogVariant]})
+MODELS.update({m.__name__: m for m in [LookupSupplier, LookupFrameSupplier, LookupContactLensSupplier, LookupLensModel, LookupManufacturer, LookupFrameModel, CatalogProduct, CatalogVariant]})
 
 
 class LeaseLost(RuntimeError):
@@ -627,7 +627,8 @@ class OpticPlusImporter:
     def import_supplemental(self, table, row, key):
         if table in REFERENCE_TABLES and (self.job.source_metadata or {}).get("include_reference_data") is False:
             return
-        lookups = {"sapakim": [(LookupSupplier, "shem sapak")],
+        # OpticPlus keeps one supplier list for every product, so each supplier joins all three supplier lists.
+        lookups = {"sapakim": [(LookupSupplier, "shem sapak"), (LookupFrameSupplier, "shem sapak"), (LookupContactLensSupplier, "shem sapak")],
                    "tb_ad_catalog": [(LookupManufacturer, "hevra"), (LookupLensModel, "typ")],
                    "tb_catalog": [(LookupManufacturer, "hevra"), (LookupFrameModel, "degem")]}
         if table in REFERENCE_TABLES:
@@ -865,7 +866,7 @@ class OpticPlusImporter:
                 for key, _ in keyed:
                     refs.extend(self.ref(table, key, suffix) for suffix in ["", "layout", "group", "regular", "contact", "entry-regular", "entry-contact",
                         "line-1:bprice", "line-1:gpricet", "line-2:bprice", "line-2:gpricet",
-                        "line-extra1:othp1", "line-extra2:othp2", "line-extra3:othp3", *[m.__name__ for m in [LookupSupplier, LookupManufacturer, LookupLensModel, LookupFrameModel]]])
+                        "line-extra1:othp1", "line-extra2:othp2", "line-extra3:othp3", *[m.__name__ for m in [LookupSupplier, LookupFrameSupplier, LookupContactLensSupplier, LookupManufacturer, LookupLensModel, LookupFrameModel]]])
                 self.prime(refs)
                 with group_write(self.db):
                     for key, row in keyed:

@@ -7,7 +7,8 @@ from models import (
     LookupManufacturer, LookupFrameModel, LookupContactLensType,
     LookupContactEyeLensType,     LookupContactEyeMaterial, LookupContactLensModel,
     LookupCleaningSolution, LookupDisinfectionSolution, LookupRinsingSolution,
-    LookupManufacturingLab, LookupAdvisor, LookupVAMeter, LookupVADecimal
+    LookupManufacturingLab, LookupAdvisor, LookupVAMeter, LookupVADecimal,
+    LookupFrameSupplier, LookupContactLensSupplier, LookupFrameColor, LookupContactLensColor,
 )
 from pydantic import BaseModel
 from auth import get_current_user
@@ -19,11 +20,15 @@ router = APIRouter(prefix="/lookups", tags=["lookups"])
 # Lookup table mapping
 LOOKUP_MODELS = {
     'suppliers': LookupSupplier,
+    'frame-suppliers': LookupFrameSupplier,
+    'contact-lens-suppliers': LookupContactLensSupplier,
     'clinics': LookupClinic,
     'order-types': LookupOrderType,
     'referral-types': LookupReferralType,
     'lens-models': LookupLensModel,
     'colors': LookupColor,
+    'frame-colors': LookupFrameColor,
+    'contact-lens-colors': LookupContactLensColor,
     'materials': LookupMaterial,
     'coatings': LookupCoating,
     'manufacturers': LookupManufacturer,

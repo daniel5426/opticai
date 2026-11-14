@@ -15,7 +15,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from database import Base
-from models import Clinic, Company, LookupManufacturer, LookupSupplier, MigrationSourceLink, SoftOpticMigrationJob
+from models import Clinic, Company, LookupContactLensSupplier, LookupManufacturer, LookupSupplier, MigrationSourceLink, SoftOpticMigrationJob
 from scripts.backfill_softoptic_contact_suppliers import apply, plan
 
 
@@ -39,8 +39,10 @@ def _setup():
         # Another clinic's import is never read.
         MigrationSourceLink(**{**link, "clinic_id": other.id}, raw_row_ref="c", target_id=3, raw_payload={"right_manuf": "Other clinic"}),
         # A supplier the clinic already works with, and its manufacturers, stay as they are.
-        LookupSupplier(clinic_id=clinic.id, name="Alcon"),
-        LookupSupplier(clinic_id=clinic.id, name="Hand added"),
+        LookupContactLensSupplier(clinic_id=clinic.id, name="Alcon"),
+        LookupContactLensSupplier(clinic_id=clinic.id, name="Hand added"),
+        # The glasses lens list is a separate list and stays as it is.
+        LookupSupplier(clinic_id=clinic.id, name="Shamir"),
         LookupManufacturer(clinic_id=clinic.id, name="Bausch"),
     ])
     db.commit()
@@ -57,9 +59,10 @@ def test_adds_only_the_missing_contact_suppliers_to_the_clinic(tmp_path):
     db.commit()
 
     clinic_names = lambda model, clinic_id: sorted(name for (name,) in db.query(model.name).filter_by(clinic_id=clinic_id))
-    assert clinic_names(LookupSupplier, job.clinic_id) == ["Alcon", "Bausch", "CooperVision", "Hand added"]
+    assert clinic_names(LookupContactLensSupplier, job.clinic_id) == ["Alcon", "Bausch", "CooperVision", "Hand added"]
+    assert clinic_names(LookupSupplier, job.clinic_id) == ["Shamir"]
     assert clinic_names(LookupManufacturer, job.clinic_id) == ["Bausch"]
-    assert clinic_names(LookupSupplier, other.id) == []
+    assert clinic_names(LookupContactLensSupplier, other.id) == []
     # Running it again adds nothing.
     assert plan(db, job, str(tmp_path)) == []
 
