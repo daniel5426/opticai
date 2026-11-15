@@ -4,7 +4,7 @@ The revision began as Google Calendar's pull counter; it now counts any change t
 appointments, from the API, the agent, the trash or Google, so another computer showing that
 clinic's calendar reloads it within one poll.
 """
-from sqlalchemy import event
+from sqlalchemy import event, inspect
 from sqlalchemy.orm import Session
 
 
@@ -13,7 +13,7 @@ def install_calendar_revision():
         event.listen(Session, "before_flush", bump_calendar_revision)
 
 
-def changed_clinic_ids(db) -> set:
+def changed_clinic_ids(db) -> set[int]:
     """The clinics whose appointments this flush adds, changes or removes."""
     from models import Appointment
 
@@ -21,8 +21,16 @@ def changed_clinic_ids(db) -> set:
     for row in [*db.new, *db.dirty, *db.deleted]:
         if not isinstance(row, Appointment):
             continue
-        if row in db.dirty and not db.is_modified(row):
-            continue
+        if row in db.dirty and row not in db.deleted:
+            state = inspect(row)
+            # The worker may write a provider event ID without changing the calendar.
+            if not any(
+                state.attrs[column.key].history.has_changes()
+                for column in state.mapper.column_attrs
+                if column.key != "google_calendar_event_id"
+            ):
+                continue
+            clinic_ids.update(id_ for id_ in state.attrs.clinic_id.history.deleted if id_ is not None)
         if row.clinic_id:
             clinic_ids.add(row.clinic_id)
     return clinic_ids
@@ -35,7 +43,7 @@ def bump_calendar_revision(db, flush_context, instances):
     from models import Clinic
 
     with db.no_autoflush:
-        for clinic_id in clinic_ids:
+        for clinic_id in sorted(clinic_ids):
             clinic = db.get(Clinic, clinic_id)
             if clinic is not None:
                 # In SQL, so writers on other servers never overwrite each other's increments.

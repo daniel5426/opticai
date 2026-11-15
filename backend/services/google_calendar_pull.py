@@ -111,7 +111,6 @@ def apply_edit(db, user_id, lease, calendar_id, candidate, event, since):
             row.error_code = 'google_schedule_conflict'
             return
         appointment.date, appointment.time, appointment.duration = target
-        clinic.google_calendar_revision += 1
         client = db.query(Client).filter_by(id=appointment.client_id, company_id=appointment.company_id).first()
         if client:
             client.client_updated_date = func.now()

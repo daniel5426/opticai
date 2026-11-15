@@ -83,8 +83,10 @@ def test_google_move_updates_existing_booking_and_exports_to_owner_copy(setup):
     s.db.add(manager)
     s.db.flush()
     appt, mapping = queued(s)
+    revision = s.a.google_calendar_revision
     s.network.return_value = response(data={'etag': 'exported-version'})
     assert calendar.run_once(s.db) and calendar.run_once(s.db)
+    assert s.a.google_calendar_revision == revision
     assert s.http.get('/google/calendar/status').json()['import_enabled'] is False
     assert not pull.run_pull_once(s.db)
     enable_import(s)
@@ -92,7 +94,7 @@ def test_google_move_updates_existing_booking_and_exports_to_owner_copy(setup):
     day = google_move(s, appt, mapping, at='04:30', day=yesterday)
     assert pull.run_pull_once(s.db)
     assert (appt.date, appt.time, appt.duration) == (day, '04:30', 45)
-    assert s.http.get('/dashboard/calendar-revision', params={'clinic_id': s.a.id}).json() == {'calendar_revision': 1}
+    assert s.http.get('/dashboard/calendar-revision', params={'clinic_id': s.a.id}).json() == {'calendar_revision': revision + 1}
     assert s.http.get('/dashboard/calendar-revision', params={'clinic_id': s.c.id}).status_code == 403
     assert s.db.query(Appointment).count() == 1
     assert mapping.status == 'synced' and mapping.remote_etag == 'moved-google-version'
@@ -119,8 +121,9 @@ def test_google_move_does_not_apply_unsupported_or_conflicting_changes(setup, bl
         conflict = appointment(s)
         conflict.date, conflict.time = day, '12:30'
         s.db.commit()
+    revision = s.a.google_calendar_revision
     assert pull.run_pull_once(s.db)
-    assert appt.time == '10:00' and appt.deleted_at is None and s.a.google_calendar_revision == 0
+    assert appt.time == '10:00' and appt.deleted_at is None and s.a.google_calendar_revision == revision
     assert s.http.get('/google/calendar/status').json()['import_rejected'] == int(blocked != 'deleted')
 
 

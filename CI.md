@@ -740,3 +740,16 @@ the environment's existing flags. SoftOptic backfills run separately.
 Reuse focused local results and the public dependency receipt for pre-push.
 Run Web CI, Backend CI, staging verification and desktop candidates in
 parallel. Publish the verified desktop candidates after production promotion.
+
+## Calendar refresh and supplier and color lists
+
+Calendar clients check the active clinic's revision every four seconds while
+the calendar is visible and idle. Appointment changes advance the revision
+through the ORM hook, including reschedules imported from Google Calendar.
+Google export bookkeeping leaves the revision unchanged.
+
+Apply `0069_split_supplier_colors` after `0068_calendar_pull` before the new
+API and import workers. The additive migration seeds the four new frame and
+contact lens lookup tables from each clinic's existing shared lists. Staging
+has the new revision and verified seed rows. The OpticSoft repair scripts run
+separately.

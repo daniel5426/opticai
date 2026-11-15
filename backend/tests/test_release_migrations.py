@@ -20,6 +20,8 @@ def test_release_migrations_preserve_existing_clients_and_fit_version_table(pg_e
         connection.execute(text('ALTER TABLE users DROP COLUMN google_calendar_pull_at, DROP COLUMN google_calendar_pull_since, DROP COLUMN google_calendar_pull_error'))
         connection.execute(text('ALTER TABLE clinics DROP COLUMN google_calendar_revision'))
         connection.execute(text('DROP TABLE google_calendar_sync'))
+        for table in ('lookup_frame_supplier', 'lookup_contact_lens_supplier', 'lookup_frame_color', 'lookup_contact_lens_color'):
+            connection.execute(text(f'DROP TABLE {table}'))
         connection.execute(text('ALTER TABLE users DROP COLUMN google_token_key_id'))
         connection.execute(text('ALTER TABLE users DROP COLUMN google_oauth_client_type'))
         connection.execute(text('ALTER TABLE users DROP COLUMN google_token_expiry'))
@@ -40,6 +42,8 @@ def test_release_migrations_preserve_existing_clients_and_fit_version_table(pg_e
         connection.execute(text("INSERT INTO companies(id,name,owner_full_name) VALUES (1,'Fixture','Owner')"))
         connection.execute(text("INSERT INTO clinics(id,company_id,name,unique_id,entry_pin_version,maintenance_mode) VALUES (1,1,'Clinic','fixture',1,false)"))
         connection.execute(text("INSERT INTO clients(id,company_id,clinic_id,first_name) VALUES (1,1,1,'Preserve')"))
+        connection.execute(text("INSERT INTO lookup_supplier(clinic_id,name) VALUES (1,'Fixture supplier')"))
+        connection.execute(text("INSERT INTO lookup_color(clinic_id,name) VALUES (1,'Fixture color')"))
         for index in ('ix_optical_exams_client_id', 'ix_medical_logs_client_id', 'ix_medical_logs_clinic_id', 'ix_campaigns_clinic_id', 'ix_order_groups_clinic_opened'):
             connection.execute(text(f'DROP INDEX IF EXISTS {index}'))
     monkeypatch.setattr(settings, 'DATABASE_URL', f'postgresql+psycopg2://company_test@/postgres?host={pg_engine.url.host}&port={pg_engine.url.port}')
@@ -55,4 +59,12 @@ def test_release_migrations_preserve_existing_clients_and_fit_version_table(pg_e
         assert connection.execute(text('SELECT count(*) FROM messaging_consents')).scalar() == 0
         assert connection.execute(text('SELECT provider_login,checkout_mode FROM messaging_topups LIMIT 1')).first() is None
         assert connection.execute(text('SELECT first_name,send_notifications FROM clients WHERE id=1')).one() == ('Preserve', False)
+        for table in ('lookup_supplier', 'lookup_frame_supplier', 'lookup_contact_lens_supplier'):
+            assert connection.execute(text(f'SELECT clinic_id, name FROM {table}')).one() == (1, 'Fixture supplier')
+        for table in ('lookup_color', 'lookup_frame_color', 'lookup_contact_lens_color'):
+            assert connection.execute(text(f'SELECT clinic_id, name FROM {table}')).one() == (1, 'Fixture color')
+        assert connection.execute(text(
+            "SELECT count(*) FROM pg_class WHERE relrowsecurity AND relname IN "
+            "('lookup_frame_supplier', 'lookup_contact_lens_supplier', 'lookup_frame_color', 'lookup_contact_lens_color')"
+        )).scalar() == 4
         assert connection.execute(text("SELECT count(*) FROM pg_indexes WHERE indexname IN ('ix_optical_exams_client_id','ix_medical_logs_client_id','ix_medical_logs_clinic_id','ix_campaigns_clinic_id','ix_order_groups_clinic_opened')")).scalar() == 5

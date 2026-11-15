@@ -4,13 +4,13 @@ The glasses lens lists keep lookup_supplier and lookup_color. Each existing clin
 is copied into both new lists, so no clinic loses a supplier or color it already offers; clinics
 can then trim each list on its own. Nothing existing is changed or removed.
 
-Revision ID: 0069_split_supplier_color_lookups
+Revision ID: 0069_split_supplier_colors
 Revises: 0068_calendar_pull
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0069_split_supplier_color_lookups"
+revision = "0069_split_supplier_colors"
 down_revision = "0068_calendar_pull"
 branch_labels = None
 depends_on = None
