@@ -257,3 +257,21 @@ test('shows legacy rows and enables next-page navigation before the background c
   await act(async()=>finishCount({data:{items:[],total:80,has_more:false}}));
   expect(await screen.findByText(i18n.t('orderGroupPageSummary',{page:1,totalPages:4,total:80}))).toBeInTheDocument();
 });
+
+test('a group with several orders opens like a drop-down and each order opens on its own', async () => {
+  await i18n.changeLanguage('he');
+  wrap(<OrderGroupList />);
+  const toggle = await screen.findByRole('button', { name: 'הצג את ההזמנות בקבוצה' });
+  expect(toggle).toHaveTextContent('2 הזמנות');
+  expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  expect(screen.queryByRole('button', { name: 'פתח הזמנה' })).toBeNull();
+
+  await userEvent.click(toggle);
+  expect(mocks.navigate).not.toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: 'הסתר את ההזמנות בקבוצה' })).toHaveAttribute('aria-expanded', 'true');
+  const openButtons = screen.getAllByRole('button', { name: 'פתח הזמנה' });
+  expect(openButtons).toHaveLength(2);
+
+  await userEvent.click(openButtons[1]);
+  expect(mocks.navigate).toHaveBeenCalledWith(expect.objectContaining({ params: { clientId: '2', orderId: 'group-10' }, search: { entry: 2 } }));
+});
