@@ -8,6 +8,7 @@ import ControlCenterDashboardPage from "../pages/ControlCenterDashboardPage";
 import ControlCenterUsersPage from "../pages/ControlCenterUsersPage";
 import ControlCenterClinicsPage from "../pages/ControlCenterClinicsPage";
 import ControlCenterSettingsPage from "../pages/ControlCenterSettingsPage";
+import ControlCenterReportsPage from "../pages/ControlCenterReportsPage";
 import SecondPage from "@/pages/SecondPage";
 import ClientsPage from "@/pages/ClientsPage";
 import ClientDetailPage from "@/pages/ClientDetailPage";
@@ -112,6 +113,15 @@ export const ControlCenterClinicsRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/control-center/clinics",
   component: ControlCenterClinicsPage,
+});
+
+export const ControlCenterReportsRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/control-center/clinics/$clinicId/reports",
+  validateSearch: (search: Record<string, unknown>) => ({
+    name: typeof search.name === "string" ? search.name : undefined,
+  }),
+  component: ControlCenterReportsPage,
 });
 
 export const ControlCenterSettingsRoute = createRoute({
@@ -349,6 +359,7 @@ export const rootTree = RootRoute.addChildren([
   ControlCenterDashboardRoute,
   ControlCenterUsersRoute,
   ControlCenterClinicsRoute,
+  ControlCenterReportsRoute,
   ControlCenterSettingsRoute,
   UserSelectionRoute,
   SecondPageRoute,
