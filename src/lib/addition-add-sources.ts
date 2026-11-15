@@ -11,11 +11,28 @@ export type AdditionAddSource = {
 
 export type AdditionAddSourceMap = Partial<Record<AdditionAddType, AdditionAddSource>>;
 
+// The glasses each addition is for, in the names Old Refraction uses (INT has no Old Refraction type).
 export const ADDITION_ADD_TYPE_LABELS: Record<AdditionAddType, string> = {
-  read: "READ",
-  int: "INT",
-  bif: "BIF",
-  mul: "MUL",
+  read: "קרוב",
+  int: "ביניים",
+  bif: "ביפוקל",
+  mul: "מולטיפוקל",
+};
+
+// An order's glasses type: the addition types, plus types that take no addition.
+export const ORDER_GLASSES_TYPES = ["far", "read", "int", "mul", "bif", "my_slow"] as const;
+export type OrderGlassesType = (typeof ORDER_GLASSES_TYPES)[number];
+export const ORDER_GLASSES_TYPE_LABELS: Record<OrderGlassesType, string> = {
+  far: "רחוק",
+  ...ADDITION_ADD_TYPE_LABELS,
+  my_slow: "My Slow",
+};
+export const isAdditionAddType = (type: string): type is AdditionAddType =>
+  (ADDITION_ADD_TYPES as readonly string[]).includes(type);
+export const normalizeOrderGlassesType = (value: unknown): OrderGlassesType | undefined => {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.toLowerCase();
+  return (ORDER_GLASSES_TYPES as readonly string[]).includes(normalized) ? (normalized as OrderGlassesType) : undefined;
 };
 
 const hasValue = (value: unknown) =>
