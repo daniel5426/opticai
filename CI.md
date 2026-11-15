@@ -753,3 +753,11 @@ API and import workers. The additive migration seeds the four new frame and
 contact lens lookup tables from each clinic's existing shared lists. Staging
 has the new revision and verified seed rows. The OpticSoft repair scripts run
 separately.
+
+## Release v1.0.106
+
+Include PRs #98–#104, the follow-up fixes, and editable bag numbers on regular
+orders. Production promotion applies `0069_split_supplier_colors` before
+starting the new API. The OpticSoft repair scripts are separate operations.
+Reuse the qualified migration and focused local checks for pre-push. Run
+exact-SHA staging, Web CI, Backend CI, and desktop builds in parallel.

@@ -200,8 +200,8 @@ export function FulfillmentSection({
               dir="ltr"
               aria-label={t("orderWorkspace.bagNumber")}
               value={details.bag_number || ""}
-              readOnly
-              disabled
+              onChange={(event) => update({ bag_number: event.target.value })}
+              disabled={!isEditing}
               className="min-w-0 flex-1 font-mono tabular-nums"
             />
             {clientOrderIndex ? (
