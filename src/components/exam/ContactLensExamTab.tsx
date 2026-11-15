@@ -1,4 +1,5 @@
 import { OrderPrescriptionTitle } from "./shared/OrderPrescriptionTitle";
+import { OrderPrescriptionSourceButton, type OrderPrescriptionSource } from "@/components/orders/OrderPrescriptionSourceButton";
 import React, { useState, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { ContactLensExam } from "@/lib/db/schema-interface";
@@ -24,6 +25,8 @@ interface ContactLensExamTabProps {
   isEditing: boolean;
   hideEyeLabels?: boolean;
   needsMiddleSpacer?: boolean;
+  /** In an order: a button beside the title fills the card from the client's earlier orders or exams. */
+  prescriptionSource?: OrderPrescriptionSource;
 }
 
 export function ContactLensExamTab({
@@ -31,6 +34,7 @@ export function ContactLensExamTab({
   onContactLensExamChange,
   isEditing,
   hideEyeLabels = false,
+  prescriptionSource,
 }: ContactLensExamTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
@@ -105,8 +109,15 @@ export function ContactLensExamTab({
     <Card className="examcard w-full pt-3 pb-4" dir="ltr">
       <CardContent className="px-4" style={{ scrollbarWidth: "none" }}>
         <div className="space-y-3">
-          <div className="text-center">
+          <div className="flex items-center justify-center gap-1">
             <OrderPrescriptionTitle contact />
+            {isEditing && prescriptionSource && (
+              <OrderPrescriptionSourceButton
+                source={prescriptionSource}
+                kind="contact"
+                onChange={(field, value) => onContactLensExamChange(field as keyof ContactLensExam, value)}
+              />
+            )}
           </div>
 
           <div

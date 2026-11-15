@@ -1,6 +1,13 @@
 import { getExamPageData, getExamsByClientId } from "@/lib/db/exams-db";
 import { getOrdersByClientId } from "@/lib/db/orders-db";
 import type { OpticalExam, Order } from "@/lib/db/schema-interface";
+import {
+  extractAdditionAddSourcesFromExamPageData,
+  isSphAddType,
+  sphWithAddition,
+  type AdditionAddSourceMap,
+  type AdditionAddType,
+} from "@/lib/addition-add-sources";
 
 export type PrescriptionKind = "glasses" | "contact";
 
@@ -65,6 +72,8 @@ export async function loadOrders(clientId: number, kind: PrescriptionKind): Prom
 export interface ExamPrescription {
   exam: OpticalExam;
   prescription: Record<string, any>;
+  /** The exam's Addition card, by the glasses each addition is for. */
+  additions: AdditionAddSourceMap;
 }
 
 /** The client's recent exams that filled the prescription card of a kind, newest first. */
@@ -74,7 +83,7 @@ export async function loadExamPrescriptions(clientId: number, kind: Prescription
   return exams.flatMap((exam, index) => {
     for (const row of pages[index]?.instances || []) {
       const prescription = examPrescription(row?.exam_data || {}, kind);
-      if (prescription) return [{ exam, prescription }];
+      if (prescription) return [{ exam, prescription, additions: extractAdditionAddSourcesFromExamPageData(pages[index]) }];
     }
     return [];
   });
@@ -83,4 +92,51 @@ export async function loadExamPrescriptions(clientId: number, kind: Prescription
 /** An exam's prescription in an order's shape, so a card fills from it the way it fills from an order. */
 export function prescriptionAsOrder(prescription: Record<string, any>, kind: PrescriptionKind): Order {
   return { order_data: { [EXAM_CARD[kind]]: prescription }, ...(kind === "contact" ? { __contact: true } : {}) } as unknown as Order;
+}
+
+/** A glasses prescription taking an exam addition: its ADD for both eyes, and the glasses type it is for. */
+export function withAddition(source: Order, type: AdditionAddType, additions: AdditionAddSourceMap): Order {
+  const addition = additions[type] || {};
+  const prescription = orderPrescription(source, "glasses");
+  return {
+    ...source,
+    order_data: {
+      [EXAM_CARD.glasses]: {
+        ...prescription,
+        add_type: type,
+        r_ad: addition.r_ad ?? prescription.r_ad,
+        l_ad: addition.l_ad ?? prescription.l_ad,
+        addition_add_sources: additions,
+        __addition_from_exam: true,
+      },
+    },
+  } as unknown as Order;
+}
+
+const eyes = (fields: string[]) => fields.flatMap((field) => [`r_${field}`, `l_${field}`]);
+// The fields an order's prescription card holds, so a fill replaces the whole card.
+const ORDER_CARD_FIELDS: Record<PrescriptionKind, string[]> = {
+  glasses: [...eyes(["sph", "cyl", "ax", "pris", "base", "ad", "pd_far", "pd_close", "high"]), "comb_pd_far", "comb_pd_close", "comb_high"],
+  contact: [...eyes(["bc", "oz", "diam", "sph", "cyl", "ax", "read_ad", "va", "j"]), "comb_va", "comb_j"],
+};
+// Older prescriptions kept the far PD under these names.
+const LEGACY_FIELDS: Record<string, string> = { r_pd_far: "r_pd", l_pd_far: "l_pd", comb_pd_far: "comb_pd" };
+
+/** The values an order's prescription card takes from a source: every card field, empty where the source has none; null when it has no prescription. */
+export function orderCardFill(source: Order, kind: PrescriptionKind): Record<string, string> | null {
+  const block = orderPrescription(source, kind);
+  const values = Object.fromEntries(
+    ORDER_CARD_FIELDS[kind].map((field) => {
+      const value = block[field] ?? block[LEGACY_FIELDS[field]];
+      return [field, filled(value) ? String(value) : ""];
+    }),
+  );
+  if (!Object.values(values).some(Boolean)) return null;
+  if (kind === "glasses" && filled(block.add_type)) values.add_type = String(block.add_type);
+  // Near and intermediate glasses from an exam addition carry it in SPH, as an order opened from the exam does.
+  if (kind === "glasses" && block.__addition_from_exam && isSphAddType(block.add_type)) {
+    const add = (eye: "r" | "l") => (filled(block[`${eye}_ad`]) ? Number(block[`${eye}_ad`]) : undefined);
+    Object.assign(values, sphWithAddition(values, block.add_type, { r_ad: add("r"), l_ad: add("l") }, true) || {});
+  }
+  return values;
 }

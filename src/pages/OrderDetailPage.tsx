@@ -34,7 +34,9 @@ import {
 } from "@/lib/db/schema-interface";
 import {
   extractAdditionAddSourcesFromExamPageData,
+  isSphAddType,
   normalizeAdditionAddType,
+  sphWithAddition,
 } from "@/lib/addition-add-sources";
 type OrderLens = {
   _scan_provenance?: string;
@@ -881,6 +883,17 @@ export function LegacyOrderDetailPage({
                       ? { l_ad: selectedAdditionSource.l_ad }
                       : {}),
                   } as FinalPrescriptionExam;
+
+                  // Near and intermediate glasses: SPH is the far SPH plus the chosen addition.
+                  const sphPatch = isSphAddType(selectedAdditionAddType)
+                    ? sphWithAddition(nextFinalPrescription as Record<string, unknown>, selectedAdditionAddType, selectedAdditionSource, true)
+                    : null;
+                  if (sphPatch) {
+                    Object.assign(nextFinalPrescription, sphPatch, {
+                      ...(sphPatch.r_sph ? { r_sph: Number(sphPatch.r_sph) } : {}),
+                      ...(sphPatch.l_sph ? { l_sph: Number(sphPatch.l_sph) } : {}),
+                    });
+                  }
 
                   setFinalPrescriptionFormData(nextFinalPrescription);
                 }

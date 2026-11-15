@@ -132,6 +132,7 @@ export default function RegularOrderTab({
               onFinalPrescriptionChange(field as keyof FinalPrescriptionExam, value)
             }
             isEditing={isEditing}
+            prescriptionSource={(formData.client_id || currentClient?.id) ? { clientId: Number(formData.client_id || currentClient?.id), orderId: formData.id } : undefined}
           />
         </div>
 

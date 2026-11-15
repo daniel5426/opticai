@@ -35,3 +35,25 @@ test("a prescription at a glance, and in an order's shape", () => {
   expect(prescriptionAsOrder({ r_bc: 8.6 }, "contact")).toEqual({ order_data: { "contact-lens-exam": { r_bc: 8.6 } }, __contact: true });
   expect(prescriptionAsOrder({ r_sph: 1 }, "glasses")).toEqual({ order_data: { "final-prescription": { r_sph: 1 } } });
 });
+
+test("an order's card takes every field from the source, clearing what it lacks", async () => {
+  const { orderCardFill } = await import("@/lib/prescription-sources");
+  const glasses = orderCardFill({ order_data: { "final-prescription": { r_sph: -2, l_cyl: -0.5, r_pd: 31, comb_pd: 62, add_type: "רב מוקדי" } } } as any, "glasses")!;
+  expect(glasses).toMatchObject({ r_sph: "-2", l_cyl: "-0.5", r_pd_far: "31", comb_pd_far: "62", r_cyl: "", l_high: "", add_type: "רב מוקדי" });
+  const contact = orderCardFill(prescriptionAsOrder({ r_bc: 8.6, l_read_ad: 1.5 }, "contact"), "contact")!;
+  expect(contact).toMatchObject({ r_bc: "8.6", l_read_ad: "1.5", r_sph: "", comb_va: "" });
+  expect(orderCardFill({ order_data: { "final-prescription": {} } } as any, "glasses")).toBeNull();
+});
+
+test("an exam's additions come with its prescription, and a chosen glasses type fills ADD and its SPH", async () => {
+  const { orderCardFill, withAddition } = await import("@/lib/prescription-sources");
+  db.pages[9].instances[0].exam_data["addition-x"] = { r_read: 1, l_read: 1.25, r_int: 0.75 };
+  const [row] = await loadExamPrescriptions(5, "glasses");
+  expect(row.additions).toEqual({ read: { r_ad: 1, l_ad: 1.25 }, int: { r_ad: 0.75 } });
+
+  const near = withAddition(prescriptionAsOrder(row.prescription, "glasses"), "read", row.additions);
+  expect(orderCardFill(near, "glasses")).toMatchObject({ add_type: "read", r_ad: "1", l_ad: "1.25", r_sph: "-1", l_sph: "1.25", sph_add_type: "read", sph_add_source: "exam" });
+  // Bifocals keep the far SPH and only take the ADD.
+  const bifocal = withAddition(prescriptionAsOrder({ r_sph: -2 }, "glasses"), "bif", { bif: { r_ad: 2 } });
+  expect(orderCardFill(bifocal, "glasses")).toMatchObject({ add_type: "bif", r_ad: "2", r_sph: "-2" });
+});

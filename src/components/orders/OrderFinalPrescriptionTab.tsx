@@ -24,9 +24,16 @@ import {
   ORDER_GLASSES_TYPE_LABELS,
   ORDER_GLASSES_TYPES,
   isAdditionAddType,
+  isSphAddType,
   normalizeOrderGlassesType,
+  sphAdditionFor,
+  sphWithAddition,
+  sphWithoutAddition,
 } from "@/lib/addition-add-sources";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useAppLocale } from "@/localization/use-app-locale";
 import { getPrescriptionPowerWarningMessage } from "@/utils/optometry-utils";
+import { OrderPrescriptionSourceButton, type OrderPrescriptionSource } from "@/components/orders/OrderPrescriptionSourceButton";
 
 interface OrderFinalPrescriptionTabProps {
   finalPrescriptionData: FinalPrescriptionExam;
@@ -36,17 +43,32 @@ interface OrderFinalPrescriptionTabProps {
   ) => void;
   isEditing: boolean;
   hideEyeLabels?: boolean;
+  /** When set, a button beside the title fills the card from the client's earlier orders or exams. */
+  prescriptionSource?: OrderPrescriptionSource;
 }
+
+const toAdd = (value: unknown) => {
+  const number = parseFloat(String(value ?? ""));
+  return Number.isNaN(number) ? undefined : number;
+};
+const formatPower = (value: number) => `${value > 0 ? "+" : value < 0 ? "−" : ""}${Math.abs(value).toFixed(2)}`;
 
 export function OrderFinalPrescriptionTab({
   finalPrescriptionData,
   onFinalPrescriptionChange,
   isEditing,
   hideEyeLabels = false,
+  prescriptionSource,
 }: OrderFinalPrescriptionTabProps) {
   const { t } = useTranslation();
+  const { direction } = useAppLocale();
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
   const selectedAddType = normalizeOrderGlassesType(finalPrescriptionData.add_type) || "";
+  // Eyes whose SPH took the near or intermediate addition, as long as SPH still matches it.
+  const sphAdditions = (["R", "L"] as const).flatMap((eye) => {
+    const view = sphAdditionFor(finalPrescriptionData as Record<string, unknown>, eye);
+    return view ? [{ eye, view }] : [];
+  });
   const visibleAddTypeOptions = [...ORDER_GLASSES_TYPES];
 
   const { fieldWarnings, handleAxisChange, handleAxisBlur } = useAxisWarning(
@@ -152,6 +174,7 @@ export function OrderFinalPrescriptionTab({
   };
 
   const handleAddTypeChange = (value: string) => {
+    const current = dataRef.current as Record<string, unknown>;
     onFinalPrescriptionChange("add_type", value);
     const source = finalPrescriptionData.addition_add_sources?.[value];
     if (source?.r_ad !== undefined) {
@@ -160,6 +183,14 @@ export function OrderFinalPrescriptionTab({
     if (source?.l_ad !== undefined) {
       onFinalPrescriptionChange("l_ad", String(source.l_ad));
     }
+    // Near and intermediate glasses take their addition into SPH; other types get the far SPH back.
+    const restored = sphWithoutAddition(current);
+    const far = { ...current, ...(restored || {}) };
+    const addition = source ?? { r_ad: toAdd(current.r_ad), l_ad: toAdd(current.l_ad) };
+    const patch = (isSphAddType(value) && sphWithAddition(far, value, addition, Boolean(source))) || restored;
+    Object.entries(patch || {}).forEach(([field, fieldValue]) =>
+      onFinalPrescriptionChange(field as keyof FinalPrescriptionExam, fieldValue),
+    );
   };
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
@@ -217,6 +248,7 @@ export function OrderFinalPrescriptionTab({
           );
         }
         if (key === "sph") {
+          const sphAddition = sphAdditionFor(finalPrescriptionData as Record<string, unknown>, eye as "R" | "L");
           return (
             <ToggleTextNumberInput
               value={getFieldValue(eye, key)}
@@ -233,7 +265,7 @@ export function OrderFinalPrescriptionTab({
                 debounceMs: 0,
                 "aria-invalid": prescriptionAriaInvalid,
                 warningMessage: prescriptionWarningMessage,
-                className: `h-8 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:opacity-100 disabled:cursor-default`,
+                className: `h-8 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:opacity-100 disabled:cursor-default ${sphAddition ? "ring-1 ring-primary/25" : ""}`,
               }}
             />
           );
@@ -272,13 +304,13 @@ export function OrderFinalPrescriptionTab({
                 clearable={false}
               >
                 <SelectTrigger
-                  aria-label={t("orderGroupType")}
+                  aria-label={t("orderGlassesType")}
                   size="xs"
                   centered
                   hideIcon
-                  className="h-5 w-[58px] rounded-md px-1 py-0 text-center text-[10px] font-normal leading-none text-muted-foreground shadow-none disabled:cursor-default disabled:opacity-70 *:data-[slot=select-value]:justify-center *:data-[slot=select-value]:leading-none"
+                  className="h-5 w-auto min-w-[58px] rounded-md px-1.5 py-0 text-center text-[10px] font-normal leading-none text-muted-foreground shadow-none disabled:cursor-default disabled:opacity-70 *:data-[slot=select-value]:justify-center *:data-[slot=select-value]:leading-none"
                 >
-                  <SelectValue placeholder="" />
+                  <SelectValue placeholder={t("orderGlassesType")} />
                 </SelectTrigger>
                 <SelectContent align="start" sideOffset={4} className="min-w-[72px]">
                   {visibleAddTypeOptions.map((type) => (
@@ -294,8 +326,15 @@ export function OrderFinalPrescriptionTab({
               </Select>
             </div>
 
-            <div className="flex-1 text-center">
+            <div className="flex flex-1 items-center justify-center gap-1">
               <h3 className="font-medium text-muted-foreground">{t("orderWorkspace.prescription")}</h3>
+              {isEditing && prescriptionSource && (
+                <OrderPrescriptionSourceButton
+                  source={prescriptionSource}
+                  kind="glasses"
+                  onChange={(field, value) => onFinalPrescriptionChange(field as keyof FinalPrescriptionExam, value)}
+                />
+              )}
             </div>
           </div>
 
@@ -308,6 +347,41 @@ export function OrderFinalPrescriptionTab({
               <div key={key} className="flex h-4 items-center justify-center">
                 {key === "cyl" ? (
                   <CylTitle onTranspose={handleManualTranspose} disabled={!isEditing} />
+                ) : key === "sph" && sphAdditions.length ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span tabIndex={0} className="inline-flex cursor-help items-center gap-1 rounded-sm text-xs font-medium text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+                        {label}
+                        {/* Two segments, so "+ADD" and the Hebrew type never swap places. */}
+                        <span className="bg-primary text-primary-foreground inline-flex overflow-hidden rounded-full text-[9px] leading-[14px] font-semibold whitespace-nowrap shadow-xs">
+                          <span className="ps-1.5 pe-1">+ADD</span>
+                          <span className="border-primary-foreground/30 border-s ps-1 pe-1.5" dir="rtl">{ORDER_GLASSES_TYPE_LABELS[sphAdditions[0].view.type]}</span>
+                        </span>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" sideOffset={6} className="px-3 py-2.5 text-center" dir={direction}>
+                      <div className="font-medium">{t(sphAdditions[0].view.fromExam ? "orderSphAdditionTitleFromExam" : "orderSphAdditionTitle", { type: ORDER_GLASSES_TYPE_LABELS[sphAdditions[0].view.type] })}</div>
+                      {/* The sum reads left to right, with each number named above its column. */}
+                      <div className="mt-2 grid grid-cols-[auto_auto_auto_auto_auto_auto] items-center justify-items-center gap-x-2 gap-y-1 tabular-nums" dir="ltr">
+                        <span />
+                        <span className="text-[10px] opacity-60">{t("orderSphAdditionFar")}</span>
+                        <span />
+                        <span className="text-[10px] opacity-60">ADD {ORDER_GLASSES_TYPE_LABELS[sphAdditions[0].view.type]}</span>
+                        <span />
+                        <span className="text-[10px] font-medium opacity-80">{t("orderSphAdditionResult")}</span>
+                        {sphAdditions.map(({ eye, view }) => (
+                          <React.Fragment key={eye}>
+                            <span className="text-[11px] font-semibold opacity-60">{eye}</span>
+                            <span className="rounded bg-background/15 px-1.5 py-0.5">{formatPower(view.far)}</span>
+                            <span className="opacity-50">+</span>
+                            <span className="rounded bg-background/15 px-1.5 py-0.5">{formatPower(view.add)}</span>
+                            <span className="opacity-50">=</span>
+                            <span className="rounded bg-background px-1.5 py-0.5 font-semibold text-foreground">{formatPower(view.far + view.add)}</span>
+                          </React.Fragment>
+                        ))}
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
                 ) : (
                   <span className="text-center text-xs font-medium text-muted-foreground">
                     {key === "ad" && selectedAddType && isAdditionAddType(selectedAddType)
