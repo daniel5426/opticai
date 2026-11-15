@@ -1550,6 +1550,8 @@ class SubscriptionRefund(Base):
 # Validate company ownership for every ORM writer, including imports and workers.
 from services.company_record_ownership import install_ownership_validation
 install_ownership_validation()
+from services.calendar_revision import install_calendar_revision
+install_calendar_revision()
 
 # Messaging models share Base and are included in Alembic's schema metadata.
 import campaign_models
