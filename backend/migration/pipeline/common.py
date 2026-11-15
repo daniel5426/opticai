@@ -62,6 +62,7 @@ from models import (
     LookupContactLensType,
     LookupContactEyeLensType,
     LookupContactEyeMaterial,
+    LookupContactLensModel,
     LookupCleaningSolution,
     LookupDisinfectionSolution,
     LookupRinsingSolution,
@@ -230,10 +231,18 @@ MIGRATED_LAYOUT_COMPONENTS: List[str] = [
 ]
 
 
+# OpticSoft's export writes a line break inside a text as the literal codes \x0d\x0a.
+LEGACY_LINE_BREAK = re.compile(r"(?:\\x0[dD]\\x0[aA]|\\x0[dDaA])")
+
+
+def decode_legacy_line_breaks(text: str) -> str:
+    return LEGACY_LINE_BREAK.sub("\n", text)
+
+
 def clean_legacy_text(value: Optional[str]) -> Optional[str]:
     if value is None:
         return None
-    s = str(value).strip()
+    s = decode_legacy_line_breaks(str(value)).strip()
     if not s:
         return None
     if len(s) >= 2 and s[0] == "'" and s[-1] == "'":
@@ -1240,7 +1249,7 @@ def _get_str(expanded: Optional[Dict[str, Any]], row: Dict[str, Any], expanded_k
     value = _pick_value(expanded, row, expanded_keys, row_keys, filter_zero=filter_zero)
     if value is None:
         return None
-    return str(value)
+    return decode_legacy_line_breaks(str(value))
 
 
 def _get_float(expanded: Optional[Dict[str, Any]], row: Dict[str, Any], expanded_keys: Optional[List[str]] = None, row_keys: Optional[List[str]] = None) -> Optional[float]:

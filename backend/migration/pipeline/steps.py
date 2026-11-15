@@ -30,8 +30,10 @@ def migrate_lookups(db: Session, csv_dir: str, clinic_ids: List[int]):
         ("optic_tv_frame_model.csv", LookupFrameModel),
         ("optic_tv_frame_manuf.csv", LookupSupplier),  # frame suppliers, despite the name
         ("optic_tv_contact_type.csv", LookupContactLensType),
-        ("optic_tv_contact_model.csv", LookupContactEyeLensType),
-        ("optic_tv_contact_manuf.csv", LookupManufacturer),
+        # The contact lens order's model field reads the contact lens model lookup.
+        ("optic_tv_contact_model.csv", LookupContactLensModel),
+        # Contact lens orders store this as their lenses' supplier, so it belongs with the suppliers, not the frame brands.
+        ("optic_tv_contact_manuf.csv", LookupSupplier),
         ("optic_tv_contact_color.csv", LookupColor),
         ("optic_tv_contact_mater.csv", LookupContactEyeMaterial),
         ("optic_tv_clean_sol.csv", LookupCleaningSolution),
@@ -571,7 +573,7 @@ def migrate_clients_and_families(
             "file_creation_date": parse_date(r.get("open_date")),
             "occupation": r.get("occupation") or None,
             "status": None,
-            "notes": r.get("remarks") or None,
+            "notes": clean_legacy_text(r.get("remarks")),
             "file_location": r.get("file_location") or None,
             "family_id": head_to_family.get(str(r.get("head_of_family")).strip() if r.get("head_of_family") else None),
         }
@@ -886,7 +888,8 @@ def migrate_contact_lens_orders(
             skipped_count += 1
             continue
         clinic_id = resolve_migration_clinic_id(branch_to_clinic, r.get("branch_code"))
-        order_date = parse_date(r.get("presc_date"))
+        # OpticSoft keeps when the lenses were ordered apart from the prescription date; the order shows the former.
+        order_date = parse_date(r.get("order_date")) or parse_date(r.get("presc_date"))
         source_price_rows_to_trace: List[Tuple[Dict[str, Any], int]] = []
 
         supply_branch = clean_legacy_text(r.get("supply_branch"))
@@ -1086,7 +1089,7 @@ def migrate_contact_lens_orders(
                     total_after_discount=total_sum,
                     prepayment_amount=advance_sum,
                     installment_count=num_payments,
-                    notes=r.get("order_remarks") or None,
+                    notes=clean_legacy_text(r.get("order_remarks")),
                 )
                 db.add(billing)
                 db.flush()
@@ -1151,6 +1154,22 @@ def migrate_contact_lens_orders(
     db.commit()
     print(f"[cl_orders] inserted total: {count}, resumed: {resumed_count}, skipped: {skipped_count}, took {time.time()-t0:.2f}s", flush=True)
     return presc_code_to_order_id
+
+
+# OpticSoft's glasses function, as the order's glasses type. Sun and distance/reading glasses have no
+# single type, so they keep only the tab's name.
+SOFTOPTIC_GLASSES_TYPES = {
+    "מרחק": "far",
+    "רחוק": "far",
+    "קריאה": "read",
+    "קרוב": "read",
+    "מרחק ביניים": "int",
+    "ביניים": "int",
+    "מולטי פוקל": "mul",
+    "מולטיפוקל": "mul",
+    "ביפוקל": "bif",
+    "בי פוקל": "bif",
+}
 
 
 def migrate_regular_orders(
@@ -1241,6 +1260,9 @@ def migrate_regular_orders(
             "comb_pd_close": parse_float(r.get("pd_near")),
             "comb_high": None,
         }
+        glasses_type = SOFTOPTIC_GLASSES_TYPES.get(clean_legacy_text(r.get("glasses_function")) or "")
+        if glasses_type:
+            final_prescription["add_type"] = glasses_type
 
         lens_supplier = clean_legacy_text(r.get("lens_supplier"))
         lens_material = clean_legacy_text(r.get("lens_mater"))
@@ -1285,7 +1307,8 @@ def migrate_regular_orders(
             lens["warranty_expiration"] = warranty_expiration
             frame["warranty_expiration"] = warranty_expiration
 
-        notes = clean_legacy_text(r.get("order_remarks")) or clean_legacy_text(r.get("presc_remark"))
+        # The prescription remark is the note to the lab; it has its own field, so it is not repeated in the notes.
+        notes = clean_legacy_text(r.get("order_remarks"))
         lens_order_notes = clean_legacy_text(r.get("presc_remark"))
         supply_branch = clean_legacy_text(r.get("supply_branch"))
         details = {
@@ -1548,8 +1571,8 @@ def enrich_from_contact_lens_chk(
 
             if eye == "R":
                 exam_block.update({
-                    "r_bc": r.get("lens_bc_1") or exam_block.get("r_bc"),
-                    "r_bc_2": r.get("lens_bc_2") or exam_block.get("r_bc_2"),
+                    "r_bc": parse_softoptic_bc(r.get("lens_bc_1")) or exam_block.get("r_bc"),
+                    "r_bc_2": parse_softoptic_bc(r.get("lens_bc_2")) or exam_block.get("r_bc_2"),
                     "r_diam": parse_float(r.get("lens_diam")) if exam_block.get("r_diam") is None else exam_block.get("r_diam"),
                     "r_sph": parse_float(r.get("lens_sph")) if exam_block.get("r_sph") is None else exam_block.get("r_sph"),
                     "r_cyl": parse_float(r.get("lens_cyl")) if exam_block.get("r_cyl") is None else exam_block.get("r_cyl"),
@@ -1565,8 +1588,8 @@ def enrich_from_contact_lens_chk(
                     details_block["r_supplier"] = r.get("lens_supplier") or None
             elif eye == "L":
                 exam_block.update({
-                    "l_bc": r.get("lens_bc_1") or exam_block.get("l_bc"),
-                    "l_bc_2": r.get("lens_bc_2") or exam_block.get("l_bc_2"),
+                    "l_bc": parse_softoptic_bc(r.get("lens_bc_1")) or exam_block.get("l_bc"),
+                    "l_bc_2": parse_softoptic_bc(r.get("lens_bc_2")) or exam_block.get("l_bc_2"),
                     "l_diam": parse_float(r.get("lens_diam")) if exam_block.get("l_diam") is None else exam_block.get("l_diam"),
                     "l_sph": parse_float(r.get("lens_sph")) if exam_block.get("l_sph") is None else exam_block.get("l_sph"),
                     "l_cyl": parse_float(r.get("lens_cyl")) if exam_block.get("l_cyl") is None else exam_block.get("l_cyl"),
@@ -1637,7 +1660,7 @@ def migrate_referrals(db: Session, csv_dir: str, account_to_client: Dict[str, in
         clinic_id = resolve_migration_clinic_id(branch_to_clinic, r.get("branch_code"))
         date = parse_date(r.get("reference_date"))
         recipient = r.get("address_to") or None
-        notes = r.get("reference_remark") or None
+        notes = clean_legacy_text(r.get("reference_remark"))
 
         presc_code = str(r.get("presc_code")) if r.get("presc_code") else None
         prescription_notes = "; ".join(presc_map[presc_code]) if presc_code and presc_code in presc_map else None
@@ -1753,7 +1776,7 @@ def migrate_files(
         else:
             # Use the original code as fallback if description is missing
             file_name = f"legacy-file-{r.get('code', 'unknown')}"
-        notes = r.get("file_remark") or None
+        notes = clean_legacy_text(r.get("file_remark"))
         file_code = clean_legacy_text(r.get("code")) or file_name
         saved_path, file_size, file_type, saved_name = write_legacy_blob_file(
             file_code,

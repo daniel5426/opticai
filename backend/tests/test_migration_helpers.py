@@ -22,6 +22,7 @@ from backend.models import (
     LookupColor,
     LookupManufacturer,
     LookupSupplier,
+    LookupContactLensModel,
     MedicalLog,
     OpticalExam,
     Order,
@@ -695,6 +696,122 @@ def test_migrate_lookups_imports_into_selected_clinic(tmp_path):
         assert db.query(LookupColor).filter_by(clinic_id=other.id, name="Blue").count() == 0
 
 
+def test_regular_order_keeps_opticsoft_glasses_type_and_lab_note_in_their_fields(tmp_path):
+    with (tmp_path / "optic_glasses_presc.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["code", "account_code", "branch_code", "presc_date", "glasses_function", "presc_remark", "order_remarks"])
+        writer.writeheader()
+        writer.writerow({"code": "1", "account_code": "101", "branch_code": "A", "presc_date": "2026-06-01", "glasses_function": "קריאה", "presc_remark": "לחצי שנה\\x0d\\x0a640", "order_remarks": ""})
+        writer.writerow({"code": "2", "account_code": "101", "branch_code": "A", "presc_date": "2026-06-02", "glasses_function": "שמש", "presc_remark": "", "order_remarks": "הערה"})
+
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base.metadata.create_all(bind=engine)
+
+    with SessionLocal() as db:
+        company = Company(name="A", owner_full_name="Owner A")
+        db.add(company)
+        db.flush()
+        clinic = Clinic(company_id=company.id, name="A", unique_id="a")
+        db.add(clinic)
+        db.flush()
+        user = User(company_id=company.id, clinic_id=clinic.id, username="admin", role_level=4, is_active=True)
+        client = Client(company_id=company.id, clinic_id=clinic.id, first_name="A")
+        db.add_all([user, client])
+        db.commit()
+
+        migration.migrate_regular_orders(db, str(tmp_path), {"101": client.id}, {"A": clinic.id}, user.id)
+
+        reading, sun = [order.order_data for order in db.query(Order).order_by(Order.order_date)]
+        assert reading["final-prescription"]["add_type"] == "read"
+        # The lab note goes to the lab note field only, with its line break.
+        assert reading["details"]["lens_order_notes"] == "לחצי שנה\n640"
+        assert reading["details"]["notes"] is None
+        # Sun glasses have no glasses type; the tab keeps OpticSoft's name.
+        assert "add_type" not in sun.get("final-prescription", {})
+        assert sun["lens_frame_tabs"][0]["type"] == "שמש"
+        assert sun["details"]["notes"] == "הערה"
+
+
+def test_migrate_lookups_puts_contact_lens_models_in_the_contact_lens_model_list(tmp_path):
+    with (tmp_path / "optic_tv_contact_model.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["name"])
+        writer.writeheader()
+        writer.writerow({"name": "Acuvue Oasys"})
+
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base.metadata.create_all(bind=engine)
+
+    with SessionLocal() as db:
+        company = Company(name="A", owner_full_name="Owner A")
+        db.add(company)
+        db.flush()
+        clinic = Clinic(company_id=company.id, name="A", unique_id="a")
+        db.add(clinic)
+        db.commit()
+
+        migration.migrate_lookups(db, str(tmp_path), [clinic.id])
+
+        assert [name for (name,) in db.query(LookupContactLensModel.name).filter_by(clinic_id=clinic.id)] == ["Acuvue Oasys"]
+
+
+def test_lens_check_reads_bc_with_opticsoft_implied_point(tmp_path):
+    with (tmp_path / "optic_contact_lens_chk.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["account_code", "contact_presc_code", "tested_eye", "lens_bc_1", "lens_bc_2"])
+        writer.writeheader()
+        writer.writerow({"account_code": "101", "contact_presc_code": "7", "tested_eye": "R", "lens_bc_1": "84", "lens_bc_2": ""})
+        writer.writerow({"account_code": "101", "contact_presc_code": "7", "tested_eye": "L", "lens_bc_1": "765", "lens_bc_2": ""})
+
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base.metadata.create_all(bind=engine)
+
+    with SessionLocal() as db:
+        company = Company(name="A", owner_full_name="Owner A")
+        db.add(company)
+        db.flush()
+        clinic = Clinic(company_id=company.id, name="A", unique_id="a")
+        db.add(clinic)
+        db.flush()
+        client = Client(company_id=company.id, clinic_id=clinic.id, first_name="A")
+        db.add(client)
+        db.flush()
+        order = ContactLensOrder(client_id=client.id, company_id=company.id, clinic_id=clinic.id, order_data={})
+        db.add(order)
+        db.commit()
+
+        migration.enrich_from_contact_lens_chk(db, str(tmp_path), {"101": client.id}, {"7": order.id})
+
+        exam = db.get(ContactLensOrder, order.id).order_data["contact-lens-exam"]
+        assert (exam["r_bc"], exam["l_bc"]) == (8.4, 7.65)
+
+
+def test_migrate_lookups_puts_contact_lens_suppliers_with_the_suppliers(tmp_path):
+    for filename, name in (("optic_tv_contact_manuf.csv", "Bausch"), ("optic_tv_lens_supplier.csv", "Shamir")):
+        with (tmp_path / filename).open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=["name"])
+            writer.writeheader()
+            writer.writerow({"name": name})
+
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base.metadata.create_all(bind=engine)
+
+    with SessionLocal() as db:
+        company = Company(name="A", owner_full_name="Owner A")
+        db.add(company)
+        db.flush()
+        clinic = Clinic(company_id=company.id, name="A", unique_id="a")
+        db.add(clinic)
+        db.commit()
+
+        migration.migrate_lookups(db, str(tmp_path), [clinic.id])
+
+        # The contact lens supplier field reads the supplier lookup, not the frame brands.
+        assert sorted(name for (name,) in db.query(LookupSupplier.name).filter_by(clinic_id=clinic.id)) == ["Bausch", "Shamir"]
+        assert db.query(LookupManufacturer).filter_by(clinic_id=clinic.id, name="Bausch").count() == 0
+
+
 def test_migrate_medical_logs_skips_empty_memos_and_uses_note_text(tmp_path):
     csv_path = tmp_path / "account_memos.csv"
     with csv_path.open("w", newline="", encoding="utf-8") as handle:
@@ -1168,6 +1285,35 @@ def test_contact_order_migrates_type_aliases_price_rows_and_installments(tmp_pat
         assert line_item.sku == "8"
         assert line_item.description == "מצמנהנצתיטוא"
         assert line_item.price == 221.0
+
+
+def test_contact_order_is_dated_when_it_was_ordered(tmp_path):
+    with (tmp_path / "optic_contact_presc.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["code", "account_code", "branch_code", "presc_date", "order_date"])
+        writer.writeheader()
+        writer.writerow({"code": "1", "account_code": "101", "branch_code": "A", "presc_date": "2000-02-20", "order_date": "2001-02-13"})
+        writer.writerow({"code": "2", "account_code": "101", "branch_code": "A", "presc_date": "2003-05-01", "order_date": ""})
+
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base.metadata.create_all(bind=engine)
+
+    with SessionLocal() as db:
+        company = Company(name="A", owner_full_name="Owner A")
+        db.add(company)
+        db.flush()
+        clinic = Clinic(company_id=company.id, name="A", unique_id="a")
+        db.add(clinic)
+        db.flush()
+        user = User(company_id=company.id, clinic_id=clinic.id, username="admin", role_level=4, is_active=True)
+        client = Client(company_id=company.id, clinic_id=clinic.id, first_name="A")
+        db.add_all([user, client])
+        db.commit()
+
+        migration.migrate_contact_lens_orders(db, str(tmp_path), {"101": client.id}, {"A": clinic.id}, user.id)
+
+        # The order date, or the prescription date when OpticSoft has none.
+        assert sorted(str(order.order_date) for order in db.query(ContactLensOrder)) == ["2001-02-13", "2003-05-01"]
 
 
 def test_contact_order_without_billing_data_does_not_require_price_trace(tmp_path):
