@@ -24,6 +24,7 @@ import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels";
 import { useUser } from "@/contexts/UserContext";
 import { useAppLocale } from "@/localization/use-app-locale";
 import { useTranslation } from "react-i18next";
+import { TeamHoursDashboard } from "@/components/attendance/TeamHoursDashboard";
 
 type WorkerStats = {
   totalShifts: number;
@@ -430,6 +431,11 @@ export default function WorkerStatsPage() {
               </CardContent>
             </Card>
           ) : (
+            <>
+            {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && users.length > 1 && (
+              <TeamHoursDashboard users={users} canEditShifts={canEditShifts} />
+            )}
+            <div>
             <Tabs
               value={effectiveSelectedUserId?.toString()}
               onValueChange={(value) => setSelectedUserId(Number(value))}
@@ -762,6 +768,8 @@ export default function WorkerStatsPage() {
                 </TabsList>
               </div>
             </Tabs>
+            </div>
+            </>
           )}
         </div>
       </div>
