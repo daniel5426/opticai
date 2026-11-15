@@ -370,7 +370,7 @@ export const EXAM_FIELDS = {
   CONTACT_LENS_SUPPLIER: {
     label: "ספק",
     type: "text",
-    lookupType: "supplier",
+    lookupType: "contactLensSupplier",
   } as FieldConfig,
   CONTACT_LENS_MATERIAL: {
     label: "חומר",
@@ -380,7 +380,7 @@ export const EXAM_FIELDS = {
   CONTACT_LENS_COLOR: {
     label: "צבע",
     type: "text",
-    lookupType: "color",
+    lookupType: "contactLensColor",
   } as FieldConfig,
   CONTACT_LENS_QUANTITY: {
     label: "כמות",

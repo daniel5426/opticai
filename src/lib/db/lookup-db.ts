@@ -447,6 +447,26 @@ export async function deleteLookupVADecimal(id: number): Promise<boolean> {
   return deleteLookupItem('va-decimal', id);
 }
 
+/**
+ * A frame or contact lens list split from a shared one. Until a server has the split list
+ * (migration 0069), it reads the shared list, so the field keeps its options.
+ */
+function makeSplitLookupTable<T>(tableName: string, displayName: string, sharedTableName: string) {
+  return {
+    ...makeLookupTable<T>(tableName, displayName),
+    getAll: async (clinicId?: number) => {
+      if (!clinicId) return [];
+      try {
+        const response = await apiClient.getLookupTable(tableName, clinicId);
+        if (!response.error) return (response.data as T[]) || [];
+      } catch {
+        // Fall through to the shared list.
+      }
+      return getLookupItems<T>(sharedTableName, clinicId);
+    },
+  };
+}
+
 function makeLookupTable<T>(tableName: string, displayName: string) {
   return {
     getAll: (clinicId?: number) => getLookupItems<T>(tableName, clinicId),
@@ -459,8 +479,16 @@ function makeLookupTable<T>(tableName: string, displayName: string) {
 
 export const lookupTables = {
   supplier: {
-    ...makeLookupTable<LookupSupplier>('suppliers', 'ספקים'),
-    displayName: 'ספקים'
+    ...makeLookupTable<LookupSupplier>('suppliers', 'ספקי עדשות'),
+    displayName: 'ספקי עדשות'
+  },
+  frameSupplier: {
+    ...makeSplitLookupTable<LookupSupplier>('frame-suppliers', 'ספקי מסגרות', 'suppliers'),
+    displayName: 'ספקי מסגרות'
+  },
+  contactLensSupplier: {
+    ...makeSplitLookupTable<LookupSupplier>('contact-lens-suppliers', 'ספקי עדשות מגע', 'suppliers'),
+    displayName: 'ספקי עדשות מגע'
   },
   clinic: {
     ...makeLookupTable<LookupClinic>('clinics', 'מרפאות/סניפים'),
@@ -479,8 +507,16 @@ export const lookupTables = {
     displayName: 'דגמי עדשות'
   },
   color: {
-    ...makeLookupTable<LookupColor>('colors', 'צבעים'),
-    displayName: 'צבעים'
+    ...makeLookupTable<LookupColor>('colors', 'צבעי עדשות'),
+    displayName: 'צבעי עדשות'
+  },
+  frameColor: {
+    ...makeSplitLookupTable<LookupColor>('frame-colors', 'צבעי מסגרות', 'colors'),
+    displayName: 'צבעי מסגרות'
+  },
+  contactLensColor: {
+    ...makeSplitLookupTable<LookupColor>('contact-lens-colors', 'צבעי עדשות מגע', 'colors'),
+    displayName: 'צבעי עדשות מגע'
   },
   material: {
     ...makeLookupTable<LookupMaterial>('materials', 'חומרים'),

@@ -28,13 +28,13 @@ def migrate_lookups(db: Session, csv_dir: str, clinic_ids: List[int]):
         ("optic_tv_lens_color.csv", LookupColor),
         ("optic_tv_lens_coat.csv", LookupCoating),
         ("optic_tv_frame_model.csv", LookupFrameModel),
-        ("optic_tv_frame_manuf.csv", LookupSupplier),  # frame suppliers, despite the name
+        ("optic_tv_frame_manuf.csv", LookupFrameSupplier),  # frame suppliers, despite the name
         ("optic_tv_contact_type.csv", LookupContactLensType),
         # The contact lens order's model field reads the contact lens model lookup.
         ("optic_tv_contact_model.csv", LookupContactLensModel),
-        # Contact lens orders store this as their lenses' supplier, so it belongs with the suppliers, not the frame brands.
-        ("optic_tv_contact_manuf.csv", LookupSupplier),
-        ("optic_tv_contact_color.csv", LookupColor),
+        # Contact lens orders store this as their lenses' supplier, not a frame brand.
+        ("optic_tv_contact_manuf.csv", LookupContactLensSupplier),
+        ("optic_tv_contact_color.csv", LookupContactLensColor),
         ("optic_tv_contact_mater.csv", LookupContactEyeMaterial),
         ("optic_tv_clean_sol.csv", LookupCleaningSolution),
         ("optic_tv_dis_sol.csv", LookupDisinfectionSolution),
@@ -59,6 +59,10 @@ def migrate_lookups(db: Session, csv_dir: str, clinic_ids: List[int]):
     brand_names = frame_brand_lookup_names(brand_counts)
     print(f"[lookups] optic_glasses_presc.csv frame brands: {len(brand_names)}", flush=True)
     lookup_names.append((LookupManufacturer, brand_names))
+    # OpticSoft has no frame color table either; the orders' frame colors fill that list.
+    frame_colors = sorted({clean_legacy_text(r.get("frame_color")) for r in read_csv_streaming(csv_dir, "optic_glasses_presc.csv")} - {None})
+    print(f"[lookups] optic_glasses_presc.csv frame colors: {len(frame_colors)}", flush=True)
+    lookup_names.append((LookupFrameColor, frame_colors))
     # Active OpticSoft workers are the order advisors ("יועץ").
     advisor_names = sorted(set(_build_account_name_map(csv_dir, "WORK", active_only=True).values()))
     print(f"[lookups] account.csv WORK advisors: {len(advisor_names)}", flush=True)

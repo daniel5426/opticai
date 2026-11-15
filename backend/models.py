@@ -1287,7 +1287,16 @@ class ClinicScopedLookupMixin:
 
 
 class LookupSupplier(ClinicScopedLookupMixin, Base):
+    """Glasses lens suppliers; frames and contact lenses have their own lists."""
     __tablename__ = "lookup_supplier"
+
+
+class LookupFrameSupplier(ClinicScopedLookupMixin, Base):
+    __tablename__ = "lookup_frame_supplier"
+
+
+class LookupContactLensSupplier(ClinicScopedLookupMixin, Base):
+    __tablename__ = "lookup_contact_lens_supplier"
 
 
 class LookupClinic(ClinicScopedLookupMixin, Base):
@@ -1307,7 +1316,16 @@ class LookupLensModel(ClinicScopedLookupMixin, Base):
 
 
 class LookupColor(ClinicScopedLookupMixin, Base):
+    """Glasses lens colors; frames and contact lenses have their own lists."""
     __tablename__ = "lookup_color"
+
+
+class LookupFrameColor(ClinicScopedLookupMixin, Base):
+    __tablename__ = "lookup_frame_color"
+
+
+class LookupContactLensColor(ClinicScopedLookupMixin, Base):
+    __tablename__ = "lookup_contact_lens_color"
 
 
 class LookupMaterial(ClinicScopedLookupMixin, Base):

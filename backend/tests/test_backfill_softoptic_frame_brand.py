@@ -21,7 +21,7 @@ from models import (
     Clinic,
     Company,
     LookupManufacturer,
-    LookupSupplier,
+    LookupFrameSupplier,
     MigrationSourceLink,
     Order,
     OrderLineItem,
@@ -103,7 +103,7 @@ def test_moves_frame_suppliers_to_the_supplier_lookup(tmp_path, monkeypatch):
         LookupManufacturer(clinic_id=job.clinic_id, name=name)
         for name in ("18 פייר מרקטינג", "26 ריסלי", "Shared", "Hand added")
     ])
-    db.add(LookupSupplier(clinic_id=job.clinic_id, name="26 ריסלי"))
+    db.add(LookupFrameSupplier(clinic_id=job.clinic_id, name="26 ריסלי"))
     db.flush()
     imported = db.query(LookupManufacturer).filter_by(clinic_id=job.clinic_id, name="18 פייר מרקטינג").one()
     db.add(MigrationSourceLink(
@@ -117,7 +117,7 @@ def test_moves_frame_suppliers_to_the_supplier_lookup(tmp_path, monkeypatch):
     db.commit()
 
     names = lambda model: sorted(name for (name,) in db.query(model.name).filter_by(clinic_id=job.clinic_id))
-    assert names(LookupSupplier) == ["18 פייר מרקטינג", "26 ריסלי", "Shared"]
+    assert names(LookupFrameSupplier) == ["18 פייר מרקטינג", "26 ריסלי", "Shared"]
     # A contact lens manufacturer and a name added by hand stay; the brands the orders use are added.
     assert names(LookupManufacturer) == ["26 ריסלי", "GIPSY", "Hand added", "Shared"]
     assert plan_lookups(db, job, str(tmp_path)) == {"add_suppliers": [], "add_brands": [], "remove_brands": []}

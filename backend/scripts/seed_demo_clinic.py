@@ -71,6 +71,8 @@ from models import (  # noqa: E402
     LookupClinic,
     LookupCoating,
     LookupColor,
+    LookupFrameColor,
+    LookupContactLensColor,
     LookupContactEyeLensType,
     LookupContactEyeMaterial,
     LookupContactLensModel,
@@ -84,6 +86,8 @@ from models import (  # noqa: E402
     LookupOrderType,
     LookupRinsingSolution,
     LookupSupplier,
+    LookupFrameSupplier,
+    LookupContactLensSupplier,
     LookupVADecimal,
     LookupVAMeter,
     MedicalLog,
@@ -272,13 +276,15 @@ def _utc_at(day: date, hour: int = 10) -> datetime:
 
 
 LOOKUP_SEEDS: dict[type[Any], tuple[str, ...]] = {
-    LookupSupplier: FRAME_SUPPLIERS + CONTACT_SUPPLIERS + (
-        "EssilorLuxottica", "Zeiss Vision Care", "Hoya Vision Care", "Shamir Optical", "Younger Optics",
-    ),
+    LookupSupplier: ("EssilorLuxottica", "Zeiss Vision Care", "Hoya Vision Care", "Shamir Optical", "Younger Optics"),
+    LookupFrameSupplier: FRAME_SUPPLIERS,
+    LookupContactLensSupplier: CONTACT_SUPPLIERS,
     LookupClinic: ("Midtown", "Optical Lab", "Contact Lens Desk"),
     LookupOrderType: ORDER_TYPES + ("Contact Lens Supply",),
     LookupLensModel: ("Varilux XR", "SmartLife Individual 3", "Eyezen Start", "DriveSafe"),
-    LookupColor: ("Tortoise", "Matte Black", "Crystal", "Olive", "Rose Gold", "Navy"),
+    LookupColor: ("Clear", "Brown Gradient", "Grey Polarized", "Photochromic Grey"),
+    LookupFrameColor: ("Tortoise", "Matte Black", "Crystal", "Olive", "Rose Gold", "Navy"),
+    LookupContactLensColor: ("Clear", "Blue Tint", "Gemstone Green"),
     LookupMaterial: ("Acetate", "Titanium", "Stainless Steel", "Memory Metal", "Nylon", "O Matter", "Silicone Hydrogel", "Hyper-Gel"),
     LookupCoating: ("Crizal Sapphire HR", "DuraVision Platinum", "BlueGuard", "Polarized"),
     LookupManufacturer: tuple(dict.fromkeys(item[0] for item in FRAME_CATALOG + CONTACT_CATALOG)),

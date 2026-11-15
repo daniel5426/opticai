@@ -24,10 +24,10 @@ import { OrderField, OrderSection, OrderSegmented } from "../layout/OrderSheet";
 import { SUPPLIED_BY_CUSTOMER, SUPPLIED_BY_STORE, type Frame } from "./types";
 
 const CATALOG_FIELDS: { field: FrameCatalogField; label: string; lookupType: string; lookupLabel: string }[] = [
-  { field: "supplier", label: "supplier", lookupType: "supplier", lookupLabel: "lookupSuppliers" },
+  { field: "supplier", label: "supplier", lookupType: "frameSupplier", lookupLabel: "lookupFrameSuppliers" },
   { field: "manufacturer", label: "brand", lookupType: "manufacturer", lookupLabel: "lookupBrands" },
   { field: "model", label: "model", lookupType: "frameModel", lookupLabel: "lookupFrameModels" },
-  { field: "color", label: "color", lookupType: "color", lookupLabel: "lookupColors" },
+  { field: "color", label: "color", lookupType: "frameColor", lookupLabel: "lookupFrameColors" },
 ];
 
 const MEASUREMENT_FIELDS: { field: "width" | "bridge" | "height" | "length"; label: string }[] = [

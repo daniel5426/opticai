@@ -6,7 +6,8 @@ A value is swapped only while it still equals the column the older import read i
 edited since the import is left alone.
 
 The lookups are name lists that orders do not point at. The frame suppliers (OpticSoft's
-optic_tv_frame_manuf, read from the import's export bundle) are added to the supplier lookup.
+optic_tv_frame_manuf, read from the import's export bundle) are added to the frame supplier lookup
+(migration 0069).
 Only brand rows recorded as created by this import can be removed. Names used for contact lenses
 or as frame brands stay. The brands the orders use often enough are added to the brand lookup.
 
@@ -33,7 +34,7 @@ from migration.pipeline.steps import frame_brand_lookup_names
 from models import (
     Billing,
     LookupManufacturer,
-    LookupSupplier,
+    LookupFrameSupplier,
     MigrationSourceLink,
     Order,
     OrderLineItem,
@@ -142,7 +143,7 @@ def plan_lookups(db, job: SoftOpticMigrationJob, csv_dir: str) -> Dict[str, List
     def existing(model) -> Set[str]:
         return {name for (name,) in db.query(model.name).filter(model.clinic_id == job.clinic_id)}
 
-    current_suppliers, current_brands = existing(LookupSupplier), existing(LookupManufacturer)
+    current_suppliers, current_brands = existing(LookupFrameSupplier), existing(LookupManufacturer)
     imported_brands = {
         name for (name,) in db.query(LookupManufacturer.name).filter(
             LookupManufacturer.clinic_id == job.clinic_id,
@@ -157,7 +158,7 @@ def plan_lookups(db, job: SoftOpticMigrationJob, csv_dir: str) -> Dict[str, List
 
 
 def apply_lookups(db, job: SoftOpticMigrationJob, lookups: Dict[str, List[str]]) -> None:
-    db.add_all(LookupSupplier(clinic_id=job.clinic_id, name=name) for name in lookups["add_suppliers"])
+    db.add_all(LookupFrameSupplier(clinic_id=job.clinic_id, name=name) for name in lookups["add_suppliers"])
     db.add_all(LookupManufacturer(clinic_id=job.clinic_id, name=name) for name in lookups["add_brands"])
     if lookups["remove_brands"]:
         db.query(LookupManufacturer).filter(
