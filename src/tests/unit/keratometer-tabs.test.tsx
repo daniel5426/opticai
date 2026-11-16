@@ -1,9 +1,10 @@
 import React, { useState } from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test } from "vitest";
 import { KeratometerTab } from "@/components/exam/KeratometerTab";
 import { KeratometerContactLensTab } from "@/components/exam/KeratometerContactLensTab";
+import { inputSyncManager } from "@/components/exam/shared/OptimizedInputs";
 import { KeratometerExam, KeratometerContactLens } from "@/lib/db/schema-interface";
 
 function KeratometerHarness() {
@@ -89,6 +90,20 @@ describe("keratometer unit toggles", () => {
 
     await waitFor(() => {
       expect(inputs[0]).toHaveValue("39.25");
+    });
+  });
+
+  test("fills AVG and CYL from the two contact lens readings", async () => {
+    const { container } = render(<KeratometerContactLensHarness />);
+    const inputs = container.querySelectorAll("input");
+
+    fireEvent.input(inputs[0], { target: { value: "7.02" } });
+    fireEvent.input(inputs[1], { target: { value: "7.18" } });
+    act(() => inputSyncManager.flush());
+
+    await waitFor(() => {
+      expect(inputs[2]).toHaveValue("7.10");
+      expect(inputs[3]).toHaveValue("1.07");
     });
   });
 });

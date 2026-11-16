@@ -58,3 +58,25 @@ export function convertKeratometerValue(value: string | number, targetUnit: Kera
 
   return roundedValue.toFixed(2);
 }
+
+function toKeratometerNumber(value: string | number | undefined | null): number | null {
+  if (value === undefined || value === null || value === "") return null;
+  const numericValue = typeof value === "number" ? value : parseFloat(String(value).replace(",", "."));
+  return Number.isFinite(numericValue) && numericValue > 0 ? numericValue : null;
+}
+
+/** AVG of the two readings, and the corneal cylinder: the power difference between them in diopters. */
+export function deriveKeratometerAvgAndCyl(
+  rh: string | number | undefined | null,
+  rv: string | number | undefined | null,
+  unit: KeratometerUnit,
+): { avg: string; cyl: string } | null {
+  const h = toKeratometerNumber(rh);
+  const v = toKeratometerNumber(rv);
+  if (h === null || v === null) return null;
+  const toDiopters = (reading: number) => (unit === "mm" ? KERATOMETER_CONVERSION_NUMERATOR / reading : reading);
+  return {
+    avg: ((h + v) / 2).toFixed(2),
+    cyl: Math.abs(toDiopters(h) - toDiopters(v)).toFixed(2),
+  };
+}
