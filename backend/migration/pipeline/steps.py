@@ -1658,7 +1658,7 @@ def referral_compact_prescription(r: Dict[str, Any]) -> Dict[str, Any]:
         "r_pd": parse_float(r.get("right_pd")),
         "l_pd": parse_float(r.get("left_pd")),
         "comb_va": parse_visual_acuity(r.get("mid_va")),
-        "comb_pd": parse_float(r.get("pd_far")),
+        "comb_pd": parse_float(r.get("pd_near")),  # OpticSoft's pd_near is the far PD
     }
     return {key: value for key, value in values.items() if value is not None}
 

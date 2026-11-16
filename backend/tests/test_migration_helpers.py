@@ -1516,9 +1516,9 @@ def test_referral_keeps_its_opticsoft_notes_and_prescription(tmp_path):
         writer.writerow({"code": "7", "account_code": "101", "branch_code": "A", "reference_date": "2026-06-01", "address_to": "ד\"ר כהן", "reference_remark": "חשד לגלאוקומה", "presc_code": "55"})
         writer.writerow({"code": "8", "account_code": "101", "branch_code": "A", "reference_date": "2026-06-02", "address_to": "", "reference_remark": "", "presc_code": ""})
     with (tmp_path / "optic_glasses_presc.csv").open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=["code", "account_code", "right_sph", "right_cyl", "right_ax", "right_read", "left_sph", "left_cyl", "left_ax", "left_read", "pd_far"])
+        writer = csv.DictWriter(handle, fieldnames=["code", "account_code", "right_sph", "right_cyl", "right_ax", "right_read", "left_sph", "left_cyl", "left_ax", "left_read", "pd_near", "pd_far"])
         writer.writeheader()
-        writer.writerow({"code": "55", "account_code": "101", "right_sph": "-0525", "right_cyl": "-0150", "right_ax": "90", "right_read": "2.00", "left_sph": "Plano", "left_cyl": "-0075", "left_ax": "180", "left_read": "2.00", "pd_far": "63"})
+        writer.writerow({"code": "55", "account_code": "101", "right_sph": "-0525", "right_cyl": "-0150", "right_ax": "90", "right_read": "2.00", "left_sph": "Plano", "left_cyl": "-0075", "left_ax": "180", "left_read": "2.00", "pd_near": "63", "pd_far": "60"})
         writer.writerow({"code": "56", "account_code": "101", "right_sph": "+0100"})
 
     engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
