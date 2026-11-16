@@ -1260,8 +1260,10 @@ def migrate_regular_orders(
             "r_diam": parse_softoptic_lens_diameter(r.get("right_diam")),
             "l_diam": parse_softoptic_lens_diameter(r.get("left_diam")),
             "comb_va": parse_visual_acuity(r.get("mid_va")),
-            "comb_pd": parse_float(r.get("pd_far")),
-            "comb_pd_close": parse_float(r.get("pd_near")),
+            # OpticSoft's combined PD columns are named the other way round: pd_near holds the
+            # far PD (it equals right_pd + left_pd) and pd_far holds the near PD. Exams map them the same way.
+            "comb_pd_far": parse_float(r.get("pd_near")),
+            "comb_pd_close": parse_float(r.get("pd_far")),
             "comb_high": None,
         }
         glasses_type = SOFTOPTIC_GLASSES_TYPES.get(clean_legacy_text(r.get("glasses_function")) or "")
