@@ -219,11 +219,14 @@ export default function ControlCenterPage() {
                     onToggleMode={() => window.electronAPI.openExternalAuthUrl("https://prysm.co.il/pricing")}
                   />
                 )}
-                <div className="bg-muted relative hidden md:block">
+                {/* The banner's own background color fills the space around the whole, uncropped picture. */}
+                <div className="relative hidden overflow-hidden bg-[#ecf5fe] md:block dark:brightness-[0.2] dark:grayscale">
                   <img
                     src={loginBanner}
                     alt="Image"
-                    className="absolute inset-0 h-full w-full object-cover object-[center_10%] dark:brightness-[0.2] dark:grayscale"
+                    className="absolute inset-0 h-full w-full object-contain"
+                    // The drawing fills about two-thirds of the image, right of center: enlarge it and center it.
+                    style={{ transform: "translate(-11.8%, 2.2%) scale(1.3)" }}
                   />
                 </div>
               </CardContent>
