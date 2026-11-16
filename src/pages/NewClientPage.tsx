@@ -10,6 +10,7 @@ import { useUser } from "@/contexts/UserContext"
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
 import { useUnsavedChanges } from "@/hooks/shared/useUnsavedChanges"
 import { serializeClientDraftForUnsavedChanges } from "@/lib/client-details-editor"
+import { todayIsoDate } from "@/lib/iso-date"
 
 export default function NewClientPage() {
   const navigate = useNavigate()
@@ -20,7 +21,7 @@ export default function NewClientPage() {
     blocked_credit: false,
     send_notifications: false,
     discount_percent: 0,
-    file_creation_date: new Date().toISOString().split('T')[0]
+    file_creation_date: todayIsoDate()
   } as Client)
   const [isSaving, setIsSaving] = useState(false)
   const isSavingRef = useRef(false)
@@ -80,7 +81,7 @@ export default function NewClientPage() {
     const clientData = {
       ...latestFormData,
       clinic_id: currentClinic?.id,
-      file_creation_date: new Date().toISOString().split('T')[0]
+      file_creation_date: latestFormData.file_creation_date || todayIsoDate()
     }
 
     let shouldResetSaving = true
