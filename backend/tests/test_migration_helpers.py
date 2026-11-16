@@ -31,6 +31,7 @@ from backend.models import (
     OpticalExam,
     Order,
     OrderLineItem,
+    Referral,
     User,
 )
 
@@ -1506,3 +1507,42 @@ def test_softoptic_prescription_values_read_like_opticsoft_shows_them():
     assert [common.parse_softoptic_base(v) for v in ("Down", "up", "ln", "IN", "ESO", " ")] == ["DOWN", "UP", "IN", "IN", "ESO", None]
     assert [common.parse_softoptic_lens_diameter(v) for v in ("3444", " 70", "708 ", "0   ", "")] == ["34/44", "70", "70/80", None, None]
     assert [common.parse_softoptic_lens_diameter(v) for v in ("65.5", "65,5", "65  ")] == ["65.5", "65.5", "65"]
+
+
+def test_referral_keeps_its_opticsoft_notes_and_prescription(tmp_path):
+    with (tmp_path / "optic_reference.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["code", "account_code", "branch_code", "reference_date", "address_to", "reference_remark", "presc_code"])
+        writer.writeheader()
+        writer.writerow({"code": "7", "account_code": "101", "branch_code": "A", "reference_date": "2026-06-01", "address_to": "ד\"ר כהן", "reference_remark": "חשד לגלאוקומה", "presc_code": "55"})
+        writer.writerow({"code": "8", "account_code": "101", "branch_code": "A", "reference_date": "2026-06-02", "address_to": "", "reference_remark": "", "presc_code": ""})
+    with (tmp_path / "optic_glasses_presc.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["code", "account_code", "right_sph", "right_cyl", "right_ax", "right_read", "left_sph", "left_cyl", "left_ax", "left_read", "pd_far"])
+        writer.writeheader()
+        writer.writerow({"code": "55", "account_code": "101", "right_sph": "-0525", "right_cyl": "-0150", "right_ax": "90", "right_read": "2.00", "left_sph": "Plano", "left_cyl": "-0075", "left_ax": "180", "left_read": "2.00", "pd_far": "63"})
+        writer.writerow({"code": "56", "account_code": "101", "right_sph": "+0100"})
+
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base.metadata.create_all(bind=engine)
+
+    with SessionLocal() as db:
+        company = Company(name="A", owner_full_name="Owner A")
+        db.add(company)
+        db.flush()
+        clinic = Clinic(company_id=company.id, name="A", unique_id="a")
+        db.add(clinic)
+        db.flush()
+        user = User(company_id=company.id, clinic_id=clinic.id, username="admin", role_level=4, is_active=True)
+        client = Client(company_id=company.id, clinic_id=clinic.id, first_name="A")
+        db.add_all([user, client])
+        db.commit()
+
+        migration_steps.migrate_referrals(db, str(tmp_path), {"101": client.id}, {"A": clinic.id}, user.id)
+
+        with_rx, plain = db.query(Referral).order_by(Referral.date).all()
+        assert (with_rx.referral_notes, with_rx.recipient) == ("חשד לגלאוקומה", 'ד"ר כהן')
+        assert with_rx.referral_data["compact-prescription"] == {
+            "r_sph": -5.25, "r_cyl": -1.5, "r_ax": 90, "r_ad": 2.0,
+            "l_sph": 0.0, "l_cyl": -0.75, "l_ax": 180, "l_ad": 2.0, "comb_pd": 63.0,
+        }
+        assert plain.referral_notes == "" and plain.referral_data == {}
