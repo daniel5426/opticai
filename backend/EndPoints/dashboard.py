@@ -73,6 +73,15 @@ def get_home_dashboard(
         for r in appts_rows
     ]
 
+    from EndPoints.calendar_events import events_in_range
+    from sqlalchemy.exc import ProgrammingError
+    try:
+        # A savepoint, so a database without migration 0070 still serves the rest of the calendar.
+        with db.begin_nested():
+            events = events_in_range(db, clinic_id, start_date, end_date)
+    except ProgrammingError:
+        events = []
+
     # Minimal clients referenced by the appointments
     client_ids = {r.client_id for r in appts_rows if r.client_id is not None}
     clients = []
@@ -156,6 +165,7 @@ def get_home_dashboard(
     return {
         "calendar_revision": revision,
         "appointments": appointments,
+        "events": events,
         "clients": clients,
         "settings": settings,
         "users": users,

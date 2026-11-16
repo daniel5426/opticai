@@ -19,6 +19,7 @@ import globalSearchTranslations from "./global-search.json";
 import appearanceTranslations from "./appearance.json";
 import orderGroupTranslations from "./order-groups.json";
 import workerAttendanceTranslations from "./worker-attendance.json";
+import calendarEventTranslations from "./calendar-events.json";
 import orderWorkspaceTranslations from "./order-workspace.json";
 import aiTranslations from "./ai.json";
 import agentTranslations from "./agent.json";
@@ -1341,6 +1342,10 @@ for (const [language, translations] of Object.entries(orderGroupTranslations)) {
 }
 
 for (const [language, translations] of Object.entries(workerAttendanceTranslations)) {
+  i18n.addResourceBundle(language, "translation", translations, true, true);
+}
+
+for (const [language, translations] of Object.entries(calendarEventTranslations)) {
   i18n.addResourceBundle(language, "translation", translations, true, true);
 }
 

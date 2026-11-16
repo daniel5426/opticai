@@ -245,6 +245,10 @@ class ApiClient {
     return this.request<T>(`/order-groups${path}`, options);
   }
 
+  public calendarEventRequest<T>(path: string, options?: RequestInit) {
+    return this.request<T>(`/calendar-events${path}`, options);
+  }
+
   public async tableExportFetch(path: string, options: RequestInit = {}): Promise<Response> {
     if (path && !/^\/(?:count|[a-zA-Z0-9-]+(?:\/(?:cancel|download))?)$/.test(path)) throw new Error('tableExport.invalidRequest');
     const headers = new Headers(options.headers);

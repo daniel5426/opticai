@@ -1,9 +1,9 @@
 import React, { createRef } from "react"
-import { render, screen, within } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, test, vi } from "vitest"
 import { WeekDayView } from "@/pages/HomePage/WeekDayView"
 import { AppointmentBlock } from "@/pages/HomePage/types"
-import { Client } from "@/lib/db/schema-interface"
+import { CalendarEvent, Client } from "@/lib/db/schema-interface"
 
 const client = {
   id: 7,
@@ -12,7 +12,7 @@ const client = {
   phone_mobile: "050-1234567",
 } as Client
 
-function renderCalendar(blockHeight: number) {
+function renderCalendar(blockHeight: number, events: CalendarEvent[] = [], onEventClick = vi.fn()) {
   const appointment = {
     id: 1,
     time: "10:30:00.000",
@@ -53,6 +53,8 @@ function renderCalendar(blockHeight: number) {
         draggedData={null}
         calendarRef={createRef()}
         suppressClickRef={{ current: false }}
+        getEventsForDate={() => events}
+        onEventClick={onEventClick}
       />
     </div>
   )
@@ -85,5 +87,20 @@ describe("WeekDayView appointment cards", () => {
     expect(within(card).queryByText("10:30 - 10:45")).not.toBeInTheDocument()
     expect(within(card).getByText("דנה כהן")).toBeInTheDocument()
     expect(within(card).queryByText("050-1234567")).not.toBeInTheDocument()
+  })
+})
+
+describe("WeekDayView general events", () => {
+  test("shows an event's time and text at its time, and opens it on click", () => {
+    const event = { id: 3, date: "2026-08-02", time: "10:30", duration: 30, text: "ישיבת צוות" }
+    const onEventClick = vi.fn()
+    renderCalendar(48, [event], onEventClick)
+
+    const card = screen.getByTitle(/10:30 - 11:00 • ישיבת צוות$/)
+    expect(within(card).getByText("10:30")).toBeInTheDocument()
+    expect(within(card).getByText("ישיבת צוות")).toBeInTheDocument()
+    expect(card.style.top).toBe("0px")
+    fireEvent.click(card)
+    expect(onEventClick).toHaveBeenCalledWith(event)
   })
 })

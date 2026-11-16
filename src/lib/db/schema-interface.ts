@@ -541,6 +541,17 @@ export interface ReferralEye {
   pd?: number;
 }
 
+/** A general calendar entry: free text at a time, with no client. */
+export interface CalendarEvent {
+  id?: number;
+  clinic_id?: number;
+  user_id?: number | null;
+  date: string;
+  time: string;
+  duration: number;
+  text: string;
+}
+
 export interface Appointment {
   calendar_sync_owned?: boolean;
   company_id?: number;
