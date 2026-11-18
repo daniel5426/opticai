@@ -30,6 +30,7 @@ import {
   getClientStatusOptions,
 } from "@/lib/client-details-editor"
 import { useAppLocale } from "@/localization/use-app-locale"
+import { todayIsoDate } from "@/lib/iso-date"
 
 
 // Custom label component
@@ -157,8 +158,7 @@ export function ClientDetailsTab({
 
   React.useEffect(() => {
     if (isNewMode && !formData.file_creation_date) {
-      const today = new Date().toISOString().split('T')[0]
-      handleSelectChange(today, 'file_creation_date')
+      handleSelectChange(todayIsoDate(), 'file_creation_date')
     }
   }, [isNewMode, formData.file_creation_date])
 

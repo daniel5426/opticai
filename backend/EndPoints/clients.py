@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from typing import List, Optional
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from database import get_db
 from models import Client, Family, Clinic, User, OpticalExam, Appointment, Order, Referral, File, MedicalLog, ContactLensOrder, ExamLayoutInstance, CampaignClientExecution, RecentClientVisit, PrescriptionSearchIndex
 from schemas import ClientCreate, ClientUpdate, Client as ClientSchema, ClientOrdersContext, ClientMergeRequest, ClientMergeResult
@@ -194,6 +195,9 @@ def create_client(
     company_id = resolve_company_id(db, current_user)
     payload["company_id"] = company_id
     payload["clinic_id"] = normalize_record_clinic(db, current_user, payload.get("clinic_id"))
+    if not payload.get("file_creation_date"):
+        # The quick "new client" forms (calendar, appointments, sidebar) send no file date.
+        payload["file_creation_date"] = datetime.now(ZoneInfo("Asia/Jerusalem")).date()
     if payload.get("family_id"):
         from security.scope import get_scoped_family
         get_scoped_family(db, current_user, payload["family_id"])
