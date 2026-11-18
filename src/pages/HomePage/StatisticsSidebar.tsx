@@ -93,6 +93,10 @@ export function StatisticsSidebar(props: StatisticsSidebarProps) {
     [appointments, workStart, workEnd, breakStart, breakEnd, currentUser, holidaysByDate],
   );
   const selected = React.useMemo(() => getDayCapacity({ ...capacityInput, day: currentDate }), [capacityInput, currentDate]);
+  // The day picker only takes its month from `selected` once. Show the main calendar's date whenever it is set,
+  // including "Today" pressed on today itself (a new Date each time).
+  const [month, setMonth] = React.useState(currentDate);
+  React.useEffect(() => setMonth(currentDate), [currentDate]);
   const week = React.useMemo(
     () =>
       Array.from({ length: 7 }, (_, index) => {
@@ -109,6 +113,8 @@ export function StatisticsSidebar(props: StatisticsSidebarProps) {
           <Calendar
             mode="single"
             selected={currentDate}
+            month={month}
+            onMonthChange={setMonth}
             onSelect={(date) => date && onDateSelect(date)}
             className="w-full justify-center"
             locale={he}
