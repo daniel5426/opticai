@@ -76,7 +76,7 @@ def get_home_dashboard(
     from EndPoints.calendar_events import events_in_range
     from sqlalchemy.exc import ProgrammingError
     try:
-        # A savepoint, so a database without migration 0070 still serves the rest of the calendar.
+        # A savepoint, so a database without the calendar events migration still serves appointments.
         with db.begin_nested():
             events = events_in_range(db, clinic_id, start_date, end_date)
     except ProgrammingError:

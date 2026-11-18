@@ -16,6 +16,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from database import Base
+from migration.pipeline.common import get_migrated_card_id
 from models import Client, Clinic, Company, ExamLayoutInstance, MigrationSourceLink, OpticalExam, Order, SoftOpticMigrationJob
 from scripts.backfill_softoptic_pd_and_va import apply, plan_batches
 
@@ -47,20 +48,24 @@ def test_fixes_imported_pd_and_va_and_keeps_edits():
     edited = Order(client_id=client.id, company_id=company.id, clinic_id=clinic.id, order_date=datetime.date(2024, 1, 2), type="glasses",
                    order_data={"final-prescription": {"comb_pd_far": 63.0, "comb_pd_close": 62.0, "comb_pd": None}})
     typed_over = Order(client_id=client.id, company_id=company.id, clinic_id=clinic.id, order_date=datetime.date(2024, 1, 3), type="glasses",
-                       order_data={"final-prescription": {"comb_pd_close": 60.0}})
+                       order_data={"final-prescription": {"comb_pd_close": 60.0, "r_va": "6/15-"}})
     not_imported = Order(client_id=client.id, company_id=company.id, clinic_id=clinic.id, order_date=datetime.date(2024, 1, 4), type="glasses",
                          order_data={"final-prescription": {"comb_pd_close": 62.0, "r_va": "6/6-"}})
     exam = OpticalExam(client_id=client.id, company_id=company.id, clinic_id=clinic.id, exam_date=datetime.date(2024, 1, 1), test_name="x")
     db.add_all([imported, edited, typed_over, not_imported, exam])
     db.flush()
+    subjective_key = f"subjective-{get_migrated_card_id('subjective')}"
     db.add(ExamLayoutInstance(exam_id=exam.id, exam_data={
-        "subjective-subjective-1": {"r_va": "6/6-", "l_fa": "6/12+", "comb_va": "6/6--"},
+        subjective_key: {"r_va": "6/6-", "l_fa": "6/12+", "comb_va": "6/6--", "l_va": "6/15-"},
         "notes": {"note": "6/6-"},
     }))
-    link(db, clinic, company, "optic_glasses_presc.csv", "Order", imported.id, {"pd_near": "62", "pd_far": "58"})
+    link(db, clinic, company, "optic_glasses_presc.csv", "Order", imported.id,
+         {"pd_near": "62", "pd_far": "58", "right_va": "6-", "left_va": "9+2"})
     link(db, clinic, company, "optic_glasses_presc.csv", "Order", edited.id, {"pd_near": "62", "pd_far": ""})
-    link(db, clinic, company, "optic_glasses_presc.csv", "Order", typed_over.id, {"pd_near": "62", "pd_far": ""})
-    link(db, clinic, company, "optic_exp_eyetests.csv", "OpticalExam", exam.id)
+    link(db, clinic, company, "optic_glasses_presc.csv", "Order", typed_over.id,
+         {"pd_near": "62", "pd_far": "", "right_va": "6-"})
+    link(db, clinic, company, "optic_exp_eyetests.csv", "OpticalExam", exam.id,
+         {"sub_r_va": "6-", "sb_left_fa": "6/12+", "sub_l_va": "12-"})
     db.commit()
 
     for changes, _ in plan_batches(db, job):
@@ -72,9 +77,9 @@ def test_fixes_imported_pd_and_va_and_keeps_edits():
     assert prescription == {"comb_pd_far": 62.0, "comb_pd_close": 58.0, "r_va": "6/6-1", "l_va": "6/9+2"}
     # A far PD typed since the import, or a near PD changed by hand, is left as it is.
     assert db.get(Order, edited.id).order_data["final-prescription"]["comb_pd_close"] == 62.0
-    assert db.get(Order, typed_over.id).order_data["final-prescription"] == {"comb_pd_close": 60.0}
+    assert db.get(Order, typed_over.id).order_data["final-prescription"] == {"comb_pd_close": 60.0, "r_va": "6/15-"}
     # Records this import did not create are not read.
     assert db.get(Order, not_imported.id).order_data["final-prescription"]["r_va"] == "6/6-"
     data = db.query(ExamLayoutInstance).one().exam_data
-    assert data["subjective-subjective-1"] == {"r_va": "6/6-1", "l_fa": "6/12+1", "comb_va": "6/6--"}
+    assert data[subjective_key] == {"r_va": "6/6-1", "l_fa": "6/12+1", "comb_va": "6/6--", "l_va": "6/15-"}
     assert data["notes"] == {"note": "6/6-"}

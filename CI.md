@@ -761,3 +761,17 @@ orders. Production promotion applies `0069_split_supplier_colors` before
 starting the new API. The OpticSoft repair scripts are separate operations.
 Reuse the qualified migration and focused local checks for pre-push. Run
 exact-SHA staging, Web CI, Backend CI, and desktop builds in parallel.
+
+## Release v1.0.107
+
+Includes PRs #105–#116 and the integration fixes for report exports, calendar
+events, email entry, and source-checked OpticSoft repairs.
+
+Apply `0070_messaging_channel_controls` and then `0071_calendar_events`
+through the release gate. Staging already has the messaging revision. The
+calendar migration adds an RLS-protected events table and leaves appointments
+intact. The PD and VA repair is a separate, dry-run-first operation.
+
+Staging verification waits on an active deployment of the release commit.
+When it needs to compare an earlier deployment, the parallel service checks
+serialize Git history fetches to avoid contention on the shallow checkout.

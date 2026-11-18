@@ -105,11 +105,15 @@ jobs:
                 esac
               fi
 
-              if [[ "$watched_changed" == false ]]; then
+              if [[ "$watched_changed" == false && ( "$status" == UNKNOWN || "$status" == SKIPPED ) ]]; then
                 successful_commit="$(jq -r '[.[] | select(.status == "SUCCESS")][0].meta.commitHash // ""' <<<"$deployments")"
                 if [[ "$successful_commit" =~ ^[0-9a-f]{40}$ && "$successful_commit" != "$checked_commit" ]]; then
                   checked_commit="$successful_commit"
-                  git cat-file -e "$successful_commit^{commit}" 2>/dev/null || git fetch --no-tags --depth=1 origin "$successful_commit"
+                  (
+                    flock 9
+                    git cat-file -e "$successful_commit^{commit}" 2>/dev/null ||
+                      git fetch --no-tags --depth=1 origin "$successful_commit"
+                  ) 9>"$RUNNER_TEMP/staging-history.lock"
                   if git diff --quiet "$successful_commit" "$EXPECTED_SHA" -- "$@"; then
                     echo "$service: successful revision $successful_commit has identical watched files"
                     return 0

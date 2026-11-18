@@ -2,7 +2,9 @@
 import csv
 import io
 import json
+import re
 from datetime import timedelta
+from itertools import chain
 from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -90,7 +92,7 @@ def export(raw: dict[str, Any], clinic_id: int, format: Literal['xlsx', 'csv'] =
         buffer = io.StringIO()
         buffer.write('﻿')
         writer = csv.writer(buffer)
-        writer.writerow(header)
+        writer.writerow([safe_csv(label) for label in header])
         for row in values:
             writer.writerow([safe_csv(json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else value) for value in row])
         body, media = buffer.getvalue().encode('utf-8'), 'text/csv'
@@ -98,10 +100,10 @@ def export(raw: dict[str, Any], clinic_id: int, format: Literal['xlsx', 'csv'] =
         from openpyxl import Workbook
         from openpyxl.cell import WriteOnlyCell
         workbook = Workbook(write_only=True)
-        sheet = workbook.create_sheet(definition.title[:31] or 'Report')
+        sheet_title = re.sub(r'[\\/*?:\[\]]', ' ', definition.title)
+        sheet = workbook.create_sheet(sheet_title[:31].strip().strip("'").strip() or 'Report')
         sheet.sheet_view.rightToLeft = True
-        sheet.append(header)
-        for row in values:
+        for row in chain([header], values):
             cells = []
             for value in row:
                 cell = WriteOnlyCell(sheet, value=json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else value)

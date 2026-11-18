@@ -74,7 +74,8 @@ def test_invalid_fields_and_presets_are_rejected(http):
 def test_export_uses_labels(http, format):
     _, auth, client = http
     response = client.post(f'/clinic-reports/export?clinic_id={auth.clinic_id}&format={format}',
-                           json={'dataset': 'clients', 'columns': ['first_name'], 'sort_by': ['first_name'],
+                           json={'title': 'Revenue by clinic/date', 'dataset': 'clients',
+                                 'columns': ['first_name'], 'sort_by': ['first_name'],
                                  'presentation': {'labels': {'first_name': 'שם פרטי'}}})
     assert response.status_code == 200
     if format == 'csv':
@@ -82,6 +83,8 @@ def test_export_uses_labels(http, format):
     else:
         from openpyxl import load_workbook
         sheet = load_workbook(io.BytesIO(response.content)).active
+        assert sheet.title == 'Revenue by clinic date'
+        assert sheet['A1'].data_type == 's'
         assert [cell.value for cell in sheet['A'][:3]] == ['שם פרטי', 'Boy', 'Girl']
 
 
