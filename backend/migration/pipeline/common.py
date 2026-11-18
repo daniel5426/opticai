@@ -431,7 +431,11 @@ def parse_visual_acuity(value: Optional[str]) -> Optional[Any]:
     if not is_integer and denominator < 3:
         return cleaned
     normalized_denominator = f"{denominator:g}"
-    return f"6/{normalized_denominator}{match.group(2) or ''}"
+    suffix = match.group(2) or ""
+    # A lone sign is how optometrists wrote one letter missed or gained: ``6-`` is 6/6-1.
+    if suffix in ("-", "+"):
+        suffix += "1"
+    return f"6/{normalized_denominator}{suffix}"
 
 
 def normalize_base_value(value: Optional[str]) -> Optional[str]:
