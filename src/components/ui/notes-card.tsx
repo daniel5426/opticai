@@ -192,7 +192,7 @@ function HiddenNoteToggle({
       {active ? t('notesBackToNotes') : t('notesHiddenToggle')}
       {active ? <FileText className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
       {hasHiddenContent && !active && (
-        <span className="absolute -top-0.5 -end-0.5 h-2 w-2 rounded-full border border-background bg-primary" aria-hidden />
+        <span className="absolute -top-0.5 -end-0.5 h-2 w-2 rounded-full border border-background bg-red-500" aria-hidden />
       )}
     </button>
   )
