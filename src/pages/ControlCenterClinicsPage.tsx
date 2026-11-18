@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { CustomModal } from '@/components/ui/custom-modal';
 import { Switch } from '@/components/ui/switch';
 import { useRouter } from '@tanstack/react-router';
+import { useTranslation } from 'react-i18next';
 import { useUser } from '@/contexts/UserContext';
 import { 
   Building2, 
@@ -26,7 +27,8 @@ import {
   Calendar,
   CheckCircle,
   XCircle,
-  Copy
+  Copy,
+  BarChart3
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Company, Clinic } from '@/lib/db/schema-interface';
@@ -328,6 +330,7 @@ function ClinicModal({ isOpen, onClose, clinic, onSave, isSaving }: ClinicModalP
 
 const ControlCenterClinicsPage: React.FC = () => {
   const router = useRouter();
+  const { t } = useTranslation();
   const [company, setCompany] = useState<Company | null>(null);
   const [clinics, setClinics] = useState<Clinic[]>([]);
   const [loading, setLoading] = useState(true);
@@ -599,6 +602,16 @@ const ControlCenterClinicsPage: React.FC = () => {
                       
                       <div className="flex items-center gap-2">
                         <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => router.navigate({ to: '/control-center/clinics/$clinicId/reports', params: { clinicId: String(clinic.id) }, search: { name: clinic.name } })}
+                            className="h-6 w-6 p-0 hover:bg-blue-50 hover:text-blue-600"
+                            aria-label={t('clinicReports.openReports')}
+                            title={t('clinicReports.openReports')}
+                          >
+                            <BarChart3 className="h-3 w-3" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"

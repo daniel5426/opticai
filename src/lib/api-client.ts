@@ -245,6 +245,22 @@ class ApiClient {
     return this.request<T>(`/order-groups${path}`, options);
   }
 
+  public clinicReportRequest<T>(path: string, options?: RequestInit) {
+    return this.request<T>(`/clinic-reports${path}`, options);
+  }
+
+  public async clinicReportFetch(path: string, options: RequestInit = {}): Promise<Response> {
+    const headers = new Headers(options.headers);
+    if (options.body) headers.set('Content-Type', 'application/json');
+    const perform = () => {
+      if (this.token) headers.set('Authorization', `Bearer ${this.token}`);
+      return fetch(`${this.baseUrl}/clinic-reports${path}`, { ...options, headers, cache: 'no-store' });
+    };
+    let response = await perform();
+    if (response.status === 401 && await this.refreshTokenIfPossible()) response = await perform();
+    return response;
+  }
+
   public async tableExportFetch(path: string, options: RequestInit = {}): Promise<Response> {
     if (path && !/^\/(?:count|[a-zA-Z0-9-]+(?:\/(?:cancel|download))?)$/.test(path)) throw new Error('tableExport.invalidRequest');
     const headers = new Headers(options.headers);
