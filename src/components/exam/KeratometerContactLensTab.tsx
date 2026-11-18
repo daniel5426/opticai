@@ -10,7 +10,7 @@ import { useAxisWarning } from "./shared/useAxisWarning"
 import { AxisWarningInput } from "./shared/AxisWarningInput"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAppLocale } from "@/localization/use-app-locale"
-import { convertKeratometerValue, getKeratometerRange, getKeratometerStep, KeratometerUnit } from "@/utils/keratometer-utils"
+import { convertKeratometerValue, deriveKeratometerAvgAndCyl, getKeratometerRange, getKeratometerStep, KeratometerUnit } from "@/utils/keratometer-utils"
 
 interface KeratometerContactLensTabProps {
   keratometerContactLensData: KeratometerContactLens;
@@ -59,13 +59,18 @@ export function KeratometerContactLensTab({
     const eyes = ["r", "l"] as const
 
     eyes.forEach(eye => {
+      const converted: Record<string, string> = {}
       fieldsToConvert.forEach(field => {
         const eyeField = `${eye}_${field}` as keyof KeratometerContactLens
         const val = latestData[eyeField]?.toString() || ""
         if (val) {
-          onKeratometerContactLensChange(eyeField, convertKeratometerValue(val, nextUnit))
+          converted[field] = convertKeratometerValue(val, nextUnit)
+          onKeratometerContactLensChange(eyeField, converted[field])
         }
       })
+      // AVG is in the reading's unit, so it follows the switch; CYL stays in diopters.
+      const derived = deriveKeratometerAvgAndCyl(converted.rh, converted.rv, nextUnit)
+      if (derived) onKeratometerContactLensChange(`${eye}_avg` as keyof KeratometerContactLens, derived.avg)
     })
 
     setUnit(nextUnit)
@@ -103,7 +108,21 @@ export function KeratometerContactLensTab({
     } else {
       const eyeField = `${eye.toLowerCase()}_${field}` as keyof KeratometerContactLens;
       onKeratometerContactLensChange(eyeField, value);
+      // Keep the latest reading at hand: both readings can be flushed before the next render.
+      dataRef.current = { ...dataRef.current, [eyeField]: value };
+      if (field === "rh" || field === "rv") fillAvgAndCyl(eye);
     }
+  };
+
+  // AVG and CYL follow the two readings; they stay editable and are refilled when a reading changes.
+  const fillAvgAndCyl = (eye: "R" | "L") => {
+    const prefix = eye.toLowerCase();
+    const rh = dataRef.current[`${prefix}_rh` as keyof KeratometerContactLens];
+    const rv = dataRef.current[`${prefix}_rv` as keyof KeratometerContactLens];
+    const derived = deriveKeratometerAvgAndCyl(rh as string | number | undefined, rv as string | number | undefined, unit);
+    if (!derived) return;
+    onKeratometerContactLensChange(`${prefix}_avg` as keyof KeratometerContactLens, derived.avg);
+    onKeratometerContactLensChange(`${prefix}_cyl` as keyof KeratometerContactLens, derived.cyl);
   };
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {

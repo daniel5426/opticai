@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   convertKeratometerValue,
+  deriveKeratometerAvgAndCyl,
   getKeratometerRange,
   getKeratometerStep,
   isKeratometerValueInRange,
@@ -43,5 +44,12 @@ describe("keratometer utils", () => {
 
     expect(roundToStep(convertedD, 0.25)).toBe(convertedD);
     expect(roundToStep(convertedMm, 0.01)).toBe(convertedMm);
+  });
+
+  test("derives AVG and the corneal cylinder from the two readings", () => {
+    // An OpticSoft reading: 7.02 and 7.18 mm are 48.08 D and 47.01 D.
+    expect(deriveKeratometerAvgAndCyl("7.02", "7.18", "mm")).toEqual({ avg: "7.10", cyl: "1.07" });
+    expect(deriveKeratometerAvgAndCyl("44.00", "42.50", "D")).toEqual({ avg: "43.25", cyl: "1.50" });
+    expect(deriveKeratometerAvgAndCyl("7.80", "", "mm")).toBeNull();
   });
 });

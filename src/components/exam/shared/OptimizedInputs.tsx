@@ -346,6 +346,7 @@ interface FastInputProps extends Omit<React.ComponentProps<typeof Input>, 'value
     suffix?: string;
     prefix?: string;
     center?: boolean;
+    "data-tab-stop"?: string;
 }
 
 export const FastInput = memo(function FastInput({

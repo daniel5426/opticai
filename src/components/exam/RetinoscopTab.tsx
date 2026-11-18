@@ -12,6 +12,7 @@ import { CylTitle } from "./shared/CylTitle"
 import { useAxisWarning } from "./shared/useAxisWarning"
 import { AxisWarningInput } from "./shared/AxisWarningInput"
 import { ToggleTextNumberInput } from "./shared/ToggleTextNumberInput"
+import { handleRetinoscopyTabStops } from "./shared/retinoscopyTabStops"
 import { useAppLocale } from "@/localization/use-app-locale"
 import { useTranslation } from "react-i18next"
 
@@ -127,7 +128,7 @@ export function RetinoscopTab({
 
   return (
     <Card className="w-full examcard pb-4 pt-3">
-      <CardContent className="px-4 " style={{ scrollbarWidth: 'none' }}>
+      <CardContent className="px-4 " style={{ scrollbarWidth: 'none' }} onKeyDownCapture={handleRetinoscopyTabStops}>
         <div className="space-y-3">
           <div className="flex h-9 items-start justify-center mb-1 -translate-y-2">
             <Tabs
@@ -193,6 +194,7 @@ export function RetinoscopTab({
                     key={`r-${key}`}
                     eye="R"
                     field={key as "cyl" | "ax"}
+                    data-tab-stop={key === "ax" ? "r-ax" : undefined}
                     value={getFieldValue("R", key)}
                     missingAxis={eyeWarnings.missingAxis}
                     missingCyl={eyeWarnings.missingCyl}
@@ -271,6 +273,7 @@ export function RetinoscopTab({
                     {...pdCombProps}
                     max={key === "pd_close" ? PDFieldConfigProvider.getNearConfig(getFieldValue("C", "pd_far")).max : pdCombProps.max}
                     key={`c-${key}`}
+                    data-tab-stop={key === "pd_far" ? "c-pd_far" : undefined}
                     type={type as any}
                     value={getFieldValue("C", key)}
                     onChange={(val) => handleChange("C", key, val)}
@@ -307,6 +310,7 @@ export function RetinoscopTab({
                     key={`l-${key}`}
                     eye="L"
                     field={key as "cyl" | "ax"}
+                    data-tab-stop={key === "ax" ? "l-ax" : undefined}
                     value={getFieldValue("L", key)}
                     missingAxis={eyeWarnings.missingAxis}
                     missingCyl={eyeWarnings.missingCyl}
@@ -330,6 +334,7 @@ export function RetinoscopTab({
                     textValueAliases={colProps.textValueAliases}
                     textDisplayAliases={colProps.displayAliases}
                     numericProps={{
+                      "data-tab-stop": "l-sph",
                       step: colProps.step,
                       min: colProps.min,
                       max: colProps.max,
