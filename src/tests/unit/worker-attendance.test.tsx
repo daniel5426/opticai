@@ -1,39 +1,42 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { expect, test, vi } from "vitest";
-import i18n from "@/localization/i18n";
 import WorkerStatsPage from "@/pages/WorkerStatsPage";
 
-const { owner, api } = vi.hoisted(() => ({
+const { owner, api, dashboard } = vi.hoisted(() => ({
   owner: { id: 1, full_name: "Clinic owner", role_level: 4, clinic_id: null },
-  api: {
-    getUsersByClinic: vi.fn(),
-    getWorkShiftsByUserAndDate: vi.fn(),
-    getWorkShiftStats: vi.fn(),
-  },
+  api: { getUsersByClinic: vi.fn() },
+  dashboard: vi.fn(),
 }));
 
 vi.mock("@/components/site-header", () => ({ SiteHeader: () => null }));
-vi.mock("@/components/attendance/TeamHoursDashboard", () => ({ TeamHoursDashboard: () => null }));
+vi.mock("@/components/attendance/TeamHoursDashboard", () => ({
+  TeamHoursDashboard: (props: any) => {
+    dashboard(props);
+    return <div>team hours</div>;
+  },
+}));
 vi.mock("@/contexts/UserContext", () => ({
   useUser: () => ({ currentUser: owner, currentClinic: { id: 7 } }),
 }));
 vi.mock("@/lib/api-client", () => ({ apiClient: api }));
 
-test("lists every clinic role with the month's totals, and no day view", async () => {
-  await i18n.changeLanguage("en");
+test("shows only the team hours, for every worker the viewer may read", async () => {
   api.getUsersByClinic.mockResolvedValue({
-    data: [{ id: 2, full_name: "Clinic viewer", role_level: 1, clinic_id: 7 }, owner],
+    data: [
+      { id: 2, full_name: "Clinic viewer", role_level: 1, clinic_id: 7 },
+      { id: 3, full_name: "Other clinic", role_level: 1, clinic_id: 9 },
+      owner,
+    ],
   });
-  api.getWorkShiftStats.mockResolvedValue({ data: { total_shifts: 1, total_minutes: 457 } });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<QueryClientProvider client={client}><WorkerStatsPage /></QueryClientProvider>);
 
-  expect(await screen.findByRole("tab", { name: /Clinic viewer/ })).toBeVisible();
-  fireEvent.click(screen.getByRole("tab", { name: /Clinic owner Owner/ }));
-  expect(await screen.findByText("7:37")).toBeVisible();
-  // The team hours at the top show each day's shifts, so the page no longer reads a single day.
-  expect(screen.queryByText("צפייה לפי יום")).toBeNull();
-  expect(api.getWorkShiftsByUserAndDate).not.toHaveBeenCalled();
+  expect(await screen.findByText("team hours")).toBeVisible();
+  const { users, canEditShifts } = dashboard.mock.calls.at(-1)![0];
+  expect(users.map((user: { id: number }) => user.id)).toEqual([2, 3, 1]);
+  expect(canEditShifts).toBe(true);
+  expect(screen.queryByRole("tab")).toBeNull();
+  expect(screen.queryByText("משמרות החודש")).toBeNull();
 });
