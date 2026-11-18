@@ -1638,9 +1638,42 @@ def enrich_from_contact_lens_chk(
     db.commit()
     print(f"[cl_chk] enriched exams: {updated_exams}, orders: {updated_orders}, took {time.time()-t0:.2f}s", flush=True)
 
+def referral_compact_prescription(r: Dict[str, Any]) -> Dict[str, Any]:
+    """The referral page's prescription block, read from an OpticSoft glasses prescription row."""
+    values = {
+        "r_sph": parse_softoptic_power(r.get("right_sph")),
+        "l_sph": parse_softoptic_power(r.get("left_sph")),
+        "r_cyl": parse_softoptic_power(r.get("right_cyl")),
+        "l_cyl": parse_softoptic_power(r.get("left_cyl")),
+        "r_ax": parse_int(r.get("right_ax")),
+        "l_ax": parse_int(r.get("left_ax")),
+        "r_pris": parse_float(r.get("right_pris")),
+        "l_pris": parse_float(r.get("left_pris")),
+        "r_base": parse_softoptic_base(r.get("right_base")),
+        "l_base": parse_softoptic_base(r.get("left_base")),
+        "r_va": parse_visual_acuity(r.get("right_va")),
+        "l_va": parse_visual_acuity(r.get("left_va")),
+        "r_ad": parse_float(r.get("right_add")) if clean_legacy_text(r.get("right_add")) else parse_float(r.get("right_read")),
+        "l_ad": parse_float(r.get("left_add")) if clean_legacy_text(r.get("left_add")) else parse_float(r.get("left_read")),
+        "r_pd": parse_float(r.get("right_pd")),
+        "l_pd": parse_float(r.get("left_pd")),
+        "comb_va": parse_visual_acuity(r.get("mid_va")),
+        "comb_pd": parse_float(r.get("pd_near")),  # OpticSoft's pd_near is the far PD
+    }
+    return {key: value for key, value in values.items() if value is not None}
+
+
 def migrate_referrals(db: Session, csv_dir: str, account_to_client: Dict[str, int], branch_to_clinic: Dict[str, int], admin_user_id: int):
     t0 = time.time()
-    rows_iter = read_csv_streaming(csv_dir, "optic_reference.csv")
+    rows_iter = list(read_csv_streaming(csv_dir, "optic_reference.csv"))
+    # A referral points at the glasses prescription it was written from; that prescription is the referral's Rx.
+    wanted_codes = {clean_legacy_text(r.get("presc_code")) for r in rows_iter} - {None}
+    prescriptions: Dict[str, Dict[str, Any]] = {}
+    if wanted_codes:
+        for pr in read_csv_streaming(csv_dir, "optic_glasses_presc.csv"):
+            code = clean_legacy_text(pr.get("code"))
+            if code in wanted_codes:
+                prescriptions[code] = referral_compact_prescription(pr)
     presc_rows = list(read_csv_streaming(csv_dir, "optic_presc_prices.csv"))
     print(f"[referrals] presc_rows: {len(presc_rows)}", flush=True)
     # Group prescription notes by presc_code
@@ -1668,6 +1701,13 @@ def migrate_referrals(db: Session, csv_dir: str, account_to_client: Dict[str, in
 
         presc_code = str(r.get("presc_code")) if r.get("presc_code") else None
         prescription_notes = "; ".join(presc_map[presc_code]) if presc_code and presc_code in presc_map else None
+        # Some exports keep the Rx on the referral row itself; prefer it over the linked prescription.
+        compact_prescription = referral_compact_prescription(r) or prescriptions.get(clean_legacy_text(r.get("presc_code")) or "")
+        referral_data: Dict[str, Any] = {}
+        if compact_prescription:
+            referral_data["compact-prescription"] = compact_prescription
+        if prescription_notes:
+            referral_data["prescription_notes"] = prescription_notes
 
         referral = Referral(
             client_id=client_id,
@@ -1678,18 +1718,13 @@ def migrate_referrals(db: Session, csv_dir: str, account_to_client: Dict[str, in
             date=date,
             type="general",
             recipient=recipient,
-            referral_data={},
+            referral_data=referral_data,
         )
         db.add(referral)
         pending += 1
         if pending % 1000 == 0:
             db.flush()
             pending = 0
-
-        # Attach prescription notes into referral_data if available
-        if prescription_notes:
-            referral.referral_data = {"prescription_notes": prescription_notes}
-            db.add(referral)
         count += 1
         if count % 1000 == 0:
             print(f"[referrals] inserted: {count}", flush=True)
