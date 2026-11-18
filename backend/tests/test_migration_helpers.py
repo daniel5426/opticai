@@ -1206,7 +1206,9 @@ def test_regular_order_resolves_opticsoft_fulfillment_codes(tmp_path):
         prescription = order_data["final-prescription"]
         assert (prescription["r_sph"], prescription["r_cyl"], prescription["r_base"]) == (0.0, 22.5, "ESO")
         assert (prescription["l_sph"], prescription["l_cyl"], prescription["l_base"]) == (35.75, -50.25, "DOWN")
-        assert (prescription["comb_pd"], prescription["comb_pd_close"]) == (64.0, 61.0)
+        # OpticSoft swaps the names: pd_near (61) is the far PD, pd_far (64) the near PD.
+        assert (prescription["comb_pd_far"], prescription["comb_pd_close"]) == (61.0, 64.0)
+        assert "comb_pd" not in prescription
         tab = order_data["lens_frame_tabs"][0]
         assert (tab["lens"]["right_diameter"], tab["lens"]["left_diameter"]) == ("34/44", "45/55")
         assert tab["lens"]["warranty_expiration"] == "2026-07-30"
