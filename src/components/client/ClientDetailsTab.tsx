@@ -21,6 +21,7 @@ import { useUser } from "@/contexts/UserContext"
 import { SaveIcon, XIcon, ChevronDownIcon, CheckIcon, ChevronsUpDownIcon } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CityLookupInput } from "@/components/ui/city-lookup-input"
+import { hebrewKeysToEnglish } from "@/lib/hebrew-keys-to-english"
 import { DateInput } from "@/components/ui/date"
 import { NotesCard } from "@/components/ui/notes-card"
 import { ImportedSourceDataDialog } from "@/components/migration/ImportedSourceDataDialog"
@@ -610,7 +611,7 @@ export function ClientDetailsTab({
                   name="email"
                   dir="ltr"
                   value={formData.email || ''}
-                  onChange={handleInputChange}
+                  onChange={(e) => onFieldChange('email', hebrewKeysToEnglish(e.target.value))}
                   disabled={!showEditableFields || isSaving}
                   className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
                   placeholder={showEditableFields ? "הכנס אימייל" : ""}
