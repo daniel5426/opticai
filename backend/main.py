@@ -9,7 +9,7 @@ from services.agent_privacy import AgentPrivacyMiddleware
 import logging
 from fastapi.middleware.cors import CORSMiddleware
 import config
-from EndPoints import discounts, order_groups, auth, companies, clinics, users, clients, families, appointments, medical_logs, orders, referrals, files, settings, work_shifts, lookups, campaigns, billing, chats, email_logs, exam_layouts, exams, unified_exam_data, ai, ai_sidebar, control_center, dashboard, search, whatsapp_webhook, whatsapp, softoptic_migration, migration, migration_source_data, clinic_data_prune, clinic_holidays, clinic_reports, inventory, plans, subscriptions, trash, web_auth
+from EndPoints import discounts, order_groups, auth, companies, clinics, users, clients, families, appointments, medical_logs, orders, referrals, files, settings, work_shifts, lookups, campaigns, billing, chats, email_logs, exam_layouts, exams, unified_exam_data, ai, ai_sidebar, control_center, dashboard, search, whatsapp_webhook, whatsapp, softoptic_migration, migration, migration_source_data, clinic_data_prune, clinic_holidays, clinic_reports, calendar_events, inventory, plans, subscriptions, trash, web_auth
 from EndPoints import agent as prysm_agent
 from EndPoints import messaging
 from EndPoints import table_exports
@@ -127,6 +127,7 @@ app.include_router(settings.router, prefix=config.settings.API_V1_STR)
 app.include_router(work_shifts.router, prefix=config.settings.API_V1_STR)
 app.include_router(lookups.router, prefix=config.settings.API_V1_STR)
 app.include_router(clinic_reports.router, prefix=config.settings.API_V1_STR)
+app.include_router(calendar_events.router, prefix=config.settings.API_V1_STR)
 app.include_router(discounts.router, prefix=config.settings.API_V1_STR)
 app.include_router(messaging.public_router)
 app.include_router(messaging.callback_router, prefix=config.settings.API_V1_STR)

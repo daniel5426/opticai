@@ -22,6 +22,7 @@ def test_release_migrations_preserve_existing_clients_and_fit_version_table(pg_e
         connection.execute(text('DROP TABLE google_calendar_sync'))
         for table in ('lookup_frame_supplier', 'lookup_contact_lens_supplier', 'lookup_frame_color', 'lookup_contact_lens_color'):
             connection.execute(text(f'DROP TABLE {table}'))
+        connection.execute(text('DROP TABLE calendar_events'))
         connection.execute(text('ALTER TABLE users DROP COLUMN google_token_key_id'))
         connection.execute(text('ALTER TABLE users DROP COLUMN google_oauth_client_type'))
         connection.execute(text('ALTER TABLE users DROP COLUMN google_token_expiry'))

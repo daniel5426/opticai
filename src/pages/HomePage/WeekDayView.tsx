@@ -10,9 +10,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { CalendarHoliday } from "@/lib/clinic-holidays";
-import { User, Client, Appointment } from "@/lib/db/schema-interface";
+import { User, Client, Appointment, CalendarEvent } from "@/lib/db/schema-interface";
+import { StickyNote } from "lucide-react";
 import { AppointmentBlock, DragPosition, ResizeData, DragData } from "./types";
-import { formatAppointmentTime, getAppointmentTimeRange, minutesToTime } from "./utils";
+import { formatAppointmentTime, getAppointmentTimeRange, minutesToTime, timeToMinutes } from "./utils";
 import {
   DEFAULT_HOUR_HEIGHT,
   QUARTER_LABELS_MIN_HOUR_HEIGHT,
@@ -138,6 +139,8 @@ interface WeekDayViewProps {
   draggedData: DragData | null;
   calendarRef: React.RefObject<HTMLDivElement | null>;
   suppressClickRef: React.MutableRefObject<boolean>;
+  getEventsForDate: (date: Date) => CalendarEvent[];
+  onEventClick: (event: CalendarEvent) => void;
 }
 
 export function WeekDayView({
@@ -166,6 +169,8 @@ export function WeekDayView({
   draggedData,
   calendarRef,
   suppressClickRef,
+  getEventsForDate,
+  onEventClick,
 }: WeekDayViewProps) {
   const { locale } = useAppLocale();
   const { t } = useTranslation();
@@ -412,6 +417,33 @@ export function WeekDayView({
                           })()}
                       </div>
                     ))}
+
+                    {/* General events, under any appointment at the same time */}
+                    {getEventsForDate(date).map((event) => {
+                      const start = timeToMinutes(event.time) - (timeSlots[0]?.startMinutes ?? 0);
+                      const height = Math.max(toPx(event.duration), 16);
+                      const timeRange = getAppointmentTimeRange(event.time, event.duration);
+                      return (
+                        <button
+                          key={`event-${event.id}`}
+                          type="button"
+                          className="absolute inset-x-0 z-[1] flex flex-col overflow-hidden rounded-md border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-start text-[11px] leading-4 text-amber-950 shadow-sm transition-shadow hover:shadow-md dark:border-amber-700 dark:bg-amber-950/60 dark:text-amber-100"
+                          style={{ top: `${toPx(start)}px`, height: `${height}px` }}
+                          title={`${t("calendarEventLabel")} • ${timeRange} • ${event.text}`}
+                          onClick={(clickEvent) => {
+                            clickEvent.stopPropagation();
+                            if (!isMoveMode) onEventClick(event);
+                          }}
+                        >
+                          <span className="flex min-w-0 items-center gap-1 font-medium">
+                            <StickyNote className="h-3 w-3 shrink-0" aria-hidden />
+                            <span className="shrink-0 tabular-nums" dir="ltr">{formatAppointmentTime(event.time)}</span>
+                            {height < 32 && <span className="min-w-0 truncate">{event.text}</span>}
+                          </span>
+                          {height >= 32 && <span className="line-clamp-3 min-w-0 break-words whitespace-pre-line">{event.text}</span>}
+                        </button>
+                      );
+                    })}
 
                     {/* Appointment blocks */}
                     {dayBlocks.map((block) => {

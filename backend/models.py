@@ -1169,6 +1169,22 @@ class Appointment(SoftDeletableMixin, Base):
     note = Column(Text)
     google_calendar_event_id = Column(String)
 
+class CalendarEvent(Base):
+    """A general calendar entry with free text and no client, such as a meeting or a delivery."""
+    __tablename__ = "calendar_events"
+    __table_args__ = (Index("ix_calendar_events_clinic_date", "clinic_id", "date"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    clinic_id = Column(Integer, ForeignKey("clinics.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    date = Column(Date, nullable=False)
+    time = Column(String(5), nullable=False)
+    duration = Column(Integer, nullable=False, default=30)
+    text = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
 class File(SoftDeletableMixin, Base):
     __tablename__ = "files"
     

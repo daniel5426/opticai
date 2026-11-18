@@ -17,6 +17,7 @@ import {
   Copy,
   Move,
   Play,
+  StickyNote,
   Trash2,
   UserPlus,
   Users,
@@ -30,8 +31,10 @@ import {
 import { createClient, getClientById } from "@/lib/db/clients-db";
 import { getAllExamLayouts } from "@/lib/db/exam-layouts-db";
 import { getDashboardHome } from "@/lib/db/dashboard-db";
+import { deleteCalendarEvent, saveCalendarEvent } from "@/lib/db/calendar-events-db";
 import {
   Appointment,
+  CalendarEvent,
   Client,
   ExamLayout,
   Settings,
@@ -75,6 +78,7 @@ import { StatisticsSidebar } from "./HomePage/StatisticsSidebar";
 import { MonthView } from "./HomePage/MonthView";
 import { WeekDayView } from "./HomePage/WeekDayView";
 import { AppointmentModal } from "./HomePage/AppointmentModal";
+import { EventModal } from "./HomePage/EventModal";
 import { useAppointmentBlocks } from "./HomePage/useAppointmentBlocks";
 import { useDragAndResize } from "./HomePage/useDragAndResize";
 import { readStoredHourHeight, storeHourHeight } from "./HomePage/calendar-zoom";
@@ -92,6 +96,9 @@ export default function HomePage() {
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [view, setView] = useState<CalendarView>("week");
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [isSavingEvent, setIsSavingEvent] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
   const [dashboardSettings, setDashboardSettings] = useState<Settings | null>(
     null,
@@ -243,6 +250,7 @@ export default function HomePage() {
           if (shouldApply && (!shouldApply() || data.calendar_revision === undefined)) return;
           calendarRevisionRef.current = data.calendar_revision;
           setAppointments(data.appointments);
+          setEvents(data.events);
           setClients(data.clients);
           setDashboardSettings(data.settings);
           const mergedUsers = (() => {
@@ -457,6 +465,21 @@ export default function HomePage() {
     return dateMap;
   }, [appointments]);
 
+  const eventsByDate = useMemo(() => {
+    const dateMap = new Map<string, CalendarEvent[]>();
+    for (const event of events) {
+      const day = event.date.slice(0, 10);
+      dateMap.set(day, [...(dateMap.get(day) || []), event]);
+    }
+    for (const dayEvents of dateMap.values()) dayEvents.sort((a, b) => a.time.localeCompare(b.time));
+    return dateMap;
+  }, [events]);
+
+  const getEventsForDate = useCallback(
+    (date: Date) => eventsByDate.get(format(date, "yyyy-MM-dd")) || [],
+    [eventsByDate],
+  );
+
   // Optimized function to get appointments for a specific date
   const getAppointmentsForDate = useCallback(
     (date: Date) => {
@@ -478,10 +501,17 @@ export default function HomePage() {
           const endsAt = at + getAppointmentDuration(appointment);
           if (endsAt > end) end = Math.min(1440, Math.ceil(endsAt / 60) * 60);
         }
+        for (const event of getEventsForDate(date)) {
+          const at = timeToMinutes(event.time);
+          if (!Number.isFinite(at) || at < 0 || at >= 1440) continue;
+          if (at < start) start = Math.floor(at / 60) * 60;
+          const endsAt = at + event.duration;
+          if (endsAt > end) end = Math.min(1440, Math.ceil(endsAt / 60) * 60);
+        }
       }
     }
     return { workStartMinutes: start, workEndMinutes: end };
-  }, [WORK_START, WORK_END, view, visibleDates, getAppointmentsForDate, getAppointmentDuration]);
+  }, [WORK_START, WORK_END, view, visibleDates, getAppointmentsForDate, getAppointmentDuration, getEventsForDate]);
   const totalWorkMinutes = Math.max(0, workEndMinutes - workStartMinutes);
 
   // Memoized client lookup for performance
@@ -955,6 +985,44 @@ export default function HomePage() {
     setIsClientSelectOpen(true);
   }, []);
 
+  const openEventFromSlot = useCallback(() => {
+    if (!slotMenu) return;
+    setSlotMenu(null);
+    setEditingEvent({
+      clinic_id: currentClinic?.id,
+      user_id: currentUser?.id ?? null,
+      date: format(slotMenu.date, "yyyy-MM-dd"),
+      time: slotMenu.time,
+      duration: APPOINTMENT_DURATION,
+      text: "",
+    });
+  }, [APPOINTMENT_DURATION, currentClinic?.id, currentUser?.id, slotMenu]);
+
+  const handleSaveEvent = useCallback(async () => {
+    if (!editingEvent || !editingEvent.text.trim() || isSavingEvent) return;
+    setIsSavingEvent(true);
+    const { event, error } = await saveCalendarEvent({ ...editingEvent, text: editingEvent.text.trim() });
+    setIsSavingEvent(false);
+    if (!event) {
+      console.error("Error saving calendar event:", error);
+      toast.error(t("calendarEventSaveFailed"));
+      return;
+    }
+    setEvents((current) => [...current.filter((item) => item.id !== event.id), event]);
+    setEditingEvent(null);
+    toast.success(t("calendarEventSaved"));
+  }, [editingEvent, isSavingEvent, t]);
+
+  const handleDeleteEvent = useCallback(async (id: number) => {
+    if (!(await deleteCalendarEvent(id))) {
+      toast.error(t("calendarEventDeleteFailed"));
+      return;
+    }
+    setEvents((current) => current.filter((item) => item.id !== id));
+    setEditingEvent(null);
+    toast.success(t("calendarEventDeleted"));
+  }, [t]);
+
   const openNewClientFlowFromSlot = useCallback(() => {
     setSlotMenu(null);
     setNewClientFormData({
@@ -1231,6 +1299,8 @@ export default function HomePage() {
                     visibleDates={visibleDates}
                     currentDate={currentDate}
                     getAppointmentsForDate={getAppointmentsForDate}
+                    getEventsForDate={getEventsForDate}
+                    onEventClick={setEditingEvent}
                     currentUser={currentUser}
                     holidaysByDate={calendarHolidayMap}
                     onDateClick={setCurrentDate}
@@ -1263,6 +1333,8 @@ export default function HomePage() {
                     draggedData={draggedData}
                     calendarRef={calendarRef}
                     suppressClickRef={suppressClickRef}
+                    getEventsForDate={getEventsForDate}
+                    onEventClick={setEditingEvent}
                   />
                 )}
               </CardContent>
@@ -1334,6 +1406,14 @@ export default function HomePage() {
               <UserPlus className="h-4 w-4" />
               תור מלקוח חדש
             </button>
+            <button
+              type="button"
+              className="hover:bg-muted flex w-full items-center gap-2 rounded-sm px-3 py-2 text-right"
+              onClick={openEventFromSlot}
+            >
+              <StickyNote className="h-4 w-4" />
+              {t("calendarEventMenu")}
+            </button>
           </div>
         )}
 
@@ -1384,6 +1464,15 @@ export default function HomePage() {
             </button>
           </div>
         )}
+
+        <EventModal
+          event={editingEvent}
+          saving={isSavingEvent}
+          onChange={(changes) => setEditingEvent((current) => (current ? { ...current, ...changes } : current))}
+          onClose={() => setEditingEvent(null)}
+          onSave={handleSaveEvent}
+          onDelete={handleDeleteEvent}
+        />
 
         <NewClientAppointmentModal
           isOpen={isNewClientAppointmentOpen}

@@ -14,12 +14,12 @@ def install_calendar_revision():
 
 
 def changed_clinic_ids(db) -> set[int]:
-    """The clinics whose appointments this flush adds, changes or removes."""
-    from models import Appointment
+    """The clinics whose appointments or general events this flush adds, changes or removes."""
+    from models import Appointment, CalendarEvent
 
     clinic_ids = set()
     for row in [*db.new, *db.dirty, *db.deleted]:
-        if not isinstance(row, Appointment):
+        if not isinstance(row, (Appointment, CalendarEvent)):
             continue
         if row in db.dirty and row not in db.deleted:
             state = inspect(row)

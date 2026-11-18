@@ -10,7 +10,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { CalendarHoliday } from "@/lib/clinic-holidays";
-import { Appointment, User } from "@/lib/db/schema-interface";
+import { Appointment, CalendarEvent, User } from "@/lib/db/schema-interface";
 import { CalendarView } from "./types";
 import { formatAppointmentTime } from "./utils";
 
@@ -18,6 +18,8 @@ interface MonthViewProps {
   visibleDates: Date[];
   currentDate: Date;
   getAppointmentsForDate: (date: Date) => Appointment[];
+  getEventsForDate: (date: Date) => CalendarEvent[];
+  onEventClick: (event: CalendarEvent) => void;
   currentUser: User | null;
   holidaysByDate: Record<string, CalendarHoliday>;
   onDateClick: (date: Date) => void;
@@ -28,6 +30,8 @@ export function MonthView({
   visibleDates,
   currentDate,
   getAppointmentsForDate,
+  getEventsForDate,
+  onEventClick,
   currentUser,
   holidaysByDate,
   onDateClick,
@@ -116,6 +120,20 @@ export function MonthView({
               })()}
             </div>
             <div className="mt-1 space-y-1">
+              {getEventsForDate(date).map((event) => (
+                <button
+                  key={`event-${event.id}`}
+                  type="button"
+                  className="block w-full truncate rounded border border-amber-300 bg-amber-50 p-1 text-start text-xs text-amber-950 dark:border-amber-700 dark:bg-amber-950/60 dark:text-amber-100"
+                  title={`${formatAppointmentTime(event.time)} - ${event.text}`}
+                  onClick={(clickEvent) => {
+                    clickEvent.stopPropagation();
+                    onEventClick(event);
+                  }}
+                >
+                  {formatAppointmentTime(event.time)} {event.text}
+                </button>
+              ))}
               {dayAppointments.slice(0, 3).map((appointment) => (
                 <div
                   key={appointment.id}
