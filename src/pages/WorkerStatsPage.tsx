@@ -1,25 +1,16 @@
-import React, { useState, useRef } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import React, { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/site-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { CustomModal } from "@/components/ui/custom-modal";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DateInput } from "@/components/ui/date";
 import {
   IconClock,
   IconCalendar,
   IconChartBar,
-  IconPlus,
-  IconTrash,
-  IconPencil,
 } from "@tabler/icons-react";
 import { apiClient } from "@/lib/api-client";
-import { User, WorkShift } from "@/lib/db/schema-interface";
+import { User } from "@/lib/db/schema-interface";
 import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels";
 import { useUser } from "@/contexts/UserContext";
 import { useAppLocale } from "@/localization/use-app-locale";
@@ -41,8 +32,6 @@ type WorkShiftStatsResponse = {
 const workerStatsQueryKeys = {
   users: (clinicId: number | null | undefined) =>
     ["worker-stats", "users", clinicId ?? "none"] as const,
-  dayShifts: (userId: number | null, date: string) =>
-    ["worker-stats", "day-shifts", userId, date] as const,
   monthlyStats: (userId: number | null, year: number, month: number) =>
     ["worker-stats", "monthly-stats", userId, year, month] as const,
 };
@@ -77,19 +66,6 @@ const getAttendanceUsers = async (clinicId: number, viewer: User) => {
   );
 };
 
-const shiftDurationMinutes = (start: string, end: string) => {
-  const [startHours, startMinutes] = start.split(":").map(Number);
-  const [endHours, endMinutes] = end.split(":").map(Number);
-  return ((endHours - startHours) * 60 + endMinutes - startMinutes + 1440) % 1440;
-};
-
-const getDayShifts = async (userId: number, date: string) => {
-  const response = await apiClient.getWorkShiftsByUserAndDate(userId, date);
-  if (response.error) throw new Error(response.error);
-
-  return response.data || [];
-};
-
 const getMonthlyStats = async (
   userId: number,
   year: number,
@@ -113,26 +89,13 @@ export default function WorkerStatsPage() {
   const { t } = useTranslation();
   const { currentUser, currentClinic } = useUser();
   const clinicId = currentClinic?.id;
-  const queryClient = useQueryClient();
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().split("T")[0],
-  );
   const [selectedMonth, setSelectedMonth] = useState<number>(
     new Date().getMonth() + 1,
   );
   const [selectedYear, setSelectedYear] = useState<number>(
     new Date().getFullYear(),
   );
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isCreatingShift, setIsCreatingShift] = useState(false);
-  const isCreatingShiftRef = useRef(false);
-  const [newShiftData, setNewShiftData] = useState({
-    start_time: "",
-    end_time: "",
-  });
-  // The shift whose hours a CEO is changing in the same window; none when adding one.
-  const [editingShift, setEditingShift] = useState<WorkShift | null>(null);
   const canEditShifts = isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo);
 
   const usersQuery = useQuery({
@@ -152,20 +115,6 @@ export default function WorkerStatsPage() {
     ? selectedUserId
     : (users[0]?.id ?? null);
 
-  const dayShiftsQuery = useQuery({
-    queryKey: workerStatsQueryKeys.dayShifts(
-      effectiveSelectedUserId,
-      selectedDate,
-    ),
-    queryFn: () => getDayShifts(effectiveSelectedUserId!, selectedDate),
-    enabled: !!effectiveSelectedUserId && !!selectedDate,
-    staleTime: 0,
-    refetchOnWindowFocus: true,
-    refetchOnReconnect: true,
-    refetchInterval: 15_000,
-    refetchIntervalInBackground: false,
-  });
-
   const monthlyStatsQuery = useQuery({
     queryKey: workerStatsQueryKeys.monthlyStats(
       effectiveSelectedUserId,
@@ -182,62 +131,8 @@ export default function WorkerStatsPage() {
     refetchIntervalInBackground: false,
   });
 
-  const dayShifts = dayShiftsQuery.data || [];
   const userStats = monthlyStatsQuery.data || emptyWorkerStats;
   const dateLocale = locale === "fr" ? "fr-FR" : locale === "en" ? "en-US" : "he-IL";
-
-  const invalidateSelectedWorkerData = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({
-        queryKey: workerStatsQueryKeys.dayShifts(
-          effectiveSelectedUserId,
-          selectedDate,
-        ),
-      }),
-      queryClient.invalidateQueries({
-        queryKey: workerStatsQueryKeys.monthlyStats(
-          effectiveSelectedUserId,
-          selectedYear,
-          selectedMonth,
-        ),
-      }),
-    ]);
-  };
-
-  const createShiftMutation = useMutation({
-    mutationFn: async (
-      workShift: Omit<WorkShift, "id" | "created_at" | "updated_at">,
-    ) => {
-      const response = await apiClient.createWorkShift(workShift);
-      if (response.error) throw new Error(response.error);
-      return response.data;
-    },
-    onSuccess: async () => {
-      await invalidateSelectedWorkerData();
-    },
-  });
-
-  const updateShiftMutation = useMutation({
-    mutationFn: async ({ id, ...changes }: Partial<WorkShift> & { id: number }) => {
-      const response = await apiClient.updateWorkShift(id, changes);
-      if (response.error) throw new Error(response.error);
-      return response.data;
-    },
-    onSuccess: async () => {
-      await invalidateSelectedWorkerData();
-    },
-  });
-
-  const deleteShiftMutation = useMutation({
-    mutationFn: async (shiftId: number) => {
-      const response = await apiClient.deleteWorkShift(shiftId);
-      if (response.error) throw new Error(response.error);
-      return response.data;
-    },
-    onSuccess: async () => {
-      await invalidateSelectedWorkerData();
-    },
-  });
 
   if (usersQuery.isLoading) {
     return (
@@ -283,31 +178,6 @@ export default function WorkerStatsPage() {
                     </div>
                   </CardContent>
                 </Card>
-
-                <Card className="border-none shadow-md">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <Skeleton className="h-8 w-36" />
-                      </div>
-                      <div className="text-start">
-                        <Skeleton className="ml-auto h-5 w-28" />
-                        <Skeleton className="mt-2 ml-auto h-4 w-56" />
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center justify-end gap-4">
-                      <Skeleton className="h-10 w-40" />
-                      <Skeleton className="h-5 w-16" />
-                    </div>
-                    <div className="grid gap-3">
-                      <Skeleton className="h-20 w-full rounded-lg" />
-                      <Skeleton className="h-20 w-full rounded-lg" />
-                      <Skeleton className="h-20 w-full rounded-lg" />
-                    </div>
-                  </CardContent>
-                </Card>
               </div>
 
               <div className="w-48 shrink-0">
@@ -339,69 +209,6 @@ export default function WorkerStatsPage() {
     const hours = Math.floor(totalMinutes / 60);
     const mins = totalMinutes % 60;
     return `${hours}:${mins.toString().padStart(2, "0")}`;
-  };
-
-  const handleCreateShift = async () => {
-    if (isCreatingShiftRef.current) return;
-    if (
-      !effectiveSelectedUserId ||
-      !newShiftData.start_time ||
-      !newShiftData.end_time
-    )
-      return;
-
-    isCreatingShiftRef.current = true;
-    setIsCreatingShift(true);
-    try {
-      const durationMinutes = shiftDurationMinutes(newShiftData.start_time, newShiftData.end_time);
-
-      if (editingShift?.id) {
-        await updateShiftMutation.mutateAsync({
-          id: editingShift.id,
-          start_time: newShiftData.start_time,
-          end_time: newShiftData.end_time,
-          duration_minutes: durationMinutes,
-        });
-      } else {
-        const shiftData = {
-          user_id: effectiveSelectedUserId,
-          start_time: newShiftData.start_time,
-          end_time: newShiftData.end_time,
-          duration_minutes: durationMinutes,
-          date: selectedDate,
-          status: "completed" as const,
-        };
-
-        await createShiftMutation.mutateAsync(shiftData);
-      }
-      setIsCreateModalOpen(false);
-      setEditingShift(null);
-      setNewShiftData({ start_time: "", end_time: "" });
-    } catch (error) {
-      console.error("Error creating shift:", error);
-    } finally {
-      isCreatingShiftRef.current = false;
-      setIsCreatingShift(false);
-    }
-  };
-
-  const openEditShift = (shift: WorkShift) => {
-    setEditingShift(shift);
-    setNewShiftData({
-      start_time: (shift.start_time || "").slice(0, 5),
-      end_time: (shift.end_time || "").slice(0, 5),
-    });
-    setIsCreateModalOpen(true);
-  };
-
-  const handleDeleteShift = async (shiftId: number) => {
-    if (!shiftId) return;
-
-    try {
-      await deleteShiftMutation.mutateAsync(shiftId);
-    } catch (error) {
-      console.error("Error deleting shift:", error);
-    }
   };
 
   return (
@@ -579,159 +386,6 @@ export default function WorkerStatsPage() {
                         </CardContent>
                       </Card>
 
-                      {/* Day View */}
-                      <Card className="">
-                        <CardHeader>
-                          <div
-                            className="flex flex-row-reverse items-start justify-between gap-4"
-                            dir={direction}
-                          >
-                            <div
-                              className="flex flex-row-reverse items-center gap-3"
-                              dir={direction}
-                            >
-                              {isRoleAtLeast(
-                                currentUser?.role_level,
-                                ROLE_LEVELS.manager,
-                              ) && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setIsCreateModalOpen(true)}
-                                  className="flex items-center gap-2"
-                                >
-                                  הוספת משמרת
-                                  <IconPlus className="h-4 w-4" />
-                                </Button>
-                              )}
-                              <div
-                                className="flex flex-row-reverse items-center gap-2"
-                                dir={direction}
-                              >
-                                <DateInput
-                                  name="selected_date"
-                                  value={selectedDate}
-                                  onChange={(e) => setSelectedDate(e.target.value)}
-                                  className="w-auto text-center"
-                                  dir="ltr"
-                                />
-                                <Label className="text-sm font-medium">
-                                  {t("attendanceDateLabel")}
-                                </Label>
-                              </div>
-                            </div>
-                            <div className="text-start">
-                              <CardTitle>צפייה לפי יום</CardTitle>
-                              <p className="text-muted-foreground text-sm">
-                                בחר תאריך לצפייה בשעות הגעה ויציאה
-                              </p>
-                            </div>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          {dayShifts.length === 0 ? (
-                            <div className="text-muted-foreground py-12 text-center">
-                              <IconClock className="mx-auto mb-4 h-12 w-12 opacity-50" />
-                              <p className="mb-2 text-lg">
-                                אין משמרות לתאריך זה
-                              </p>
-                              <p className="text-sm">
-                                לחץ על "הוספת משמרת" כדי להוסיף משמרת חדשה
-                              </p>
-                            </div>
-                          ) : (
-                            <div className="grid gap-3">
-                              {dayShifts.map((shift, index) => (
-                                <div
-                                  key={shift.id || index}
-                                  className="bg-accent/50 rounded-lg p-4 shadow-md transition-colors"
-                                >
-                                  <div className="mb-3 flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                      <Badge
-                                        variant={
-                                          shift.status === "completed"
-                                            ? "default"
-                                            : shift.status === "active"
-                                              ? "destructive"
-                                              : "outline"
-                                        }
-                                      >
-                                        {shift.status === "completed"
-                                          ? "הושלמה"
-                                          : shift.status === "active"
-                                            ? "פעילה"
-                                            : "בוטלה"}
-                                      </Badge>
-                                      {canEditShifts && shift.status === "completed" && shift.id != null && (
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          onClick={() => openEditShift(shift)}
-                                          className="h-8 w-8 p-0"
-                                          title={t("attendanceEditShift")}
-                                          aria-label={t("attendanceEditShift")}
-                                        >
-                                          <IconPencil className="h-4 w-4" />
-                                        </Button>
-                                      )}
-                                      {isRoleAtLeast(
-                                        currentUser?.role_level,
-                                        ROLE_LEVELS.manager,
-                                      ) && (
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          onClick={() =>
-                                            handleDeleteShift(shift.id!)
-                                          }
-                                          className="h-8 w-8 p-0 text-red-500 hover:bg-red-50 hover:text-red-700"
-                                        >
-                                          <IconTrash className="h-4 w-4" />
-                                        </Button>
-                                      )}
-                                    </div>
-                                    <div className="text-muted-foreground text-sm">
-                                      משמרת {index + 1}
-                                    </div>
-                                  </div>
-
-                                  <div className="grid grid-cols-3 gap-4 text-sm">
-                                    <div className="bg-card rounded-lg p-3 text-center shadow-md">
-                                      <div className="text-lg font-medium">
-                                        {formatDuration(
-                                          shift.duration_minutes || 0,
-                                        )}{" "}
-                                      </div>
-                                      <div className="text-muted-foreground">
-                                        משך המשמרת
-                                      </div>
-                                    </div>
-                                    <div className="bg-card rounded-lg p-3 text-center shadow-md">
-                                      <div className="text-lg font-medium">
-                                        {shift.end_time
-                                          ? shift.end_time.slice(0, 5)
-                                          : "פעילה"}
-                                      </div>
-                                      <div className="text-muted-foreground">
-                                        סיום
-                                      </div>
-                                    </div>
-                                    <div className="bg-card rounded-lg p-3 text-center shadow-md">
-                                      <div className="text-lg font-medium">
-                                        {shift.start_time.slice(0, 5)}
-                                      </div>
-                                      <div className="text-muted-foreground">
-                                        התחלה
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
                     </TabsContent>
                   ))}
                 </div>
@@ -774,74 +428,6 @@ export default function WorkerStatsPage() {
         </div>
       </div>
 
-      {/* Create Shift Modal */}
-      <CustomModal
-        isOpen={isCreateModalOpen}
-        onClose={() => {
-          if (isCreatingShift) return;
-          setIsCreateModalOpen(false);
-          setEditingShift(null);
-          setNewShiftData({ start_time: "", end_time: "" });
-        }}
-        title={editingShift ? t("attendanceEditShift") : "הוספת משמרת חדשה"}
-        subtitle={`תאריך: ${new Date(selectedDate).toLocaleDateString("he-IL")}`}
-        width="max-w-md"
-        className="px-2"
-        onConfirm={handleCreateShift}
-        confirmText={editingShift ? t("timePickerSave") : "הוספה"}
-        showCloseButton={false}
-        cancelText="ביטול"
-        isLoading={isCreatingShift}
-      >
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="start_time" className="text-sm font-medium">
-                שעת התחלה
-              </Label>
-              <Input
-                id="start_time"
-                type="time"
-                value={newShiftData.start_time}
-                onChange={(e) =>
-                  setNewShiftData((prev) => ({
-                    ...prev,
-                    start_time: e.target.value,
-                  }))
-                }
-                className="mt-1"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="end_time" className="text-sm font-medium">
-                שעת סיום
-              </Label>
-              <Input
-                id="end_time"
-                type="time"
-                value={newShiftData.end_time}
-                onChange={(e) =>
-                  setNewShiftData((prev) => ({
-                    ...prev,
-                    end_time: e.target.value,
-                  }))
-                }
-                className="mt-1"
-              />
-            </div>
-          </div>
-
-          {newShiftData.start_time && newShiftData.end_time && (
-            <div className="bg-muted/50 rounded-lg p-3 text-center">
-              <div className="text-muted-foreground text-sm">משך המשמרת</div>
-              <div className="font-medium">
-                {formatDuration(shiftDurationMinutes(newShiftData.start_time, newShiftData.end_time))}
-              </div>
-            </div>
-          )}
-        </div>
-      </CustomModal>
     </>
   );
 }
