@@ -3,6 +3,7 @@ import { OpticPlusImportedItems } from "@/components/migration/OpticPlusImported
 import { useTranslation } from "react-i18next";
 import { ExamToolbox } from "@/components/exam/ExamToolbox";
 import { OrderFinalPrescriptionTab } from "@/components/orders/OrderFinalPrescriptionTab";
+import { normalizeDominantEye, useClientDominantEye } from "@/hooks/client/useClientDominantEye";
 import type { FinalPrescriptionExam, Order, User } from "@/lib/db/schema-interface";
 import type { CatalogVariant, FulfillmentSource, InventorySelection } from "@/lib/inventory";
 import { useClientSidebar } from "@/contexts/ClientSidebarContext";
@@ -79,6 +80,8 @@ export default function RegularOrderTab({
 }: RegularOrderTabProps) {
   const { t } = useTranslation();
   const { currentClient } = useClientSidebar();
+  const orderDominantEye = normalizeDominantEye(formData.dominant_eye);
+  const { data: examDominantEye } = useClientDominantEye(formData.client_id || currentClient?.id);
   const lens = lensFrameTab?.lens || ({ order_id: 0 } as OrderLens);
   const frame = lensFrameTab?.frame || ({ order_id: 0 } as Frame);
 
@@ -133,6 +136,8 @@ export default function RegularOrderTab({
             }
             isEditing={isEditing}
             prescriptionSource={(formData.client_id || currentClient?.id) ? { clientId: Number(formData.client_id || currentClient?.id), orderId: formData.id } : undefined}
+            dominantEye={orderDominantEye ?? examDominantEye}
+            dominantEyeFromExam={!orderDominantEye && Boolean(examDominantEye)}
           />
         </div>
 

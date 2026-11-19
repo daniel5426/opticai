@@ -9,7 +9,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { FinalPrescriptionExam } from "@/lib/db/schema-interface";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Eye } from "lucide-react";
+import type { DominantEye } from "@/hooks/client/useClientDominantEye";
 import { EXAM_FIELDS, PDFieldConfigProvider } from "@/components/exam/data/exam-field-definitions";
 import { BASE_VALUES_SIMPLE, PDCalculationUtils } from "@/components/exam/data/exam-constants";
 import { FastInput, FastSelect } from "@/components/exam/shared/OptimizedInputs";
@@ -45,6 +46,9 @@ interface OrderFinalPrescriptionTabProps {
   hideEyeLabels?: boolean;
   /** When set, a button beside the title fills the card from the client's earlier orders or exams. */
   prescriptionSource?: OrderPrescriptionSource;
+  /** Shown beside the title: the order's dominant eye, or the client's latest exam's. */
+  dominantEye?: DominantEye | null;
+  dominantEyeFromExam?: boolean;
 }
 
 const toAdd = (value: unknown) => {
@@ -59,6 +63,8 @@ export function OrderFinalPrescriptionTab({
   isEditing,
   hideEyeLabels = false,
   prescriptionSource,
+  dominantEye,
+  dominantEyeFromExam = false,
 }: OrderFinalPrescriptionTabProps) {
   const { t } = useTranslation();
   const { direction } = useAppLocale();
@@ -325,6 +331,19 @@ export function OrderFinalPrescriptionTab({
                 </SelectContent>
               </Select>
             </div>
+
+            {dominantEye && (
+              <div
+                className="absolute right-0 flex h-6 items-center gap-1 rounded-full border border-primary/15 bg-primary/5 px-2 text-[11px] leading-none text-muted-foreground"
+                dir={direction}
+                title={dominantEyeFromExam ? t("orderDominantEyeFromExam") : undefined}
+                aria-label={`${t("orderGroupDominantEye")}: ${t(dominantEye === "R" ? "orderGroupRightEye" : "orderGroupLeftEye")}`}
+              >
+                <Eye className="h-3 w-3 shrink-0 text-primary" />
+                <span>{t("orderGroupDominantEye")}</span>
+                <span className="font-semibold text-primary">{t(dominantEye === "R" ? "orderGroupRightEye" : "orderGroupLeftEye")}</span>
+              </div>
+            )}
 
             <div className="flex flex-1 items-center justify-center gap-1">
               <h3 className="font-medium text-muted-foreground">{t("orderWorkspace.prescription")}</h3>
