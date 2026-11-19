@@ -8,6 +8,7 @@ import { TableListPageContent } from "@/components/table-list-layout"
 import { useTranslation } from "react-i18next"
 import { SiteHeader } from "@/components/site-header"
 import { getPaginatedEnrichedExams } from "@/lib/db/exams-db"
+import { apiClient } from "@/lib/api-client"
 import { OpticalExam } from "@/lib/db/schema-interface"
 import { ExamsTable } from "@/components/exams-table"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
@@ -37,6 +38,14 @@ export default function AllExamsPage() {
     [search.sort]
   )
   const columnFilters = React.useMemo(() => parseColumnFilters(search.filters), [search.filters])
+  const [testNameOptions, setTestNameOptions] = useState<string[]>([])
+  useEffect(() => {
+    let cancelled = false
+    void apiClient.getExamTestNames("exam", clinicFilter.clinicId).then((response) => {
+      if (!cancelled && Array.isArray(response.data)) setTestNameOptions(response.data)
+    })
+    return () => { cancelled = true }
+  }, [clinicFilter.clinicId])
 
   useEffect(() => {
     updateLatestSearch(search.q)
@@ -168,6 +177,7 @@ export default function AllExamsPage() {
           onSearchChange={handleSearchInputChange}
           serverFiltered={true}
           testNameFilter={search.testName}
+          testNameOptions={testNameOptions}
           onTestNameFilterChange={(value) =>
             navigate({
               to: "/exams",
