@@ -53,6 +53,19 @@ describe("SoftOptic exam data on its tabs", () => {
     expect(screen.getByDisplayValue("21")).toBeTruthy();
     expect(screen.getAllByRole("textbox")).toHaveLength(2);
   });
+
+  test("labels the only recorded fitting field and keeps its full value", () => {
+    render(
+      <SoftOpticDetailsTab
+        data={{ layout_instance_id: 1, hours_today: "01:30" }}
+        cardId="fitting"
+        onChange={() => {}}
+        isEditing={false}
+      />,
+    );
+    expect(screen.getByRole("textbox", { name: "softoptic.details.labels.hoursToday" })).toHaveProperty("value", "01:30");
+    expect(screen.getAllByRole("textbox")).toHaveLength(1);
+  });
 });
 
 describe("RefractionTabsHeader", () => {

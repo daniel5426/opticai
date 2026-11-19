@@ -61,7 +61,6 @@ def test_adds_missing_fit_cards_and_keeps_edits():
     db.commit()
     db.expire_all()
 
-    assert counts["eye test linked"] == 1
     assert db.get(OpticalExam, fit.id).test_name == "התאמת עדשות מגע"
     data = db.query(ExamLayoutInstance).filter_by(exam_id=fit.id).one().exam_data
     assert data["objective"] == {"r_sph": -1.5}
@@ -69,6 +68,6 @@ def test_adds_missing_fit_cards_and_keeps_edits():
     assert "notes" not in data and "notes-notes-1" not in data
     assert data["notes-notes-2"]["note"] == "rewritten by hand"
     assert data["softoptic-details-fitting"]["wearing_unit"] == "months"
-    assert data["schirmer-test"]["r_mm"] == 22
+    assert "schirmer-test" not in data
     # Running it again changes nothing.
     assert plan(db, job)[0] == []

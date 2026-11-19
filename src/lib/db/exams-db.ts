@@ -10,9 +10,9 @@ export async function getExamsByClientId(clientId: number, type?: string): Promi
       console.error('Error getting exams by client:', response.error);
       return [];
     }
-    // Filter by type if specified; SoftOptic contact lens fits ("contact_fit") are eye exams too.
+    // Imported contact-lens entries also appear in the exam history.
     if (type && response.data) {
-      return response.data.filter(exam => exam.type === type || (type === "exam" && exam.type === "contact_fit"));
+      return response.data.filter(exam => exam.type === type || (type === "exam" && ["contact_fit", "softoptic_contact_check", "softoptic_contact_order"].includes(exam.type || "")));
     }
     return response.data || [];
   } catch (error) {

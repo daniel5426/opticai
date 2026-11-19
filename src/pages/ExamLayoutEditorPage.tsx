@@ -13,6 +13,7 @@ import React, {
   useState,
 } from "react";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { Edit, Eye, EyeOff, Info, Plus, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAppLocale } from "@/localization/use-app-locale";
@@ -38,7 +39,6 @@ import {
 import {
   ExamCardRenderer,
   CardItem,
-  hasNoteCard,
 } from "@/components/exam/ExamCardRenderer";
 import {
   getExamLayoutById,
@@ -197,6 +197,7 @@ export default function ExamLayoutEditorPage() {
   const savedLayoutId = useRef<number | null>(null);
   const savedLayoutSnapshot = useRef('');
   const saveController = useSaveController();
+  const queryClient = useQueryClient();
   const isNewMode = !params.layoutId || params.layoutId === "new";
   const [loading, setLoading] = useState(!isNewMode);
   const [layoutName, setLayoutName] = useState(
@@ -820,6 +821,7 @@ export default function ExamLayoutEditorPage() {
       if (result) {
         savedLayoutSnapshot.current = snapshot;
         savedLayoutId.current = result.id!;
+        void queryClient.invalidateQueries({ queryKey: ["exam-page-data"], refetchType: "none" });
         toast.success(
           isNewMode ? "פריסה חדשה נוצרה בהצלחה" : "הפריסה עודכנה בהצלחה",
         );
@@ -860,7 +862,7 @@ export default function ExamLayoutEditorPage() {
         grandparentTitle="הגדרות"
         grandparentLink="/settings"
       />
-      <div className="flex flex-1 flex-col p-4 pb-32 lg:p-6 lg:pb-40" dir="rtl">
+      <div className="exam-layout-page flex flex-1 flex-col px-(--exam-page-padding) pt-4 pb-32 lg:pt-6 lg:pb-40" dir="rtl">
         <div data-canvas-toolbar className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
@@ -973,7 +975,7 @@ export default function ExamLayoutEditorPage() {
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 )}
-                <ExamLayoutLane items={laneItems} ref={el => { laneRefs.current[lane] = el; }} className="p-3"
+                <ExamLayoutLane items={laneItems} ref={el => { laneRefs.current[lane] = el; }} className="px-[calc(1rem-1px)] py-3"
                   style={{ minHeight: laneItems.length ? undefined : EXAM_LAYOUT_LANE_MIN_HEIGHT_PX }}>
                 {(item, _index, style) => {
                   return (
@@ -1040,9 +1042,6 @@ export default function ExamLayoutEditorPage() {
                         isEditing
                         mode="editor"
                         hideEyeLabels={item.showEyeLabels === false}
-                        matchHeight={
-                          hasNoteCard(laneItems) && laneItems.length > 1
-                        }
                         onTitleChange={(title) =>
                           handleCardTitleChange(item.id, title)
                         }

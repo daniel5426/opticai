@@ -144,7 +144,7 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
             <h3 className="font-medium text-muted-foreground">Subjective</h3>
           </div>
 
-          <div className="grid gap-2 items-center" style={{ gridTemplateColumns: getExamInputGridTemplate(columns, hideEyeLabels) }}>
+          <div className="exam-eye-grid grid gap-2 items-center" style={{ gridTemplateColumns: getExamInputGridTemplate(columns, hideEyeLabels) }}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label, headerAccessory }) => (
               <div key={key} className="h-4 flex items-center justify-center gap-0.5">

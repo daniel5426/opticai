@@ -71,6 +71,9 @@ export function ContactLensDetailsTab({
 
   const scanId = useId();
   const identityFields = ['type', 'model', 'supplier', 'material', 'color'];
+  const hasProduct = ["r", "l"].some(eye =>
+    identityFields.some(field => Boolean((contactLensDetailsData as any)[`${eye}_${field}`])),
+  );
   const clearProduct = () => {
     if (!isEditing || inventoryCatalog?.rightDisabled || inventoryCatalog?.leftDisabled) return;
     for (const eye of ['r','l']) identityFields.forEach(field => onContactLensDetailsChange(`${eye}_${field}` as any, ''));
@@ -80,7 +83,7 @@ export function ContactLensDetailsTab({
   const scanRef = useScanTarget({ id: `contacts:${scanId}`, category: 'contact_lens', kind: inventoryCatalog ? 'order' : 'exam', label: t('scanner.contacts'),
     canApply: isEditing && !inventoryCatalog?.rightDisabled && !inventoryCatalog?.leftDisabled,
     edit: !isEditing && !inventoryCatalog?.rightDisabled && !inventoryCatalog?.leftDisabled ? () => window.dispatchEvent(new Event(inventoryCatalog ? 'prysm:scan-edit-order':'prysm:scan-edit-exam')) : undefined,
-    hasValue: ['r','l'].some(eye=>identityFields.some(field=>Boolean((contactLensDetailsData as any)[`${eye}_${field}`]))),
+    hasValue: hasProduct,
     apply: (variant, scan) => {
       const values = {type:variant.product.product_type || '',model:variant.product.model,supplier:variant.product.preferred_supplier || '',material:variant.product.material || '',color:variant.attributes.color || ''};
       const fields: Record<string, unknown> = {};
@@ -150,7 +153,7 @@ export function ContactLensDetailsTab({
           onChange={(value) => handleChange(eye, field, value)}
           lookupType={lookupType}
           placeholder=""
-          className="h-8 bg-white text-xs"
+          className="bg-white text-xs"
           center={true}
         />
       );
@@ -208,11 +211,21 @@ export function ContactLensDetailsTab({
     });
   };
 
+  const hasScannedProduct = scanned(contactLensDetailsData, "contacts");
+
   return (
     <div ref={scanRef}><Card className="examcard w-full pt-3 pb-4" dir="ltr">
       <CardContent className="px-4" style={{ scrollbarWidth: "none" }}>
         <div className="space-y-3">
-          <div className="flex justify-end"><ScanCardActions scanned={scanned(contactLensDetailsData,'contacts')} clear={['r','l'].some(eye=>identityFields.some(field=>(contactLensDetailsData as any)[`${eye}_${field}`])) ? clearProduct : undefined} disabled={!isEditing || inventoryCatalog?.rightDisabled || inventoryCatalog?.leftDisabled} /></div>
+          {(inventoryCatalog || hasScannedProduct || hasProduct) && (
+            <div className="flex justify-end">
+              <ScanCardActions
+                scanned={hasScannedProduct}
+                clear={hasProduct ? clearProduct : undefined}
+                disabled={!isEditing || inventoryCatalog?.rightDisabled || inventoryCatalog?.leftDisabled}
+              />
+            </div>
+          )}
           {inventoryCatalog && scannerEnabled && <div className="flex flex-wrap justify-center gap-2">
             {(["right", "left"] as const).map(side => <ProductBarcodeScan key={side}
               clinicId={inventoryCatalog.clinicId} category="contact_lens" orderId={inventoryCatalog.orderId} orderKind="contact"
@@ -226,7 +239,7 @@ export function ContactLensDetailsTab({
           </div>
 
           <div
-            className="grid items-center gap-2"
+            className="exam-eye-grid grid items-center gap-2"
             style={{ gridTemplateColumns: `${hideEyeLabels ? "" : "20px "}repeat(5, minmax(0, 2fr)) ${hideQuantity ? "" : "minmax(0, 1fr) "}minmax(0, 1fr)` }}
           >
             {!hideEyeLabels && <div></div>}

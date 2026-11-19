@@ -15,7 +15,7 @@ export function CenteredLayoutWidth({ layoutWidthPx, sideInsetPx = 0, onChange, 
   const clamp = (value: number, max: number) => Math.round(Math.max(Math.min(320, max), Math.min(max, value)));
   return (
     <div ref={container} className="w-full">
-      <div ref={ref} data-layout-width className="relative mx-auto w-full" style={{ maxWidth }}>
+      <div ref={ref} data-layout-width className="relative mx-auto w-full" style={{ maxWidth: maxWidth ?? "var(--exam-layout-default-width)" }}>
         {children}
         {([-1, 1] as const).map(side => (
           <div
@@ -34,7 +34,8 @@ export function CenteredLayoutWidth({ layoutWidthPx, sideInsetPx = 0, onChange, 
               event.stopPropagation();
               event.currentTarget.setPointerCapture(event.pointerId);
               const max = container.current?.clientWidth ?? 320;
-              drag.current = { x: event.clientX, width: Math.min(maxWidth ?? max, max), max, side };
+              const width = Math.min(maxWidth ?? max, ref.current?.clientWidth || max);
+              drag.current = { x: event.clientX, width, max, side };
             }}
             onPointerMove={event => {
               const bounds = event.currentTarget.getBoundingClientRect();
@@ -53,7 +54,8 @@ export function CenteredLayoutWidth({ layoutWidthPx, sideInsetPx = 0, onChange, 
               if (!["ArrowLeft", "ArrowRight", "Home"].includes(event.key)) return;
               event.preventDefault();
               const max = container.current?.clientWidth ?? 320;
-              onChange(event.key === "Home" ? undefined : clamp(Math.min(maxWidth ?? max, max) + (event.key === "ArrowLeft" ? -side : side) * (event.shiftKey ? 40 : 8), max));
+              const width = Math.min(maxWidth ?? max, ref.current?.clientWidth || max);
+              onChange(event.key === "Home" ? undefined : clamp(width + (event.key === "ArrowLeft" ? -side : side) * (event.shiftKey ? 40 : 8), max));
             }}
           >
             <div

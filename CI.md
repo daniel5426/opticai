@@ -775,3 +775,32 @@ intact. The PD and VA repair is a separate, dry-run-first operation.
 Staging verification waits on an active deployment of the release commit.
 When it needs to compare an earlier deployment, the parallel service checks
 serialize Git history fetches to avoid contention on the shallow checkout.
+
+## Soft Optic exam review
+
+The exam list and client history retain a separate entry for each Soft Optic
+record. Contact-lens orders can include checks when the source references
+identify the same prescription. Fittings use their own source data.
+
+Run Python modules with `PYTHONPATH=backend backend/.venv/bin/python -m`.
+`scripts.copy_softoptic_clinic_for_review --source-clinic 11 --target-email
+REVIEWER_EMAIL` previews a pseudonymized copy for the designated
+staging company. Add `--execute` to create that clinic. Run
+`scripts.qualify_softoptic_review_copy --clinic-id ID` to repair the verified
+review clinic. The copy reads production through a read-only transaction.
+
+`scripts.backfill_softoptic_contact_order_titles --clinic-id ID` previews
+titles for existing contact-lens exam entries from their exact linked order
+type. Add `--apply` for the designated staging review clinic.
+
+`scripts.repair_softoptic_exam_history --target production` previews the complete
+repair for clinic 11 in a read-only transaction. The same command with
+`--target staging` checks the designated review clinic. The preview reports new
+contact-lens exam entries and titles, recovered checks and their links, and
+changes to fitting and legacy check data. Conflicting historical measurements
+remain available for manual review. No Alembic migration is required.
+
+After the matching application release is live and the owner has reviewed the
+production preview, `--target production --apply PREVIEW_PLAN` applies the
+reviewed changes in one transaction. It verifies the database and clinic and
+rejects changes to the preview. Run the read-only preview again after applying.

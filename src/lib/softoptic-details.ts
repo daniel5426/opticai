@@ -18,8 +18,8 @@ export type SoftopticDetailSlot = {
   title: string
   eyeRows?: SoftopticDetailEyeRow[]
   fields?: SoftopticDetailField[]
-  /** Label and value pairs per row; long text always takes a whole row. */
-  fieldColumns?: number
+  /** Pack short fields into columns when there is room. */
+  compactFields?: boolean
   /** Show the fields above the eye rows. */
   fieldsFirst?: boolean
   /** A single line of text instead of a card. */
@@ -105,7 +105,7 @@ export const SOFTOPTIC_DETAIL_SLOTS: Record<string, SoftopticDetailSlot> = {
   // Contact lens fit (imported "contact_fit" exams).
   fitting: {
     title: "fitting",
-    fieldColumns: 4,
+    compactFields: true,
     fieldsFirst: true,
     eyeRows: [eyeRow("reflex"), eyeRow("oldBc", "old_bc"), eyeRow("oldAdd", "old_add")],
     fields: [

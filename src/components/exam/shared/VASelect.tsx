@@ -102,13 +102,17 @@ function formatVANumber(value: number): string {
 }
 
 /**
- * Older SoftOptic imports stored meter acuity as a bare denominator, such as
- * `9+2` for `6/9+2`. Treat those values as meter VA before conversion.
+ * Older SoftOptic imports could omit the `6/` prefix or use a lone sign for
+ * one letter. Normalize these values before converting to the display scale.
  */
 export function normalizeLegacyBareMeterVA(value: string): string {
   if (!value) return ""
 
-  const { base, modifier } = splitVAModifier(value)
+  const loneSign = value.match(/[+-]$/)?.[0]
+  const { base, modifier } = loneSign
+    ? { base: value.slice(0, -1), modifier: `${loneSign}1` }
+    : splitVAModifier(value)
+  if (loneSign && isMeterVAValue(base)) return `${base}${modifier}`
   if (!/^\d+(?:\.\d+)?$/.test(base)) return value
 
   const denominator = Number(base)

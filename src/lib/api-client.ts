@@ -1154,6 +1154,14 @@ class ApiClient {
     return this.request<{ items: any[]; total: number }>(url);
   }
 
+  async getExamTestNames(type?: string, clinicId?: number) {
+    const params = new URLSearchParams();
+    if (type) params.append('type', type);
+    if (clinicId) params.append('clinic_id', clinicId.toString());
+    const queryString = params.toString();
+    return this.request<string[]>(`/exams/test-names${queryString ? `?${queryString}` : ''}`);
+  }
+
   // Exam Layouts
   async getExamLayouts(clinicId?: number) {
     const params = new URLSearchParams();

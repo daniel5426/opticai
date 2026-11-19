@@ -5,7 +5,6 @@ import { ExamLayoutRenderer } from '@/components/exam/ExamLayoutRenderer';
 
 vi.mock('@/components/exam/ExamCardRenderer', () => ({
   ExamCardRenderer: ({item}: {item: {id: string}}) => <input aria-label={item.id} defaultValue="source" />,
-  hasNoteCard: () => false,
   getColumnCount: () => 6,
 }));
 afterEach(() => {cleanup(); vi.unstubAllGlobals();});

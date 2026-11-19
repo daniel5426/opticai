@@ -27,9 +27,8 @@ export function RGTab({ rgData, onRGChange, isEditing, needsMiddleSpacer = false
           <div className="text-center">
             <h3 className="font-medium text-muted-foreground">R/G</h3>
           </div>
-          <div className="text-center text-xs h-[12px] font-medium text-muted-foreground"></div>
-
-          <div className="grid grid-cols-2 gap-2 items-center">
+          <div className="exam-eye-grid grid grid-cols-2 gap-2 items-center">
+            <div className="col-span-full" aria-hidden="true" />
             <div className={`field-view h-8 flex items-center justify-between space-x-2 px-3 rounded-md border bg-field ${isEditing ? 'border-input' : 'border-transparent'}`}>
               <Checkbox
                 id="suppression"
@@ -107,4 +106,4 @@ export function RGTab({ rgData, onRGChange, isEditing, needsMiddleSpacer = false
       </CardContent>
     </Card>
   )
-} 
+}

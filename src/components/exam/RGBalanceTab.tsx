@@ -39,7 +39,7 @@ export function RGBalanceTab({
           <div className="text-center">
             <h3 className="text-muted-foreground font-medium">{t("rgBalance")}</h3>
           </div>
-          <div className="grid grid-cols-[28px_repeat(3,minmax(0,1fr))] items-center gap-2">
+          <div className="exam-eye-grid grid grid-cols-[28px_repeat(3,minmax(0,1fr))] items-center gap-2">
             <div />
             {columns.map((column) => (
               <div

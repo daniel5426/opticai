@@ -18,7 +18,6 @@ interface FusionRangeTabProps {
   onFusionRangeChange: (field: keyof FusionRangeData, value: string) => void
   isEditing: boolean,
   needsMiddleSpacer?: boolean
-  hideEyeLabels?: boolean
 }
 
 const columns = [
@@ -30,7 +29,7 @@ const columns = [
 
 import { FastInput } from "./shared/OptimizedInputs"
 
-export function FusionRangeTab({ fusionRangeData, onFusionRangeChange, isEditing, needsMiddleSpacer = false, hideEyeLabels = false }: FusionRangeTabProps) {
+export function FusionRangeTab({ fusionRangeData, onFusionRangeChange, isEditing, needsMiddleSpacer = false }: FusionRangeTabProps) {
   return (
     <Card className="w-full examcard pb-4 pt-3" >
       <CardContent className="px-4" style={{ scrollbarWidth: 'none', direction: 'ltr' }}>
@@ -38,7 +37,7 @@ export function FusionRangeTab({ fusionRangeData, onFusionRangeChange, isEditing
           <div className="text-center">
             <h3 className="font-medium text-muted-foreground">Fusion Range</h3>
           </div>
-          <div className="grid grid-cols-[70px_repeat(4,1fr)] gap-2 items-center rtl">
+          <div className="exam-eye-grid grid grid-cols-[70px_repeat(4,1fr)] gap-2 items-center rtl">
             <div></div>
             {columns.map(col => (
               <div key={col.key} className="text-center text-xs font-medium text-muted-foreground">{col.label}</div>
@@ -54,14 +53,7 @@ export function FusionRangeTab({ fusionRangeData, onFusionRangeChange, isEditing
                 className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
               />
             ))}
-            {needsMiddleSpacer && (
-              <>
-                {!hideEyeLabels && <div className="h-8" />}
-                {columns.map(({ key }) => (
-                  <div key={`spacer-${key}`} className="h-8" />
-                ))}
-              </>
-            )}
+            {needsMiddleSpacer && <div className="col-span-full h-8" aria-hidden="true" />}
 
             <div className="text-sm font-medium text-right">Base Out</div>
             {columns.map(col => {

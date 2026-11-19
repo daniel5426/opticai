@@ -1,6 +1,9 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
+import { ContactLensDiametersTab } from "@/components/exam/ContactLensDiametersTab";
+import { KeratometerContactLensTab } from "@/components/exam/KeratometerContactLensTab";
+import { SchirmerTestTab } from "@/components/exam/SchirmerTestTab";
 import { SoftOpticDetailsTab } from "@/components/exam/SoftOpticDetailsTab";
 import { buildSoftopticFitTabs, defaultSoftopticTab } from "@/lib/softoptic-exam-tabs";
 
@@ -18,24 +21,25 @@ describe("SoftOptic contact lens fit tabs", () => {
   const tabs = buildSoftopticFitTabs(cards, (card) => (card.type === "old-refraction" ? ["1"] : undefined));
   const cardsOf = (key: string) => tabs.find((tab) => tab.key === key)?.cards.map((card) => card.id);
 
-  test("shows all of OpticSoft's fit tabs in its order and opens on Fitting", () => {
-    expect(tabs.map((tab) => tab.key)).toEqual(["subjective", "bioM", "rxCl1", "rxCl2", "fitting", "observation", "bino"]);
+  test("shows recorded fit tabs in order and opens on Fitting", () => {
+    expect(tabs.map((tab) => tab.key)).toEqual(["subjective", "bioM", "rxCl1", "rxCl2", "fitting"]);
     expect(defaultSoftopticTab(tabs)).toBe("fitting");
   });
 
   test("puts each card on its tab and shares the eye test's ones", () => {
-    expect(cardsOf("fitting")).toEqual(["fitting", "old-contact-lenses-1", "objective", "keratometer-1", "over-refraction"]);
+    expect(cardsOf("fitting")).toEqual(["fitting", "old-contact-lenses-1", "keratometer-1"]);
     expect(cardsOf("subjective")).toEqual([
-      "schirmer-test-1", "final-subjective", "addition", "keratometer-1", "uncorrected-va", "eye-test",
+      "schirmer-test-1", "keratometer-1", "eye-test",
     ]);
-    expect(cardsOf("bioM")).toEqual(["schirmer-test-1", "contact-lens-diameters", "bio", "eye-test"]);
+    expect(cardsOf("bioM")).toEqual(["schirmer-test-1", "bio", "eye-test"]);
     expect(cardsOf("rxCl1")).toEqual(["old-refraction-1"]);
     expect(cardsOf("rxCl2")).toEqual(["softoptic-cover-test-2"]);
   });
 
   test("draws empty sections for typing in, but nothing for a tab with none", () => {
-    expect(tabs.find((tab) => tab.key === "observation")?.placeholders).toEqual(["sensation-vision-stability"]);
-    const empty = buildSoftopticFitTabs([], () => undefined);
+    expect(tabs.find((tab) => tab.key === "observation")).toBeUndefined();
+    const empty = buildSoftopticFitTabs([], () => undefined, true);
+    expect(empty.find((tab) => tab.key === "observation")?.placeholders).toEqual(["sensation-vision-stability"]);
     expect(empty.find((tab) => tab.key === "rxCl1")?.cards).toEqual([]);
   });
 
@@ -51,5 +55,20 @@ describe("SoftOptic contact lens fit tabs", () => {
     expect(screen.getByDisplayValue("4")).toBeTruthy();
     expect((screen.getByRole("combobox") as HTMLSelectElement).value).toBe("weeks");
     expect(screen.getByDisplayValue(/two lines/).tagName).toBe("TEXTAREA");
+  });
+
+  test("keeps the native measurement columns left to right inside the Hebrew layout", () => {
+    const data = { layout_instance_id: 0 };
+    const noop = () => {};
+    const { container } = render(
+      <div dir="rtl">
+        <SchirmerTestTab schirmerTestData={data} onSchirmerTestChange={noop} isEditing={false} />
+        <KeratometerContactLensTab keratometerContactLensData={data} onKeratometerContactLensChange={noop} isEditing={false} />
+        <ContactLensDiametersTab contactLensDiametersData={data} onContactLensDiametersChange={noop} isEditing={false} />
+      </div>,
+    );
+    expect(container.querySelectorAll('[dir="rtl"] .exam-eye-grid[dir="ltr"]')).toHaveLength(2);
+    expect(screen.getByRole("heading", { name: "contactLensDiameters.title" })
+      .closest('[data-slot="card"]')?.querySelector('.grid[dir="ltr"]')).toBeTruthy();
   });
 });

@@ -22,7 +22,7 @@ export function StereoTestTab({ stereoTestData, onStereoTestChange, isEditing, n
           <div className="text-center">
             <h3 className="font-medium text-muted-foreground">Stereo Test</h3>
           </div>
-          <div className="grid grid-cols-[50px_1fr] gap-2 items-center rtl">
+          <div className="exam-eye-grid grid grid-cols-[50px_1fr] gap-2 items-center rtl">
             <div></div>
             <div className="text-center text-xs h-[16px] font-medium text-muted-foreground"></div>
 
@@ -54,16 +54,17 @@ export function StereoTestTab({ stereoTestData, onStereoTestChange, isEditing, n
                 value={String(score9 ?? "")}
                 onChange={(value) => onStereoTestChange('circle_9_score', Math.min(9, Math.max(0, Number(value))))}
                 disabled={!isEditing}
+                wrapperClassName="min-w-0 flex-1"
                 className={`h-8 text-xs flex-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                 placeholder="0"
               />
-              <span className="text-xs text-muted-foreground">/ 9</span>
+              <span className="text-xs whitespace-nowrap text-muted-foreground">/ 9</span>
               </div>
               <div className="flex items-center gap-1">
                 <FastInput type="number" min={0} max={3} step={1} value={String(score3 ?? "")}
                   onChange={(value) => onStereoTestChange('circle_3_score', Math.min(3, Math.max(0, Number(value))))}
-                  disabled={!isEditing} className="h-8 min-w-0 flex-1 text-xs disabled:cursor-default disabled:opacity-100" />
-                <span className="text-xs text-muted-foreground">/ 3</span>
+                  disabled={!isEditing} wrapperClassName="min-w-0 flex-1" className="h-8 text-xs disabled:cursor-default disabled:opacity-100" />
+                <span className="text-xs whitespace-nowrap text-muted-foreground">/ 3</span>
               </div>
             </div>
           </div>

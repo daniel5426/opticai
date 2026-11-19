@@ -23,6 +23,7 @@ type LayoutSelectorDropdownProps = {
   triggerClassName?: string;
   triggerLabel?: string;
   iconOnly?: boolean;
+  extraMenuItems?: React.ReactNode;
 };
 
 const flattenLayouts = (nodes: ExamLayout[]): ExamLayout[] => {
@@ -48,6 +49,7 @@ export const LayoutSelectorDropdown = ({
   triggerClassName,
   triggerLabel,
   iconOnly = false,
+  extraMenuItems,
 }: LayoutSelectorDropdownProps) => {
   const { direction } = useAppLocale();
   const { t } = useTranslation();
@@ -156,6 +158,7 @@ export const LayoutSelectorDropdown = ({
             {t("noLayoutsAvailable")}
           </DropdownMenuItem>
         )}
+        {extraMenuItems}
       </DropdownMenuContent>
     </DropdownMenu>
   );

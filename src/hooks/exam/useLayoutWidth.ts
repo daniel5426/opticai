@@ -7,7 +7,9 @@ export function useLayoutWidth(layoutWidthPx?: number, sideInsetPx = 0, identity
   useLayoutEffect(() => {
     if (layoutWidthPx || !sideInsetPx || !ref.current) return;
     const available = ref.current.parentElement?.clientWidth ?? 0;
-    if (available) setLegacy({ identity, inset: sideInsetPx, width: Math.max(320, available - sideInsetPx * 2) });
+    const style = getComputedStyle(ref.current);
+    const padding = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+    if (available) setLegacy({ identity, inset: sideInsetPx, width: Math.max(320, available - padding - sideInsetPx * 2) });
   }, [layoutWidthPx, sideInsetPx, identity]);
   return {
     ref,

@@ -1,6 +1,7 @@
 import React from 'react';
 import { afterEach, expect, test, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import i18n from '@/localization/i18n';
 import ExamLayoutEditorPage from '@/pages/ExamLayoutEditorPage';
 import { parseLayoutData } from '@/pages/exam-detail/utils';
@@ -20,7 +21,6 @@ vi.mock('@/components/site-header', () => ({ SiteHeader: () => null }));
 vi.mock('@/components/exam/ExamCardRenderer', () => ({
   ExamCardRenderer: () => <div>Card preview</div>,
   getColumnCount: () => 4,
-  hasNoteCard: () => true,
 }));
 vi.mock('@/lib/db/exam-layouts-db', () => ({
   getExamLayoutById: load,
@@ -35,6 +35,9 @@ const loadLayout = (items = [notes]) => load.mockResolvedValueOnce({
   layout_data: JSON.stringify({ version: 2, grid: { columns: 24 }, items }),
 });
 
+const renderEditor = (client = new QueryClient()) =>
+  render(<QueryClientProvider client={client}><ExamLayoutEditorPage /></QueryClientProvider>);
+
 afterEach(() => { cleanup(); load.mockReset(); save.mockClear(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 test('resizing a card changes its saved width independently of the overall layout width', async () => {
@@ -42,7 +45,10 @@ test('resizing a card changes its saved width independently of the overall layou
   vi.stubGlobal('PointerEvent', MouseEvent);
   vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1000);
   loadLayout();
-  render(<ExamLayoutEditorPage />);
+  const client = new QueryClient();
+  const examPageKey = ['exam-page-data', 81];
+  client.setQueryData(examPageKey, { instances: [] });
+  renderEditor(client);
   const card = (await screen.findByText('Card preview')).closest<HTMLElement>('[data-grid-card]')!;
   const rightHandle = card.querySelectorAll('[data-resize-handle]')[1];
   expect(card.style.width).toBe('416px');
@@ -58,6 +64,7 @@ test('resizing a card changes its saved width independently of the overall layou
 
   fireEvent.click(screen.getByRole('button', { name: 'שמור פריסה', exact: true }));
   await waitFor(() => expect(save).toHaveBeenCalledOnce());
+  expect(client.getQueryState(examPageKey)?.isInvalidated).toBe(true);
   expect(JSON.parse(save.mock.calls[0][0].layout_data)).toMatchObject({
     layoutWidthPx: 960,
     items: [{ id: 'notes', x: 0, y: 0, w: 10 }],
@@ -70,7 +77,7 @@ test('a card can reach the exact right edge and keep its position after the pane
   let paneWidth = 1900;
   vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(() => paneWidth);
   loadLayout();
-  render(<ExamLayoutEditorPage />);
+  renderEditor();
   const card = (await screen.findByText('Card preview')).closest<HTMLElement>('[data-grid-card]')!;
   const lane = card.closest<HTMLElement>('[data-exam-lane]')!;
   lane.style.padding = '12px';
@@ -96,7 +103,7 @@ test('dragging across a neighbor keeps the row in its original order', async () 
   vi.stubGlobal('PointerEvent', MouseEvent);
   vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1900);
   loadLayout([notes, { ...notes, id: 'second', x: 12 }]);
-  const { container } = render(<ExamLayoutEditorPage />);
+  const { container } = renderEditor();
   await screen.findAllByText('Card preview');
   const lane = container.querySelector<HTMLElement>('[data-exam-lane]')!;
   const first = lane.querySelector<HTMLElement>('[data-grid-card="notes"]')!;

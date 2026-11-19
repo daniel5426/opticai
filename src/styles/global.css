@@ -249,6 +249,41 @@
   .examcard {
     @apply !border;
   }
+  [data-exam-lane] .exam-eye-grid,
+  .exam-notes-card {
+    --exam-eye-row-height: 2rem;
+  }
+  [data-exam-lane] .exam-eye-grid {
+    grid-template-rows: minmax(1rem, auto);
+    grid-auto-rows: minmax(var(--exam-eye-row-height), auto);
+  }
+  .exam-notes-card {
+    /* Match the eye grid's header, two field rows, gaps, padding and border. */
+    min-block-size: calc(6rem + 2 * var(--exam-eye-row-height) + 2px);
+  }
+  .exam-notes-card-with-middle-row {
+    min-block-size: calc(6.5rem + 3 * var(--exam-eye-row-height) + 2px);
+  }
+  .exam-layout-page {
+    --exam-page-padding: 1rem;
+    --exam-sidebar-space: 0px;
+    --exam-side-panel-borders: 0px;
+    --exam-layout-default-width: calc(100dvw - var(--exam-sidebar-space) - var(--exam-side-panel-borders) - 2 * var(--exam-page-padding));
+
+    @media (width >= 40rem) {
+      /* Closed client and agent panels each retain two 1px borders. */
+      --exam-side-panel-borders: 4px;
+    }
+
+    @media (width >= 48rem) {
+      /* Reserve the desktop sidebar and its inset margin in either sidebar state. */
+      --exam-sidebar-space: calc(var(--sidebar-width, 0px) + 0.5rem);
+    }
+
+    @media (width >= 64rem) {
+      --exam-page-padding: 1.5rem;
+    }
+  }
   /* Gently separate white exam cards from the panel and the tinted page canvas. */
   [data-exam-surface].bg-card,
   [data-exam-layout-editor] {

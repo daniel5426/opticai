@@ -819,6 +819,49 @@ def build_component_entry(component_type: str, payload: Dict[str, Any]) -> Dict[
     return _build_component_entry(component_type, payload)
 
 
+def build_softoptic_contact_check_data(row: Dict[str, Any]) -> Dict[str, Any]:
+    eye = (clean_legacy_text(row.get("tested_eye")) or "").upper()
+    prefix = {"R": "r", "L": "l", "B": "comb", "BOTH": "comb"}.get(eye)
+    data = {}
+    if prefix:
+        fields = {
+            "sph": parse_float(row.get("or_sph")),
+            "cyl": parse_float(row.get("or_cyl")),
+            "ax": parse_int(row.get("or_ax")),
+            "va": parse_visual_acuity(row.get("chk_va")),
+            "add": parse_float(row.get("chk_add")),
+        }
+        if prefix == "comb":
+            fields = {"va": fields["va"]}
+        values = {f"{prefix}_{field}": value for field, value in fields.items() if value is not None}
+        if values:
+            data.update(build_component_entry("over-refraction", values))
+        if prefix != "comb":
+            lens = {
+                "bc": parse_softoptic_bc(row.get("lens_bc_1")),
+                "bc_2": parse_softoptic_bc(row.get("lens_bc_2")),
+                "diam": parse_float(row.get("lens_diam")),
+                "sph": parse_float(row.get("lens_sph")),
+                "cyl": parse_float(row.get("lens_cyl")),
+                "ax": parse_int(row.get("lens_ax")),
+            }
+            lens_values = {f"{prefix}_{field}": value for field, value in lens.items() if value is not None}
+            if lens_values:
+                data.update(build_component_entry("contact-lens-exam", lens_values))
+            labels = {
+                "lens_type": clean_legacy_text(row.get("lens_type")),
+                "model": clean_legacy_text(row.get("lens_model")),
+                "supplier": clean_legacy_text(row.get("lens_supplier")),
+            }
+            details = {f"{prefix}_{field}": value for field, value in labels.items() if value}
+            if details:
+                data.update(build_component_entry("contact-lens-details", details))
+    notes = [clean_legacy_text(row.get(key)) for key in ("trial_sct", "chk_comment")]
+    if any(notes):
+        data.update(build_component_entry("notes", {"note": "\n".join(note for note in notes if note)}))
+    return data
+
+
 def load_file_blob_map(csv_dir: str) -> Dict[str, str]:
     mapping: Dict[str, str] = {}
     rows_iter = read_csv_streaming(csv_dir, "account_files_blob.csv")
@@ -1893,7 +1936,8 @@ def _build_schirmer_component(row: Dict[str, Any], expanded: Optional[Dict[str, 
         "r_but": _get_float(expanded, row, ["bio_r_but"]),
         "l_but": _get_float(expanded, row, ["bio_l_but"]),
     }
-    if any(v is not None for v in data.values()):
+    # These four defaults occur together in untouched Soft Optic tear-film blocks.
+    if any(v not in (None, 0) for v in data.values()):
         return data
     return None
 
@@ -2076,6 +2120,8 @@ def build_exam_data_from_eye_tests(row: Dict[str, Any], expanded: Optional[Dict[
 
 # What OpticSoft calls its contact lens fit screen.
 CONTACT_FIT_TEST_NAME = "התאמת עדשות מגע"
+CONTACT_CHECK_TEST_NAME = "softoptic.visit.contactCheck"
+CONTACT_ORDER_TEST_NAME = "softoptic.visit.contactOrder"
 # OpticSoft's contact fit keeps "worn for N <unit>" with the unit as its length in days.
 CONTACT_FIT_WEARING_UNITS = {"1": "days", "7": "weeks", "30": "months", "365": "years"}
 # Every exported fit has "S" here, OpticSoft's preselected R/G radio, so alone it is not a result.
@@ -2113,8 +2159,6 @@ def _contact_fit_details(row: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
             "wearing_unit": CONTACT_FIT_WEARING_UNITS.get(wearing_unit or "", wearing_unit),
             "hours_per_day": clean_legacy_text(row.get("hours_per_day")),
             "hours_today": _contact_fit_hours(row.get("time_today")),
-            "r_reflex": clean_legacy_text(row.get("obj_right_remarks")),
-            "l_reflex": clean_legacy_text(row.get("obj_left_remarks")),
             # The old lenses card takes a number; OpticSoft's curve codes (Flt, Stp) are kept here.
             "r_old_bc": _text_only(parse_softoptic_bc(row.get("old_right_bc"))),
             "l_old_bc": _text_only(parse_softoptic_bc(row.get("old_left_bc"))),
@@ -2142,50 +2186,8 @@ def _contact_fit_details(row: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     return result
 
 
-def contact_fit_eye_test_cards(eye_exam_data: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-    """The Subjective and Bio.M cards of an imported eye exam, as the fit's tabs show them."""
-    if not eye_exam_data:
-        return {}
-    keys = {key for card in CONTACT_FIT_EYE_TEST_CARDS for key in (card, f"{card}-{get_migrated_card_id(card)}")}
-    keys.update(f"softoptic-details-{slot}" for slot in CONTACT_FIT_EYE_TEST_DETAIL_SLOTS)
-    return {key: value for key, value in eye_exam_data.items() if key in keys and isinstance(value, dict)}
-
-
-def find_contact_fit_eye_test(
-    db: Session, client_id: int, fit_date: Optional[Any],
-) -> Optional[Tuple[Optional[Any], Dict[str, Any]]]:
-    """The client's latest imported eye exam on or before the fit that has Subjective or Bio.M data."""
-    if not client_id or not fit_date:
-        return None
-    rows = (
-        db.query(OpticalExam.exam_date, ExamLayoutInstance.exam_data)
-        .join(ExamLayoutInstance, ExamLayoutInstance.exam_id == OpticalExam.id)
-        .filter(
-            OpticalExam.client_id == client_id,
-            OpticalExam.type == "exam",
-            OpticalExam.deleted_at.is_(None),
-            OpticalExam.exam_date <= fit_date,
-            ExamLayoutInstance.layout_id.is_(None),
-        )
-        .order_by(OpticalExam.exam_date.desc(), OpticalExam.id.desc())
-        .limit(10)
-        .all()
-    )
-    for exam_date, exam_data in rows:
-        if contact_fit_eye_test_cards(exam_data if isinstance(exam_data, dict) else None):
-            return exam_date, exam_data
-    return None
-
-
-def build_contact_fit_exam_data(
-    row: Dict[str, Any],
-    eye_test: Optional[Tuple[Optional[datetime.date], Dict[str, Any]]] = None,
-) -> Dict[str, Any]:
-    """
-    An OpticSoft contact fit, by the fit screen's tabs: Fitting, Observation, Bino and Rx+Cl 1/2 come from
-    the fit row; Subjective and Bio.M from `eye_test` (its date and exam data), the client's latest eye test
-    on or before the fit.
-    """
+def build_contact_fit_exam_data(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Map the fitting's own source row to the standard clinical records."""
     data: Dict[str, Any] = {}
     observation = {
         "r_sensation": clean_legacy_text(row.get("obs_right_feeling")),
@@ -2223,6 +2225,13 @@ def build_contact_fit_exam_data(
         "r_ax": parse_int(row.get("obj_right_ax")), "l_ax": parse_int(row.get("obj_left_ax")),
     }
     if any(v is not None for v in objective.values()): data.update(_build_component_entry("objective", objective))
+    reflex = {
+        "r_reflex": clean_legacy_text(row.get("obj_right_remarks")),
+        "l_reflex": clean_legacy_text(row.get("obj_left_remarks")),
+    }
+    reflex = {key: value for key, value in reflex.items() if value and value not in SOFTOPTIC_DETAIL_ZERO_VALUES}
+    if reflex:
+        data.update(_build_component_entry("retinoscop", reflex))
     over = {
         "r_sph": parse_optical_value(row.get("or_right_sph")), "l_sph": parse_optical_value(row.get("or_left_sph")),
         "r_cyl": parse_optical_value(row.get("or_right_cyl")), "l_cyl": parse_optical_value(row.get("or_left_cyl")),
@@ -2273,18 +2282,15 @@ def build_contact_fit_exam_data(
 
     data.update(_contact_fit_details(row))
 
-    if eye_test:
-        eye_test_date, eye_exam_data = eye_test
-        cards = contact_fit_eye_test_cards(eye_exam_data)
-        if cards:
-            data.update(cards)
-            if eye_test_date:
-                data["softoptic-details-eye-test"] = {"eye_test_date": eye_test_date.isoformat(), "card_instance_id": "eye-test"}
     return data
 
 
-def load_expanded_eye_tests(csv_dir: str, valid_account_codes: Set[str]) -> Dict[str, Dict[str, Any]]:
-    mapping: Dict[str, Dict[str, Any]] = {}
+def eye_test_identity(row: Dict[str, Any]) -> Tuple[Optional[str], ...]:
+    return tuple(clean_legacy_text(row.get(key)) for key in ("account_code", "branch_code", "code"))
+
+
+def load_expanded_eye_tests(csv_dir: str, valid_account_codes: Set[str]) -> Dict[Tuple[Optional[str], ...], Dict[str, Any]]:
+    mapping = {}
     rows_iter = read_csv_streaming(csv_dir, "optic_exp_eyetests.csv")
     if rows_iter is None:
         return mapping
@@ -2292,10 +2298,10 @@ def load_expanded_eye_tests(csv_dir: str, valid_account_codes: Set[str]) -> Dict
         account_code_str = clean_legacy_text(row.get("account_code"))
         if not account_code_str or account_code_str not in valid_account_codes:
             continue
-        code_str = clean_legacy_text(row.get("code"))
-        if not code_str or code_str in mapping:
+        identity = eye_test_identity(row)
+        if not identity[2] or identity in mapping:
             continue
-        mapping[code_str] = row
+        mapping[identity] = row
     return mapping
 
 

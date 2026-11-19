@@ -21,6 +21,7 @@ from security.scope import (
     get_scoped_client,
 )
 from services.trash_service import move_to_trash
+from services.softoptic_entries import CONTACT_CHECK_TYPE, CONTACT_ORDER_TYPE, contact_entry_data
 
 router = APIRouter(prefix="/exams", tags=["exams"])
 
@@ -36,7 +37,7 @@ def exam_list_query(db, current_user, clinic_id, search, test_name, type, order,
     ).outerjoin(User, OpticalExam.user_id == User.id).outerjoin(Client, OpticalExam.client_id == Client.id).outerjoin(Clinic, (Clinic.id == OpticalExam.clinic_id) & (Clinic.company_id == OpticalExam.company_id))
 
     allowed_clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
-    base_query = base_query.filter(clinical_exam_filter()).filter(record_filter(db, current_user, OpticalExam, clinic_id))
+    base_query = base_query.filter(clinical_exam_filter(include_softoptic_order_visits=True)).filter(record_filter(db, current_user, OpticalExam, clinic_id))
 
     # Apply filters
     if type:
@@ -95,11 +96,24 @@ def exam_list_query(db, current_user, clinic_id, search, test_name, type, order,
 
 
 # SoftOptic contact lens fits are imported as "contact_fit"; they are eye exams and list with them.
-EXAM_LIST_TYPES = {"exam": ("exam", "contact_fit")}
+EXAM_LIST_TYPES = {"exam": ("exam", "contact_fit", CONTACT_CHECK_TYPE, CONTACT_ORDER_TYPE)}
 
 
 def exam_type_filter(exam_type: str):
     return OpticalExam.type.in_(EXAM_LIST_TYPES.get(exam_type, (exam_type,)))
+
+
+@router.get("/test-names", response_model=List[str])
+def get_exam_test_names(
+    type: Optional[str] = Query(None, description="Filter by exam type"),
+    clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Every exam type name in scope, for the exam type column filter (a page of rows has only some)."""
+    query = exam_list_query(db, current_user, clinic_id, None, None, type, None).order_by(None)
+    names = query.with_entities(OpticalExam.test_name).filter(OpticalExam.test_name.isnot(None), OpticalExam.test_name != "").distinct().all()
+    return sorted(name for (name,) in names)
 
 
 @router.get("/enriched")
@@ -347,6 +361,7 @@ def get_exam_page_data(
         ],
         "chosen_active_instance_id": getattr(active_instance, 'id', None),
         "available_layouts": available_layout_tree,
+        **({"softoptic_contact_entry": entry} if (entry := contact_entry_data(db, exam)) else {}),
     }
     return result
 
@@ -424,7 +439,7 @@ def get_exams_by_client(
 ):
     """Get all exams for a specific client"""
     client_id = get_scoped_client(db, current_user, client_id).id
-    query = db.query(OpticalExam, Clinic.name).outerjoin(Clinic, (Clinic.id == OpticalExam.clinic_id) & (Clinic.company_id == OpticalExam.company_id)).filter(clinical_exam_filter(), OpticalExam.client_id == client_id, record_filter(db, current_user, OpticalExam, clinic_id))
+    query = db.query(OpticalExam, Clinic.name).outerjoin(Clinic, (Clinic.id == OpticalExam.clinic_id) & (Clinic.company_id == OpticalExam.company_id)).filter(clinical_exam_filter(include_softoptic_order_visits=True), OpticalExam.client_id == client_id, record_filter(db, current_user, OpticalExam, clinic_id))
     
     # Apply filters
     if type:

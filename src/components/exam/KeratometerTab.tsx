@@ -105,12 +105,12 @@ export function KeratometerTab({
     <Card className="w-full examcard pb-4 pt-3">
       <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
         <div className="space-y-3">
-          <div className="flex items-center justify-between mb-1">
+          <div className="relative flex h-6 items-center justify-between">
             <div className="flex-1">
               <Tabs
                 value={unit}
                 onValueChange={handleUnitChange}
-                className="w-fit -translate-y-1"
+                className="w-fit"
                 dir={direction}
               >
                 <TabsList className="grid h-8 w-auto grid-cols-2">
@@ -135,7 +135,7 @@ export function KeratometerTab({
             <div className="flex-1" /> {/* Spacer for symmetry */}
           </div>
 
-          <div className={`grid ${hideEyeLabels ? 'grid-cols-[2fr_1fr_2fr_1fr_2fr]' : 'grid-cols-[20px_2fr_1fr_2fr_1fr_2fr]'} gap-2 items-center`}>
+          <div className={`exam-eye-grid grid ${hideEyeLabels ? 'grid-cols-[2fr_1fr_2fr_1fr_2fr]' : 'grid-cols-[20px_2fr_1fr_2fr_1fr_2fr]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ label }) => (
               <React.Fragment key={label}>

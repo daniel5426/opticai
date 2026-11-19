@@ -3,11 +3,13 @@ import { TableExportProvider } from "@/components/table-export/context";
 import { CompanyClinicToolbarProvider } from "@/components/CompanyClinicFilter"
 import { useCompanyClinicFilter } from "@/hooks/client/useCompanyClinicFilter"
 import React, { useState, useEffect, useCallback } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate, useSearch } from "@tanstack/react-router"
 import { TableListPageContent } from "@/components/table-list-layout"
 import { useTranslation } from "react-i18next"
 import { SiteHeader } from "@/components/site-header"
 import { getPaginatedEnrichedExams } from "@/lib/db/exams-db"
+import { apiClient } from "@/lib/api-client"
 import { OpticalExam } from "@/lib/db/schema-interface"
 import { ExamsTable } from "@/components/exams-table"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
@@ -21,8 +23,9 @@ import { deferPaginationTotal } from "@/lib/deferred-pagination"
 
 export default function AllExamsPage() {
   const { t } = useTranslation()
-  const { currentClinic } = useUser()
+  const { currentClinic, currentUser } = useUser()
   const clinicFilter = useCompanyClinicFilter()
+  const queryClient = useQueryClient()
   const search = useSearch({ from: "/exams" })
   const navigate = useNavigate()
   const [exams, setExams] = useState<any[]>([])
@@ -37,6 +40,15 @@ export default function AllExamsPage() {
     [search.sort]
   )
   const columnFilters = React.useMemo(() => parseColumnFilters(search.filters), [search.filters])
+  const examTestNames = useQuery({
+    queryKey: ["exam-test-names", currentUser?.id, clinicFilter.companyId, clinicFilter.clinicId],
+    enabled: Boolean(currentClinic?.id) || clinicFilter.value === "all",
+    queryFn: async () => {
+      const response = await apiClient.getExamTestNames("exam", clinicFilter.clinicId)
+      if (response.error) throw new Error(response.error)
+      return response.data ?? []
+    },
+  })
 
   useEffect(() => {
     updateLatestSearch(search.q)
@@ -149,14 +161,27 @@ export default function AllExamsPage() {
   }
 
   useEffect(() => {
-    const refresh = (event: Event) => { if (affectsFamily(event, "exams")) void loadData(true) }
+    const refresh = (event: Event) => {
+      if (!affectsFamily(event, "exams")) return
+      void loadData(true)
+      void queryClient.invalidateQueries({ queryKey: ["exam-test-names"] })
+    }
     window.addEventListener("prysm:client-records-changed", refresh)
     return () => window.removeEventListener("prysm:client-records-changed", refresh)
-  }, [loadData])
+  }, [loadData, queryClient])
+
+  const handleClinicChange = (value: string) => {
+    clinicFilter.setValue(value)
+    const { test_name: _testNameColumnFilter, ...remainingFilters } = columnFilters
+    void navigate({
+      to: "/exams",
+      search: buildSearchState({ page: 1, testName: ALL_FILTER_VALUE, filters: serializeColumnFilters(remainingFilters) }),
+    })
+  }
 
   return (
     <TableExportProvider value={{ table: "exams", clinicId: clinicFilter.clinicId, sort: sortToOrder(activeSort, "exam_date_desc") }}>
-    <CompanyClinicToolbarProvider filter={{ ...clinicFilter, setValue: value => { clinicFilter.setValue(value); void navigate({ to: "/exams", search: buildSearchState({ page: 1 }) }) } }}>
+    <CompanyClinicToolbarProvider filter={{ ...clinicFilter, setValue: handleClinicChange }}>
       <SiteHeader title={t("exams")} />
       <TableListPageContent>
         <ExamsTable
@@ -168,6 +193,7 @@ export default function AllExamsPage() {
           onSearchChange={handleSearchInputChange}
           serverFiltered={true}
           testNameFilter={search.testName}
+          testNameOptions={examTestNames.data ?? []}
           onTestNameFilterChange={(value) =>
             navigate({
               to: "/exams",

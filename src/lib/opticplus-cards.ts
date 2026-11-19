@@ -14,8 +14,13 @@ export const opticPlusLabel = (t: TFunction, field: string, table = '') => Strin
 export const opticPlusValue = (t: TFunction, value: unknown) => typeof value === 'boolean'
   ? String(t(`opticplusCards.${value ? 'yes' : 'no'}`))
   : value !== null && typeof value === 'object' ? JSON.stringify(value) : String(value ?? '');
-export const importedExamName = (t: TFunction, name?: string | null) =>
-  name?.startsWith('opticplus.exam.') ? String(t(name.replace('opticplus.exam.', 'opticplusCards.exam.'))) : name || '';
+export const importedExamName = (t: TFunction, name?: string | null) => {
+  if (name?.startsWith('opticplus.exam.')) return String(t(name.replace('opticplus.exam.', 'opticplusCards.exam.')));
+  if (name?.startsWith('softoptic.visit.')) return String(t(name));
+  if (name === 'Migrated Exam') return String(t('softoptic.visit.exam'));
+  if (name && ['התאמת עדשות מגע', 'Migrated Contact Fit'].includes(name)) return String(t('softoptic.visit.fitting'));
+  return name || '';
+};
 
 /** Imported instance JSON is a real layout even when it has no library template. */
 export function hasOpticPlusLayout(value: { instance?: { layout_data?: string | null }; exam_data?: Record<string, unknown> }): boolean {

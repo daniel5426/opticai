@@ -104,7 +104,7 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
               {onShowOrdersHistory && <OrdersHistoryButton onClick={onShowOrdersHistory} />}
             </h3>
           </div>
-          <div className={`grid ${hideEyeLabels ? 'grid-cols-[2fr_2fr_2fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr]' : 'grid-cols-[20px_2fr_2fr_2fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr]'} gap-2 items-center`}>
+          <div className={`exam-eye-grid grid ${hideEyeLabels ? 'grid-cols-[2fr_2fr_2fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr]' : 'grid-cols-[20px_2fr_2fr_2fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
               <div key={key} className="h-4 flex items-center justify-center">
@@ -185,7 +185,7 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                       onChange={(value) => handleChange("R", key, value)}
                       lookupType={lookupConfig.lookupType}
                       placeholder=""
-                      className="h-8 text-xs bg-white [&_input]:h-8 [&_input]:text-xs"
+                      className="text-xs bg-white [&_input]:h-8 [&_input]:text-xs"
                       center={true}
                     />
                   ) : (
@@ -296,7 +296,7 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                       onChange={(value) => handleChange("L", key, value)}
                       lookupType={lookupConfig.lookupType}
                       placeholder=""
-                      className="h-8 text-xs bg-white [&_input]:h-8 [&_input]:text-xs"
+                      className="text-xs bg-white [&_input]:h-8 [&_input]:text-xs"
                       center={true}
                     />
                   ) : (

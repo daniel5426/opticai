@@ -99,7 +99,7 @@ export function ObjectiveTab({
             <h3 className="font-medium text-muted-foreground">Objective</h3>
           </div>
 
-          <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(4,1fr)]' : 'grid-cols-[20px_repeat(4,1fr)]'} gap-2 items-center`}>
+          <div className={`exam-eye-grid grid ${hideEyeLabels ? 'grid-cols-[repeat(4,1fr)]' : 'grid-cols-[20px_repeat(4,1fr)]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
               <div key={key} className="h-4 flex items-center justify-center">
