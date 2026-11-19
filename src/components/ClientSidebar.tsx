@@ -8,11 +8,12 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import { X, User, Phone, Mail, IdCard, Calendar, MapPin, Building2, PanelLeftIcon, FileText, Brain, Loader2, Sparkles, ChevronDown, ChevronRight } from 'lucide-react'
+import { X, User, Phone, Mail, IdCard, Calendar, Eye, MapPin, Building2, PanelLeftIcon, FileText, Brain, Loader2, Sparkles, ChevronDown, ChevronRight } from 'lucide-react'
 import { useLocation, useSearch } from '@tanstack/react-router'
 import { apiClient } from '@/lib/api-client';
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTranslation } from 'react-i18next'
+import { useClientDominantEye } from '@/hooks/client/useClientDominantEye'
 import { getActiveLocale, getDirection, normalizeLocale } from '@/localization/locale'
 
 const CLIENT_SIDEBAR_WIDTH_KEY = 'client-sidebar-width'
@@ -254,6 +255,7 @@ export function ClientSidebar() {
   const agent = usePrysmAgent()
   const aiAvailable = agent?.available === true
   const { isOpen, closeSidebar, panelMode, setPanelHost, currentClient, isClientSpacePage, activeTab: contextActiveTab } = useClientSidebar()
+  const { data: dominantEye } = useClientDominantEye(currentClient?.id)
   const { i18n, t } = useTranslation()
   const locale = normalizeLocale(i18n.resolvedLanguage ?? i18n.language) ?? getActiveLocale()
   const direction = getDirection(locale)
@@ -597,6 +599,16 @@ export function ClientSidebar() {
                 ) : null}
               </div>
             </div>
+
+            {dominantEye && (
+              <div className="flex min-w-0 items-center gap-2 rounded-lg bg-muted/50 p-3" title="מהבדיקה האחרונה של הלקוח">
+                <Eye className="h-4 w-4 shrink-0 text-primary" />
+                <p className="min-w-0 flex-1 break-words text-sm [overflow-wrap:anywhere]">
+                  <span className="text-muted-foreground">עין דומיננטית: </span>
+                  {dominantEye === 'R' ? 'ימין' : 'שמאל'}
+                </p>
+              </div>
+            )}
           </div>
 
           {(isClientLoading || currentClient?.phone_mobile || currentClient?.phone_home || currentClient?.email || currentClient?.address_street) && (
