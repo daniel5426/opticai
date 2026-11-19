@@ -482,6 +482,13 @@ def test_history_includes_unlinked_legacy_orders_with_billing_without_writes(con
     assert list_history(db, user, clinic, kind='contact')['items'][0]['legacy_order']['kind'] == 'contact'
     assert list_history(db, user, clinic, q='Distance')['total'] == 1
     assert list_history(db, user, clinic, q='Two')['total'] == 1
+    clients[1].last_name = 'Cohen'
+    db.commit()
+    # A full name is matched word by word across first and last name.
+    assert list_history(db, user, clinic, q='Two Cohen')['total'] == 1
+    assert list_history(db, user, clinic, q=' two  cohen ')['total'] == 1
+    assert list_history(db, user, clinic, q='One Cohen')['total'] == 0
+    assert list_history(db, user, clinic, q='   ')['total'] == 2
     assert list_history(db, user, clinic, status='ready')['total'] == 2
     assert list_history(db, user, clinic, status='missing')['total'] == 0
     assert list_history(db, user, clinic, order='date_asc', limit=1)['items'][0]['legacy_order']['kind'] == 'regular'
