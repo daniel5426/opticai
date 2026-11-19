@@ -9,7 +9,7 @@ from security.scope import record_filter, get_record_clinic_ids, get_scoped_orde
 from services.order_group_service import get_group, group_dict, group_dicts, save_group, group_for_order, ensure_standalone_group, check_revision, group_write, row_dict, order_groups_available
 from schemas import BillingPaymentCreate, OrderGroupSave, OrderGroupBillingPatch
 from utils.column_filters import lookup_filter, ColumnFilter, build_column_filter_conditions, parse_column_filters
-from utils.table_search import spaced_concat
+from utils.table_search import build_all_terms_search_condition, search_blob, spaced_concat
 
 router = APIRouter(prefix="/order-groups", tags=["order-groups"])
 
@@ -44,6 +44,7 @@ def _option_values(column_filters: dict, key: str) -> list[str]:
 def order_list_candidates(db, user, client_id, clinic_id, q, kind, status, filters=None):
     """Groups plus ungrouped legacy orders as one union, filtered by the toolbar and the column filters."""
     allowed = get_record_clinic_ids(db, user, clinic_id)
+    q = (q or "").strip() or None
     if kind not in (None, "all", "regular", "contact"):
         raise HTTPException(422, "Unknown order kind")
     # Toolbar selects and column filters narrow the same sets; both must match.
@@ -69,7 +70,10 @@ def order_list_candidates(db, user, client_id, clinic_id, q, kind, status, filte
             OrderGroupEntry.contact_lens_id.in_(db.query(ContactLensOrder.id).filter(ContactLensOrder.client_id == client_id, ContactLensOrder.deleted_at.is_(None)))))
         query = query.filter(or_(OrderGroup.payer_client_id == client_id, matches))
     if q:
-        matched_clients = db.query(Client.id).filter(or_(Client.first_name.ilike(f"%{q}%"), Client.last_name.ilike(f"%{q}%")))
+        # Every word must appear somewhere in the client's name, ID or phone, so a full name
+        # ("first last") finds the client like a single name does.
+        matched_clients = db.query(Client.id).filter(build_all_terms_search_condition(
+            q, text_expressions=[search_blob(Client.first_name, Client.last_name, Client.national_id, Client.phone_mobile)]))
         matched_entries = db.query(OrderGroupEntry.group_id).outerjoin(Order, OrderGroupEntry.order_id == Order.id).outerjoin(ContactLensOrder, OrderGroupEntry.contact_lens_id == ContactLensOrder.id).filter(or_(Order.client_id.in_(matched_clients), ContactLensOrder.client_id.in_(matched_clients), Order.type.ilike(f"%{q}%"), ContactLensOrder.type.ilike(f"%{q}%")))
         query = query.filter(or_(OrderGroup.payer_client_id.in_(matched_clients), OrderGroup.id.in_(matched_entries)))
     if named_clients is not None:
