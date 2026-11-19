@@ -35,7 +35,15 @@
     "teamHoursMinutesUnit": "min",
     "teamHoursTotalTime": "Total time",
     "teamHoursEndsNextDay": "The end is before the start, so the shift runs past midnight to the next day",
-    "teamHoursNextDay": "Ends the next day"
+    "teamHoursNextDay": "Ends the next day",
+    "teamHoursAddShift": "Add shift",
+    "teamHoursWorker": "Worker",
+    "teamHoursChooseWorker": "Select a worker",
+    "teamHoursDate": "Date",
+    "teamHoursDeleteShift": "Delete shift",
+    "teamHoursConfirmDelete": "Delete this shift from the attendance log?",
+    "teamHoursDelete": "Delete",
+    "teamHoursDeleteError": "The shift could not be deleted"
   },
   "he": {
     "teamHoursTitle": "שעות הצוות",
@@ -76,7 +84,15 @@
     "teamHoursMinutesUnit": "ד׳",
     "teamHoursTotalTime": "סה״כ זמן",
     "teamHoursEndsNextDay": "שעת הסיום לפני שעת ההתחלה, ולכן המשמרת נספרת עד למחרת",
-    "teamHoursNextDay": "מסתיימת למחרת"
+    "teamHoursNextDay": "מסתיימת למחרת",
+    "teamHoursAddShift": "הוספת משמרת",
+    "teamHoursWorker": "עובד",
+    "teamHoursChooseWorker": "בחירת עובד",
+    "teamHoursDate": "תאריך",
+    "teamHoursDeleteShift": "מחיקת משמרת",
+    "teamHoursConfirmDelete": "למחוק את המשמרת מיומן הנוכחות?",
+    "teamHoursDelete": "מחיקה",
+    "teamHoursDeleteError": "לא הצלחנו למחוק את המשמרת"
   },
   "fr": {
     "teamHoursTitle": "Heures de l’équipe",
@@ -114,6 +130,14 @@
     "teamHoursMinutesUnit": "min",
     "teamHoursTotalTime": "Temps total",
     "teamHoursEndsNextDay": "La fin est avant le début : le poste se termine le lendemain",
-    "teamHoursNextDay": "Se termine le lendemain"
+    "teamHoursNextDay": "Se termine le lendemain",
+    "teamHoursAddShift": "Ajouter un poste",
+    "teamHoursWorker": "Employé",
+    "teamHoursChooseWorker": "Sélectionner un employé",
+    "teamHoursDate": "Date",
+    "teamHoursDeleteShift": "Supprimer le poste",
+    "teamHoursConfirmDelete": "Supprimer ce poste du journal de présence ?",
+    "teamHoursDelete": "Supprimer",
+    "teamHoursDeleteError": "Impossible de supprimer le poste"
   }
 }

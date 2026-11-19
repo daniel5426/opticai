@@ -24,7 +24,11 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('@/contexts/NavigationGuardContext', () => ({ useNavigationGuard: () => ({ registerGuard: () => () => {} }) }));
 vi.mock('@/hooks/useSettings', () => ({ useSettings: () => ({ company: { default_currency: 'ILS' } }) }));
 vi.mock('@/hooks/useLookupData', () => ({ useLookupData: () => ({ data: [{ id: 1, name: 'Distance' }, { id: 2, name: 'Reading' }], loading: false, createItem: vi.fn(), isCreating: false }) }));
-vi.mock('@/lib/api-client', () => ({ apiClient: { getClient: async () => ({ data: fixtures.client }), getClientById: async () => ({ data: fixtures.client }) } }));
+vi.mock('@/lib/api-client', () => ({ apiClient: {
+  getClient: async () => ({ data: fixtures.client }),
+  getClientById: async () => ({ data: fixtures.client }),
+  getExamsByClient: async () => ({ data: [{ dominant_eye: 'L' }] }),
+} }));
 vi.mock('@/lib/order-groups', async importOriginal => ({ ...await importOriginal<object>(), groupRequest: vi.fn(async (_path: string, options?: RequestInit) => {
   if (!options) return fixtures.group;
   const payload = JSON.parse(options.body as string);
@@ -55,7 +59,11 @@ function renderWorkspace() {
 }
 afterEach(cleanup);
 
-describe.each(['he', 'en', 'fr'] as const)('order workspace in %s', locale => {
+describe.each([
+  ['he', 'מהבדיקה האחרונה של הלקוח', 'עין דומיננטית: שמאל'],
+  ['en', "From the client's latest exam", 'Dominant eye: Left'],
+  ['fr', 'Du dernier examen du client', 'Œil dominant: Gauche'],
+] as const)('order workspace in %s', (locale, eyeTitle, eyeLabel) => {
   test('billing uses the existing panel and survives switching to client info', async () => {
     await i18n.changeLanguage(locale);
     const { useUser } = await import('@/contexts/UserContext');
@@ -91,6 +99,9 @@ describe.each(['he', 'en', 'fr'] as const)('order workspace in %s', locale => {
     expect(itemPayload).not.toHaveProperty('entries');
     fireEvent.click(screen.getByRole('button', { name: 'Client info' }));
     expect(screen.queryByText(i18n.t('orderGroupPayer'))).not.toBeInTheDocument();
+    const eye = await screen.findByTitle(eyeTitle);
+    expect(eye).toHaveTextContent(eyeLabel);
+    expect(eye.closest('[dir]')).toHaveAttribute('dir', locale === 'he' ? 'rtl' : 'ltr');
     fireEvent.click(billingButton);
     expect((await screen.findByText(i18n.t('orderGroupPayer'))).closest('[data-slot="card"]')).toBe(panel);
     expect(screen.getByRole('button', { name: i18n.t('orderWorkspace.editValue', { value: i18n.t('orderGroupInstallments') }) })).toBeEnabled();

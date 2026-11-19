@@ -1,13 +1,16 @@
 import React, { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { IconCalendar, IconChevronDown, IconClock, IconPencil, IconUsers } from "@tabler/icons-react";
+import { IconCalendar, IconChevronDown, IconClock, IconPencil, IconPlus, IconTrash, IconUsers } from "@tabler/icons-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DateInput } from "@/components/ui/date";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CustomModal } from "@/components/ui/custom-modal";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import type { User, WorkShift } from "@/lib/db/schema-interface";
@@ -78,12 +81,100 @@ function toMinutes(time?: string | null) {
   return Number.isFinite(hours) && Number.isFinite(minutes) ? hours * 60 + minutes : null;
 }
 
+function AddShift({ users, defaultDate }: { users: User[]; defaultDate: string }) {
+  const { t } = useTranslation();
+  const { direction } = useAppLocale();
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState({ userId: "", date: defaultDate, start: "", end: "" });
+  const minutes = shiftMinutes(draft.start, draft.end);
+  const valid = users.some((user) => String(user.id) === draft.userId) && Boolean(draft.date) && minutes > 0;
+  const save = useMutation({
+    mutationFn: async () => {
+      const response = await apiClient.createWorkShift({
+        user_id: Number(draft.userId),
+        date: draft.date,
+        start_time: draft.start,
+        end_time: draft.end,
+        duration_minutes: minutes,
+        status: "completed",
+      });
+      if (response.error) throw new Error(response.error);
+    },
+    onSuccess: async () => {
+      setOpen(false);
+      await queryClient.invalidateQueries({ queryKey: ["worker-stats"] });
+    },
+    onError: () => toast.error(t("teamHoursEditError")),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => {
+      if (save.isPending) return;
+      if (next) setDraft({ userId: "", date: defaultDate, start: "", end: "" });
+      setOpen(next);
+    }}>
+      <DialogTrigger asChild>
+        <Button size="sm">
+          <IconPlus aria-hidden="true" />
+          {t("teamHoursAddShift")}
+        </Button>
+      </DialogTrigger>
+      <DialogContent dir={direction} className="sm:max-w-md" showCloseButton={!save.isPending} aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle>{t("teamHoursAddShift")}</DialogTitle>
+        </DialogHeader>
+        <form className="space-y-4" onSubmit={(event) => {
+          event.preventDefault();
+          if (valid && !save.isPending) save.mutate();
+        }}>
+          <div className="space-y-1">
+            <Label id="team-hours-worker-label">{t("teamHoursWorker")}</Label>
+            <Select value={draft.userId} onValueChange={(userId) => setDraft({ ...draft, userId })} dir={direction} disabled={save.isPending}>
+              <SelectTrigger aria-labelledby="team-hours-worker-label" className="w-full">
+                <SelectValue placeholder={t("teamHoursChooseWorker")} />
+              </SelectTrigger>
+              <SelectContent dir={direction}>
+                {users.filter((user) => user.id != null).map((user) => (
+                  <SelectItem key={user.id} value={String(user.id)}>{user.full_name || user.username}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="team-hours-shift-date">{t("teamHoursDate")}</Label>
+            <DateInput name="team-hours-shift-date" value={draft.date} disabled={save.isPending} onChange={(event) => setDraft({ ...draft, date: event.target.value })} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <Label htmlFor="team-hours-add-start">{t("teamHoursStart")}</Label>
+              <Input id="team-hours-add-start" type="time" dir="ltr" value={draft.start} required disabled={save.isPending} onChange={(event) => setDraft({ ...draft, start: event.target.value })} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="team-hours-add-end">{t("teamHoursEnd")}</Label>
+              <Input id="team-hours-add-end" type="time" dir="ltr" value={draft.end} required disabled={save.isPending} onChange={(event) => setDraft({ ...draft, end: event.target.value })} />
+            </div>
+          </div>
+          {minutes > 0 && toMinutes(draft.end)! < toMinutes(draft.start)! && (
+            <p className="text-muted-foreground text-sm">{t("teamHoursEndsNextDay")}</p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" type="button" onClick={() => setOpen(false)} disabled={save.isPending}>{t("teamHoursCancel")}</Button>
+            <Button type="submit" disabled={!valid || save.isPending}>{t("teamHoursSave")}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /** One worker's shifts in the period: day, hours, where in the day, and how long. */
-function WorkerShifts({ userId, from, to, canEdit }: { userId: number; from: string; to: string; canEdit: boolean }) {
+function WorkerShifts({ userId, from, to, canEdit, canDelete }: { userId: number; from: string; to: string; canEdit: boolean; canDelete: boolean }) {
   const { t } = useTranslation();
   const { locale, direction } = useAppLocale();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<WorkShift | null>(null);
+  const [deleting, setDeleting] = useState<WorkShift | null>(null);
   const [times, setTimes] = useState({ start: "", end: "" });
   const editedMinutes = shiftMinutes(times.start, times.end);
   const save = useMutation({
@@ -102,6 +193,17 @@ function WorkerShifts({ userId, from, to, canEdit }: { userId: number; from: str
       await queryClient.invalidateQueries({ queryKey: ["worker-stats"] });
     },
     onError: () => toast.error(t("teamHoursEditError")),
+  });
+  const remove = useMutation({
+    mutationFn: async (id: number) => {
+      const response = await apiClient.deleteWorkShift(id);
+      if (response.error) throw new Error(response.error);
+    },
+    onSuccess: async () => {
+      setDeleting(null);
+      await queryClient.invalidateQueries({ queryKey: ["worker-stats"] });
+    },
+    onError: () => toast.error(t("teamHoursDeleteError")),
   });
   const openEdit = (shift: WorkShift) => {
     setTimes({ start: (shift.start_time || "").slice(0, 5), end: (shift.end_time || "").slice(0, 5) });
@@ -144,23 +246,12 @@ function WorkerShifts({ userId, from, to, canEdit }: { userId: number; from: str
         return (
           <li
             key={shift.id ?? `${shift.date}-${shift.start_time}`}
-            className={`group grid ${canEdit ? "grid-cols-[9.5rem_8rem_1fr_5.5rem]" : "grid-cols-[7.5rem_8rem_1fr_5.5rem]"} items-center gap-3 rounded-md px-2 py-1.5 text-sm ${sameDayAsPrevious ? "" : "border-border/60 border-t first:border-t-0"}`}
+            className={`group grid grid-cols-[minmax(3rem,1fr)_auto_auto_auto] items-center gap-2 rounded-md px-2 py-1.5 text-sm sm:grid-cols-[7.5rem_8rem_1fr_5.5rem_auto] sm:gap-3 ${sameDayAsPrevious ? "" : "border-border/60 border-t first:border-t-0"}`}
           >
             <span className="flex items-center gap-1">
               <span className={sameDayAsPrevious ? "invisible" : "font-medium"}>
                 {day.toLocaleDateString(dateLocale, { weekday: "short", day: "numeric", month: "numeric" })}
               </span>
-              {canEdit && (
-                <button
-                  type="button"
-                  onClick={() => openEdit(shift)}
-                  aria-label={t("teamHoursEditShift")}
-                  title={t("teamHoursEditShift")}
-                  className="text-foreground hover:bg-background inline-flex size-7 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                >
-                  <IconPencil className="size-4" stroke={2.25} />
-                </button>
-              )}
             </span>
             <span className="text-muted-foreground flex items-center gap-1.5 tabular-nums" dir="ltr">
               <span className="text-foreground">{(shift.start_time || "").slice(0, 5)}</span>
@@ -179,7 +270,7 @@ function WorkerShifts({ userId, from, to, canEdit }: { userId: number; from: str
                 </span>
               )}
             </span>
-            <span className="bg-muted-foreground/10 relative h-1.5 rounded-full" dir="ltr" aria-hidden="true">
+            <span className="bg-muted-foreground/10 relative hidden h-1.5 rounded-full sm:block" dir="ltr" aria-hidden="true">
               <span
                 className={`absolute inset-y-0 rounded-full ${open ? "bg-emerald-500" : "bg-primary/70"}`}
                 style={{ left: `${left}%`, width: `${Math.max(1.5, right - left)}%` }}
@@ -187,6 +278,18 @@ function WorkerShifts({ userId, from, to, canEdit }: { userId: number; from: str
             </span>
             <span className="text-end font-semibold">
               {minutes === null ? "—" : <Duration minutes={minutes} />}
+            </span>
+            <span className="flex items-center gap-0.5">
+              {canEdit && (
+                <Button type="button" variant="ghost" size="icon" className="size-8" onClick={() => openEdit(shift)} aria-label={t("teamHoursEditShift")} title={t("teamHoursEditShift")}>
+                  <IconPencil aria-hidden="true" />
+                </Button>
+              )}
+              {canDelete && shift.id != null && (
+                <Button type="button" variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive size-8" onClick={() => setDeleting(shift)} aria-label={t("teamHoursDeleteShift")} title={t("teamHoursDeleteShift")}>
+                  <IconTrash aria-hidden="true" />
+                </Button>
+              )}
             </span>
           </li>
         );
@@ -225,6 +328,20 @@ function WorkerShifts({ userId, from, to, canEdit }: { userId: number; from: str
           )}
         </div>
       </CustomModal>
+      <Dialog open={deleting !== null} onOpenChange={(open) => {
+        if (!open && !remove.isPending) setDeleting(null);
+      }}>
+        <DialogContent dir={direction} className="sm:max-w-md" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>{t("teamHoursDeleteShift")}</DialogTitle>
+            <DialogDescription>{t("teamHoursConfirmDelete")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleting(null)} disabled={remove.isPending}>{t("teamHoursCancel")}</Button>
+            <Button variant="destructive" onClick={() => deleting?.id != null && remove.mutate(deleting.id)} disabled={remove.isPending}>{t("teamHoursDelete")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </ol>
   );
 }
@@ -233,7 +350,7 @@ const PRESETS: Preset[] = ["thisMonth", "lastMonth", "thisYear"];
 const PRESET_LABELS: Record<Preset, string> = { thisMonth: "teamHoursThisMonth", lastMonth: "teamHoursLastMonth", thisYear: "teamHoursThisYear" };
 
 /** A manager's view of how long each worker worked in a period, from the first of this month by default. */
-export function TeamHoursDashboard({ users, canEditShifts = false }: { users: User[]; canEditShifts?: boolean }) {
+export function TeamHoursDashboard({ users, canEditShifts = false, canManageShifts = false }: { users: User[]; canEditShifts?: boolean; canManageShifts?: boolean }) {
   const { t } = useTranslation();
   const { direction, locale } = useAppLocale();
   const [range, setRange] = useState(() => presetRange("thisMonth"));
@@ -323,6 +440,7 @@ export function TeamHoursDashboard({ users, canEditShifts = false }: { users: Us
               <span className="text-muted-foreground text-sm">{t("teamHoursTo")}</span>
               <DateInput name="team_hours_to" aria-label={t("teamHoursTo")} value={range.to} onChange={(event) => setRange((previous) => ({ ...previous, to: event.target.value }))} className="w-40 text-center" dir="ltr" />
             </div>
+            {canManageShifts && <AddShift users={users} defaultDate={rangeIncludesToday ? today : range.to || today} />}
           </div>
         </div>
       </CardHeader>
@@ -407,7 +525,7 @@ export function TeamHoursDashboard({ users, canEditShifts = false }: { users: Us
                       className={`text-muted-foreground size-4 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180" : ""} ${worked ? "" : "invisible"}`}
                     />
                   </button>
-                  {isOpen && <WorkerShifts userId={user.id!} from={range.from} to={range.to} canEdit={canEditShifts} />}
+                  {isOpen && <WorkerShifts userId={user.id!} from={range.from} to={range.to} canEdit={canEditShifts} canDelete={canManageShifts} />}
                 </li>
               );
             })}

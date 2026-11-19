@@ -10,6 +10,7 @@ import {
   IconX,
 } from "@tabler/icons-react"
 import { useLocation } from "@tanstack/react-router"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 
 import {
   Avatar,
@@ -33,12 +34,12 @@ import {
 } from "@/components/ui/sidebar"
 import { Badge } from "@/components/ui/badge"
 import { CustomModal } from "@/components/ui/custom-modal"
-import { User, WorkShift } from "@/lib/db/schema-interface"
+import { User } from "@/lib/db/schema-interface"
 import { ROLE_LEVELS, getRoleBadgeVariant, getRoleLabel, isRoleAtLeast } from "@/lib/role-levels"
 import { useUser } from "@/contexts/UserContext"
+import { apiClient } from "@/lib/api-client"
 import { 
   createWorkShift, 
-  getActiveWorkShiftByUserId, 
   updateWorkShift 
 } from "@/lib/db/work-shifts-db"
 import { toast } from "sonner"
@@ -61,7 +62,20 @@ export function NavUser({
   const location = useLocation()
   const [showProfileModal, setShowProfileModal] = React.useState(false)
   const [currentTime, setCurrentTime] = React.useState(new Date())
-  const [activeShift, setActiveShift] = React.useState<WorkShift | null>(null)
+  const queryClient = useQueryClient()
+  const activeShiftKey = ["worker-stats", "active-shift", currentUser?.id] as const
+  const activeShiftQuery = useQuery({
+    queryKey: activeShiftKey,
+    enabled: showShiftControls && !!currentUser?.id,
+    staleTime: 0,
+    refetchInterval: (query) => query.state.data ? 60_000 : false,
+    queryFn: async () => {
+      const response = await apiClient.getActiveWorkShift(currentUser!.id!)
+      if (response.error) throw new Error(response.error)
+      return response.data ?? null
+    },
+  })
+  const activeShift = activeShiftQuery.data
   const [isStartingShift, setIsStartingShift] = React.useState(false)
 
   React.useEffect(() => {
@@ -71,20 +85,6 @@ export function NavUser({
 
     return () => clearInterval(timer)
   }, [])
-
-  React.useEffect(() => {
-    const loadActiveShift = async () => {
-      if (!currentUser?.id) return
-      try {
-        const shift = await getActiveWorkShiftByUserId(currentUser.id)
-        setActiveShift(shift || null)
-      } catch (error) {
-        console.error('Error loading active shift:', error)
-      }
-    }
-
-    loadActiveShift()
-  }, [currentUser?.id])
 
   if (!currentUser) {
     return null
@@ -126,7 +126,8 @@ export function NavUser({
       })
       
       if (newShift) {
-        setActiveShift(newShift)
+        await queryClient.cancelQueries({ queryKey: activeShiftKey })
+        queryClient.setQueryData(activeShiftKey, newShift)
         toast.success('משמרת התחילה')
       } else {
         toast.error('שגיאה בתחילת המשמרת')
@@ -162,9 +163,11 @@ export function NavUser({
       })
       
       if (updatedShift) {
-        setActiveShift(null)
+        await queryClient.cancelQueries({ queryKey: activeShiftKey })
+        queryClient.setQueryData(activeShiftKey, null)
         toast.success(`משמרת הסתיימה (${Math.round(durationMinutes)} דקות)`)
       } else {
+        void activeShiftQuery.refetch()
         toast.error('שגיאה בסיום המשמרת')
       }
     } catch (error) {
@@ -183,9 +186,11 @@ export function NavUser({
       })
       
       if (cancelledShift) {
-        setActiveShift(null)
+        await queryClient.cancelQueries({ queryKey: activeShiftKey })
+        queryClient.setQueryData(activeShiftKey, null)
         toast.success('המשמרת בוטלה')
       } else {
+        void activeShiftQuery.refetch()
         toast.error('שגיאה בביטול המשמרת')
       }
     } catch (error) {
@@ -301,7 +306,7 @@ export function NavUser({
                       </div>
                       <button
                         onClick={handleStartShift}
-                        disabled={isStartingShift}
+                        disabled={isStartingShift || activeShiftQuery.isLoading}
                         className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-green-100 hover:bg-green-200 text-green-700 disabled:opacity-50"
                         dir={direction}
                       >

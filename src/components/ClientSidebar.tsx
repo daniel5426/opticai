@@ -601,11 +601,11 @@ export function ClientSidebar() {
             </div>
 
             {dominantEye && (
-              <div className="flex min-w-0 items-center gap-2 rounded-lg bg-muted/50 p-3" title="מהבדיקה האחרונה של הלקוח">
-                <Eye className="h-4 w-4 shrink-0 text-primary" />
+              <div className="flex min-w-0 items-center gap-2 rounded-lg bg-muted/50 p-3" title={t("orderDominantEyeFromExam")}>
+                <Eye className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                 <p className="min-w-0 flex-1 break-words text-sm [overflow-wrap:anywhere]">
-                  <span className="text-muted-foreground">עין דומיננטית: </span>
-                  {dominantEye === 'R' ? 'ימין' : 'שמאל'}
+                  <span className="text-muted-foreground">{t("orderGroupDominantEye")}: </span>
+                  {t(dominantEye === "R" ? "orderGroupRightEye" : "orderGroupLeftEye")}
                 </p>
               </div>
             )}

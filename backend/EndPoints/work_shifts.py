@@ -6,7 +6,7 @@ from database import get_db
 from models import WorkShift, User, Clinic
 from schemas import WorkShiftCreate, WorkShiftUpdate, WorkShift as WorkShiftSchema, WorkforceAnalyticsResponse
 from auth import get_current_user
-from security.scope import CEO_LEVEL, get_scoped_user, resolve_company_id
+from security.scope import CEO_LEVEL, MANAGER_LEVEL, get_scoped_user, resolve_company_id
 from services.analytics_service import add_to_series, empty_series, metric_payload, resolve_analytics_window
 
 router = APIRouter(prefix="/work-shifts", tags=["work-shifts"])
@@ -131,6 +131,14 @@ def create_work_shift(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    is_clock_in = (
+        work_shift.user_id == current_user.id
+        and work_shift.status == "active"
+        and work_shift.end_time is None
+        and work_shift.duration_minutes is None
+    )
+    if not is_clock_in and (current_user.role_level or 1) < MANAGER_LEVEL:
+        raise HTTPException(status_code=403, detail="Only a manager or CEO can add a manual shift")
     get_scoped_user(db, current_user, work_shift.user_id)
     db_work_shift = WorkShift(**work_shift.dict())
     db.add(db_work_shift)
@@ -284,6 +292,8 @@ def delete_work_shift(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    if (current_user.role_level or 1) < MANAGER_LEVEL:
+        raise HTTPException(status_code=403, detail="Only a manager or CEO can delete a shift")
     work_shift = db.query(WorkShift).filter(WorkShift.id == work_shift_id).first()
     if not work_shift:
         raise HTTPException(status_code=404, detail="Work shift not found")

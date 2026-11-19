@@ -150,10 +150,13 @@ export function ExamsTable({
     setSelectedTestName(value)
   }
 
+  const uniqueTestNames = React.useMemo(() => {
+    return Array.from(new Set((testNameOptions ?? data.map((exam) => exam.test_name)).filter((name): name is string => Boolean(name))))
+  }, [data, testNameOptions])
+
   const columnFilterDefinitions = React.useMemo<ColumnFilterDefinition<ExamWithNames>[]>(() => {
-    const testNames = Array.from(
-      new Set([...layoutNames(activeLayouts), ...(testNameOptions ?? []), ...data.map((exam) => exam.test_name)].filter((name): name is string => Boolean(name)))
-    ).sort((a, b) => a.localeCompare(b, locale))
+    const names = testNameOptions === undefined ? [...layoutNames(activeLayouts), ...uniqueTestNames] : uniqueTestNames
+    const testNames = [...new Set(names)].sort((a, b) => a.localeCompare(b, locale))
     return [
       { key: "exam_date", label: t("examList.date"), kind: "date", getValue: (exam) => exam.exam_date },
       {
@@ -169,7 +172,7 @@ export function ExamsTable({
       { key: "clinic", label: t("examList.clinic"), kind: "text", getValue: (exam) => String(exam.clinic_id ?? "__none__") },
       { key: "examiner", label: t("examList.examiner"), kind: "text", getValue: (exam) => String(exam.user_id ?? "") },
     ]
-  }, [activeLayouts, clientId, data, locale, t, testNameOptions])
+  }, [activeLayouts, clientId, locale, t, testNameOptions, uniqueTestNames])
 
   const filteredData = React.useMemo(() => {
     let result = data
@@ -202,10 +205,6 @@ export function ExamsTable({
   const displayData = React.useMemo(() => {
     return onSortChange ? filteredData : sortRows(filteredData, activeSort, sortColumns)
   }, [activeSort, filteredData, onSortChange, sortColumns])
-
-  const uniqueTestNames = React.useMemo(() => {
-    return Array.from(new Set([...(testNameOptions ?? []), ...data.map((exam) => exam.test_name)].filter(Boolean)))
-  }, [data, testNameOptions])
 
   const handleDeleteConfirm = async () => {
     if (examToDelete && examToDelete.id !== undefined) {

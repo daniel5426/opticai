@@ -29,6 +29,7 @@ export default function WorkerStatsPage() {
   const { currentUser, currentClinic } = useUser();
   const clinicId = currentClinic?.id;
   const canEditShifts = isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo);
+  const canManageShifts = isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager);
 
   const usersQuery = useQuery({
     queryKey: ["worker-stats", "users", clinicId ?? "none", currentUser?.id, currentUser?.role_level],
@@ -71,7 +72,7 @@ export default function WorkerStatsPage() {
             </Card>
           ) : (
             // Every worker the viewer may read, each with their shifts by day; a worker sees only themselves.
-            <TeamHoursDashboard users={users} canEditShifts={canEditShifts} />
+            <TeamHoursDashboard key={clinicId} users={users} canEditShifts={canEditShifts} canManageShifts={canManageShifts} />
           )}
         </div>
       </div>
