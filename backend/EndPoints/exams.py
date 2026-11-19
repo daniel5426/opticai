@@ -102,6 +102,19 @@ def exam_type_filter(exam_type: str):
     return OpticalExam.type.in_(EXAM_LIST_TYPES.get(exam_type, (exam_type,)))
 
 
+@router.get("/test-names", response_model=List[str])
+def get_exam_test_names(
+    type: Optional[str] = Query(None, description="Filter by exam type"),
+    clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Every exam type name in scope, for the exam type column filter (a page of rows has only some)."""
+    query = exam_list_query(db, current_user, clinic_id, None, None, type, None).order_by(None)
+    names = query.with_entities(OpticalExam.test_name).filter(OpticalExam.test_name.isnot(None), OpticalExam.test_name != "").distinct().all()
+    return sorted(name for (name,) in names)
+
+
 @router.get("/enriched")
 def get_enriched_exams(
     type: Optional[str] = Query(None, description="Filter by exam type"),

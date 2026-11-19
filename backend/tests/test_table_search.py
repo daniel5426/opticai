@@ -344,3 +344,23 @@ def test_paginated_lists_can_defer_the_exact_total():
             assert count.status_code == 200, path
             assert count.json()["total"] >= 1, path
             assert count.json()["items"] == [], path
+
+
+def test_exam_test_names_lists_every_type_in_scope_not_just_one_page():
+    SessionLocal = _session_factory()
+    with SessionLocal() as db:
+        ids = _seed(db)
+        sarah = db.query(Client).filter(Client.first_name == "Sarah").one()
+        db.add_all([
+            OpticalExam(client_id=sarah.id, clinic_id=ids["clinic_id"], user_id=ids["current_user_id"], exam_date=date(2020, 1, day), test_name=name, type="exam")
+            for day, name in enumerate(["Old type", "Old type", "Fit", ""], start=1)
+        ])
+        db.commit()
+
+    with _client(SessionLocal, ids["current_user_id"]) as client:
+        page = client.get("/api/v1/exams/enriched", params={"clinic_id": ids["clinic_id"], "type": "exam", "limit": 1}).json()
+        names = client.get("/api/v1/exams/test-names", params={"clinic_id": ids["clinic_id"], "type": "exam"})
+    assert names.status_code == 200
+    assert len(page["items"]) == 1
+    assert {"Old type", "Fit", "Routine exam"} <= set(names.json())
+    assert "" not in names.json() and len(names.json()) == len(set(names.json()))
