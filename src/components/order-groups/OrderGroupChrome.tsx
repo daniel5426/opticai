@@ -1,12 +1,13 @@
 import React, { useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Edit, Eye, Glasses, Loader2, MoreVertical, Plus, Printer, Receipt, Save } from "lucide-react";
+import { Edit, Eye, FileText, Glasses, Loader2, MoreVertical, Plus, Printer, Receipt, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { OrderSheetSkeleton } from "@/components/orders/OrderSheetSkeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { Client } from "@/lib/db/schema-interface";
@@ -206,6 +207,8 @@ interface OrderGroupToolbarProps {
   printDisabled: boolean;
   printing: boolean;
   onPrint: (all: boolean) => void;
+  /** Saves the current order as a Word document. */
+  onExportWord?: () => void;
   billingOpen: boolean;
   billingDisabled: boolean;
   onToggleBilling: () => void;
@@ -220,6 +223,7 @@ export function OrderGroupToolbar({
   printDisabled,
   printing,
   onPrint,
+  onExportWord,
   billingOpen,
   billingDisabled,
   onToggleBilling,
@@ -248,6 +252,15 @@ export function OrderGroupToolbar({
         <DropdownMenuContent align="end">
           <DropdownMenuItem onSelect={() => onPrint(false)}>{t("orderGroupPrintActive")}</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => onPrint(true)}>{t("orderGroupPrintAll")}</DropdownMenuItem>
+          {onExportWord && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={onExportWord}>
+                <FileText className="size-4" />
+                {t("orderGroupExportWord")}
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
       <Button

@@ -148,7 +148,10 @@
     "prescriptionSourcePreviewTitle": "This is what the card will get:",
     "prescriptionSourceAdditionTitle": "Which glasses is the exam's addition for?",
     "prescriptionSourceFill": "Fill the card",
-    "prescriptionSourceEmpty": "There is no prescription to fill from here"
+    "prescriptionSourceEmpty": "There is no prescription to fill from here",
+    "orderGroupExportWord": "Export current order to Word",
+    "orderGroupExportWordDone": "The order was exported to Word",
+    "orderGroupExportWordError": "Could not export the order to Word."
   },
   "he": {
     "orderPrescriptionFinalTitle": "מרשם סופי",
@@ -300,7 +303,10 @@
     "prescriptionSourcePreviewTitle": "זה מה שיישאב לכרטיס:",
     "prescriptionSourceAdditionTitle": "לאיזה סוג משקפיים לשאוב את ה-Addition מהבדיקה?",
     "prescriptionSourceFill": "שאב לכרטיס",
-    "prescriptionSourceEmpty": "אין כאן מרשם לשאיבה"
+    "prescriptionSourceEmpty": "אין כאן מרשם לשאיבה",
+    "orderGroupExportWord": "ייצוא הזמנה נוכחית ל־Word",
+    "orderGroupExportWordDone": "ההזמנה יוצאה ל־Word",
+    "orderGroupExportWordError": "לא ניתן לייצא את ההזמנה ל־Word."
   },
   "fr": {
     "orderPrescriptionFinalTitle": "Prescription finale",
@@ -451,6 +457,9 @@
     "prescriptionSourcePreviewTitle": "Voici ce que la fiche recevra :",
     "prescriptionSourceAdditionTitle": "Pour quel type de lunettes reprendre l’addition de l’examen ?",
     "prescriptionSourceFill": "Remplir la fiche",
-    "prescriptionSourceEmpty": "Aucune prescription à reprendre ici"
+    "prescriptionSourceEmpty": "Aucune prescription à reprendre ici",
+    "orderGroupExportWord": "Exporter la commande actuelle vers Word",
+    "orderGroupExportWordDone": "La commande a été exportée vers Word",
+    "orderGroupExportWordError": "Impossible d’exporter la commande vers Word."
   }
 }
