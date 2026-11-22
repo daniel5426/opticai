@@ -149,6 +149,10 @@ export interface ContactOrderPrintModel {
   l_cyl: string;
   l_ax: string;
   l_read_add: string;
+  r_va?: string;
+  l_va?: string;
+  r_j?: string;
+  l_j?: string;
   cleaning_solution: string;
   disinfection_solution: string;
   rinsing_solution: string;

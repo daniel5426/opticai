@@ -380,29 +380,26 @@ describe("order-docx print models", () => {
     expect(buildRegularOrderPrintModel(context).frame_supplied_by).toBe("חנות");
   });
 
-  test("renderRegularOrderPdfHtml mirrors the order template structure", () => {
+  test("renderRegularOrderPdfHtml follows the paper order form", () => {
     const html = renderRegularOrderPdfHtml(buildRegularOrderPrintModel(createRegularContext()), "");
 
     expect(html).toContain('html dir="rtl"');
-    expect(html).toContain("הזמנה רגילה");
+    expect(html).toContain("הזמנת משקפיים");
+    expect(html).toContain("תאריך הדפסה - ");
     expect(html).toContain("סניף: ירושלים | יפו 12, ירושלים | 02-2222222 | clinic@example.com");
-    expect(html).toContain("פרטי לקוח");
+    expect(html).toContain('<td class="order-no">הזמנה : ');
     expect(html).toContain("ת.ז");
     expect(html).toContain("123456789");
     expect(html).not.toContain("מספר לקוח");
-    expect(html).toContain("מרשם");
     expect(html).toContain("רון כהן");
     expect(html).toContain("+1.25");
-    expect(html).toContain("background: #f4f4f5");
-    expect(html).not.toContain("background: #fafafa");
-    expect(html).not.toContain("background: #18181b");
-    expect(html).toContain('class="field-table"');
-    expect(html).toContain('<div class="field-label">מס&#39; הזמנה</div>');
-    expect(html).toContain('<table class="eye-table">');
-    expect(html).toContain("<tr><th class=\"section-cell\">עין</th>");
-    expect(html).toContain("<th class=\"label center\">גובה</th>");
-    expect(html).toContain("<th class=\"label center\">דגם</th>");
-    expect(html).not.toContain("<th class=\"label\">מס&#39; הזמנה</th>");
+    expect(html).toContain('<th colspan="8">מרשם</th>');
+    expect(html).toContain("<th>גובה</th>");
+    expect(html).toContain('<th colspan="6">עדשות</th>');
+    expect(html).toContain('<th colspan="7">מסגרת</th>');
+    expect(html).toContain('<td class="eye">R</td>');
+    expect(html).toContain('<div class="head">חיובים</div>');
+    expect(html).toContain('<div class="head">הערות</div>');
   });
 
   test("buildRegularOrderPrintModel falls back to legacy generic lens fields", () => {
@@ -441,28 +438,23 @@ describe("order-docx print models", () => {
     expect(model.payment_status).toBe("שולם חלקית");
   });
 
-  test("renderContactOrderPdfHtml mirrors the contact order template structure", () => {
+  test("renderContactOrderPdfHtml follows the paper contact order form", () => {
     const html = renderContactOrderPdfHtml(buildContactOrderPrintModel(createContactContext()), "");
 
     expect(html).toContain('html dir="rtl"');
     expect(html).toContain("הזמנת עדשות מגע");
     expect(html).toContain("סניף: ירושלים | יפו 12, ירושלים | 02-2222222 | clinic@example.com");
-    expect(html).toContain("פרטי עדשות");
     expect(html).toContain("ת.ז");
     expect(html).toContain("123456789");
     expect(html).not.toContain("מספר לקוח");
-    expect(html).toContain("מרשם עדשות מגע");
     expect(html).toContain("R-Model");
     expect(html).toContain("-1.25");
-    expect(html).toContain("background: #f4f4f5");
-    expect(html).not.toContain("background: #fafafa");
-    expect(html).not.toContain("background: #18181b");
-    expect(html).toContain('class="field-table"');
-    expect(html).toContain('<div class="field-label">מס&#39; הזמנה</div>');
-    expect(html).toContain('<table class="eye-table">');
-    expect(html).toContain("<tr><th class=\"section-cell\">עין</th>");
-    expect(html).toContain("<th class=\"label center\">סוג</th>");
-    expect(html).not.toContain("<th class=\"label\">מס&#39; הזמנה</th>");
+    expect(html).toContain('<th colspan="6">עדשות</th>');
+    expect(html).toContain('<th colspan="9">מרשם</th>');
+    expect(html).toContain("<th>סוג</th>");
+    expect(html).toContain("<th>VA</th>");
+    expect(html).toContain("תמיסת ניקוי");
+    expect(html).toContain('<div class="head">חיובים</div>');
   });
 
   test("buildContactOrderPrintModel falls back to legacy top-level fields", () => {

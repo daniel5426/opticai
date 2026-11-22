@@ -8,6 +8,6 @@ test('prints separate client pages with the shared financial summary once',async
  const html=vi.mocked(printHtml).mock.calls[0][0];
  expect(html).toContain('Alice Client');expect(html).toContain('Bob Client');
  expect(html.match(/class="group-print-page"/g)).toHaveLength(2);
- expect(html.match(/סיכום כספי/g)).toHaveLength(1);
+ expect(html.match(/<div class="head">חיובים<\/div>/g)).toHaveLength(1);
  expect(vi.mocked(printHtml).mock.calls[0][2]).toEqual({direct:true});
 });
