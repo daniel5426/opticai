@@ -51,6 +51,8 @@ export interface RegularOrderPrintModel {
   delivered_date: string;
   manufacturing_lab: string;
   r_sph: string;
+  /** SPH includes the addition (far SPH + ADD); its heading says so. */
+  sph_with_add?: boolean;
   r_cyl: string;
   r_ax: string;
   r_pris: string;
