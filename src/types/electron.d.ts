@@ -176,7 +176,9 @@ export interface ElectronAPI {
   printHtml: (payload: {
     html: string;
     defaultFileName?: string;
-  }) => Promise<{ success: boolean; filePath?: string; error?: string }>;
+    /** Straight to the printer, without a PDF opened in another app. */
+    direct?: boolean;
+  }) => Promise<{ success: boolean; canceled?: boolean; filePath?: string; error?: string }>;
   onUserLogoutBeforeClose: (callback: () => Promise<void> | void) => () => void;
   onAuthCallbackUrl: (callback: (url: string) => void) => () => void;
   onDownloadProgress: (callback: (progress: { percent: number; transferred: number; total: number; bytesPerSecond: number }) => void) => () => void;

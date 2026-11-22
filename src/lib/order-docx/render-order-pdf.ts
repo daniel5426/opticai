@@ -13,7 +13,7 @@ function getLogoUrl(): string {
   return new URL("logo-name.png", window.location.href).toString();
 }
 
-async function getLogoDataUrl(): Promise<string> {
+export async function getLogoDataUrl(): Promise<string> {
   try {
     const response = await fetch(getLogoUrl());
     if (!response.ok) return getLogoUrl();
@@ -59,7 +59,7 @@ function buildPdfFileName(
 }
 
 const PDF_CSS = `
-  @page { size: A4; margin: 10mm 15.8mm; }
+  @page { size: A4; margin: 8mm 12mm; }
   * { box-sizing: border-box; }
   html, body {
     margin: 0;
@@ -67,8 +67,8 @@ const PDF_CSS = `
     direction: rtl;
     color: #18181b;
     font-family: Assistant, Arial, sans-serif;
-    font-size: 12px;
-    line-height: 1.4;
+    font-size: 11px;
+    line-height: 1.3;
   }
   body {
     background: #fff;
@@ -79,19 +79,19 @@ const PDF_CSS = `
     display: grid;
     grid-template-columns: 1fr 1fr;
     align-items: center;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
   }
   .logo-wrap {
     text-align: left;
   }
   .logo {
-    width: 128px;
-    height: 128px;
+    width: 64px;
+    height: 64px;
     object-fit: contain;
   }
   h1 {
-    margin: 0 0 6px;
-    font-size: 26px;
+    margin: 0 0 2px;
+    font-size: 20px;
     line-height: 1.1;
     font-weight: 700;
     text-align: right;
@@ -102,10 +102,10 @@ const PDF_CSS = `
     font-weight: 700;
     text-align: right;
   }
-  .spacer { height: 4px; }
+  .spacer { height: 3px; }
   h2 {
-    margin: 7px 0 2px;
-    font-size: 14px;
+    margin: 5px 0 2px;
+    font-size: 12.5px;
     line-height: 1.2;
     text-align: right;
     font-weight: 700;
@@ -121,8 +121,8 @@ const PDF_CSS = `
   }
   td, th {
     border: 1px solid #e4e4e7;
-    padding: 5px 8px;
-    height: 29px;
+    padding: 2px 6px;
+    height: 21px;
     vertical-align: middle;
     text-align: right;
     font-weight: 400;
@@ -149,22 +149,22 @@ const PDF_CSS = `
     background: #f4f4f5;
   }
   .field-cell {
-    height: 36px;
-    padding: 2px 8px 3px;
+    height: 30px;
+    padding: 1px 6px 2px;
     vertical-align: middle;
   }
   .field-label {
     color: #52525b;
-    font-size: 10px;
-    line-height: 1.2;
+    font-size: 9.5px;
+    line-height: 1.15;
     font-weight: 700;
     margin-bottom: 0;
   }
   .field-value {
     color: #18181b;
-    font-size: 13px;
-    line-height: 1.25;
-    min-height: 14px;
+    font-size: 12px;
+    line-height: 1.2;
+    min-height: 13px;
   }
   .ltr {
     direction: ltr;
@@ -172,13 +172,13 @@ const PDF_CSS = `
   }
   .notes td {
     vertical-align: top;
-    height: 72px;
-    padding: 7px 9px;
+    height: 52px;
+    padding: 4px 7px;
   }
   .note-title {
-    font-size: 12px;
+    font-size: 11.5px;
     font-weight: 700;
-    margin-bottom: 6px;
+    margin-bottom: 2px;
   }
   .note-body {
     white-space: pre-wrap;
@@ -453,5 +453,5 @@ export async function printOrderPdf({
   data: RegularOrderPrintModel | ContactOrderPrintModel;
 }) {
   const logoUrl = await getLogoDataUrl();
-  return printHtml(renderOrderPdfHtml({ kind, data, logoUrl }), buildPdfFileName(kind, data));
+  return printHtml(renderOrderPdfHtml({ kind, data, logoUrl }), buildPdfFileName(kind, data), { direct: true });
 }
