@@ -151,7 +151,8 @@
     "prescriptionSourceEmpty": "There is no prescription to fill from here",
     "orderGroupExportWord": "Export current order to Word",
     "orderGroupExportWordDone": "The order was exported to Word",
-    "orderGroupExportWordError": "Could not export the order to Word."
+    "orderGroupExportWordError": "Could not export the order to Word.",
+    "orderGroupSaveBeforePrint": "Save the order to print it."
   },
   "he": {
     "orderPrescriptionFinalTitle": "מרשם סופי",
@@ -306,7 +307,8 @@
     "prescriptionSourceEmpty": "אין כאן מרשם לשאיבה",
     "orderGroupExportWord": "ייצוא הזמנה נוכחית ל־Word",
     "orderGroupExportWordDone": "ההזמנה יוצאה ל־Word",
-    "orderGroupExportWordError": "לא ניתן לייצא את ההזמנה ל־Word."
+    "orderGroupExportWordError": "לא ניתן לייצא את ההזמנה ל־Word.",
+    "orderGroupSaveBeforePrint": "יש לשמור את ההזמנה כדי להדפיס אותה."
   },
   "fr": {
     "orderPrescriptionFinalTitle": "Prescription finale",
@@ -460,6 +462,7 @@
     "prescriptionSourceEmpty": "Aucune prescription à reprendre ici",
     "orderGroupExportWord": "Exporter la commande actuelle vers Word",
     "orderGroupExportWordDone": "La commande a été exportée vers Word",
-    "orderGroupExportWordError": "Impossible d’exporter la commande vers Word."
+    "orderGroupExportWordError": "Impossible d’exporter la commande vers Word.",
+    "orderGroupSaveBeforePrint": "Enregistrez la commande pour l’imprimer."
   }
 }

@@ -16,3 +16,15 @@ it('offers a Word export of the current order beside printing', async () => {
   fireEvent.click(await screen.findByText('ייצוא הזמנה נוכחית ל־Word'));
   expect(onExportWord).toHaveBeenCalledOnce();
 });
+
+it('with unsaved changes, printing says to save first instead of opening the menu', async () => {
+  const { toast } = await import('sonner');
+  const info = vi.spyOn(toast, 'info');
+  const onPrint = vi.fn();
+  render(<OrderGroupToolbar direction="rtl" printDisabled={false} printBlockedReason="יש לשמור את ההזמנה כדי להדפיס אותה." printing={false} onPrint={onPrint}
+    billingOpen={false} billingDisabled onToggleBilling={() => {}} editing saving={false} editDisabled={false} onEditOrSave={() => {}} />);
+  await userEvent.click(screen.getByLabelText('הדפס'));
+  expect(info).toHaveBeenCalledWith('יש לשמור את ההזמנה כדי להדפיס אותה.');
+  expect(screen.queryByText('הדפס הזמנה נוכחית')).toBeNull();
+  expect(onPrint).not.toHaveBeenCalled();
+});
