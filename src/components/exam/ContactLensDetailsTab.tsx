@@ -9,6 +9,8 @@ import React, { useState, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { LookupSelect } from "@/components/ui/lookup-select";
 import { ContactLensDetails } from "@/lib/db/schema-interface";
+import { OrderItemSourceButton } from "@/components/orders/OrderItemSourceButton";
+import type { OrderPrescriptionSource } from "@/components/orders/OrderPrescriptionSourceButton";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import { FastInput, inputSyncManager } from "./shared/OptimizedInputs";
 import { EXAM_FIELDS } from "./data/exam-field-definitions";
@@ -50,6 +52,8 @@ interface ContactLensDetailsTabProps {
   hideEyeLabels?: boolean;
   needsMiddleSpacer?: boolean;
   inventoryCatalog?: ContactLensInventoryCatalogProps;
+  /** In an order: the client's earlier contact lens orders, offered beside the title to fill the details from. */
+  orderSource?: OrderPrescriptionSource;
 }
 
 export function ContactLensDetailsTab({
@@ -60,6 +64,7 @@ export function ContactLensDetailsTab({
   hideEyeLabels = false,
   needsMiddleSpacer = false,
   inventoryCatalog,
+  orderSource,
 }: ContactLensDetailsTabProps) {
   const { t } = useTranslation();
   const { direction } = useAppLocale();
@@ -234,8 +239,19 @@ export function ContactLensDetailsTab({
               onSelect={variant => inventoryCatalog.onSelect(side, variant, (variant.balance?.available || 0) > 0 ? "inventory" : "supplier_ordered")}
             />)}
           </div>}
-          <div className="text-center" dir={direction}>
+          <div className="flex items-center justify-center gap-1" dir={direction}>
             <h3 className="text-muted-foreground font-medium">{t("contactLensDetails.title")}</h3>
+            {isEditing && orderSource && !inventoryCatalog?.rightDisabled && !inventoryCatalog?.leftDisabled && (
+              <OrderItemSourceButton
+                source={orderSource}
+                kind="contact-details"
+                onFill={(values) => {
+                  inventoryCatalog?.onClear?.("right");
+                  inventoryCatalog?.onClear?.("left");
+                  Object.entries(values).forEach(([field, value]) => onContactLensDetailsChange(field as keyof ContactLensDetails, value));
+                }}
+              />
+            )}
           </div>
 
           <div

@@ -148,7 +148,13 @@
     "prescriptionSourcePreviewTitle": "This is what the card will get:",
     "prescriptionSourceAdditionTitle": "Which glasses is the exam's addition for?",
     "prescriptionSourceFill": "Fill the card",
-    "prescriptionSourceEmpty": "There is no prescription to fill from here"
+    "prescriptionSourceEmpty": "There is no prescription to fill from here",
+    "orderItemSourceFrame": "Frame from an earlier order",
+    "orderItemSourceLenses": "Lenses from an earlier order",
+    "orderItemSourceContactDetails": "Lens details from an earlier order",
+    "orderItemSourceNoFrame": "No frame details in this order",
+    "orderItemSourceNoLenses": "No lens details in this order",
+    "orderItemSourceNoContactDetails": "No lens details in this order"
   },
   "he": {
     "orderPrescriptionFinalTitle": "מרשם סופי",
@@ -300,7 +306,13 @@
     "prescriptionSourcePreviewTitle": "זה מה שיישאב לכרטיס:",
     "prescriptionSourceAdditionTitle": "לאיזה סוג משקפיים לשאוב את ה-Addition מהבדיקה?",
     "prescriptionSourceFill": "שאב לכרטיס",
-    "prescriptionSourceEmpty": "אין כאן מרשם לשאיבה"
+    "prescriptionSourceEmpty": "אין כאן מרשם לשאיבה",
+    "orderItemSourceFrame": "מסגרת מהזמנה קודמת",
+    "orderItemSourceLenses": "עדשות מהזמנה קודמת",
+    "orderItemSourceContactDetails": "פרטי עדשות מהזמנה קודמת",
+    "orderItemSourceNoFrame": "אין בהזמנה זו פרטי מסגרת",
+    "orderItemSourceNoLenses": "אין בהזמנה זו פרטי עדשות",
+    "orderItemSourceNoContactDetails": "אין בהזמנה זו פרטי עדשות"
   },
   "fr": {
     "orderPrescriptionFinalTitle": "Prescription finale",
@@ -451,6 +463,12 @@
     "prescriptionSourcePreviewTitle": "Voici ce que la fiche recevra :",
     "prescriptionSourceAdditionTitle": "Pour quel type de lunettes reprendre l’addition de l’examen ?",
     "prescriptionSourceFill": "Remplir la fiche",
-    "prescriptionSourceEmpty": "Aucune prescription à reprendre ici"
+    "prescriptionSourceEmpty": "Aucune prescription à reprendre ici",
+    "orderItemSourceFrame": "Monture d'une commande précédente",
+    "orderItemSourceLenses": "Verres d'une commande précédente",
+    "orderItemSourceContactDetails": "Détails des lentilles d'une commande précédente",
+    "orderItemSourceNoFrame": "Aucune monture dans cette commande",
+    "orderItemSourceNoLenses": "Aucun verre dans cette commande",
+    "orderItemSourceNoContactDetails": "Aucun détail de lentilles dans cette commande"
   }
 }

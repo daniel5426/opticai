@@ -22,6 +22,8 @@ import type { CatalogVariant, FulfillmentSource, InventorySelection } from "@/li
 import { useAppLocale } from "@/localization/use-app-locale";
 import { OrderField, OrderSection, OrderSegmented } from "../layout/OrderSheet";
 import { SUPPLIED_BY_CUSTOMER, SUPPLIED_BY_STORE, type Frame } from "./types";
+import { OrderItemSourceButton } from "../OrderItemSourceButton";
+import type { OrderPrescriptionSource } from "../OrderPrescriptionSourceButton";
 
 const CATALOG_FIELDS: { field: FrameCatalogField; label: string; lookupType: string; lookupLabel: string }[] = [
   { field: "supplier", label: "supplier", lookupType: "frameSupplier", lookupLabel: "lookupFrameSuppliers" },
@@ -50,6 +52,8 @@ interface FrameSectionProps {
   onInventorySelect: (variant: CatalogVariant, source: FulfillmentSource) => void;
   onInventoryClear: () => void;
   onInventoryUnlink?: () => void;
+  /** The client's earlier orders, offered beside the title to fill the frame from. */
+  itemSource?: OrderPrescriptionSource;
 }
 
 const useFrameCatalog = (clinicId?: number, orderId?: number) => {
@@ -95,6 +99,7 @@ export function FrameSection({
   onInventorySelect,
   onInventoryClear,
   onInventoryUnlink,
+  itemSource,
 }: FrameSectionProps) {
   const { t } = useTranslation();
   const { direction } = useAppLocale();
@@ -205,7 +210,14 @@ export function FrameSection({
           label={t('orderWorkspace.catalogCreateProduct', { name: [frame.manufacturer, frame.model].filter(Boolean).join(' ') })}
           onAction={createProduct}/>}
       </div>}
-      title={t("orderWorkspace.frame")}
+      title={<span className="inline-flex items-center gap-1">
+        {t("orderWorkspace.frame")}
+        {isEditing && !consumed && itemSource && <OrderItemSourceButton source={itemSource} kind="frame" onFill={values => {
+          if (selectedInventory) onInventoryClear();
+          Object.entries(values).forEach(([field, value]) => onFrameFieldChange(field as keyof Frame, value));
+          onFrameFieldChange("_scan_provenance" as keyof Frame, "{}");
+        }} />}
+      </span>}
       start={<><ScanCardActions scanned={scanned(frame, 'frame')} clear={hasProduct ? clearProduct : undefined} disabled={!isEditing || consumed} /><ProductBarcodeScan
         clinicId={clinicId} category="frame" orderId={orderId} orderKind="regular" stockableOnly
         disabled={!isEditing || consumed || frame.supplied_by === SUPPLIED_BY_CUSTOMER}

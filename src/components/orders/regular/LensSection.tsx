@@ -15,6 +15,8 @@ import { FastInput } from "@/components/exam/shared/OptimizedInputs";
 import { useAppLocale } from "@/localization/use-app-locale";
 import { OrderField, OrderSection, OrderSegmented } from "../layout/OrderSheet";
 import type { OrderLens } from "./types";
+import { OrderItemSourceButton } from "../OrderItemSourceButton";
+import type { OrderPrescriptionSource } from "../OrderPrescriptionSourceButton";
 
 type LensFieldSuffix =
   | "supplier"
@@ -60,6 +62,8 @@ interface LensSectionProps {
   layoutKey: string;
   isEditing: boolean;
   onLensFieldChange: (field: keyof OrderLens, value: string) => void;
+  /** The client's earlier orders, offered beside the title to fill the lenses from. */
+  itemSource?: OrderPrescriptionSource;
 }
 
 export function LensSection({
@@ -68,6 +72,7 @@ export function LensSection({
   layoutKey,
   isEditing,
   onLensFieldChange,
+  itemSource,
 }: LensSectionProps) {
   const { t } = useTranslation();
   const { direction } = useAppLocale();
@@ -224,7 +229,17 @@ export function LensSection({
     <div ref={scanRef} className="h-full"><OrderSection
       className="flex h-full flex-col [&>header]:min-h-8"
       bodyClassName="flex-1"
-      title={t("orderWorkspace.lenses")}
+      title={<span className="inline-flex items-center gap-1">
+        {t("orderWorkspace.lenses")}
+        {isEditing && itemSource && !selections.some(item => item.component.startsWith("lens_") && item.lifecycle_state === "consumed") &&
+          <OrderItemSourceButton source={itemSource} kind="lenses" onFill={values => {
+            setMergeError("");
+            setMode("auto");
+            if (selection("right") || selection("left")) onInventoryClear?.("both");
+            Object.entries(values).forEach(([field, value]) => onLensFieldChange(field as keyof OrderLens, value));
+            onLensFieldChange("_scan_provenance" as keyof OrderLens, "{}");
+          }} />}
+      </span>}
       start={<ScanCardActions scanned={scanned(lens, 'right') || scanned(lens, 'left')} clear={selection('right') || selection('left') || LENS_FIELDS.some(({key})=>valueOf('right',key)||valueOf('left',key)) ? ()=>clearProduct('both') : undefined} disabled={!isEditing || selections.some(item=>item.component.startsWith('lens_')&&item.lifecycle_state==='consumed')} />}
       end={
         <OrderSegmented

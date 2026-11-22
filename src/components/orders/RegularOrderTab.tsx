@@ -81,6 +81,9 @@ export default function RegularOrderTab({
   const { currentClient } = useClientSidebar();
   const lens = lensFrameTab?.lens || ({ order_id: 0 } as OrderLens);
   const frame = lensFrameTab?.frame || ({ order_id: 0 } as Frame);
+  const sourceClientId = Number(formData.client_id || currentClient?.id) || 0;
+  // The client's earlier orders, which the prescription, lens and frame cards can each be filled from.
+  const orderSource = sourceClientId ? { clientId: sourceClientId, orderId: formData.id } : undefined;
 
   return (
     <form
@@ -132,7 +135,7 @@ export default function RegularOrderTab({
               onFinalPrescriptionChange(field as keyof FinalPrescriptionExam, value)
             }
             isEditing={isEditing}
-            prescriptionSource={(formData.client_id || currentClient?.id) ? { clientId: Number(formData.client_id || currentClient?.id), orderId: formData.id } : undefined}
+            prescriptionSource={orderSource}
           />
         </div>
 
@@ -144,6 +147,7 @@ export default function RegularOrderTab({
             layoutKey={lensFrameTab?.id || ""}
             isEditing={isEditing}
             onLensFieldChange={onLensFieldChange}
+            itemSource={orderSource}
           />
           <FrameSection
             clinicId={formData.clinic_id}
@@ -155,6 +159,7 @@ export default function RegularOrderTab({
             selectedInventory={selectedFrameInventory}
             onInventorySelect={onFrameInventorySelect}
             onInventoryClear={onFrameInventoryClear} onInventoryUnlink={onFrameInventoryUnlink}
+            itemSource={orderSource}
           />
         </OrderSheetRow>
 
