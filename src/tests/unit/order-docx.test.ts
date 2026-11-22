@@ -403,6 +403,22 @@ describe("order-docx print models", () => {
     expect(html).toContain('<div class="head">הערות</div>');
   });
 
+  test("buildRegularOrderPrintModel marks an SPH that took the addition as +ADD", () => {
+    const context = createRegularContext();
+    const prescription = (context.order as any).order_data["final-prescription"];
+    Object.assign(prescription, { r_sph: 3.25, r_sph_far: 1.25, r_sph_add: 2, sph_add_type: "read" });
+
+    const model = buildRegularOrderPrintModel(context);
+
+    expect(model.r_sph).toContain("+3.25");
+    expect(model.r_sph.endsWith(" +ADD")).toBe(true);
+    expect(model.l_sph).not.toContain("ADD");
+
+    // A hand edit of SPH drops the calculation, and with it the mark.
+    prescription.r_sph = 3;
+    expect(buildRegularOrderPrintModel(context).r_sph).not.toContain("ADD");
+  });
+
   test("buildRegularOrderPrintModel falls back to legacy generic lens fields", () => {
     const context = createRegularContext();
     const order = context.order as any;

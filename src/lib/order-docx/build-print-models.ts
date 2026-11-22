@@ -1,3 +1,4 @@
+import { sphAdditionFor } from "@/lib/addition-add-sources";
 import i18n from "@/localization/i18n";
 import { isDiscountLine } from "@/lib/discounts";
 import type { ContactLensOrderEntity, OrderLineItem } from "@/lib/db/schema-interface";
@@ -153,6 +154,12 @@ function asContactOrder(order: LoadedOrderExportContext["order"]): ContactLensOr
   return order as ContactLensOrderEntity;
 }
 
+/** An eye's SPH, marked "+ADD" when it took the near or intermediate addition (far SPH + ADD), as the order card shows it. */
+function sphWithAdditionMark(prescription: Record<string, any>, eye: "R" | "L") {
+  const sph = formatOpticalNumber(prescription[`${eye.toLowerCase()}_sph`]);
+  return sph && sphAdditionFor(prescription, eye) ? `${sph} +ADD` : sph;
+}
+
 export function buildRegularOrderPrintModel(
   context: LoadedOrderExportContext,
 ): RegularOrderPrintModel {
@@ -201,7 +208,7 @@ export function buildRegularOrderPrintModel(
     delivered_by: toDisplayString(details.delivered_by),
     delivered_date: formatDate(details.delivered_at),
     manufacturing_lab: toDisplayString(details.manufacturing_lab),
-    r_sph: formatOpticalNumber(finalPrescription.r_sph),
+    r_sph: sphWithAdditionMark(finalPrescription, "R"),
     r_cyl: formatOpticalNumber(finalPrescription.r_cyl),
     r_ax: formatAxis(finalPrescription.r_ax),
     r_pris: formatOpticalNumber(finalPrescription.r_pris),
@@ -211,7 +218,7 @@ export function buildRegularOrderPrintModel(
     r_high: formatPlainNumber(finalPrescription.r_high),
     r_pd: formatPlainNumber(finalPrescription.r_pd_far ?? finalPrescription.r_pd),
     r_pd_close: formatPlainNumber(finalPrescription.r_pd_close),
-    l_sph: formatOpticalNumber(finalPrescription.l_sph),
+    l_sph: sphWithAdditionMark(finalPrescription, "L"),
     l_cyl: formatOpticalNumber(finalPrescription.l_cyl),
     l_ax: formatAxis(finalPrescription.l_ax),
     l_pris: formatOpticalNumber(finalPrescription.l_pris),
