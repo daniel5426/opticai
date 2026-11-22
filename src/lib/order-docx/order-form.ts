@@ -85,13 +85,13 @@ function regularForm(data: RegularOrderPrintModel, includeBilling: boolean): For
       type: "grid",
       title: "מרשם",
       eyes: true,
-      labels: ["SPH", "CYL", "AX", "PRISM", "BASE", "ADD", "PD", "גובה"],
+      labels: ["SPH", "CYL", "AX", "PRISM", "BASE", "ADD", "PD FAR", "PD NEAR", "גובה"],
       rows: [
-        [data.r_sph, data.r_cyl, data.r_ax, data.r_pris, data.r_base, data.r_add, data.r_pd, data.r_high],
-        [data.l_sph, data.l_cyl, data.l_ax, data.l_pris, data.l_base, data.l_add, data.l_pd, data.l_high],
+        [data.r_sph, data.r_cyl, data.r_ax, data.r_pris, data.r_base, data.r_add, data.r_pd, data.r_pd_close, data.r_high],
+        [data.l_sph, data.l_cyl, data.l_ax, data.l_pris, data.l_base, data.l_add, data.l_pd, data.l_pd_close, data.l_high],
       ],
     },
-    { type: "info", pairs: [["PD משולב", data.comb_pd], ["רב מוקדי", data.multifocal_block]] },
+    { type: "info", pairs: [["PD FAR משולב", data.comb_pd], ["PD NEAR משולב", data.comb_pd_close], ["רב מוקדי", data.multifocal_block]] },
     {
       type: "grid",
       title: "עדשות",

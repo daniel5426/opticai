@@ -100,8 +100,8 @@ const PDF_CSS = `
   .order-box td { padding: 6px 10px; vertical-align: middle; }
   .order-no { font-size: 24px; font-weight: 700; border-left: 1px solid #000; }
   .order-code { font-size: 18px; text-align: center; letter-spacing: 1px; }
-  .k { font-weight: 700; white-space: nowrap; width: 15%; }
-  .v { width: 35%; }
+  .k { font-weight: 700; white-space: nowrap; width: 19%; }
+  .v { width: 31%; }
   .name-row td { font-size: 18px; font-weight: 700; border-bottom: 1px solid #000; padding: 4px 8px 5px; }
   .grid { border: 1px solid #000; }
   .grid th, .grid td {

@@ -393,7 +393,8 @@ describe("order-docx print models", () => {
     expect(html).not.toContain("מספר לקוח");
     expect(html).toContain("רון כהן");
     expect(html).toContain("+1.25");
-    expect(html).toContain('<th colspan="8">מרשם</th>');
+    expect(html).toContain('<th colspan="9">מרשם</th>');
+    expect(html).toContain("<th>PD NEAR</th>");
     expect(html).toContain("<th>גובה</th>");
     expect(html).toContain('<th colspan="6">עדשות</th>');
     expect(html).toContain('<th colspan="7">מסגרת</th>');

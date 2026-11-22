@@ -59,6 +59,7 @@ export interface RegularOrderPrintModel {
   r_diam: string;
   r_high: string;
   r_pd: string;
+  r_pd_close?: string;
   l_sph: string;
   l_cyl: string;
   l_ax: string;
@@ -68,7 +69,9 @@ export interface RegularOrderPrintModel {
   l_diam: string;
   l_high: string;
   l_pd: string;
+  l_pd_close?: string;
   comb_pd: string;
+  comb_pd_close?: string;
   multifocal_block: string;
   lens_tab_type: string;
   r_lens_model: string;

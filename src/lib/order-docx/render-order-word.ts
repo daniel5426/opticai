@@ -106,8 +106,8 @@ function blockXml(block: FormBlock): string {
   }
 
   if (block.type === "info") {
-    const label = TEXT_WIDTH * 0.15;
-    const value = TEXT_WIDTH * 0.35;
+    const label = TEXT_WIDTH * 0.19;
+    const value = TEXT_WIDTH * 0.31;
     const rows: string[] = [];
     if (block.name !== undefined) {
       rows.push(tableRow([
