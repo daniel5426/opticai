@@ -13,8 +13,11 @@ export type FormBlock =
   | { type: "order"; number: string }
   /** Label/value pairs, two to a row, in a bordered box; optionally headed by the client's name. */
   | { type: "info"; name?: string; pairs: FormPair[] }
-  /** A grey-headed table; with `eyes`, one row each for R and L. */
-  | { type: "grid"; title: string; labels: string[]; rows: FormValue[][]; eyes?: boolean; widths?: number[] }
+  /**
+   * A grey-headed table; with `eyes`, one row each for R and L, laid out left to right as prescriptions are read.
+   * `defaults` are columns holding a default value (frame supplied by, lens quantity) that alone don't make the table worth printing.
+   */
+  | { type: "grid"; title: string; labels: string[]; rows: FormValue[][]; eyes?: boolean; widths?: number[]; defaults?: number[] }
   /** Notes beside the charges, as the bottom of the earlier form. */
   | { type: "bottom"; notes: FormPair[]; charges?: FormPair[] };
 
@@ -103,6 +106,7 @@ function regularForm(data: RegularOrderPrintModel, includeBilling: boolean): For
       type: "grid",
       title: "מסגרת",
       labels: ["ספק", "מותג", "דגם", "צבע", "גודל", "גובה", 'סופק ע"י'],
+      defaults: [6],
       rows: [[data.frame_supplier, data.frame_brand, data.frame_model, data.frame_color, frameSize, data.frame_height, data.frame_supplied_by]],
     },
     { type: "info", pairs: [['נמסר ע"י', data.delivered_by], ["תאריך מסירה", data.delivered_date], ["תאריך אישור", data.approval_date]] },
@@ -129,6 +133,7 @@ function contactForm(data: ContactOrderPrintModel, includeBilling: boolean): For
       title: "עדשות",
       eyes: true,
       labels: ["סוג", "דגם", "ספק", "חומר", "צבע", "כמות"],
+      defaults: [5],
       rows: [
         [data.r_lens_type, data.r_model, data.r_supplier, data.r_material, data.r_color, data.r_quantity],
         [data.l_lens_type, data.l_model, data.l_supplier, data.l_material, data.l_color, data.l_quantity],
@@ -157,13 +162,27 @@ function contactForm(data: ContactOrderPrintModel, includeBilling: boolean): For
   ];
 }
 
+const hasValue = (value: FormValue): boolean =>
+  Array.isArray(value) ? value.some(hasValue) : String(value ?? "").replace(/[\u200e\u200f]/g, "").trim() !== "";
+
+/** Whether a block has anything to show; a table or box without a single value is left out. */
+function hasContent(block: FormBlock): boolean {
+  if (block.type === "order") return true;
+  if (block.type === "info") return block.name !== undefined || block.pairs.some(([, value]) => hasValue(value));
+  if (block.type === "grid") {
+    return block.rows.some((row) => row.some((value, index) => !block.defaults?.includes(index) && hasValue(value)));
+  }
+  return Boolean(block.charges) || block.notes.some(([, value]) => hasValue(value));
+}
+
 export function buildOrderForm(kind: OrderExportKind, data: OrderData, includeBilling = true): OrderForm {
+  const blocks = kind === "contact"
+    ? contactForm(data as ContactOrderPrintModel, includeBilling)
+    : regularForm(data as RegularOrderPrintModel, includeBilling);
   return {
     title: kind === "contact" ? "הזמנת עדשות מגע" : "הזמנת משקפיים",
     clinic: data.clinic_info || data.clinic_name,
     printDate: printDate(),
-    blocks: kind === "contact"
-      ? contactForm(data as ContactOrderPrintModel, includeBilling)
-      : regularForm(data as RegularOrderPrintModel, includeBilling),
+    blocks: blocks.filter(hasContent),
   };
 }

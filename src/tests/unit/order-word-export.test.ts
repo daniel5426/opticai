@@ -40,3 +40,23 @@ test('without billing, neither the items nor the charges are exported', () => {
   expect(xml).not.toContain('פריטי חיוב');
   expect(xml).not.toContain('חיובים');
 });
+
+test('a table or box without a single value is left out of both print and Word', () => {
+  const data: any = { ...contact, r_lens_type: '', r_model: '', l_model: '', r_quantity: '0', l_quantity: '0', priority: 'רגילה' };
+  const form = buildOrderForm('contact', data);
+  const titles = form.blocks.flatMap((block) => (block.type === 'grid' ? [block.title] : []));
+  expect(titles).not.toContain('עדשות');
+  expect(titles).toContain('מרשם');
+  expect(renderOrderPdfHtml({ kind: 'contact', data })).not.toContain('<th colspan="6">עדשות</th>');
+  expect(form.blocks.some((block) => block.type === 'info' && block.pairs.some(([label]) => label === 'תמיסת ניקוי'))).toBe(true);
+  const empty = buildOrderForm('contact', { ...data, priority: '', cleaning_solution: '' });
+  expect(empty.blocks.some((block) => block.type === 'info' && block.pairs.some(([label]) => label === 'תמיסת ניקוי'))).toBe(false);
+});
+
+test('eye tables read left to right, R first', () => {
+  expect(renderOrderPdfHtml({ kind: 'contact', data: contact })).toContain('<table class="grid" dir="ltr">');
+  const xml = orderFormDocumentXml(buildOrderForm('contact', contact));
+  const eyeRow = xml.split('<w:tr>').find((row) => row.includes('>R<'))!;
+  // Right-to-left tables list their cells from the right, so R, shown at the left, comes last.
+  expect(eyeRow.lastIndexOf('>R<')).toBeGreaterThan(eyeRow.indexOf('8.9'));
+});

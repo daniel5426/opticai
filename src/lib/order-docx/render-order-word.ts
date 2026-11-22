@@ -131,17 +131,21 @@ function blockXml(block: FormBlock): string {
       block.widths ? (available * block.widths[index]) / 100 : available / block.labels.length);
     const eye = (text = "") => (block.eyes ? [textCell(text, { width: EYE_WIDTH, bold: true, align: "center" })] : []);
     const rows = [
-      tableRow([...eye(), textCell(block.title, { width: available, span: block.labels.length, shade: true, bold: true, align: "center" })], 300),
-      tableRow([...eye(), ...block.labels.map((text, index) => textCell(text, { width: widths[index], shade: true, bold: true, align: "center" }))], 300),
-      ...block.rows.map((values, rowIndex) => tableRow([
+      [...eye(), textCell(block.title, { width: available, span: block.labels.length, shade: true, bold: true, align: "center" })],
+      [...eye(), ...block.labels.map((text, index) => textCell(text, { width: widths[index], shade: true, bold: true, align: "center" }))],
+      ...block.rows.map((values, rowIndex) => [
         ...eye(rowIndex ? "L" : "R"),
         ...values.map((value, index) => textCell(valueText(value), {
           width: widths[index],
           align: !block.eyes && block.widths && index === 0 ? "start" : "center",
         })),
-      ], 340)),
+      ]),
     ];
-    return table([...(block.eyes ? [EYE_WIDTH] : []), ...widths], rows, "grid");
+    const columns = [...(block.eyes ? [EYE_WIDTH] : []), ...widths];
+    // Eye tables read left to right, R/L first, as prescriptions are written. The table stays right-to-left
+    // like the rest of the document, so its columns are given in reverse: Word and LibreOffice both show them in order.
+    const ordered = <T,>(items: T[]) => (block.eyes ? [...items].reverse() : items);
+    return table(ordered(columns), rows.map((cells, index) => tableRow(ordered(cells), index < 2 ? 300 : 340)), "grid");
   }
 
   const half = TEXT_WIDTH / 2;

@@ -167,7 +167,7 @@ function blockHtml(block: FormBlock): string {
         .map((value, column) => cell(value, !block.eyes && block.widths && column === 0 ? "start" : ""))
         .join("")}</tr>`)
       .join("");
-    return `<table class="grid">
+    return `<table class="grid"${block.eyes ? ' dir="ltr"' : ""}>
       <tr class="title">${eye}<th colspan="${block.labels.length}">${htmlText(block.title)}</th></tr>
       <tr>${eye}${labels}</tr>
       ${rows}
