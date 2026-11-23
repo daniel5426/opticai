@@ -54,21 +54,6 @@ export function NewClientAppointmentModal({
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label
-              htmlFor={`${idPrefix}-first-name`}
-              className="block text-right"
-            >
-              שם פרטי *
-            </Label>
-            <Input
-              id={`${idPrefix}-first-name`}
-              value={formData.first_name}
-              onChange={(event) => onChange("first_name", event.target.value)}
-              dir="rtl"
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label
               htmlFor={`${idPrefix}-last-name`}
               className="block text-right"
             >
@@ -78,6 +63,21 @@ export function NewClientAppointmentModal({
               id={`${idPrefix}-last-name`}
               value={formData.last_name}
               onChange={(event) => onChange("last_name", event.target.value)}
+              dir="rtl"
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label
+              htmlFor={`${idPrefix}-first-name`}
+              className="block text-right"
+            >
+              שם פרטי *
+            </Label>
+            <Input
+              id={`${idPrefix}-first-name`}
+              value={formData.first_name}
+              onChange={(event) => onChange("first_name", event.target.value)}
               dir="rtl"
               required
             />
