@@ -146,19 +146,23 @@ def report_attachments(thread_id: UUID, run_id: list[UUID] = Query(min_length=1,
     return {'items': list_attachments(db, auth, str(thread_id), [str(value) for value in run_id])}
 
 
-@router.post('/reports/internal-page', include_in_schema=False)
-async def internal_report_page(request: Request):
-    from starlette.concurrency import run_in_threadpool
-    from agent.authority import resolve_artifact
-    from agent.models import AgentContext
-    from agent.report_storage import authorized_payload, read_page
+async def authorized_report_relay(request: Request):
+    from agent.report_storage import authorized_payload
     body = bytearray()
     async for chunk in request.stream():
         if len(body) + len(chunk) > 4096:
             raise HTTPException(404, 'agent.recordNotFound')
         body.extend(chunk)
-    payload = authorized_payload(bytes(body), request.headers.get('x-prysm-report-timestamp', ''),
+    return authorized_payload(bytes(body), request.headers.get('x-prysm-report-timestamp', ''),
         request.headers.get('x-prysm-report-signature', ''))
+
+
+@router.post('/reports/internal-page', include_in_schema=False)
+async def internal_report_page(payload=Depends(authorized_report_relay)):
+    from starlette.concurrency import run_in_threadpool
+    from agent.authority import resolve_artifact
+    from agent.models import AgentContext
+    from agent.report_storage import read_page
 
     def load():
         with SessionLocal() as db:

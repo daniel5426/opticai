@@ -20,7 +20,7 @@ import EndPoints.lookups as lookups
 import EndPoints.search as search
 import EndPoints.work_shifts as work_shifts
 import main
-from EndPoints.agent import authorized as authorized_agent
+from EndPoints.agent import authorized as authorized_agent, authorized_report_relay
 from EndPoints.scanner import phone_auth
 
 
@@ -90,7 +90,8 @@ def test_non_public_api_routes_require_auth():
         if any((method, route.path) in allowed_public_routes for method in route.methods or set()):
             continue
         def authenticated(dependant):
-            return any(dep.call in {get_current_user, authorized_agent, phone_auth} or authenticated(dep) for dep in dependant.dependencies)
+            return any(dep.call in {get_current_user, authorized_agent, authorized_report_relay, phone_auth}
+                       or authenticated(dep) for dep in dependant.dependencies)
         if not authenticated(route.dependant):
             methods = ",".join(sorted(route.methods or []))
             missing.append(f"{methods} {route.path}")
