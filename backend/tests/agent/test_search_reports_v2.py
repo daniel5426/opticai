@@ -357,6 +357,22 @@ def test_derived_metrics_zero_denominators_and_currency_charts(clinic):
             'derived_metrics': [{'key': 'bad', 'label': 'Bad', 'operation': 'ratio', 'numerator': 'unsafe', 'denominator': 'sum_total'}]}))
 
 
+def test_catalog_chart_example_matches_report_output(clinic):
+    db, auth, _, _ = clinic
+    examples = report_definitions.catalog(db, auth)['output_columns']
+    aggregate = examples['aggregate_example']
+    chart = examples['chart_example']
+    definition = {'dataset': 'billing', 'group_by': [chart['x']],
+        'aggregates': [{'field': aggregate['field'], 'operation': aggregate['operation']}],
+        'presentation': {'charts': [chart]}}
+    queued = report_definitions.queue(db, auth, definition, 'catalog-chart')
+    job = db.get(AgentJob, queued['job_id']); materialize(db, auth, job)
+    assert job.status == 'completed'
+    output = aggregate['output']
+    assert chart['series'] == [output]
+    assert job.result['charts'][0]['rows'][0][output] == 400
+
+
 def test_presentation_uses_snapshot_columns_and_keeps_currencies_separate(clinic):
     db, auth, patients, _ = clinic
     definition = {'dataset': 'payments', 'group_by': ['kind'], 'aggregates': [{'operation': 'sum', 'field': 'amount'}],

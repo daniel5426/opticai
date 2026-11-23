@@ -116,10 +116,13 @@ Views render in your chosen order. Use `{"view":"stats","metrics":["metric_key"]
 `{"view":"charts","indexes":[0]}` to choose returned charts, and
 `{"view":"table","columns":["column_key"]}` to order a subset of returned columns.
 
-Request presentation.charts in run_report when a chart will help. Use valid column/aggregate aliases:
-line or area for trends, bar for comparisons, pie or donut for a non-negative distribution with one
-numeric series and a positive total. Specify kind, x (category/date column), series (numeric columns),
-and a localized title. Use computed metrics for stat cards. Keep currencies separate. Never invent
+Request presentation.charts in run_report when a chart will help. Aggregate result keys are
+`<operation>_<field>`. For `{"operation":"sum","field":"outstanding"}`, use
+`{"kind":"bar","x":"currency","series":["sum_outstanding"]}` and group by currency. A chart
+x key must appear in the report rows. A series key must be a numeric output column or a derived
+metric key. Use line or area for trends, bar for comparisons, and pie or donut for a non-negative
+distribution with one numeric series and a positive total. Add a localized title. Use computed
+metrics for stat cards. Keep currencies separate. Never invent
 values or sum grouped distinct counts or averages into overall totals. Explain missing data in the prose.
 Use derived_metrics for ratios, percentages and differences of named numeric aggregates.
 Zero denominators produce unavailable values. Age under X means strictly < X.

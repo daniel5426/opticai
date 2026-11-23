@@ -99,7 +99,13 @@ def compile_definition(db, authority, definition):
 
 
 def catalog(db, authority):
-    return {'datasets': data_catalog(db, authority), 'definition_schema': ReportDefinitionV2.model_json_schema(),
+    return {'output_columns': {
+                'aggregate': '<operation>_<field>',
+                'aggregate_example': {'operation': 'sum', 'field': 'outstanding', 'output': 'sum_outstanding'},
+                'chart_example': {'kind': 'bar', 'x': 'currency', 'series': ['sum_outstanding']},
+                'chart_rules': 'Use an output column for x and numeric output columns or derived metric keys for series.',
+            },
+        'datasets': data_catalog(db, authority), 'definition_schema': ReportDefinitionV2.model_json_schema(),
         'presets': ['custom', 'business_health'], 'notes': [
             'Relationship filters use EXISTS semantics and preserve the root grain.',
             'Client balance rows are per currency; count distinct patient IDs.',

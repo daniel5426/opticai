@@ -2,6 +2,8 @@
 
 Last Updated: 2026-11-23
 
+- November 23 browser regression: the real report tool rejected `outstanding_sum`. The report catalog now demonstrates `sum_outstanding`, and the test compiles and materializes the exact example against fixture data. `.venv-agent-dev/bin/python -m pytest -q backend/tests/agent/test_search_reports_v2.py -k 'catalog_chart or presentation or currency_charts'` passed 3 tests. Hosted report and prescription acceptance remains pending.
+
 ## Report recovery, search and relay readiness — 2026-11-23
 
 - `backend/.venv/bin/python -m pytest -q backend/tests/agent/test_report_completion.py backend/tests/agent/test_search_reports_v2.py backend/tests/agent/test_artifact_contract.py backend/tests/agent/test_job_listing.py backend/tests/agent/test_process_lifecycle.py` — **60 passed**. A synthetic 404 callback leaves the same report linked to its run and thread, with both exports and authenticated snapshot reads available. Fixtures cover rejected signatures, wrong threads, patient scope, equivalent prescriptions, and translated keyword ranking.
