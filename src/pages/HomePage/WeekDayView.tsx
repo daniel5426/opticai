@@ -19,6 +19,7 @@ import {
   QUARTER_LABELS_MIN_HOUR_HEIGHT,
   hourHeightForDrag,
 } from "./calendar-zoom";
+import { clientFullName } from "@/lib/client-name";
 
 const QUARTERS = [15, 30, 45];
 
@@ -37,7 +38,7 @@ interface AppointmentCardContentProps {
 }
 
 function getClientName(client?: Client) {
-  return [client?.first_name, client?.last_name].filter(Boolean).join(" ");
+  return clientFullName(client);
 }
 
 function AppointmentCardContent({

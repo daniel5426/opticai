@@ -14,6 +14,7 @@ import { apiClient } from '@/lib/api-client';
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTranslation } from 'react-i18next'
 import { getActiveLocale, getDirection, normalizeLocale } from '@/localization/locale'
+import { clientFullName } from "@/lib/client-name";
 
 const CLIENT_SIDEBAR_WIDTH_KEY = 'client-sidebar-width'
 const DEFAULT_CLIENT_SIDEBAR_WIDTH = 320
@@ -493,7 +494,7 @@ export function ClientSidebar() {
     return <div className="w-0 overflow-hidden" />
   }
 
-  const fullName = `${currentClient?.first_name || ''} ${currentClient?.last_name || ''}`.trim()
+  const fullName = clientFullName(currentClient)
   const age = calculateAge(currentClient?.date_of_birth as any)
   const initials = `${currentClient?.first_name?.[0] || ''}${currentClient?.last_name?.[0] || ''}`.toUpperCase()
   const isClientLoading = !currentClient?.id

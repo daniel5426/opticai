@@ -222,7 +222,7 @@ def change(change_id: str, auth=Depends(authorized), db: Session = Depends(get_d
     if client_id:
         from agent.authority import patient
         client = patient(db, auth, client_id)
-        label = {'label': ' '.join(value for value in (client.first_name, client.last_name) if value), 'path': f'/clients/{client.id}'}
+        label = {'label': ' '.join(value for value in (client.last_name, client.first_name) if value), 'path': f'/clients/{client.id}'}
     from agent.changes import preview
     return {'id': row.id, 'kind': row.kind, 'action': row.action, **preview(row), 'status': row.status, 'patient': label}
 

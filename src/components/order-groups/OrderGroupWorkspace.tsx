@@ -33,6 +33,7 @@ import type { Billing, BillingPayment, Client } from '@/lib/db/schema-interface'
 import { printOrderGroup } from '@/lib/order-docx/print-order-group';
 import { cn } from '@/utils/tailwind';
 import { toast } from 'sonner';
+import { clientFullName } from "@/lib/client-name";
 
 interface DraftEntry extends GroupEntry { key: string; client: Client }
 const roundMoney=(value:number)=>Math.round(value*100)/100;
@@ -249,7 +250,7 @@ function OrderGroupWorkspaceContent(props: OrderDetailPageProps) {
  </div></div>
  {billingOpen&&panelHost&&createPortal(<>
  <div className="flex h-12 shrink-0 items-center justify-center px-12"><h2 className="text-sm font-medium">{t('orderGroupBilling')}</h2></div>
- <div className="shrink-0 px-4 pb-4"><OrderField label={t('orderGroupPayer')}><Select dir={direction} disabled={!editable||loading||guard.isSaveInFlight||billingSaving} value={String(payerId)} onValueChange={value=>value==='other'?setPayerPicker(true):void saveBilling(undefined,undefined,Number(value))}><SelectTrigger aria-label={t('orderGroupPayer')}><SelectValue/></SelectTrigger><SelectContent>{payerOptions.map(client=><SelectItem key={client.id} value={String(client.id)}>{client.first_name} {client.last_name}</SelectItem>)}<SelectItem value="other">{t('orderGroupOtherPayer')}</SelectItem></SelectContent></Select></OrderField></div>
+ <div className="shrink-0 px-4 pb-4"><OrderField label={t('orderGroupPayer')}><Select dir={direction} disabled={!editable||loading||guard.isSaveInFlight||billingSaving} value={String(payerId)} onValueChange={value=>value==='other'?setPayerPicker(true):void saveBilling(undefined,undefined,Number(value))}><SelectTrigger aria-label={t('orderGroupPayer')}><SelectValue/></SelectTrigger><SelectContent>{payerOptions.map(client=><SelectItem key={client.id} value={String(client.id)}>{clientFullName(client)}</SelectItem>)}<SelectItem value="other">{t('orderGroupOtherPayer')}</SelectItem></SelectContent></Select></OrderField></div>
  <BillingTab compact discountClinicId={group?.clinic_id||currentClinic?.id} billingFormData={billing} setBillingFormData={setBilling} orderLineItems={lines} setOrderLineItems={setLines as any} isEditing={editable} compactDisabled={loading||guard.isSaveInFlight||billingSaving} onSaveBilling={saveBilling} canPay={editable&&Boolean(group)&&!guard.isSaveInFlight&&!billingSaving} paymentAdapter={paymentAdapter} handleDeleteOrderLineItem={removeLine}/>
  </>,panelHost)}
  </div></ClientSpaceLayout>

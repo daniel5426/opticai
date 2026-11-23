@@ -391,7 +391,7 @@ describe("order-docx print models", () => {
     expect(html).toContain("123456789");
     expect(html).not.toContain("מספר לקוח");
     expect(html).toContain("מרשם");
-    expect(html).toContain("רון כהן");
+    expect(html).toContain("כהן רון");
     expect(html).toContain("+1.25");
     expect(html).toContain("background: #f4f4f5");
     expect(html).not.toContain("background: #fafafa");

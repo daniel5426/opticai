@@ -6,7 +6,7 @@ vi.mock('@/lib/order-docx/load-order-export-context',()=>({loadOrderExportContex
 test('prints separate client pages with the shared financial summary once',async()=>{
  await printOrderGroup([{id:1,position:0,kind:'regular',order:{id:1}},{id:2,position:1,kind:'contact',order:{id:2}}]);
  const html=vi.mocked(printHtml).mock.calls[0][0];
- expect(html).toContain('Alice Client');expect(html).toContain('Bob Client');
+ expect(html).toContain('Client Alice');expect(html).toContain('Client Bob');
  expect(html.match(/class="group-print-page"/g)).toHaveLength(2);
  expect(html.match(/סיכום כספי/g)).toHaveLength(1);
 });

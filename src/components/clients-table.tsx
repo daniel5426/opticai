@@ -23,6 +23,7 @@ import { CLIENT_GENDER_OPTIONS, getClientGenderLabel, normalizeGender } from "@/
 import { useTranslation } from "react-i18next"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { ClientCardsGrid } from "@/components/client-cards-grid"
+import { clientFullName } from "@/lib/client-name";
 
 const LIST_CELL_TEXT_LIMIT = 160
 const VIEW_MODE_STORAGE_KEY = "clients.view"
@@ -459,7 +460,7 @@ export function ClientsTable({
                       >
                         <Checkbox checked={true} className="pointer-events-none h-3.5 w-3.5" />
                         <span className="truncate" data-no-localize>
-                          {client.id} · {[client.first_name, client.last_name].filter(Boolean).join(" ") || "ללא שם"}
+                          {client.id} · {clientFullName(client) || "ללא שם"}
                         </span>
                       </button>
                     ))}

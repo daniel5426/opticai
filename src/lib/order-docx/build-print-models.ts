@@ -19,11 +19,12 @@ import type {
   RegularOrderPrintLineItem,
   RegularOrderPrintModel,
 } from "./types";
+import { clientFullName } from "@/lib/client-name";
 
 function getClientLabel(context: LoadedOrderExportContext) {
   const client = context.client;
   return {
-    name: [client?.first_name, client?.last_name].filter(Boolean).join(" ").trim(),
+    name: clientFullName(client),
     id: toDisplayString(client?.national_id || client?.id),
     address: formatAddress([
       [client?.address_street, client?.address_number].filter(Boolean).join(" ").trim(),

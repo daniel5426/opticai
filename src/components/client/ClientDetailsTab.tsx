@@ -32,6 +32,7 @@ import {
 } from "@/lib/client-details-editor"
 import { useAppLocale } from "@/localization/use-app-locale"
 import { todayIsoDate } from "@/lib/iso-date"
+import { clientFullName } from "@/lib/client-name";
 
 
 // Custom label component
@@ -231,7 +232,7 @@ export function ClientDetailsTab({
   }
 
   const getClientDisplayName = (client: FamilyMember) => {
-    return [client.first_name, client.last_name].filter(Boolean).join(' ').trim() || 'ללא שם'
+    return clientFullName(client) || 'ללא שם'
   }
 
   const getFamilyMemberPreview = (family: Family) => {
@@ -701,7 +702,7 @@ export function ClientDetailsTab({
                       params={{ clientId: String(duplicateClient.id) }}
                       className="font-medium underline underline-offset-2"
                     >
-                      <bdi dir="auto">{[duplicateClient.first_name, duplicateClient.last_name].filter(Boolean).join(" ") || t("clientCardsNoName")}</bdi>
+                      <bdi dir="auto">{clientFullName(duplicateClient) || t("clientCardsNoName")}</bdi>
                     </GuardedRouterLink>
                   </p>
                 )}

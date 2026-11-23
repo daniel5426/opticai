@@ -25,6 +25,7 @@ import { useNavigationGuard } from "@/contexts/NavigationGuardContext";
 import { useAppLocale } from "@/localization/use-app-locale";
 import { useTranslation } from "react-i18next";
 import { formatIsoDate } from "@/lib/iso-date";
+import { clientFullName } from "@/lib/client-name";
 
 interface SiteHeaderProps {
   title: string;
@@ -215,10 +216,7 @@ export function SiteHeader({
   ];
   const hasCustomExamInfo = React.isValidElement(examInfo);
   const { currentClient, toggleSidebar } = useClientSidebar();
-  // Last name first, as the clinic files its clients.
-  const displayName = currentClient
-    ? [currentClient.last_name, currentClient.first_name].filter(Boolean).join(" ").trim()
-    : "";
+  const displayName = clientFullName(currentClient);
   const lastExamDate = useClientExamDatesQuery(currentClient?.id, Boolean(currentClient)).data?.last_exam_date;
   const [isHovering, setIsHovering] = useState(false);
   const [headerContainer, setHeaderContainer] = useState<HTMLElement | null>(

@@ -96,7 +96,7 @@ def _entity(db: Session, entity_type: str, entity_id: int, *, lock: bool = False
 def _client_label(client: Client | None) -> str | None:
     if not client:
         return None
-    value = " ".join(part for part in (client.first_name, client.last_name) if part).strip()
+    value = " ".join(part for part in (client.last_name, client.first_name) if part).strip()
     return value or f"#{client.id}"
 
 

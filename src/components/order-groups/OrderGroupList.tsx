@@ -24,6 +24,7 @@ import {CustomModal} from '@/components/ui/custom-modal';
 import {AddOrderMenu} from './AddOrderMenu';
 import {OrderGroupPaymentCell} from './OrderGroupPaymentCell';
 import {toast} from 'sonner';
+import { clientFullName } from "@/lib/client-name";
 
 export function useOrderGroupCapabilities(enabled=true) {
  return useQuery({queryKey:['order-group-capabilities'],enabled,staleTime:60000,queryFn:async()=>{const result=await apiClient.orderGroupRequest<{available:boolean}>('/capabilities');if(result.status===404||result.status===405)return {available:false};if(result.error||!result.data)throw new Error(result.error||'orderGroupLoadError');return result.data}});
@@ -52,7 +53,7 @@ export function OrderGroupList({clientId,enabled=true}:{clientId?:number;enabled
  const entryName=(entry:OrderGroup['entries'][number])=>importedOrderName(t,entry.order.type)||t(entry.kind==='regular'?'orderGroupGlasses':'orderGroupContact');
  const entryStatus=(entry:OrderGroup['entries'][number])=>entry.kind==='contact'?entry.order.order_status:entry.order.order_data?.details?.order_status;
  const remove=async()=>{if(!removing)return;setDeleting(true);try{await removeOrderListRow(backend,removing);setRemoving(null);if(query.data?.items.length===1&&page>1)setPage(page-1);await cache.invalidateQueries({queryKey:['order-groups']});await cache.invalidateQueries({queryKey:['order-group-count']});await cache.invalidateQueries({queryKey:['client']})}catch{toast.error(t('orderGroupConflict'))}finally{setDeleting(false)}};
- const clientLink=(group:OrderGroup,id:number)=>{const client=group.clients.find(client=>client.id===id);return client?<Link to="/clients/$clientId" params={{clientId:String(id)}} search={{tab:'orders'}} className="rounded-sm text-blue-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={event=>event.stopPropagation()}>{`${client.first_name||''} ${client.last_name||''}`.trim()}</Link>:null};
+ const clientLink=(group:OrderGroup,id:number)=>{const client=group.clients.find(client=>client.id===id);return client?<Link to="/clients/$clientId" params={{clientId:String(id)}} search={{tab:'orders'}} className="rounded-sm text-blue-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={event=>event.stopPropagation()}>{clientFullName(client)}</Link>:null};
  const headerSelects = [
    ...(!clientId ? [{ ...clinicSelect, columnKey: 'clinic', showInColumn: true }] : []),
    {

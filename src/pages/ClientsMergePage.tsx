@@ -16,6 +16,7 @@ import { apiClient } from "@/lib/api-client"
 import { toast } from "sonner"
 import { deferPaginationTotal } from "@/lib/deferred-pagination"
 import { useAppLocale } from "@/localization/use-app-locale"
+import { clientFullName } from "@/lib/client-name";
 
 export default function ClientsMergePage() {
   const search = useSearch({ from: "/clients/merge" })
@@ -234,7 +235,7 @@ export default function ClientsMergePage() {
                 >
                   <div>
                     <div className="font-medium">
-                      {`${client.first_name || ""} ${client.last_name || ""}`.trim() || `לקוח ${client.id}`}
+                      {clientFullName(client) || `לקוח ${client.id}`}
                     </div>
                     <div className="text-muted-foreground text-xs">
                       {[client.id ? `#${client.id}` : null, client.national_id, client.phone_mobile]

@@ -87,7 +87,7 @@ def appointment_list_query(db, current_user, clinic_id, search, exam_name, date_
     base = (
         db.query(
             Appointment,
-            spaced_concat(Client.first_name, Client.last_name).label('client_full_name'),
+            spaced_concat(Client.last_name, Client.first_name).label('client_full_name'),
             func.coalesce(User.full_name, User.username).label('examiner_name')
         )
         .outerjoin(Client, Client.id == Appointment.client_id)
@@ -119,7 +119,7 @@ def appointment_list_query(db, current_user, clinic_id, search, exam_name, date_
         "clinic": lookup_filter(Appointment.clinic_id),
         "date": ColumnFilter(Appointment.date, "date"),
         "time": ColumnFilter(Appointment.time),
-        "client": ColumnFilter(spaced_concat(Client.first_name, Client.last_name)),
+        "client": ColumnFilter(spaced_concat(Client.last_name, Client.first_name)),
         "exam_name": ColumnFilter(Appointment.exam_name, "options"),
         "examiner": lookup_filter(Appointment.user_id, func.coalesce(User.full_name, User.username)),
         "note": ColumnFilter(Appointment.note),
@@ -129,7 +129,7 @@ def appointment_list_query(db, current_user, clinic_id, search, exam_name, date_
         "date": Appointment.date,
         "time": Appointment.time,
         "id": Appointment.id,
-        "client": spaced_concat(Client.first_name, Client.last_name),
+        "client": spaced_concat(Client.last_name, Client.first_name),
         "exam_name": Appointment.exam_name,
         "examiner": func.coalesce(User.full_name, User.username),
         "note": Appointment.note,
@@ -181,7 +181,7 @@ def get_appointment(
     row = (
         db.query(
             Appointment,
-            spaced_concat(Client.first_name, Client.last_name).label('client_full_name'),
+            spaced_concat(Client.last_name, Client.first_name).label('client_full_name'),
             func.coalesce(User.full_name, User.username).label('examiner_name')
         )
         .outerjoin(Client, Client.id == Appointment.client_id)
@@ -206,7 +206,7 @@ def get_all_appointments(
     base = (
         db.query(
             Appointment,
-            spaced_concat(Client.first_name, Client.last_name).label('client_full_name'),
+            spaced_concat(Client.last_name, Client.first_name).label('client_full_name'),
             func.coalesce(User.full_name, User.username).label('examiner_name')
         )
         .outerjoin(Client, Client.id == Appointment.client_id)
@@ -234,7 +234,7 @@ def get_appointments_by_client(
     rows = (
         db.query(
             Appointment,
-            spaced_concat(Client.first_name, Client.last_name).label('client_full_name'),
+            spaced_concat(Client.last_name, Client.first_name).label('client_full_name'),
             func.coalesce(User.full_name, User.username).label('examiner_name')
         )
         .outerjoin(Client, Client.id == Appointment.client_id)
@@ -261,7 +261,7 @@ def get_appointments_by_user(
     rows = (
         db.query(
             Appointment,
-            spaced_concat(Client.first_name, Client.last_name).label('client_full_name'),
+            spaced_concat(Client.last_name, Client.first_name).label('client_full_name'),
             func.coalesce(User.full_name, User.username).label('examiner_name')
         )
         .outerjoin(Client, Client.id == Appointment.client_id)

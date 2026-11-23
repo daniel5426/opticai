@@ -63,6 +63,7 @@ import { DateInput } from "@/components/ui/date";
 import { syncSavedClientReferral } from "@/hooks/client/clientTabCache";
 import { exportReferralToDocx, exportReferralToPdf, printReferralPdf } from "@/lib/referral-docx";
 import { sortKeysDeep } from "./exam-detail/utils";
+import { clientFullName } from "@/lib/client-name";
 
 export default function ReferralDetailPage() {
   const location = useLocation();
@@ -636,7 +637,7 @@ export default function ReferralDetailPage() {
   }
 
   const fullName = client
-    ? `${client.first_name} ${client.last_name}`.trim()
+    ? clientFullName(client)
     : "";
 
   return (

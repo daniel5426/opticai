@@ -14,6 +14,7 @@ import type { OrderKind } from "@/lib/order-groups";
 import { OrderMetaFields, type OrderMetaValues } from "@/components/orders/OrderMetaStrip";
 import { formatIsoDate } from "@/lib/iso-date";
 import { cn } from "@/utils/tailwind";
+import { clientFullName } from "@/lib/client-name";
 
 export interface OrderTabEntry {
   key: string;
@@ -87,7 +88,7 @@ export function OrderGroupTabs({
         >
         {entries.map((entry, index) => {
           const selected = entry.key === activeKey;
-          const fullName = `${entry.client.first_name || ""} ${entry.client.last_name || ""}`.trim();
+          const fullName = clientFullName(entry.client);
           return (
             <div
               key={entry.key}

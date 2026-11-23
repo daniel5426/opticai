@@ -11,6 +11,7 @@ import {
   User,
 } from "@/lib/db/schema-interface";
 import { GuardedRouterLink } from "@/components/GuardedRouterLink";
+import { clientFullName } from "@/lib/client-name";
 
 interface AppointmentModalProps {
   isOpen: boolean;
@@ -72,7 +73,7 @@ export function AppointmentModal({
         editingAppointment
           ? "עריכת תור"
           : selectedClient
-            ? `תור חדש - ${selectedClient.first_name} ${selectedClient.last_name}`
+            ? `תור חדש - ${clientFullName(selectedClient)}`
             : "תור חדש"
       }
       className="border-none sm:max-w-[600px]"
@@ -89,11 +90,11 @@ export function AppointmentModal({
                   search={{ tab: "details" }}
                   className="text-primary text-base font-semibold hover:underline"
                 >
-                  {selectedClient.first_name} {selectedClient.last_name}
+                  {clientFullName(selectedClient)}
                 </GuardedRouterLink>
               ) : (
                 <span className="text-base font-semibold">
-                  {selectedClient.first_name} {selectedClient.last_name}
+                  {clientFullName(selectedClient)}
                 </span>
               )}
               <div className="flex flex-wrap items-center gap-2">

@@ -307,7 +307,7 @@ def file_list_query(db, current_user, clinic_id, search, file_category, order, f
     base = (
         db.query(
             FileModel,
-            spaced_concat(Client.first_name, Client.last_name).label("client_full_name"),
+            spaced_concat(Client.last_name, Client.first_name).label("client_full_name"),
         )
         .outerjoin(Client, Client.id == FileModel.client_id)
         .filter(record_filter(db, current_user, FileModel, clinic_id))
@@ -334,7 +334,7 @@ def file_list_query(db, current_user, clinic_id, search, file_category, order, f
         "file_name": ColumnFilter(FileModel.file_name),
         "type": ColumnFilter(None, "options", option_condition=build_file_category_filter),
         "upload_date": ColumnFilter(FileModel.upload_date, "date"),
-        "client": ColumnFilter(spaced_concat(Client.first_name, Client.last_name)),
+        "client": ColumnFilter(spaced_concat(Client.last_name, Client.first_name)),
     }))
     order_columns = {
         "upload_date": FileModel.upload_date,
@@ -342,7 +342,7 @@ def file_list_query(db, current_user, clinic_id, search, file_category, order, f
         "file_name": FileModel.file_name,
         "type": FileModel.file_type,
         "file_size": FileModel.file_size,
-        "client": spaced_concat(Client.first_name, Client.last_name),
+        "client": spaced_concat(Client.last_name, Client.first_name),
     }
     order_key, _, order_direction = (order or "upload_date_desc").rpartition("_")
     order_column = order_columns.get(order_key, FileModel.upload_date)

@@ -38,7 +38,7 @@ def test_client_preview_is_paginated_and_clinic_scoped(monkeypatch):
         assert len(response["items"]) == 1
         item = response["items"][0]
         assert item["id"] == client.id
-        assert item["title"] == "Dana "
+        assert item["title"] == "Dana"
         assert item["subtitle"] == "001234567"
         assert item["description"] == "Haifa Herzl"
         assert item["client_details"]["email"] == "dana@example.test"

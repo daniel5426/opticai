@@ -10,6 +10,7 @@ import { agentJson, downloadAgentReport } from '@/services/agent-client';
 import { AgentLink } from './AgentLinks';
 import { ReportChart, type ReportChartData } from './ReportChart';
 import { parseAgentDataResult, type AgentDataResult as Result } from '@/lib/agent-result-data';
+import { clientFullName } from "@/lib/client-name";
 
 type Row = Record<string, unknown>;
 type Source = { path?: string };
@@ -197,7 +198,7 @@ function DataResults({ output, embedded = false }: { output: unknown; embedded?:
       {open && (result.type === 'prescription_search' ? <PrescriptionResults result={result} /> : <ul className="space-y-2">{result.items?.map((item, index) => {
         const source = object(item.source) as Source;
         const values = object(item.values);
-        const title = [values.first_name, values.last_name].filter(Boolean).join(' ') || String(values.test_name || values.file_name || values.name || values.product || values.title || values.id || item.title || t('agent.openRecord'));
+        const title = clientFullName(values) || String(values.test_name || values.file_name || values.name || values.product || values.title || values.id || item.title || t('agent.openRecord'));
         return <li key={index} className="rounded-xl border border-border/50 bg-card p-3 text-sm shadow-sm"><AgentLink href={source.path}>{title}</AgentLink>
           <p className="mt-1 text-xs text-muted-foreground">{Object.values(object(item.matched_fields)).slice(0, 4).map(String).join(' · ') || String(item.excerpt || '')}</p>
           {Array.isArray(object(item.evidence).locations) && <p className="mt-1 text-xs text-muted-foreground">{(object(item.evidence).locations as unknown[]).filter((location): location is Row => typeof object(location).page_number === 'number').map(location => t('agent.data.page', { number: location.page_number })).join(' · ')}</p>}

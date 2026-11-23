@@ -10,6 +10,7 @@ import {
   useUsersQuery,
 } from "@/hooks/client/useClientTabQueries"
 import { OpticalExam } from "@/lib/db/schema-interface"
+import { clientFullName } from "@/lib/client-name";
 
 interface ClientExamsTabProps {
   enabled?: boolean
@@ -26,7 +27,7 @@ export function ClientExamsTab({ enabled = true }: ClientExamsTabProps) {
     return new Map((usersQuery.data || []).map((user) => [user.id, user]))
   }, [usersQuery.data])
   const client = queryClient.getQueryData<any>(clientQueryKeys.client(clientIdNum))
-  const clientName = client ? `${client.first_name || ""} ${client.last_name || ""}`.trim() : ""
+  const clientName = clientFullName(client)
   const exams = React.useMemo(() => {
     return (examsQuery.data || []).map((exam) => {
       const user = exam.user_id ? usersById.get(exam.user_id) : undefined

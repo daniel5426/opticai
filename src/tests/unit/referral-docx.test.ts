@@ -126,12 +126,12 @@ describe("referral-docx print model", () => {
     expect(model.clinic_name).toBe("ירושלים");
     expect(model.referral_date).toBe("30.4.2026");
     expect(model.urgency_level).toBe("דחוף");
-    expect(model.client_name).toBe("הראל שלומי");
+    expect(model.client_name).toBe("שלומי הראל");
     expect(model.company_info).toContain("אופטיקה הראל");
     expect(model.clinic_info).toContain("clinic@example.com");
     expect(model.referral_details).toContain("תאריך: 30.4.2026");
     expect(model.recipient_line).toBe("לכבוד: הרופא המטפל");
-    expect(model.client_details).toContain("מטופל: הראל שלומי");
+    expect(model.client_details).toContain("מטופל: שלומי הראל");
     expect(model.client_details).toContain("ת.ז: 123456789");
     expect(model.client_details).not.toContain("מספר לקוח");
     expect(model.client_contact).toContain("נייד: 050-0000000");
@@ -171,7 +171,7 @@ describe("referral-docx print model", () => {
     expect(html).toContain("clinic@example.com");
     expect(html).toContain("מס&#39; הפניה: 44");
     expect(html).toContain("לכבוד: הרופא המטפל");
-    expect(html).toContain("מטופל: הראל שלומי");
+    expect(html).toContain("מטופל: שלומי הראל");
     expect(html).toContain("ת.ז: 123456789");
     expect(html).not.toContain("מספר לקוח");
     expect(html).toContain("הערות:");
@@ -214,7 +214,7 @@ describe("exportReferralToDocx", () => {
       expect.objectContaining({
         referral_number: "44",
         clinic_name: "ירושלים",
-        client_name: "הראל שלומי",
+        client_name: "שלומי הראל",
       }),
     );
   });
