@@ -7,15 +7,14 @@ vi.mock('@/services/agent-client', () => ({ agentJson: mock.json }));
 vi.mock('@/contexts/PrysmAgentContext', () => ({ usePrysmAgent: () => ({ scope: { userId: 1, clinicId: 1 } }) }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en', resolvedLanguage: 'en' } }) }));
 vi.mock('@/components/agent/AgentLinks', () => ({ AgentLink: ({ children, href }: any) => <a href={href}>{children}</a> }));
-vi.mock('@/components/agent/ToolActivityTimeline', () => ({ ToolActivityTimeline: () => null }));
 import { ApprovalTimeline } from '@/components/agent/ApprovalTimeline';
 const parts: any[] = [
-  { id: 'call', toolCallId: 'call-1', kind: 'tool', toolName: 'commit_change', input: { change_id: 'saved-proposal' } },
+  { id: 'call', toolCallId: 'call-1', kind: 'tool', toolName: 'commit_change', type: 'tool-commit_change', state: 'input-available', presentation: {}, input: { change_id: 'saved-proposal' } },
   { id: 'interrupt', kind: 'hitl', hitlKind: 'tool_review', presentation: { tool_name: 'commit_change', tool_call_id: 'call-1' }, status: 'pending', allowedActions: ['approve', 'reject'] },
 ];
 function mount(resume: any, timeline = parts, getHitlActionState?: any) {
   return render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-    <ApprovalTimeline {...({ parts: timeline, onHitlAction: resume, getHitlActionState } as any)} />
+    <ApprovalTimeline {...({ parts: timeline, message: { id: 'answer', role: 'assistant', content: '', parts: timeline }, onHitlAction: resume, getHitlActionState } as any)} />
   </QueryClientProvider>);
 }
 describe('saved proposal approval', () => {

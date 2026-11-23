@@ -1,18 +1,21 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { HitlSubmissionStatus, isHitlSubmissionCompact, type AgentChatTimelineSlotProps } from '@agents24/chat-react/ui';
-import type { ChatHitlPart, ChatToolPart } from '@agents24/react';
+import { AgentResponseTimeline, HitlSubmissionStatus, isHitlSubmissionCompact, type AgentChatStatusLabels, type AgentChatTimelineSlotProps } from '@agents24/chat-react/ui';
+import type { ChatHitlPart, ChatPart } from '@agents24/react';
 import { useTranslation } from 'react-i18next';
 import { agentJson } from '@/services/agent-client';
 import { usePrysmAgent } from '@/contexts/PrysmAgentContext';
 import { AgentLink } from './AgentLinks';
-import { ToolActivityTimeline } from './ToolActivityTimeline';
+import { localizeTimelinePart, LocalizedTimelinePart } from './LocalizedTimelinePart';
+import { ChatReportResults, ChatSearchReceipts, TimelineCode } from './TimelineCode';
 import { useTimelineLabels } from './timeline-labels';
 import { useAppLocale } from '@/localization/use-app-locale';
 import { Button } from '@/components/ui/button';
-import { reportMessageResults } from './report-message-results';
+import { isAttachedReportLink, reportMessageResults, searchMessageResults } from './report-message-results';
 import { MessageReportResults } from './MessageReportResults';
+import { AgentReportAttachments } from '@/services/use-agent-report-attachments';
 import { supplyMessageResults } from './supply-message-results';
+const AgentDataResults = React.lazy(() => import('./AgentDataResults').then(module => ({ default: module.AgentDataResults })));
 const SupplyReview = React.lazy(() => import('../inventory/SupplyIntake').then(module => ({ default: module.SupplyReview })));
 
 type Proposal = { id: string; kind: string; action: string; before: Record<string, unknown>; after: Record<string, unknown>; status: string; patient?: { label: string; path: string } | null };
@@ -63,37 +66,87 @@ function Review({ part, changeId, ...props }: AgentChatTimelineSlotProps & { par
 
 export function ApprovalTimeline(props: AgentChatTimelineSlotProps) {
   const { t } = useTranslation();
+  const { direction } = useAppLocale();
+  const reports = React.useMemo(() => reportMessageResults(props.parts), [props.parts]);
+  const searchReceipts = React.useMemo(() => searchMessageResults(props.parts), [props.parts]);
+  const discovered = React.useContext(AgentReportAttachments).get(props.message.id) || [];
+  const receipts = !props.isLoading && (props.message.isFinal || props.message.responseCompletion) ? reports : [];
+  const attachments = new Map(receipts.map(report => [String(report.job_id), report]));
+  for (const report of discovered) {
+    attachments.set(report.id, { ...attachments.get(report.id), job_id: report.id,
+      title: report.title, status: report.status, expired: report.expired,
+      report_version: report.report_version, format: report.report_format });
+  }
+  const reportIds = new Set([...reports.map(report => String(report.job_id)), ...attachments.keys()]);
+  const statusLabels: AgentChatStatusLabels = {
+    thinking: t('agent.timeline.reasoning'),
+    planning: t('agent.timeline.activity.planning'),
+    capacity: t('agent.timeline.activity.capacity'),
+    waiting: t('agent.timeline.activity.waiting'),
+    interrupted: t('agent.timeline.activity.interrupted'),
+    cancelling: t('agent.timeline.activity.cancelling'),
+    toolWaitingDetail: t('agent.timeline.activity.toolWaitingDetail'),
+    ...props.statusLabels,
+  };
   const campaigns = props.parts.flatMap(part => {
     if (part.kind !== 'tool' || part.toolName !== 'commit_change' || part.state !== 'output-available') return [];
     const result = part.output as { kind?: string; id?: number; status?: string; approval?: { user_id?: number; at?: string } } | undefined;
     return result?.kind === 'campaigns' && result.status === 'draft' && Number.isSafeInteger(result.id) && Number(result.id) > 0 && Number(result.approval?.user_id) > 0 && Number.isFinite(Date.parse(result.approval?.at || '')) ? [Number(result.id)] : [];
   });
-  const groups: React.ReactNode[] = [];
-  let chunk: typeof props.parts[number][] = [];
+  const rows: React.ReactNode[] = [];
+  let chunk: ChatPart[] = [];
   const changesByCall = new Map<string, string>();
+  const toolNames = new Set<string>();
   for (const part of props.parts) {
     if (part.kind !== 'tool') continue;
-    const tool = part as ChatToolPart;
-    if (tool.toolName !== 'commit_change' && tool.displayName !== 'commit_change') continue;
-    const input = tool.input as { change_id?: unknown } | undefined;
-    if (tool.toolCallId && typeof input?.change_id === 'string') changesByCall.set(tool.toolCallId, input.change_id);
+    toolNames.add(part.toolName);
+    if (part.toolName !== 'commit_change' && part.displayName !== 'commit_change') continue;
+    const input = part.input as { change_id?: unknown } | undefined;
+    if (part.toolCallId && typeof input?.change_id === 'string') changesByCall.set(part.toolCallId, input.change_id);
   }
-  const flush = (active = false) => { if (chunk.length || active && !groups.length) { groups.push(<ToolActivityTimeline key={chunk.find(part => part.kind !== 'model-turn')?.id || chunk[0]?.id || 'activity'} {...props}
-    message={active ? props.message : { ...props.message, activity: undefined }} isLoading={active && props.isLoading}
-    parts={chunk} responseProps={{ ...props.responseProps, components: { a: AgentLink, img: ({ alt }: { alt?: string }) => <span>{alt}</span> } }} />); chunk = []; } };
+  const flush = (active = false) => {
+    if (!chunk.length && (!active || rows.length)) return;
+    const message = { ...props.message, content: '', ...(active ? {} : { isFinal: true, activity: undefined }) };
+    const visible = chunk.filter(part => part.kind !== 'data' && (part.kind !== 'text' || part.text.trim()));
+    const lastPart = visible.at(-1);
+    const modelTurn = !message.isFinal && !message.responseCompletion &&
+      (!message.activity || message.activity.status === 'running') && lastPart?.kind === 'model-turn' &&
+      lastPart.turnKind === 'agent' && lastPart.status === 'running' ? lastPart : undefined;
+    const parts = visible.filter(part => part.kind !== 'model-turn' || part === modelTurn);
+    const isLoading = active && props.isLoading && (parts.length > 0 || props.parts.length === 0);
+    rows.push(<AgentResponseTimeline key={parts.find(part => part.kind !== 'model-turn')?.id || parts[0]?.id || 'activity'}
+      {...props} message={message} isLoading={isLoading} parts={parts} toolLabelMode="agent" statusLabels={statusLabels}
+      responseProps={{ ...props.responseProps, controls: false,
+        allowElement: (node, index, parent) => !isAttachedReportLink(node, reportIds)
+          && (props.responseProps?.allowElement?.(node, index, parent) ?? true),
+        components: {
+          ...props.responseProps?.components, a: AgentLink, img: ({ alt }: { alt?: string }) => <span>{alt}</span>, code: TimelineCode,
+        },
+      }} />);
+    chunk = [];
+  };
   for (const part of props.parts) {
-    if (part.kind === 'hitl' && part.hitlKind === 'tool_review' && part.presentation.tool_name === 'commit_change') {
-      const changeId = changesByCall.get(String(part.presentation.tool_call_id || ''));
-      flush(); groups.push(<Review key={part.id} {...props} part={part} changeId={changeId} />);
-    } else chunk.push(part);
+    if (part.kind === 'node-activity' && (props.nodeActivityMode === 'hidden' || (props.nodeActivityMode !== 'all' && !part.defaultChatVisible))) continue;
+    if (part.kind === 'reasoning' && part.label && (/^(artifact|runtime)__/.test(part.label) || toolNames.has(part.label))) continue;
+    if (part.kind === 'hitl' || part.kind === 'error' || part.kind === 'node-activity' || part.kind === 'context-compression' ||
+        (part.kind === 'ui-blocks' && (part.state === 'output-error' || !part.bundle))) {
+      flush();
+      rows.push(part.kind === 'hitl' && part.hitlKind === 'tool_review' && part.presentation.tool_name === 'commit_change'
+        ? <Review key={part.id} {...props} part={part} changeId={changesByCall.get(String(part.presentation.tool_call_id || ''))} />
+        : <LocalizedTimelinePart key={part.id} {...props} part={part} />);
+    } else {
+      chunk.push(localizeTimelinePart(part, t));
+    }
   }
   flush(true);
-  const reports = reportMessageResults(props.parts);
-  return <div className="space-y-3">{groups}
+  return <ChatReportResults.Provider value={reports}><ChatSearchReceipts.Provider value={searchReceipts}>
+    <div className="space-y-3" dir={direction}>{rows}
+    {searchReceipts.map((receipt, index) => typeof receipt.result_ref === 'string' ? null :
+      <React.Suspense key={index} fallback={null}><AgentDataResults output={receipt} /></React.Suspense>)}
     {[...new Set(campaigns)].map(id => <p key={id}><AgentLink href={`/campaigns?campaign=${id}`}>{t('campaign.openDraft')}</AgentLink></p>)}
-    <MessageReportResults reports={reports} />
+    <MessageReportResults reports={[...attachments.values()]} />
     {supplyMessageResults(props.parts).map(jobId => <React.Suspense key={jobId} fallback={null}>
       <section className="min-w-0 rounded-xl border bg-card p-3" data-supply-proposal={jobId}><SupplyReview jobId={jobId} /></section>
     </React.Suspense>)}
-  </div>;
+  </div></ChatSearchReceipts.Provider></ChatReportResults.Provider>;
 }

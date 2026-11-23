@@ -3,7 +3,7 @@ from collections import defaultdict
 from math import isfinite
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from sqlalchemy import and_, or_, select, exists
+from sqlalchemy import and_, or_, select, exists, func, tuple_
 from models import Clinic, Client, PrescriptionSearchIndex, ExamLayoutInstance, OpticalExam, Order, ContactLensOrder, Referral
 
 SCALES = {'sph': .25, 'cyl': .25, 'ax': 10, 'add': .25, 'pd': 1}
@@ -101,6 +101,27 @@ def eligible_index(db, clinic_ids, patient_id=None):
     return query.filter(or_(*valid))
 
 
+def exact_candidates(query, eyes):
+    """Narrow groups on a necessary numeric match, then use the canonical full scorer."""
+    index = PrescriptionSearchIndex
+    complete = next(((eye, values) for eye, values in eyes.items()
+        if all(field in values for field in ('sph', 'cyl', 'ax'))), None)
+    if complete:
+        eye, values = complete
+        column, target = func.abs(index.cyl), abs(values['cyl'])
+    else:
+        field = next(((eye, key, values[key]) for eye, values in eyes.items()
+            for key in ('sph', 'cyl', 'add', 'pd') if key in values), None)
+        if field is None:
+            return query
+        eye, key, target = field
+        column = getattr(index, key)
+    group = (index.clinic_id, index.source_type, index.source_id, index.component_key)
+    # The full scorer treats tiny floating-point differences as equivalent.
+    candidates = query.filter(index.eye == eye, column.between(target - 0.00001, target + 0.00001))
+    return query.filter(tuple_(*group).in_(candidates.with_entities(*group).order_by(None).distinct().statement))
+
+
 def search(db, clinic_ids, raw, patient_id=None):
     request = PrescriptionQuery.model_validate(raw)
     index = PrescriptionSearchIndex
@@ -115,6 +136,8 @@ def search(db, clinic_ids, raw, patient_id=None):
             'items': [], 'total': 0, 'next_offset': None, 'unindexed_rows': unready, 'index_ready': False}
     query = query.filter(index.component_key.is_not(None)).order_by(index.source_type, index.source_id, index.component_key, index.eye)
     eyes = {key: value.model_dump(exclude_none=True) for key, value in [('R', request.right), ('L', request.left)] if value and value.model_dump(exclude_none=True)}
+    if request.mode == 'exact':
+        query = exact_candidates(query, eyes)
     patients = defaultdict(list)
     current, group = None, []
 

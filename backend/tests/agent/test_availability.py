@@ -12,6 +12,7 @@ def configured(monkeypatch):
     for key, value in {'AGENTS24_ENABLED': 'true', 'AGENTS24_BASE_URL': 'http://agent.invalid',
                        'AGENTS24_API_KEY': 'test-only', 'AGENTS24_AGENT_ID': 'test-agent'}.items():
         monkeypatch.setenv(key, value)
+    monkeypatch.setenv('PRYSM_HOSTED_AGENT_WORKERS', '0')
 
 
 @pytest.mark.asyncio
@@ -41,6 +42,39 @@ async def test_bounded_health_check(configured, monkeypatch, outcome, expected):
             return httpx.Response(outcome)
     monkeypatch.setattr(availability.httpx, 'AsyncClient', Client)
     assert await availability.platform_available() is expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('status,target,ready,expected', [
+    ('disconnected', 'published', True, False), ('connected', 'draft', True, False),
+    ('connected', 'published', False, False), ('connected', 'published', True, True),
+])
+async def test_hosted_readiness_checks_the_published_relay(configured, monkeypatch, status, target, ready, expected):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from uuid import uuid4
+    from agent import runtime
+
+    identity = str(uuid4())
+    monkeypatch.setenv('PRYSM_HOSTED_AGENT_WORKERS', '1')
+    monkeypatch.setenv('AGENTS24_ARTIFACT_TRANSPORT', 'relay')
+    monkeypatch.setenv('AGENTS24_RUNTIME_TARGET', 'published')
+    monkeypatch.setenv('AGENTS24_RELAY_CLIENT_ID', identity)
+    class HealthyClient:
+        def __init__(self, **kwargs):
+            pass
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, *args):
+            pass
+        async def get(self, url):
+            return httpx.Response(200)
+
+    get = AsyncMock(return_value={'id': identity, 'status': status, 'registrations': [{'target': target, 'ready': ready}]})
+    monkeypatch.setattr(availability.httpx, 'AsyncClient', HealthyClient)
+    monkeypatch.setattr(runtime, 'async_client', lambda: SimpleNamespace(relay_clients=SimpleNamespace(get=get)))
+    assert await availability.platform_available() is expected
+    get.assert_awaited_once_with(identity)
 
 
 def test_discovery_uses_app_auth_and_does_not_create_agent_contexts(monkeypatch):

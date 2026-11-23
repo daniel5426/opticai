@@ -10,6 +10,7 @@ import { agentJson, downloadAgentReport } from '@/services/agent-client';
 import { AgentLink } from './AgentLinks';
 import { ReportChart, type ReportChartData } from './ReportChart';
 import { parseAgentDataResult, type AgentDataResult as Result } from '@/lib/agent-result-data';
+import type { ReportView, ReportViewSelection, SearchLayout } from './report-message-results';
 
 type Row = Record<string, unknown>;
 type Source = { path?: string };
@@ -73,7 +74,6 @@ function PrescriptionResults({ result }: { result: Result }) {
   const { t } = useTranslation();
   const { locale } = useAppLocale();
   return <div className="space-y-3">
-    {!result.index_ready && <p role="status" className="text-xs text-muted-foreground">{t('agent.data.incompleteIndex')}</p>}
     <p className="text-xs text-muted-foreground">{t('agent.data.closestExplanation')}</p>
     {result.items?.map(patient => <details key={String(patient.client_id)} className="rounded-xl border border-border/50 bg-card p-3 shadow-sm">
       <summary className="cursor-pointer text-sm font-medium">{String(patient.client_full_name || patient.client_id)} <span className="text-xs font-normal text-muted-foreground">· {t('agent.data.recordCount', { count: (patient.matches as Match[])?.length || 0 })}</span></summary>
@@ -94,11 +94,53 @@ function PrescriptionResults({ result }: { result: Result }) {
   </div>;
 }
 
-function ReportResult({ initial, embedded = false }: { initial: Result; embedded?: boolean }) {
+function ReportVisuals({ result, views }: { result: Result; views: readonly ReportView[] }) {
+  const { t } = useTranslation();
+  const { locale } = useAppLocale();
+  const label = useColumnLabel();
+  return <>
+    {views.includes('stats') && !!result.metrics?.length && <dl className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 10rem), 1fr))' }}>{result.metrics.map((metric, index) => <div key={index} className="min-w-0 rounded-xl bg-card p-3 shadow-sm">
+      <dt className="truncate text-xs text-muted-foreground" title={result.column_labels?.[metric.key] || t(`agent.metric.${metric.key}`, { defaultValue: label(metric.key) })}>{result.column_labels?.[metric.key] || t(`agent.metric.${metric.key}`, { defaultValue: label(metric.key) })} {metric.currency && <bdi>{metric.currency}</bdi>}</dt>
+      <dd className="mt-1 truncate text-lg font-medium tabular-nums" title={valueText(metric.current, locale)}><bdi>{valueText(metric.current, locale)}</bdi></dd>
+      {metric.previous !== undefined && metric.previous !== null && <dd className="mt-1 flex flex-wrap items-baseline gap-x-2 text-xs text-muted-foreground">
+        <span>{t('agent.data.previous')} <bdi>{valueText(metric.previous, locale)}</bdi></span>
+        {metric.change_percent != null && <bdi>{new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 2,
+          signDisplay: 'exceptZero' }).format(metric.change_percent / 100)}</bdi>}</dd>}
+    </div>)}</dl>}
+    {views.includes('charts') && result.charts?.map((chart, index) => <ReportChart key={index} chart={chart as ReportChartData} label={key => result.column_labels?.[key] || label(key)} />)}
+    {views.includes('table') && result.columns && <ResultTable columns={result.columns} rows={result.rows || []} labels={result.column_labels} />}
+  </>;
+}
+
+function pick<T>(list: readonly T[], indices: readonly number[]) {
+  return [...new Set(indices)].flatMap(index => list[index] === undefined ? [] : [list[index]]);
+}
+
+function reportView(data: Result, selection: ReportViewSelection): [ReportView, Result] {
+  if (typeof selection === 'string') return [selection, data];
+  if (selection.view === 'stats') return ['stats', { ...data, metrics: [...new Set(selection.metrics)]
+    .flatMap(key => data.metrics?.filter(metric => metric.key === key) || []) }];
+  if (selection.view === 'charts') return ['charts', { ...data, charts: pick(data.charts || [], selection.indexes) }];
+  return ['table', { ...data, columns: [...new Set(selection.columns)].filter(column => data.columns?.includes(column)) }];
+}
+
+export function ChatReportVisuals({ output, views }: { output: unknown; views: readonly ReportViewSelection[] }) {
+  const { data } = parseAgentDataResult(output);
+  if (!data || data.status === 'failed' || data.status === 'cancelled') return null;
+  const populated = views.map(view => reportView(data, view)).filter(([view, result]) => ({
+    table: result.columns?.length && result.rows?.length,
+    stats: result.metrics?.length,
+    charts: result.charts?.some(chart => chart.rows.length && !chart.unavailable),
+  })[view]);
+  if (!populated.length) return null;
+  return <ResultBoundary output={output}><div className="min-w-0 space-y-3">
+    {populated.map(([view, result], index) => <ReportVisuals key={index} result={result} views={[view]} />)}
+  </div></ResultBoundary>;
+}
+
+function ReportResult({ initial }: { initial: Result }) {
   const workspace = usePrysmAgent();
   const { t } = useTranslation();
-  const { locale, direction } = useAppLocale();
-  const label = useColumnLabel();
   const [offset, setOffset] = React.useState(0);
   const queryClient = useQueryClient();
   const [error, setError] = React.useState(false);
@@ -131,18 +173,16 @@ function ReportResult({ initial, embedded = false }: { initial: Result; embedded
   if (!result.columns) return <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="size-3.5 animate-spin" aria-hidden />{t('agent.job.running')}</p>;
   return <div className="space-y-4">
     {parsed.invalid && <UnavailableResult />}
-    {!embedded && <div className="flex flex-wrap items-center gap-2"><p className="me-auto text-sm font-medium">{String(result.definition?.title || t('agent.report'))}</p>
+    <div className="flex flex-wrap items-center gap-2"><p className="me-auto text-sm font-medium">{String(result.definition?.title || t('agent.report'))}</p>
       <Button variant="ghost" size="sm" disabled={saved || saving} onClick={() => void save()}><Bookmark className="size-3.5" />{t(saved ? 'agent.data.saved' : 'agent.data.save')}</Button>
       {['xlsx', 'csv'].map(format => <Button key={format} variant="outline" size="sm" onClick={() => void downloading(format)}><Download className="size-3.5" /><bdi>{format === 'xlsx' ? 'Excel' : 'CSV'}</bdi></Button>)}
-    </div>}
+    </div>
     {result.period && <p className="text-xs text-muted-foreground"><bdi>{result.period.start}</bdi> – <bdi>{result.period.end}</bdi></p>}
-    {result.show_stats !== false && result.metrics && <dl className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 10rem), 1fr))' }}>{result.metrics.map((metric, index) => <div key={index} className="min-w-0 rounded-xl bg-card p-3 shadow-sm">
-      <dt className="truncate text-xs text-muted-foreground" title={result.column_labels?.[metric.key] || t(`agent.metric.${metric.key}`, { defaultValue: label(metric.key) })}>{result.column_labels?.[metric.key] || t(`agent.metric.${metric.key}`, { defaultValue: label(metric.key) })} {metric.currency && <bdi>{metric.currency}</bdi>}</dt>
-      <dd className="mt-1 truncate text-lg font-medium tabular-nums" title={valueText(metric.current, locale)}><bdi>{valueText(metric.current, locale)}</bdi></dd>
-      {metric.previous !== undefined && metric.previous !== null && <dd className="mt-1 truncate text-xs text-muted-foreground">{t('agent.data.previous')}: <bdi>{valueText(metric.previous, locale)}</bdi>{metric.change_percent !== null && <bdi> · {valueText(metric.change_percent, locale)}%</bdi>}</dd>}
-    </div>)}</dl>}
-    {result.charts?.map((chart, index) => <ReportChart key={index} chart={chart as ReportChartData} label={key => result.column_labels?.[key] || label(key)} />)}
-    {result.show_table !== false && <ResultTable columns={result.columns} rows={result.rows || []} labels={result.column_labels} />}
+    <ReportVisuals result={result} views={[
+      ...(result.show_stats === false ? [] : ['stats'] as const),
+      'charts',
+      ...(result.show_table === false ? [] : ['table'] as const),
+    ]} />
     {result.show_table !== false && result.comparison && <details className="space-y-2 text-xs text-muted-foreground"><summary className="cursor-pointer">{t('agent.data.comparisonPeriod')} · <bdi>{result.comparison.start}</bdi> – <bdi>{result.comparison.end}</bdi></summary>
       <ResultTable columns={result.columns} rows={result.comparison.rows} labels={result.column_labels} />
       <p>{t('agent.data.showing', { count: result.comparison.rows.length, total: result.comparison.total })}</p>
@@ -152,10 +192,6 @@ function ReportResult({ initial, embedded = false }: { initial: Result; embedded
         <Button variant="ghost" size="sm" disabled={result.next_offset == null || query.isFetching} onClick={() => setOffset(result.next_offset!)}>{t('agent.data.next')}</Button></div></div>}
     {result.definition && <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">{t('agent.data.definition')}</summary><div className="mt-2 space-y-1">
       <DefinitionSummary definition={result.definition} definitions={result.definitions} />
-      {embedded && <div className="flex flex-wrap gap-2 py-2">
-        <Button variant="ghost" size="sm" disabled={saved || saving} onClick={() => void save()}><Bookmark className="size-3.5" />{t(saved ? 'agent.data.saved' : 'agent.data.save')}</Button>
-        {['xlsx', 'csv'].map(format => <Button key={format} variant="outline" size="sm" onClick={() => void downloading(format)}><Download className="size-3.5" /><bdi>{format === 'xlsx' ? 'Excel' : 'CSV'}</bdi></Button>)}
-      </div>}
       {(result.limitations || []).map((_, i) => <p key={i}>{t(`agent.data.limitation.${i}`, { defaultValue: t('agent.data.missingData') })}</p>)}
     </div></details>}
     {error && <p role="alert" className="text-xs text-destructive">{t('agent.operationFailed')}</p>}
@@ -176,35 +212,61 @@ class ResultBoundary extends React.Component<{ children: React.ReactNode; output
   render() { return this.state.failed ? <UnavailableResult /> : this.props.children; }
 }
 
-export function AgentDataResults(props: { output: unknown; embedded?: boolean }) {
+export function AgentDataResults(props: { output: unknown }) {
   return <ResultBoundary output={props.output}><DataResults {...props} /></ResultBoundary>;
 }
 
-function DataResults({ output, embedded = false }: { output: unknown; embedded?: boolean }) {
+function sourceTitle(item: Row, fallback: string) {
+  const values = object(item.values);
+  return [values.first_name, values.last_name].filter(Boolean).join(' ') || String(item.client_full_name || values.test_name ||
+    values.file_name || values.name || values.product || values.title || item.title || fallback);
+}
+
+export function ChatSearchResults({ output, layout }: { output: unknown; layout: SearchLayout }) {
+  const { t } = useTranslation();
+  const { data } = parseAgentDataResult(output);
+  if (!data || data.type.startsWith('report_')) return null;
+  const items = layout.indexes ? pick(data.items || [], layout.indexes) : data.items || [];
+  if (layout.view === 'records') return <AgentDataResults output={{ ...data, items }} />;
+  if (!items.length) return null;
+  if (layout.view === 'table' && layout.columns?.length) {
+    const rows = items.map(item => object(item.values));
+    const columns = [...new Set(layout.columns)].filter(column => rows.some(row => Object.hasOwn(row, column)));
+    return columns.length ? <ResultTable rows={rows} columns={columns} /> : null;
+  }
+  return <ul className="space-y-1 text-sm">{items.map((item, index) => <li key={index}>
+    <AgentLink href={(object(item.source) as Source).path}>{sourceTitle(item, t('agent.openRecord'))}</AgentLink>
+  </li>)}</ul>;
+}
+
+function DataResults({ output }: { output: unknown }) {
   const parsed = React.useMemo(() => parseAgentDataResult(output), [output]);
   const result = parsed.data;
   const { t } = useTranslation();
   const [open, setOpen] = React.useState(true);
   if (!['record_search', 'prescription_search', 'document_search', 'report_run', 'report_result'].includes(String(object(output).type))) return null;
-  if (!result) return <UnavailableResult />;
+  if (!result) return String(object(output).type).startsWith('report_') ? <UnavailableResult />
+    : <p role="alert" className="text-xs text-destructive">{t('agent.operationFailed')}</p>;
+  const incomplete = result.type === 'prescription_search' && !result.index_ready;
+  const unsearched = result.type === 'document_search' && result.coverage?.enabled === false;
   return <section className="min-w-0 space-y-3" aria-label={t('agent.data.results')}>
-    {result.type?.startsWith('report_') ? <ReportResult initial={output as Result} embedded={embedded} /> : <>
-      <button type="button" aria-expanded={open} className="flex min-h-9 items-center gap-2 text-xs text-muted-foreground" onClick={() => setOpen(value => !value)}>
+    {result.type?.startsWith('report_') ? <ReportResult initial={output as Result} /> : <>
+      {incomplete && <p role="status" className="text-xs text-muted-foreground">{t('agent.data.incompleteIndex')}</p>}
+      {!incomplete && !unsearched && <button type="button" aria-expanded={open} className="flex min-h-9 items-center gap-2 text-xs text-muted-foreground" onClick={() => setOpen(value => !value)}>
         {t('agent.data.resultCount', { count: result.total || 0 })}{open ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
-      </button>
+      </button>}
       {result.type === 'document_search' && result.coverage && <p role="status" className="text-xs text-muted-foreground">{t(result.coverage.enabled ? 'agent.data.documentCoverage' : 'agent.data.libraryDisabled',
         { ready: Number(result.coverage.ready || 0), total: Number(result.coverage.total_files || 0), pending: Number(result.coverage.pending || 0) })}</p>}
       {open && (result.type === 'prescription_search' ? <PrescriptionResults result={result} /> : <ul className="space-y-2">{result.items?.map((item, index) => {
         const source = object(item.source) as Source;
-        const values = object(item.values);
-        const title = [values.first_name, values.last_name].filter(Boolean).join(' ') || String(values.test_name || values.file_name || values.name || values.product || values.title || values.id || item.title || t('agent.openRecord'));
+        const title = sourceTitle(item, t('agent.openRecord'));
         return <li key={index} className="rounded-xl border border-border/50 bg-card p-3 text-sm shadow-sm"><AgentLink href={source.path}>{title}</AgentLink>
           <p className="mt-1 text-xs text-muted-foreground">{Object.values(object(item.matched_fields)).slice(0, 4).map(String).join(' · ') || String(item.excerpt || '')}</p>
           {Array.isArray(object(item.evidence).locations) && <p className="mt-1 text-xs text-muted-foreground">{(object(item.evidence).locations as unknown[]).filter((location): location is Row => typeof object(location).page_number === 'number').map(location => t('agent.data.page', { number: location.page_number })).join(' · ')}</p>}
         </li>;
       })}</ul>)}
       {result.next_offset != null && <p className="text-xs text-muted-foreground">{t('agent.data.moreAvailable')}</p>}
-      {!result.total && <p className="text-xs text-muted-foreground">{t('agent.data.noResults')}</p>}
+      {!incomplete && !unsearched && !result.total && <p className="text-xs text-muted-foreground">{t('agent.data.noResults')}</p>}
     </>}
   </section>;
 }

@@ -72,3 +72,15 @@ def activity(db, auth, since):
     rows = metadata_query(query).order_by(case((AgentJob.status.in_(ACTIVE), 0), else_=1),
         AgentJob.updated_at.desc(), AgentJob.id.desc()).limit(100).all()
     return [metadata(row) for row in rows]
+
+
+def report_attachments(db, auth, thread_id, run_ids):
+    rows = scoped_jobs(db, auth) if auth.patient_id else scoped_jobs(db, auth).join(
+        AgentContext, AgentContext.id == AgentJob.context_id).filter(AgentContext.patient_scope == 0)
+    rows = rows.filter(AgentJob.company_id == (auth.company_id or auth.user.company_id),
+        AgentJob.kind == 'report', AgentJob.thread_id == thread_id, AgentJob.run_id.in_(run_ids))
+    rows = metadata_query(rows).add_columns(AgentJob.run_id,
+        AgentJob.definition['version'].as_integer().label('report_version'),
+        AgentJob.definition['format'].as_string().label('report_format'))
+    return [{**metadata(row), 'run_id': row.run_id, 'report_version': row.report_version,
+        'report_format': row.report_format} for row in rows.order_by(AgentJob.created_at, AgentJob.id).limit(200)]

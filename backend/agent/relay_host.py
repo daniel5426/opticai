@@ -99,10 +99,13 @@ def serve(root, env=None):
                     children.append(subprocess.Popen(command, cwd=root / 'backend', env=env,
                         stdout=log, stderr=subprocess.STDOUT))
             print(json.dumps({'phase': 'relay_host_started', 'relay_client_id': client_id, 'target': target}), flush=True)
-            while all(child.poll() is None for child in children):
+            while True:
+                for (role, _), child in zip(commands, children):
+                    status = child.poll()
+                    if status is not None:
+                        raise RuntimeError(f'Agent relay dependency exited: role={role}, status={status}. Inspect protected relay logs.')
                 require_process_owner(env)
                 time.sleep(.25)
-            raise RuntimeError('A relay host dependency exited; inspect protected relay logs.')
         except KeyboardInterrupt:
             return 0
         finally:

@@ -1,6 +1,14 @@
 # Clinic agent tests
 
-Last Updated: 2026-11-05
+Last Updated: 2026-11-23
+
+## Report recovery, search and relay readiness — 2026-11-23
+
+- `backend/.venv/bin/python -m pytest -q backend/tests/agent/test_report_completion.py backend/tests/agent/test_search_reports_v2.py backend/tests/agent/test_artifact_contract.py backend/tests/agent/test_job_listing.py backend/tests/agent/test_process_lifecycle.py` — **60 passed**. A synthetic 404 callback leaves the same report linked to its run and thread, with both exports and authenticated snapshot reads available. Fixtures cover rejected signatures, wrong threads, patient scope, equivalent prescriptions, and translated keyword ranking.
+- `backend/.venv/bin/python -m pytest -q backend/tests/agent/test_capabilities.py backend/tests/agent/test_runtime_recovery.py backend/tests/agent/test_worker_queues.py backend/tests/agent/test_request_authorization.py backend/tests/agent/test_campaigns.py backend/tests/agent/test_supply_intake.py backend/tests/agent/test_document_library.py` — **82 passed**. Existing staff actions, approvals, authorization, and document handling remain covered.
+- `backend/.venv/bin/python -m pytest -q backend/tests/agent/test_availability.py` — **13 passed**. Hosted readiness distinguishes a connected, ready published registration from a disconnected or draft registration.
+
+The checks use synthetic fixtures. Live hosted relay recovery, real-model OCR, and production canary metrics remain open. Existing report job columns support turn identity and require no migration.
 
 ## Shared local workers across clinics — 2026-11-02
 

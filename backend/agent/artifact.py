@@ -143,23 +143,33 @@ async def search_catalog(inputs, config, context):
     return await invoke(context, lambda db, auth: {'datasets': catalog(db, auth), 'query_schema': record_search.SearchQuery.model_json_schema()})
 
 
+def search_presentation(result, context):
+    reference = context.get('tool_call_id')
+    if isinstance(reference, str) and 0 < len(reference) <= 255:
+        return {**result, 'result_ref': reference}
+    return result
+
+
 @tool(name='search_records', description='Search clinic records using keywords or typed nested filters. Returns paginated record evidence and source links. Patient chat remains restricted to its patient.', input_schema=record_search.SearchQuery, result_handling={'strategy': 'artifact', 'limit_chars': 48000})
 async def search_records(inputs, config, context):
     args = parse(record_search.SearchQuery, inputs)
-    return await invoke(context, lambda db, auth: record_search.search(db, auth, args.model_dump(mode='json')))
+    result = await invoke(context, lambda db, auth: record_search.search(db, auth, args.model_dump(mode='json')))
+    return search_presentation(result, context)
 
 
 @tool(name='search_prescriptions', description='Find patients from partial right/left SPH, CYL, AX, ADD, PD or VA values, including extracted screenshot values. Results rank exact/equivalent then closest recorded prescriptions, with original values and differences. Identify the eye; never invent missing values. index_ready=false means coverage is incomplete.', input_schema=prescription_matching.PrescriptionQuery, result_handling={'strategy': 'artifact', 'limit_chars': 48000})
 async def search_prescriptions(inputs, config, context):
     args = parse(prescription_matching.PrescriptionQuery, inputs)
-    return await invoke(context, lambda db, auth: prescription_matching.search(db, [auth.clinic_id], args.model_dump(mode='json'), auth.patient_id))
+    result = await invoke(context, lambda db, auth: prescription_matching.search(db, [auth.clinic_id], args.model_dump(mode='json'), auth.patient_id))
+    return search_presentation(result, context)
 
 
 @tool(name='search_documents', description='Search permanent patient-file contents through native Agents24 retrieval. Every evidence source is reauthorized. Coverage reports pending/failed files and disabled staging; do not claim all files were searched when coverage is incomplete.', input_schema=DocumentSearch, result_handling={'strategy': 'artifact', 'limit_chars': 48000})
 async def search_documents(inputs, config, context):
     from .document_library import search
     args = parse(DocumentSearch, inputs)
-    return await invoke(context, lambda db, auth: search(db, auth, args.text, args.limit))
+    result = await invoke(context, lambda db, auth: search(db, auth, args.text, args.limit))
+    return search_presentation(result, context)
 
 
 @tool(name='search_patients', description='Find authorized patients by name, phone or national ID. Resolve ambiguity before acting.', input_schema=Search)
@@ -247,9 +257,10 @@ async def report_catalog(inputs, config, context):
 @tool(name='run_report', description='Execute a version-2 report as a durable immutable result with tables, charts and complete Excel/CSV exports. Supports nested relationship filters and business_health. Reuse request_key after uncertain delivery. Execution suspends until the immutable result is ready; do not poll read_report.', input_schema=ReportRun)
 async def run_report(inputs, config, context):
     args = parse(ReportRun, inputs)
-    from .report_completion import queued_report
+    from .report_completion import queued_report, report_origin
     return await invoke(context, lambda db, auth: queued_report(db, auth, context,
-        lambda db, auth: report_definitions.queue(db, auth, args.definition.model_dump(mode='json'), args.request_key)))
+        lambda db, auth: report_definitions.queue(db, auth, args.definition.model_dump(mode='json'),
+            args.request_key, origin=report_origin(context))))
 
 
 @tool(name='read_report', description='Read an authorized completed report execution, including metrics, charts and a page of rows. Does not rerun the query. Pending/expired reports are explicit.', input_schema=ReportPage, result_handling={'strategy': 'artifact', 'limit_chars': 48000})
@@ -257,12 +268,12 @@ async def read_report(inputs, config, context):
     args = parse(ReportPage, inputs)
     def read(db, auth):
         from EndPoints.agent import owned_job, require_live_report
-        from .report_runs import page
+        from .report_storage import read_page
         job = owned_job(db, auth, args.job_id)
         require_live_report(job)
         if job.status != 'completed':
             return {'type': 'report_run', 'job_id': job.id, 'status': job.status}
-        return {**(job.result or {}), **page(job, args.offset, args.limit)}
+        return {**(job.result or {}), **read_page(db, job, args.offset, args.limit, context)}
     def read_or_wait(db, auth):
         from EndPoints.agent import owned_job
         from .report_completion import wait_for_report
@@ -277,9 +288,10 @@ async def read_report(inputs, config, context):
 async def saved_reports(inputs, config, context):
     args = parse(SavedReportInput, inputs)
     if args.action == 'run':
-        from .report_completion import queued_report
+        from .report_completion import queued_report, report_origin
         return await invoke(context, lambda db, auth: queued_report(db, auth, context,
-            lambda db, auth: report_definitions.saved(db, auth, **args.model_dump(mode='json'))))
+            lambda db, auth: report_definitions.saved(db, auth, **args.model_dump(mode='json'),
+                origin=report_origin(context))))
     return await invoke(context, lambda db, auth: report_definitions.saved(db, auth, **args.model_dump(mode='json')))
 
 

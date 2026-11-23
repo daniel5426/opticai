@@ -13,6 +13,7 @@ class SearchQuery(BaseModel):
     text: str = Field(default='', max_length=300)
     datasets: list[str] = Field(default_factory=list, max_length=16)
     term_match: Literal['all', 'any'] = 'all'
+    expand_terms: bool = False
     where: FilterGroup | None = None
     offset: int = Field(default=0, ge=0, le=10000)
     limit: int = Field(default=25, ge=1, le=200)
@@ -24,6 +25,20 @@ class SearchQuery(BaseModel):
         if self.where and len(self.datasets) != 1:
             raise ValueError('Structured filters require exactly one dataset.')
         return self
+
+
+TERM_GROUPS = (
+    ('glasses', 'eyeglasses', 'spectacles', 'lunettes', 'משקפיים', 'משקפים'),
+    ('prescription', 'ordonnance', 'מרשם'),
+    ('appointment', 'rdv', 'rendez-vous', 'תור'),
+    ('referral', 'référence', 'recommandation', 'הפניה', 'הפנייה'),
+    ('astigmatism', 'astigmatisme', 'אסטיגמציה'),
+)
+TERM_ALIASES = {term: group for group in TERM_GROUPS for term in group}
+
+
+def pattern(term):
+    return '%' + term.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%'
 
 
 def result_source(kind, values):
@@ -49,23 +64,27 @@ def search(db, authority, raw):
     if any(not available[name].get('ready', True) for name in selected):
         raise HTTPException(409, 'agent.prescriptionIndexPending')
     matches, total = [], 0
+    terms = request.text.strip().split()
+    alternatives = [TERM_ALIASES.get(term.casefold().strip('.,;:!?'), (term,)) if request.expand_terms else (term,)
+        for term in terms]
+    direct_patterns = [pattern(term) for term in terms]
+    expanded_patterns = [tuple(pattern(term) for term in group) for group in alternatives]
     for name in selected:
         query, fields = expressions(db, authority, name)
         safe = {key: column for key, column in fields.items() if not key.endswith(('.month', '.year'))}
         if name == 'clients':
             safe = {key: column for key, column in safe.items() if key not in {'total', 'paid', 'outstanding', 'currency'}}
-        clauses = []
-        terms = request.text.strip().split()
-        patterns = []
-        for term in terms:
-            pattern = '%' + term.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%'
-            patterns.append(pattern)
-            clauses.append(or_(*[cast(column, String).ilike(pattern, escape='\\') for column in safe.values()]))
+        clauses = [or_(*[cast(column, String).ilike(value, escape='\\') for column in safe.values() for value in group])
+            for group in expanded_patterns]
         query = query.filter((and_ if request.term_match == 'all' else or_)(*clauses) if clauses else and_(True), compile_where(db, authority, name, fields, request.where))
         # Client currency rows represent one searchable patient.
         columns = list(safe)
-        score = sum((case((or_(*[cast(column, String).ilike(pattern, escape='\\') for pattern in patterns]), 1), else_=0)
-            for column in safe.values()), literal(0)) if patterns else literal(0)
+        if request.expand_terms:
+            score = sum((case((or_(*[cast(column, String).ilike(value, escape='\\') for column in safe.values()]), 1), else_=0)
+                for value in direct_patterns), literal(0))
+        else:
+            score = sum((case((or_(*[cast(column, String).ilike(value, escape='\\') for value in direct_patterns]), 1), else_=0)
+                for column in safe.values()), literal(0)) if direct_patterns else literal(0)
         # Order by the projected label: PostgreSQL treats bare ORDER BY 0 as a column position.
         score = score.label('_search_score')
         query = query.with_entities(*[safe[key].label(key) for key in columns], score).distinct()
@@ -74,7 +93,7 @@ def search(db, authority, raw):
         for row in query.order_by(score.desc(), fields['id'].asc()).limit(request.offset + request.limit):
             values = {key: json_value(value) for key, value in zip(columns, row)}
             evidence = {key: value for key, value in values.items() if value is not None and
-                any(term.casefold() in str(value).casefold() for term in terms)}
+                any(term.casefold() in str(value).casefold() for group in alternatives for term in group)}
             matches.append({'dataset': name, 'values': values, 'matched_fields': evidence,
                 'source': result_source(name, values), '_score': row[-1]})
     matches.sort(key=lambda item: (-item['_score'], selected.index(item['dataset']), item['values']['id']))
