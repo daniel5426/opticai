@@ -5,8 +5,9 @@ import json
 
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
-from models import Client, ExamLayout, ExamLayoutInstance, OpticalExam
+from models import Client, ExamLayoutInstance, OpticalExam
 from security.scope import apply_clinic_user_scope, assert_record_scope, resolve_company_id
+from services.exam_layout_catalog import usable_layout
 from services.legacy_exam_compatibility import preserve_unrepresented_components, preserve_unrepresented_layout
 from services.prism_axis_compatibility import normalize_prism_axis_exam_data
 from services.prescription_search_index import rebuild_exam_instance_index
@@ -105,9 +106,7 @@ def save_workspace(db, user, payload, request, exam_id=None, creation_key=None):
             else:
                 if item.client_key in keys:
                     raise HTTPException(422, "Duplicate instance client key")
-                layout = db.get(ExamLayout, item.layout_id) if item.layout_id else None
-                if not layout or layout.is_group or not layout.is_active or layout.clinic_id not in (None, exam.clinic_id):
-                    raise HTTPException(422, "Invalid exam layout")
+                layout = usable_layout(db, exam.company_id, exam.clinic_id, item.layout_id)
                 row = ExamLayoutInstance(exam_id=exam.id, layout_id=layout.id, layout_data=layout.layout_data,
                                          order=len(rows), is_active=False, exam_data={})
                 db.add(row)

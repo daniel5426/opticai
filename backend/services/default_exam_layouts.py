@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from models import Clinic, ExamLayout
+from models import Clinic, Company, ExamLayout, ExamLayoutClinicActivation
+from services.exam_layout_catalog import layout_catalog, set_clinic_activation
 
 
 @dataclass(frozen=True)
@@ -68,22 +69,11 @@ def validate_default_exam_layout_templates() -> None:
             raise ValueError(f"Invalid default exam layout template: {template.seed_key}")
 
 
-def _next_sort_index(db: Session, clinic_id: int) -> int:
-    max_sort = (
-        db.query(func.coalesce(func.max(ExamLayout.sort_index), 0))
-        .filter(ExamLayout.clinic_id == clinic_id)
-        .filter(ExamLayout.parent_layout_id.is_(None))
-        .scalar()
-    )
-    return int(max_sort or 0) + 1
-
-
 def _apply_seed_metadata(layout: ExamLayout, template: DefaultExamLayoutTemplate) -> None:
     layout.seed_key = template.seed_key
     layout.seed_version = template.seed_version
     layout.is_seeded_default = True
     layout.is_default = True
-    layout.is_active = True
     layout.is_group = False
     layout.parent_layout_id = None
     layout.type = template.type
@@ -96,28 +86,34 @@ def ensure_default_exam_layouts_for_clinic(
     dry_run: bool = False,
 ) -> dict[str, int]:
     validate_default_exam_layout_templates()
-    clinic = db.query(Clinic.id).filter(Clinic.id == clinic_id).first()
+    clinic = db.get(Clinic, clinic_id)
     if not clinic:
         raise ValueError(f"Clinic {clinic_id} does not exist")
 
+    if not dry_run:
+        db.query(Company.id).filter(Company.id == clinic.company_id).with_for_update(key_share=True).one()
+    catalog = layout_catalog(db, clinic.company_id)
     result = {"created": 0, "tagged": 0, "existing": 0}
-    next_sort = _next_sort_index(db, clinic_id)
+    next_sort = catalog.filter(ExamLayout.parent_layout_id.is_(None)).with_entities(
+        func.coalesce(func.max(ExamLayout.sort_index), 0)
+    ).scalar() + 1
 
     for template in DEFAULT_EXAM_LAYOUT_TEMPLATES:
         existing_seeded = (
-            db.query(ExamLayout)
-            .filter(ExamLayout.clinic_id == clinic_id)
-            .filter(ExamLayout.seed_key == template.seed_key)
+            catalog.filter(ExamLayout.seed_key == template.seed_key)
+            .order_by((ExamLayout.clinic_id == clinic_id).desc().nulls_last(), ExamLayout.id)
             .first()
         )
         if existing_seeded:
             result["existing"] += 1
+            if not dry_run and existing_seeded.clinic_id != clinic_id:
+                activation = db.get(ExamLayoutClinicActivation, (existing_seeded.id, clinic_id))
+                if activation is None:
+                    set_clinic_activation(db, existing_seeded.id, clinic_id, True)
             continue
 
         exact_match = (
-            db.query(ExamLayout)
-            .filter(ExamLayout.clinic_id == clinic_id)
-            .filter(ExamLayout.seed_key.is_(None))
+            catalog.filter(ExamLayout.clinic_id == clinic_id, ExamLayout.seed_key.is_(None))
             .filter(ExamLayout.layout_data == template.layout_data)
             .order_by(ExamLayout.id.asc())
             .first()
@@ -126,12 +122,14 @@ def ensure_default_exam_layouts_for_clinic(
             result["tagged"] += 1
             if not dry_run:
                 _apply_seed_metadata(exact_match, template)
+                exact_match.company_id = clinic.company_id
             continue
 
         result["created"] += 1
         if dry_run:
             continue
         layout = ExamLayout(
+            company_id=clinic.company_id,
             clinic_id=clinic_id,
             name=template.name,
             layout_data=template.layout_data,
@@ -148,4 +146,6 @@ def ensure_default_exam_layouts_for_clinic(
         next_sort += 1
         db.add(layout)
 
+    if not dry_run:
+        db.flush()
     return result

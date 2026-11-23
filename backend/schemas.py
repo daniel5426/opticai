@@ -1013,6 +1013,10 @@ class ExamLayoutUpdate(ExamLayoutBase):
     name: Optional[str] = None
     layout_data: Optional[str] = None
 
+class ExamLayoutActivationUpdate(BaseModel):
+    clinic_id: int
+    is_active: bool
+
 class ExamLayout(ExamLayoutBase):
     id: int
     created_at: datetime

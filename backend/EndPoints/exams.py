@@ -10,7 +10,7 @@ from database import get_db
 from models import OpticalExam, User, Client, Clinic
 from schemas import OpticalExam as OpticalExamSchema, OpticalExamCreate, ExamWorkspaceSave, ExamWorkspaceSaved
 from auth import get_current_user
-from .exam_layouts import build_layout_tree
+from services.exam_layout_catalog import company_layout_scope, layout_tree
 from services.prism_axis_compatibility import normalize_prism_axis_exam_data
 from utils.column_filters import lookup_filter, ColumnFilter, build_column_filter_conditions
 from utils.table_search import build_all_terms_search_condition, search_blob, spaced_concat, split_search_terms
@@ -260,7 +260,10 @@ def get_exam_with_layouts(
     # Get all layouts in one query
     layouts = []
     if layout_ids:
-        layouts = db.query(ExamLayout).filter(ExamLayout.id.in_(layout_ids)).all()
+        layouts = db.query(ExamLayout).filter(
+            ExamLayout.id.in_(layout_ids),
+            or_(company_layout_scope(exam.company_id), ExamLayout.company_id.is_(None) & ExamLayout.clinic_id.is_(None)),
+        ).all()
     
     layout_map = {layout.id: layout for layout in layouts}
     
@@ -288,7 +291,9 @@ def get_exam_page_data(
     # One roundtrip: fetch instances joined with layouts
     pairs = (
         db.query(ExamLayoutInstance, ExamLayout)
-        .outerjoin(ExamLayout, ExamLayout.id == ExamLayoutInstance.layout_id)
+        .outerjoin(ExamLayout, (ExamLayout.id == ExamLayoutInstance.layout_id) & or_(
+            company_layout_scope(exam.company_id), ExamLayout.company_id.is_(None) & ExamLayout.clinic_id.is_(None),
+        ))
         .filter(ExamLayoutInstance.exam_id == exam_id)
         .all()
     )
@@ -323,15 +328,7 @@ def get_exam_page_data(
         active_instance = layout_instances_sorted[0]
     active_layout = layout_map.get(active_instance.layout_id) if active_instance else None
     active_exam_data = active_instance.exam_data if active_instance and getattr(active_instance, 'exam_data', None) else {}
-    # Gather available layouts (include clinic-specific and global where applicable)
-    available_layouts_q = db.query(ExamLayout)
-    available_layouts_q = available_layouts_q.filter(or_(ExamLayout.clinic_id == exam.clinic_id, ExamLayout.clinic_id == None))
-    available_layouts = (
-        available_layouts_q
-        .order_by(ExamLayout.sort_index.asc(), ExamLayout.id.asc())
-        .all()
-    )
-    available_layout_tree = build_layout_tree(available_layouts)
+    available_layout_tree = layout_tree(db, exam.company_id, exam.clinic_id, active_only=True)
 
     # Trim payload to only fields used by the page
     from services.exam_workspace import save_token

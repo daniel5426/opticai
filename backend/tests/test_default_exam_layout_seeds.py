@@ -289,3 +289,78 @@ def test_create_clinic_endpoint_seeds_defaults():
         assert seeded_count == 4
     finally:
         db.close()
+
+
+def test_company_catalog_shares_changes_and_keeps_activation_local():
+    SessionLocal = _session_factory()
+    with SessionLocal() as db:
+        company, first = _company_and_clinic(db)
+        second = Clinic(company_id=company.id, name="Second", unique_id="clinic-2")
+        foreign, foreign_clinic = _company_and_clinic_with_other_id(db)
+        owner = User(company_id=company.id, username="owner", role_level=4)
+        staff = User(company_id=company.id, clinic_id=first.id, username="staff", role_level=2)
+        db.add_all([second, owner, staff])
+        db.flush()
+        ensure_default_exam_layouts_for_clinic(db, first.id)
+        ensure_default_exam_layouts_for_clinic(db, second.id)
+        ensure_default_exam_layouts_for_clinic(db, foreign_clinic.id)
+        db.commit()
+        first_id, second_id, foreign_id = first.id, second.id, foreign_clinic.id
+        owner_id, staff_id = owner.id, staff.id
+        foreign_layout_id = db.query(ExamLayout.id).filter_by(company_id=foreign.id).first()[0]
+
+    def get_db_override():
+        with SessionLocal() as db:
+            yield db
+
+    active_user_id = owner_id
+
+    def get_user_override():
+        with SessionLocal() as db:
+            return db.get(User, active_user_id)
+
+    app = FastAPI()
+    app.include_router(exam_layouts_endpoint.router)
+    app.dependency_overrides[get_db] = get_db_override
+    app.dependency_overrides[exam_layouts_endpoint.get_current_user] = get_user_override
+    with TestClient(app) as client:
+        def catalog(clinic_id, active_only=False):
+            response = client.get("/exam-layouts/", params={"clinic_id": clinic_id, "active_only": active_only})
+            assert response.status_code == 200, response.text
+            return {layout["id"]: layout for layout in response.json()}
+
+        assert len(catalog(first_id, True)) == 4
+        assert catalog(first_id, True).keys() == catalog(second_id, True).keys()
+
+        response = client.post("/exam-layouts/", json={"clinic_id": first_id, "name": "Shared", "layout_data": "{}"})
+        assert response.status_code == 200, response.text
+        layout_id = response.json()["id"]
+        assert catalog(first_id)[layout_id]["is_active"]
+        assert not catalog(second_id)[layout_id]["is_active"]
+
+        activation_url = f"/exam-layouts/{layout_id}/activation"
+        assert client.put(activation_url, json={"clinic_id": second_id, "is_active": True}).status_code == 200
+        assert client.put(activation_url, json={"clinic_id": first_id, "is_active": False}).status_code == 200
+        assert layout_id not in catalog(first_id, True)
+        assert layout_id in catalog(second_id, True)
+        activations = client.get("/exam-layouts/activations")
+        assert activations.status_code == 200, activations.text
+        assert activations.json()[str(layout_id)] == {str(first_id): False, str(second_id): True}
+        assert str(foreign_layout_id) not in activations.json()
+
+        active_user_id = staff_id
+        assert client.put(activation_url, json={"clinic_id": second_id, "is_active": False}).status_code == 403
+        assert client.put(f"/exam-layouts/{layout_id}", json={"name": "Renamed"}).status_code == 200
+        assert catalog(second_id)[layout_id]["name"] == "Renamed"
+        assert client.get("/exam-layouts/", params={"clinic_id": foreign_id}).status_code == 403
+        assert client.get(f"/exam-layouts/{foreign_layout_id}").status_code == 404
+        assert client.delete(f"/exam-layouts/{foreign_layout_id}").status_code == 404
+
+
+def _company_and_clinic_with_other_id(db):
+    company = Company(name="Other", owner_full_name="Owner")
+    db.add(company)
+    db.flush()
+    clinic = Clinic(company_id=company.id, name="Other", unique_id="clinic-3")
+    db.add(clinic)
+    return company, clinic

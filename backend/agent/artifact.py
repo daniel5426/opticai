@@ -205,11 +205,21 @@ async def list_records(inputs, config, context):
 
 @tool(name='exam_layout_catalog', description='Discover active clinic exam templates and their measurement component structure. Ask staff to select the template; create measured layout instances through reviewed exam_measurements changes.', input_schema=Input)
 async def exam_layout_catalog(inputs, config, context):
-    from models import ExamLayout
+    from services.exam_layout_catalog import layout_tree
     import json
+
+    def leaves(nodes):
+        for node in nodes:
+            if node['is_group']:
+                yield from leaves(node['children'])
+            else:
+                yield {'id': node['id'], 'name': node['name'],
+                       'structure': records.json_value(json.loads(node['layout_data']))}
+
     def read(db, auth):
-        rows = db.query(ExamLayout).filter_by(clinic_id=auth.clinic_id, is_active=True, is_group=False).order_by(ExamLayout.sort_index, ExamLayout.id).all()
-        return {'layouts': [{'id': row.id, 'name': row.name, 'structure': records.json_value(json.loads(row.layout_data))} for row in rows]}
+        tree = layout_tree(db, auth.company_id or auth.user.company_id, auth.clinic_id, active_only=True)
+        return {'layouts': list(leaves(tree))}
+
     return await invoke(context, read)
 
 

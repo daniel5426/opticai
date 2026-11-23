@@ -671,7 +671,9 @@ class ExamLayout(Base):
     __tablename__ = "exam_layouts"
     
     id = Column(Integer, primary_key=True, index=True)
-    clinic_id = Column(Integer, ForeignKey("clinics.id"))
+    clinic_id = Column(Integer, ForeignKey("clinics.id", ondelete="SET NULL"))  # legacy origin
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True)
+    canonical_layout_id = Column(Integer, ForeignKey("exam_layouts.id", ondelete="CASCADE"), index=True)
     name = Column(String, nullable=False)
     layout_data = Column(Text, nullable=False)
     is_default = Column(Boolean, default=False)
@@ -690,8 +692,18 @@ class ExamLayout(Base):
     
     children = relationship(
         "ExamLayout",
-        backref=backref("parent", remote_side=[id])
+        backref=backref("parent", remote_side=[id]),
+        foreign_keys=[parent_layout_id],
     )
+
+
+class ExamLayoutClinicActivation(Base):
+    __tablename__ = "exam_layout_clinic_activation"
+
+    layout_id = Column(Integer, ForeignKey("exam_layouts.id", ondelete="CASCADE"), primary_key=True)
+    clinic_id = Column(Integer, ForeignKey("clinics.id", ondelete="CASCADE"), primary_key=True, index=True)
+    is_active = Column(Boolean, nullable=False)
+
 
 class ExamLayoutInstance(Base):
     __tablename__ = "exam_layout_instances"

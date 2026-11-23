@@ -1,207 +1,201 @@
-from services.exam_workspace import lock_exam, lock_instance_exam
-from security.scope import assert_record_scope
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import List, Optional
+
+from auth import get_current_user
 from database import get_db
-from models import ExamLayout, ExamLayoutInstance, Clinic, User
+from models import Company, ExamLayout, ExamLayoutInstance, User
 from schemas import (
     ExamLayoutCreate,
     ExamLayoutUpdate,
     ExamLayout as ExamLayoutSchema,
+    ExamLayoutActivationUpdate,
     ExamLayoutReorderRequest,
     ExamLayoutGroupRequest,
     ExamLayoutBulkDeleteRequest,
     ExamLayoutInstanceReorderRequest,
 )
-from auth import get_current_user
-from security.scope import get_allowed_clinic_ids, normalize_clinic_id_for_company, resolve_company_id, assert_clinic_belongs_to_company
+from security.scope import (
+    assert_record_clinic, assert_record_scope, normalize_clinic_id_for_company, resolve_company_id,
+)
+from services.exam_layout_catalog import (
+    build_layout_tree, clinic_layouts, find_layout, layout_activations, layout_catalog, layout_tree,
+    serialize_layout, set_clinic_activation, usable_layout,
+)
+from services.exam_workspace import lock_exam, lock_instance_exam
 from services.prescription_search_index import rebuild_exam_instance_index
 
 router = APIRouter(prefix="/exam-layouts", tags=["exam-layouts"])
 
-def build_layout_tree(layouts: List[ExamLayout]) -> List[dict]:
-    layout_map = {layout.id: layout for layout in layouts}
-    children_map = {layout.id: [] for layout in layouts}
-    for layout in layouts:
-        parent_id = layout.parent_layout_id
-        if parent_id and parent_id in layout_map:
-            children_map[parent_id].append(layout)
-    def serialize(layout: ExamLayout) -> dict:
-        children = sorted(children_map[layout.id], key=lambda item: (item.sort_index, item.id))
-        return {
-            "id": layout.id,
-            "clinic_id": layout.clinic_id,
-            "name": layout.name,
-            "layout_data": layout.layout_data,
-            "is_default": layout.is_default,
-            "is_active": layout.is_active,
-            "sort_index": layout.sort_index,
-            "parent_layout_id": layout.parent_layout_id,
-            "is_group": layout.is_group,
-            "appointment_duration": layout.appointment_duration,
-            "appointment_color": layout.appointment_color,
-            "type": layout.type,
-            "seed_key": layout.seed_key,
-            "seed_version": layout.seed_version,
-            "is_seeded_default": layout.is_seeded_default,
-            "created_at": layout.created_at,
-            "updated_at": layout.updated_at,
-            "children": [serialize(child) for child in children]
-        }
-    roots = [
-        layout for layout in layouts
-        if layout.parent_layout_id is None or layout.parent_layout_id not in layout_map
-    ]
-    roots.sort(key=lambda item: (item.sort_index, item.id))
-    return [serialize(layout) for layout in roots]
 
-def default_layouts_query(
-    db: Session,
-    current_user: User,
-    clinic_id: Optional[int] = None,
-    type: Optional[str] = None,
-):
-    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
-    query = (
-        db.query(ExamLayout)
-        .filter(ExamLayout.clinic_id.in_(allowed_clinic_ids))
-        .filter(ExamLayout.is_active == True)
-        .filter(ExamLayout.is_group == False)
-        .filter((ExamLayout.is_seeded_default == True) | (ExamLayout.is_default == True))
-    )
-    if type:
-        query = query.filter(ExamLayout.type == type)
-    return query.order_by(
-        ExamLayout.is_seeded_default.desc(),
-        ExamLayout.sort_index.asc(),
-        ExamLayout.id.asc(),
-    )
+def clinic_context(db, user, clinic_id=None):
+    clinic_id = clinic_id if clinic_id is not None else user.clinic_id
+    if clinic_id is not None:
+        assert_record_clinic(db, user, clinic_id)
+    return clinic_id
 
-def reindex_siblings(db: Session, clinic_id: int, parent_id: Optional[int]) -> None:
-    siblings = (
-        db.query(ExamLayout)
-        .filter(
-            ExamLayout.clinic_id == clinic_id,
-            ExamLayout.parent_layout_id == parent_id
-        )
-        .order_by(ExamLayout.sort_index.asc(), ExamLayout.id.asc())
-        .all()
-    )
-    for index, layout in enumerate(siblings, start=1):
-        layout.sort_index = index
+
+def lock_company(db, user):
+    company_id = resolve_company_id(db, user)
+    db.query(Company.id).filter(Company.id == company_id).with_for_update(key_share=True).one()
+    return company_id
+
+
+def require_layout(db, company_id, layout_id):
+    layout = find_layout(db, company_id, layout_id)
+    if not layout:
+        raise HTTPException(404, "Exam layout not found")
+    return layout
+
+
+def layout_response(db, company_id, layout, clinic_id):
+    row, active = clinic_layouts(layout_catalog(db, company_id), clinic_id).filter(ExamLayout.id == layout.id).one()
+    return serialize_layout(row, clinic_id, active)
+
+
+def siblings(query, parent_id):
+    return query.filter(ExamLayout.parent_layout_id == parent_id)
+
+
+def next_sort(query, parent_id):
+    return siblings(query, parent_id).with_entities(func.coalesce(func.max(ExamLayout.sort_index), 0)).scalar() + 1
+
+
+def reindex_siblings(query, parent_ids):
+    for parent_id in parent_ids:
+        for index, layout in enumerate(siblings(query, parent_id).order_by(ExamLayout.sort_index, ExamLayout.id), start=1):
+            layout.sort_index = index
+
+
+def validate_parent(layouts, layout_id, parent_id, proposed=None):
+    if parent_id is None:
+        return
+    parent = layouts.get(parent_id)
+    if parent is None:
+        raise HTTPException(403, "Invalid parent layout")
+    if not parent.is_group:
+        raise HTTPException(400, "Parent layout must be a group")
+    seen = {layout_id}
+    while parent:
+        if parent.id in seen:
+            raise HTTPException(400, "Layout groups cannot contain themselves")
+        seen.add(parent.id)
+        parent = layouts.get((proposed or {}).get(parent.id, parent.parent_layout_id))
+
+
+def default_layouts(db, user, clinic_id, layout_type):
+    tree = layout_tree(db, resolve_company_id(db, user), clinic_context(db, user, clinic_id), active_only=True)
+    defaults = []
+    def collect(nodes):
+        for node in nodes:
+            if node["is_group"]:
+                collect(node["children"])
+            elif (node["is_seeded_default"] or node["is_default"]) and (not layout_type or node["type"] == layout_type):
+                defaults.append(node)
+    collect(tree)
+    return sorted(defaults, key=lambda item: (not item["is_seeded_default"], item["sort_index"], item["id"]))
+
 
 @router.get("/default", response_model=Optional[ExamLayoutSchema])
 def get_default_exam_layout(
-    clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
-    type: Optional[str] = Query(None, description="Filter by layout type"),
+    clinic_id: Optional[int] = Query(None),
+    type: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    return default_layouts_query(db, current_user, clinic_id=clinic_id, type=type).first()
+    return next(iter(default_layouts(db, current_user, clinic_id, type)), None)
+
 
 @router.get("/defaults", response_model=List[ExamLayoutSchema])
 def get_default_exam_layouts(
-    clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
-    type: Optional[str] = Query(None, description="Filter by layout type"),
+    clinic_id: Optional[int] = Query(None),
+    type: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    return default_layouts_query(db, current_user, clinic_id=clinic_id, type=type).all()
+    return default_layouts(db, current_user, clinic_id, type)
+
 
 @router.post("/", response_model=ExamLayoutSchema)
 def create_exam_layout(
     layout: ExamLayoutCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    layout_data = layout.dict()
-    target_clinic = normalize_clinic_id_for_company(db, current_user, layout_data.get('clinic_id'))
-    layout_data['clinic_id'] = target_clinic
-    layout_data['seed_key'] = None
-    layout_data['seed_version'] = None
-    layout_data['is_seeded_default'] = False
-    parent_id = layout_data.get('parent_layout_id')
-    parent_layout = None
+    payload = layout.model_dump(exclude={"clinic_id", "is_active", "seed_key", "seed_version", "is_seeded_default"})
+    clinic_id = normalize_clinic_id_for_company(db, current_user, layout.clinic_id)
+    company_id = lock_company(db, current_user)
+    catalog = layout_catalog(db, company_id)
+    parent_id = payload.get("parent_layout_id")
     if parent_id is not None:
-        parent_layout = (
-            db.query(ExamLayout)
-            .filter(ExamLayout.id == parent_id)
-            .first()
-        )
-        if parent_layout is None or parent_layout.clinic_id != target_clinic:
-            raise HTTPException(status_code=403, detail="Invalid parent layout")
-        if not parent_layout.is_group:
-            raise HTTPException(status_code=400, detail="Parent layout must be a group")
-    if layout_data.get('sort_index') is None:
-        parent_filter = ExamLayout.parent_layout_id == parent_id
-        max_sort = (
-            db.query(func.coalesce(func.max(ExamLayout.sort_index), 0))
-            .filter(ExamLayout.clinic_id == target_clinic)
-            .filter(parent_filter)
-            .scalar()
-        )
-        layout_data['sort_index'] = max_sort + 1
-    
-    db_layout = ExamLayout(**layout_data)
-    db.add(db_layout)
+        validate_parent({row.id: row for row in catalog}, None, parent_id)
+    if payload["sort_index"] is None:
+        payload["sort_index"] = next_sort(catalog, parent_id)
+    row = ExamLayout(company_id=company_id, is_active=False, **payload)
+    db.add(row)
+    db.flush()
+    set_clinic_activation(db, row.id, clinic_id, layout.is_active)
     db.commit()
-    db.refresh(db_layout)
-    return db_layout
+    return layout_response(db, company_id, row, clinic_id)
 
-@router.get("/{layout_id}", response_model=ExamLayoutSchema)
-def get_exam_layout(
-    layout_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    layout = db.query(ExamLayout).filter(ExamLayout.id == layout_id).first()
-    if not layout:
-        raise HTTPException(status_code=404, detail="Exam layout not found")
-    
-    if current_user.role_level < 4 and layout.clinic_id != current_user.clinic_id:
-        raise HTTPException(status_code=403, detail="Access denied to this layout")
-    
-    return layout
 
 @router.get("/", response_model=List[ExamLayoutSchema])
 def get_all_exam_layouts(
-    clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
-    type: Optional[str] = Query(None, description="Filter by layout type"),
+    clinic_id: Optional[int] = Query(None),
+    type: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    active_only: bool = Query(False),
 ):
-    company_id = resolve_company_id(db, current_user)
-    query = db.query(ExamLayout).join(Clinic, Clinic.id == ExamLayout.clinic_id).filter(Clinic.company_id == company_id)
-    if clinic_id is not None:
-        assert_clinic_belongs_to_company(db, clinic_id, company_id)
-        query = query.filter(ExamLayout.clinic_id == clinic_id)
-    
-    if type:
-        query = query.filter(ExamLayout.type == type)
-    layouts = (
-        query.order_by(ExamLayout.sort_index.asc(), ExamLayout.id.asc()).all()
+    return layout_tree(
+        db, resolve_company_id(db, current_user), clinic_context(db, current_user, clinic_id), type,
+        active_only=active_only,
     )
-    return build_layout_tree(layouts)
+
 
 @router.get("/clinic/{clinic_id}", response_model=List[ExamLayoutSchema])
 def get_exam_layouts_by_clinic(
     clinic_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+):
+    return get_all_exam_layouts(clinic_id, None, db, current_user, False)
+
+
+@router.get("/activations", response_model=dict[int, dict[int, bool]])
+def get_exam_layout_activations(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return layout_activations(db, resolve_company_id(db, current_user))
+
+
+@router.get("/{layout_id}", response_model=ExamLayoutSchema)
+def get_exam_layout(
+    layout_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    clinic_id: Optional[int] = Query(None),
 ):
     company_id = resolve_company_id(db, current_user)
-    assert_clinic_belongs_to_company(db, clinic_id, company_id)
-    
-    layouts = (
-        db.query(ExamLayout)
-        .filter(ExamLayout.clinic_id == clinic_id)
-        .order_by(ExamLayout.sort_index.asc(), ExamLayout.id.asc())
-        .all()
-    )
-    return build_layout_tree(layouts)
+    layout = require_layout(db, company_id, layout_id)
+    return layout_response(db, company_id, layout, clinic_context(db, current_user, clinic_id))
 
+
+@router.put("/{layout_id}/activation", response_model=ExamLayoutSchema)
+def update_exam_layout_activation(
+    layout_id: int,
+    activation: ExamLayoutActivationUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    clinic_id = normalize_clinic_id_for_company(db, current_user, activation.clinic_id)
+    company_id = lock_company(db, current_user)
+    layout = require_layout(db, company_id, layout_id)
+    set_clinic_activation(db, layout.id, clinic_id, activation.is_active)
+    db.commit()
+    return layout_response(db, company_id, layout, clinic_id)
 
 
 @router.put("/{layout_id}", response_model=ExamLayoutSchema)
@@ -209,258 +203,138 @@ def update_exam_layout(
     layout_id: int,
     layout: ExamLayoutUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    db_layout = db.query(ExamLayout).filter(ExamLayout.id == layout_id).first()
-    if not db_layout:
-        raise HTTPException(status_code=404, detail="Exam layout not found")
-    
-    if current_user.role_level < 4 and db_layout.clinic_id != current_user.clinic_id:
-        raise HTTPException(status_code=403, detail="Cannot update layout for other clinics")
-    
-    payload = layout.dict(exclude_unset=True)
-    for field in ("seed_key", "seed_version", "is_seeded_default"):
-        payload.pop(field, None)
-    old_parent_id = db_layout.parent_layout_id
-    new_parent_id = payload.get("parent_layout_id", db_layout.parent_layout_id)
-    if new_parent_id == db_layout.id:
-        raise HTTPException(status_code=400, detail="Layout cannot be its own parent")
-    if new_parent_id is not None:
-        parent_layout = (
-            db.query(ExamLayout)
-            .filter(ExamLayout.id == new_parent_id)
-            .first()
-        )
-        if parent_layout is None or parent_layout.clinic_id != db_layout.clinic_id:
-            raise HTTPException(status_code=403, detail="Invalid parent layout")
-        if not parent_layout.is_group:
-            raise HTTPException(status_code=400, detail="Parent layout must be a group")
-    if "is_group" in payload and not payload["is_group"]:
-        has_children = (
-            db.query(ExamLayout)
-            .filter(ExamLayout.parent_layout_id == db_layout.id)
-            .count()
-        )
-        if has_children:
-            raise HTTPException(status_code=400, detail="Cannot unset group while children exist")
-    for field, value in payload.items():
-        if field in {"parent_layout_id", "sort_index"}:
-            continue
-        setattr(db_layout, field, value)
+    company_id = lock_company(db, current_user)
+    row = require_layout(db, company_id, layout_id)
+    payload = layout.model_dump(
+        exclude_unset=True, exclude={"clinic_id", "is_active", "seed_key", "seed_version", "is_seeded_default"},
+    )
+    clinic_id = clinic_context(db, current_user, layout.clinic_id)
+    if "is_active" in layout.model_fields_set:
+        clinic_id = normalize_clinic_id_for_company(db, current_user, clinic_id)
+        set_clinic_activation(db, row.id, clinic_id, layout.is_active)
+    catalog = layout_catalog(db, company_id)
+    if payload.get("is_group") is False and siblings(catalog, row.id).first():
+        raise HTTPException(400, "Cannot unset group while children exist")
+    old_parent = row.parent_layout_id
     if "parent_layout_id" in payload:
-        db_layout.parent_layout_id = new_parent_id
-        if "sort_index" not in payload:
-            parent_filter = ExamLayout.parent_layout_id == new_parent_id
-            max_sort = (
-                db.query(func.coalesce(func.max(ExamLayout.sort_index), 0))
-                .filter(ExamLayout.clinic_id == db_layout.clinic_id)
-                .filter(parent_filter)
-                .scalar()
-            )
-            db_layout.sort_index = max_sort + 1
-    if "sort_index" in payload:
-        db_layout.sort_index = payload["sort_index"]
-    reindex_siblings(db, db_layout.clinic_id, old_parent_id)
-    reindex_siblings(db, db_layout.clinic_id, db_layout.parent_layout_id)
+        parent_id = payload["parent_layout_id"]
+        validate_parent({item.id: item for item in catalog}, row.id, parent_id)
+        if parent_id != old_parent and "sort_index" not in payload:
+            payload["sort_index"] = next_sort(catalog, parent_id)
+    for field, value in payload.items():
+        setattr(row, field, value)
+    if {"parent_layout_id", "sort_index"} & payload.keys():
+        db.flush()
+        reindex_siblings(catalog, {old_parent, row.parent_layout_id})
     db.commit()
-    db.refresh(db_layout)
-    return db_layout
+    return layout_response(db, company_id, row, clinic_id)
+
 
 @router.post("/reorder", response_model=List[ExamLayoutSchema])
 def reorder_exam_layouts(
     request: ExamLayoutReorderRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     if not request.items:
-        raise HTTPException(status_code=400, detail="No layouts to reorder")
-    target_clinic = normalize_clinic_id_for_company(db, current_user, request.clinic_id)
-    layout_ids = [item.id for item in request.items]
-    layouts = (
-        db.query(ExamLayout)
-        .filter(ExamLayout.id.in_(layout_ids))
-        .all()
-    )
-    if len(layouts) != len(layout_ids):
-        raise HTTPException(status_code=404, detail="One or more layouts not found")
-    layout_map = {layout.id: layout for layout in layouts}
-    for layout in layouts:
-        if layout.clinic_id != target_clinic:
-            raise HTTPException(status_code=403, detail="Cannot modify layouts from other clinics")
-    parent_ids = {item.parent_layout_id for item in request.items if item.parent_layout_id is not None}
-    if parent_ids:
-        parents = (
-            db.query(ExamLayout)
-            .filter(ExamLayout.id.in_(parent_ids))
-            .all()
-        )
-        parent_map = {parent.id: parent for parent in parents}
-        for parent_id in parent_ids:
-            parent = parent_map.get(parent_id)
-            if parent is None or parent.clinic_id != target_clinic:
-                raise HTTPException(status_code=403, detail="Invalid parent layout")
-            if not parent.is_group:
-                raise HTTPException(status_code=400, detail="Parent layout must be a group")
-    original_parents = {layout.id: layout.parent_layout_id for layout in layouts}
-    affected_parents = set()
+        raise HTTPException(400, "No layouts to reorder")
+    clinic_id = clinic_context(db, current_user, request.clinic_id)
+    company_id = lock_company(db, current_user)
+    catalog = layout_catalog(db, company_id)
+    layouts = {row.id: row for row in catalog}
+    proposed = {item.id: item.parent_layout_id for item in request.items}
+    if len(proposed) != len(request.items) or not proposed.keys() <= layouts.keys():
+        raise HTTPException(404, "One or more layouts not found")
+    parents = set()
     for item in request.items:
-        layout = layout_map[item.id]
-        if item.parent_layout_id == layout.id:
-            raise HTTPException(status_code=400, detail="Layout cannot be its own parent")
-        affected_parents.add(original_parents.get(layout.id))
-        affected_parents.add(item.parent_layout_id)
-        layout.parent_layout_id = item.parent_layout_id
-        layout.sort_index = item.sort_index
+        validate_parent(layouts, item.id, item.parent_layout_id, proposed)
+        parents.update((layouts[item.id].parent_layout_id, item.parent_layout_id))
+    for item in request.items:
+        layouts[item.id].parent_layout_id = item.parent_layout_id
+        layouts[item.id].sort_index = item.sort_index
     db.flush()
-    affected_parents.add(None)
-    for parent_id in affected_parents:
-        reindex_siblings(db, target_clinic, parent_id)
+    reindex_siblings(catalog, parents)
     db.commit()
-    layouts = (
-        db.query(ExamLayout)
-        .filter(ExamLayout.clinic_id == target_clinic)
-        .order_by(ExamLayout.sort_index.asc(), ExamLayout.id.asc())
-        .all()
-    )
-    return build_layout_tree(layouts)
+    return layout_tree(db, company_id, clinic_id)
+
+
+def selected_layouts(catalog, layout_ids):
+    ids = list(dict.fromkeys(layout_ids))
+    layouts = {row.id: row for row in catalog.filter(ExamLayout.id.in_(ids))}
+    if len(ids) != len(layouts):
+        raise HTTPException(404, "One or more layouts not found")
+    return [layouts[layout_id] for layout_id in ids]
+
 
 @router.post("/groups", response_model=ExamLayoutSchema)
 def create_exam_layout_group(
     request: ExamLayoutGroupRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     name = request.name.strip()
-    if not name:
-        raise HTTPException(status_code=400, detail="Group name is required")
-    if not request.layout_ids:
-        raise HTTPException(status_code=400, detail="No layouts selected for grouping")
-    target_clinic = normalize_clinic_id_for_company(db, current_user, request.clinic_id)
-    layout_ids = list(dict.fromkeys(request.layout_ids))
-    layouts = (
-        db.query(ExamLayout)
-        .filter(ExamLayout.id.in_(layout_ids))
-        .all()
-    )
-    if len(layouts) != len(layout_ids):
-        raise HTTPException(status_code=404, detail="One or more layouts not found")
-    for layout in layouts:
-        if layout.clinic_id != target_clinic:
-            raise HTTPException(status_code=403, detail="Cannot group layouts from other clinics")
-    max_root = (
-        db.query(func.coalesce(func.max(ExamLayout.sort_index), 0))
-        .filter(ExamLayout.clinic_id == target_clinic)
-        .filter(ExamLayout.parent_layout_id.is_(None))
-        .scalar()
-    )
-    new_group = ExamLayout(
-        clinic_id=target_clinic,
-        name=name,
-        layout_data="{}",
-        is_group=True,
-        is_seeded_default=False,
-        sort_index=max_root + 1,
-        parent_layout_id=None
-    )
-    db.add(new_group)
+    if not name or not request.layout_ids:
+        raise HTTPException(400, "Group name and layouts are required")
+    clinic_id = clinic_context(db, current_user, request.clinic_id)
+    company_id = lock_company(db, current_user)
+    catalog = layout_catalog(db, company_id)
+    layouts = selected_layouts(catalog, request.layout_ids)
+    old_parents = {layout.parent_layout_id for layout in layouts}
+    group = ExamLayout(company_id=company_id, name=name, layout_data="{}", is_group=True, sort_index=next_sort(catalog, None))
+    db.add(group)
     db.flush()
     for index, layout in enumerate(layouts, start=1):
-        layout.parent_layout_id = new_group.id
+        layout.parent_layout_id = group.id
         layout.sort_index = index
-    reindex_siblings(db, target_clinic, None)
-    reindex_siblings(db, target_clinic, new_group.id)
+    db.flush()
+    reindex_siblings(catalog, old_parents)
     db.commit()
-    db.refresh(new_group)
-    return new_group
+    return layout_response(db, company_id, group, clinic_id)
+
+
+def delete_layouts(db, catalog, layouts):
+    deleted_ids = {layout.id for layout in layouts}
+    parents = {layout.parent_layout_id for layout in layouts} - deleted_ids
+    root_sort = next_sort(catalog, None)
+    children = catalog.filter(
+        ExamLayout.parent_layout_id.in_(deleted_ids), ExamLayout.id.not_in(deleted_ids),
+    ).order_by(ExamLayout.sort_index, ExamLayout.id)
+    for index, child in enumerate(children, start=root_sort):
+        child.parent_layout_id = None
+        child.sort_index = index
+    db.flush()
+    for layout in layouts:
+        db.delete(layout)
+    db.flush()
+    reindex_siblings(catalog, parents | {None})
+    db.commit()
+
 
 @router.post("/bulk-delete", response_model=List[ExamLayoutSchema])
 def bulk_delete_exam_layouts(
     request: ExamLayoutBulkDeleteRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     if not request.layout_ids:
         return []
-    target_clinic = normalize_clinic_id_for_company(db, current_user, request.clinic_id)
-    layout_ids = list(dict.fromkeys(request.layout_ids))
-    layouts = (
-        db.query(ExamLayout)
-        .filter(ExamLayout.id.in_(layout_ids))
-        .all()
-    )
-    if not layouts:
-        return []
-    for layout in layouts:
-        if layout.clinic_id != target_clinic:
-            raise HTTPException(status_code=403, detail="Cannot delete layouts from other clinics")
-    processed_parents = set()
-    for layout in layouts:
-        old_parent_id = layout.parent_layout_id
-        if layout.is_group:
-            children = (
-                db.query(ExamLayout)
-                .filter(ExamLayout.parent_layout_id == layout.id)
-                .order_by(ExamLayout.sort_index.asc(), ExamLayout.id.asc())
-                .all()
-            )
-            if children:
-                max_root = (
-                    db.query(func.coalesce(func.max(ExamLayout.sort_index), 0))
-                    .filter(ExamLayout.clinic_id == target_clinic)
-                    .filter(ExamLayout.parent_layout_id.is_(None))
-                    .scalar()
-                )
-                for index, child in enumerate(children, start=1):
-                    child.parent_layout_id = None
-                    child.sort_index = max_root + index
-        db.delete(layout)
-        processed_parents.add(old_parent_id)
-    for parent_id in processed_parents:
-        reindex_siblings(db, target_clinic, parent_id)
-    reindex_siblings(db, target_clinic, None)
-    db.commit()
-    layouts = (
-        db.query(ExamLayout)
-        .filter(ExamLayout.clinic_id == target_clinic)
-        .order_by(ExamLayout.sort_index.asc(), ExamLayout.id.asc())
-        .all()
-    )
-    return build_layout_tree(layouts)
+    clinic_id = clinic_context(db, current_user, request.clinic_id)
+    company_id = lock_company(db, current_user)
+    catalog = layout_catalog(db, company_id)
+    delete_layouts(db, catalog, selected_layouts(catalog, request.layout_ids))
+    return layout_tree(db, company_id, clinic_id)
+
+
 @router.delete("/{layout_id}")
 def delete_exam_layout(
     layout_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    layout = db.query(ExamLayout).filter(ExamLayout.id == layout_id).first()
-    if not layout:
-        raise HTTPException(status_code=404, detail="Exam layout not found")
-    
-    if current_user.role_level < 4 and layout.clinic_id != current_user.clinic_id:
-        raise HTTPException(status_code=403, detail="Cannot delete layout for other clinics")
-    old_parent_id = layout.parent_layout_id
-    clinic_id = layout.clinic_id
-    if layout.is_group:
-        children = (
-            db.query(ExamLayout)
-            .filter(ExamLayout.parent_layout_id == layout.id)
-            .order_by(ExamLayout.sort_index.asc(), ExamLayout.id.asc())
-            .all()
-        )
-        if children:
-            max_root = (
-                db.query(func.coalesce(func.max(ExamLayout.sort_index), 0))
-                .filter(ExamLayout.clinic_id == clinic_id)
-                .filter(ExamLayout.parent_layout_id.is_(None))
-                .scalar()
-            )
-            for index, child in enumerate(children, start=1):
-                child.parent_layout_id = None
-                child.sort_index = max_root + index
-    db.delete(layout)
-    reindex_siblings(db, clinic_id, old_parent_id)
-    reindex_siblings(db, clinic_id, None)
-    db.commit()
+    company_id = lock_company(db, current_user)
+    delete_layouts(db, layout_catalog(db, company_id), [require_layout(db, company_id, layout_id)])
     return {"message": "Exam layout deleted successfully"}
 
 # Exam Layout Instances endpoints
@@ -478,6 +352,9 @@ def create_exam_layout_instance(
     
     assert_record_scope(db, current_user, exam)
     
+    if instance_data.get("layout_id"):
+        layout = usable_layout(db, exam.company_id, exam.clinic_id, instance_data["layout_id"])
+        instance_data = {**instance_data, "layout_id": layout.id}
     instance = ExamLayoutInstance(**instance_data)
     db.add(instance)
     db.flush()
@@ -644,6 +521,10 @@ def update_exam_layout_instance(
         raise HTTPException(422, "companyClients.instanceExam")
     from services.legacy_exam_compatibility import preserve_unrepresented_components, preserve_unrepresented_layout
     instance_data = dict(instance_data)
+    if instance_data.get("layout_id") and instance_data["layout_id"] != instance.layout_id:
+        instance_data["layout_id"] = usable_layout(
+            db, exam.company_id, exam.clinic_id, instance_data["layout_id"],
+        ).id
     if "exam_data" in instance_data:
         if not isinstance(instance_data["exam_data"], dict):
             raise HTTPException(422, "agent.invalidFields")
