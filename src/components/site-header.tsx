@@ -215,8 +215,9 @@ export function SiteHeader({
   ];
   const hasCustomExamInfo = React.isValidElement(examInfo);
   const { currentClient, toggleSidebar } = useClientSidebar();
+  // Last name first, as the clinic files its clients.
   const displayName = currentClient
-    ? `${currentClient.first_name} ${currentClient.last_name}`.trim()
+    ? [currentClient.last_name, currentClient.first_name].filter(Boolean).join(" ").trim()
     : "";
   const lastExamDate = useClientExamDatesQuery(currentClient?.id, Boolean(currentClient)).data?.last_exam_date;
   const [isHovering, setIsHovering] = useState(false);
