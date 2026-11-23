@@ -589,7 +589,8 @@ export function SidebarQuickActions({
                 <DropdownMenuItem disabled>{t("noRecentClients")}</DropdownMenuItem>
               ) : (
                 recentClients.map((visit) => {
-                  const name = `${visit.client?.first_name || ""} ${visit.client?.last_name || ""}`.trim();
+                  // Last name first, as the client page header shows it.
+                  const name = [visit.client?.last_name, visit.client?.first_name].filter(Boolean).join(" ").trim();
                   return (
                     <DropdownMenuItem
                       key={visit.id}
