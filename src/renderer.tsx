@@ -4,6 +4,7 @@ import App from "@/App";
 import { getAppearanceStore } from "@/lib/appearance";
 import { googleWebAPI } from "@/lib/google/google-web-api";
 import { applyDocumentLocale, getActiveLocale } from "@/localization/locale";
+import { printHtmlInBrowser } from '@/lib/pdf-exporter';
 
 declare global {
   interface Window {
@@ -36,9 +37,8 @@ if (typeof window !== 'undefined' && !window.electronAPI) {
     exportHtmlToPdf: async () => {
       throw new Error('exportHtmlToPdf is only available in Electron');
     },
-    printHtml: async () => {
-      throw new Error('printHtml is only available in Electron');
-    },
+    // Browsers cannot print silently: open their print dialog on the same page.
+    printHtml: ({ html }: { html: string }) => printHtmlInBrowser(html),
     // We can add more mocks here as needed
   };
 }
