@@ -30,6 +30,8 @@ const EXAM_NAME_BELOW_PHONE_MIN_HEIGHT = 62;
 // The card's vertical padding, and the height of each stacked line.
 const CARD_PADDING = 4;
 const LINE_HEIGHT = 12;
+// The note's box: its top margin and padding.
+const NOTE_BOX_PADDING = 4;
 
 interface AppointmentCardContentProps {
   height: number;
@@ -68,7 +70,7 @@ function AppointmentCardContent({
   // Lines left under time, name, phone and exam name; the note takes them, clamped.
   const usedLines = 1 + (secondaryDetail ? 1 : 0) + (showPhone ? 1 : 0) + (showExamName ? 1 : 0);
   const noteText = note?.trim();
-  const noteLines = noteText ? Math.floor((height - CARD_PADDING) / LINE_HEIGHT) - usedLines : 0;
+  const noteLines = noteText ? Math.floor((height - CARD_PADDING - NOTE_BOX_PADDING) / LINE_HEIGHT) - usedLines : 0;
 
   if (!hasRoomForStackedContent) {
     return (
@@ -109,12 +111,19 @@ function AppointmentCardContent({
         </div>
       )}
       {noteLines > 0 && (
+        // A small note set apart from the card's details: a light box with an accent edge and a note icon.
         <div
-          className="min-w-0 overflow-hidden break-words whitespace-pre-line text-white/70 italic"
+          className="mt-0.5 flex min-w-0 gap-1 rounded-[3px] border-s-2 border-white/70 bg-white/15 px-1 py-px text-white"
           dir="rtl"
-          style={{ display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: noteLines }}
+          data-appointment-note
         >
-          {noteText}
+          <StickyNote className="mt-px size-2.5 shrink-0 opacity-80" aria-hidden="true" />
+          <div
+            className="min-w-0 flex-1 overflow-hidden break-words whitespace-pre-line"
+            style={{ display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: noteLines }}
+          >
+            {noteText}
+          </div>
         </div>
       )}
     </div>

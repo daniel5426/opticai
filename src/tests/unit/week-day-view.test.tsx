@@ -98,8 +98,9 @@ describe("WeekDayView appointment notes", () => {
     const card = screen.getByTitle("10:30 - 10:45 • דנה כהן")
     const note = within(card).getByText("להביא משקפיים ישנים")
     expect(within(card).getByText("בדיקת ראייה")).toBeInTheDocument()
-    // 96px: 7 lines of 12px, 4 taken by time, name, phone and exam name.
+    // 96px less the card's and the note box's padding: 7 lines of 12px, 4 taken by time, name, phone and exam name.
     expect(note.style.webkitLineClamp).toBe("3")
+    expect(note.closest("[data-appointment-note]")).not.toBeNull()
   })
 
   test("leaves the note out when the card has no room left", () => {
