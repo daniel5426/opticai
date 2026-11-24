@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/tooltip";
 import { CalendarHoliday } from "@/lib/clinic-holidays";
 import { User, Client, Appointment, CalendarEvent } from "@/lib/db/schema-interface";
-import { StickyNote } from "lucide-react";
+import { MessageCircle, StickyNote } from "lucide-react";
 import { AppointmentBlock, DragPosition, ResizeData, DragData } from "./types";
 import { formatAppointmentTime, getAppointmentTimeRange, minutesToTime, timeToMinutes } from "./utils";
 import {
@@ -111,13 +111,13 @@ function AppointmentCardContent({
         </div>
       )}
       {noteLines > 0 && (
-        // A small note set apart from the card's details: a light box with an accent edge and a note icon.
+        // A small note set apart from the card's details: a light box with a speech bubble.
         <div
-          className="mt-0.5 flex min-w-0 gap-1 rounded-[3px] border-s-2 border-white/70 bg-white/15 px-1 py-px text-white"
+          className="mt-0.5 flex min-w-0 gap-1 rounded-[3px] bg-white/15 px-1 py-px text-white"
           dir="rtl"
           data-appointment-note
         >
-          <StickyNote className="mt-px size-2.5 shrink-0 opacity-80" aria-hidden="true" />
+          <MessageCircle className="mt-px size-2.5 shrink-0 opacity-80" aria-hidden="true" />
           <div
             className="min-w-0 flex-1 overflow-hidden break-words whitespace-pre-line"
             style={{ display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: noteLines }}
