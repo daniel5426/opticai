@@ -27,7 +27,7 @@ vi.mock('@/lib/api-client',()=>({apiClient:{getOrderInventoryAllocations:async()
 vi.mock('@/lib/db/users-db', () => ({ getAllUsers: async () => [] }));
 vi.mock('@/lib/db/orders-db', () => ({ getOrdersByClientId: async () => [], getAllOrders: async () => [], getNextBagNumber: async () => "1", getOrderById: fixture.regularSource, getContactLensOrderById: fixture.contactSource }));
 vi.mock('@/components/orders/RegularOrderTab', () => ({default: ({finalPrescriptionData,onFinalPrescriptionChange}:any) => <><output data-testid="rx">{JSON.stringify(finalPrescriptionData)}</output><button onClick={()=>onFinalPrescriptionChange('r_sph','Balance')}>Select Balance</button></>}));
-vi.mock('@/components/orders/ContactOrderTab', () => ({default: ({contactLensExamData}:any) => <output data-testid="contact-rx">{JSON.stringify(contactLensExamData)}</output>}));
+vi.mock('@/components/orders/ContactOrderTab', () => ({default: ({contactLensExamData,contactLensDetailsData}:any) => <><output data-testid="contact-rx">{JSON.stringify(contactLensExamData)}</output><output data-testid="contact-details">{JSON.stringify(contactLensDetailsData)}</output></>}));
 afterEach(()=>{cleanup(); fixture.instances=null;fixture.active=1;fixture.search={importSourceId:'99',importSourceType:'exam'};vi.clearAllMocks();});
 const wrap=(child:React.ReactNode)=>render(<QueryClientProvider client={new QueryClient()}>{child}</QueryClientProvider>);
 it.each(['legacy','card-key'])('checks real order import with %s data', async shape => {
@@ -88,7 +88,7 @@ it('reports the saved order and prescription in the first workspace snapshot aft
   expect(firstSnapshot.finalPrescriptionFormData.r_sph).toBe(-2);
 });
 
-it.each(['regular', 'contact'])('imports only the prescription from a previous %s order', async kind => {
+it.each(['regular', 'contact'])('imports the prescription (and for contact lenses, the lens details) from a previous %s order, nothing order-specific', async kind => {
   fixture.search = { importSourceId: '88', importSourceType: 'order-prescription', ...(kind === 'contact' ? { type: 'contact' } : {}) };
   const source = { id: 88, client_id: 1, type: 'Old type', user_id: 99, dominant_eye: 'left', order_data: {
     'final-prescription': { r_sph: 'Balance', l_sph: 0, r_ad: 2.5 },
@@ -110,7 +110,10 @@ it.each(['regular', 'contact'])('imports only the prescription from a previous %
   await waitFor(() => expect(entry.register.mock.calls.some((call:any) => call[1]?.ready)).toBe(true));
   const handle = entry.register.mock.calls.filter((call:any) => call[1]?.ready).at(-1)[1];
   const serialized = handle.serialize().order;
-  expect(JSON.stringify(serialized)).not.toMatch(/Old note|Old status|Old frame|Old supplier|Old type|900/);
+  expect(JSON.stringify(serialized)).not.toMatch(/Old note|Old status|Old frame|Old type|900/);
+  // A contact lens order takes the last order's lenses, without their price.
+  if (kind === 'contact') expect(serialized.order_data['contact-lens-details']).toEqual({ r_supplier: 'Old supplier' });
+  else expect(JSON.stringify(serialized)).not.toMatch(/Old supplier/);
   expect(serialized.user_id).not.toBe(99);
   if (kind === 'contact') {
     expect(serialized.order_data['keratometer-contact-lens']).toMatchObject({ r_k1: 42 });
@@ -138,4 +141,18 @@ it.each(['regular', 'contact'])('blocks a new %s order if its prescription sourc
   expect(screen.queryByTestId('rx')).toBeNull();
   expect(screen.queryByTestId('contact-rx')).toBeNull();
   expect(entry.register.mock.calls.some((call:any) => call[1]?.ready)).toBe(false);
+});
+
+it('a new contact lens order from the last order takes its lens details as well as its prescription', async () => {
+  fixture.search = { importSourceId: '77', importSourceType: 'order-prescription', type: 'contact' };
+  fixture.contactSource.mockResolvedValue({ id: 77, client_id: 1, order_data: {
+    'contact-lens-exam': { r_sph: -2.25, l_sph: -2 },
+    'contact-lens-details': { r_type: 'חודשית', r_model: 'Biofinity', l_model: 'Biofinity', r_supplier: 'CooperVision', r_quantity: 6, _scan_provenance: '{"right":{}}' },
+  } });
+  const entry = workspace(); entry.kind = 'contact';
+  wrap(<LegacyOrderDetailPage mode="new" clientId="1" workspace={entry} />);
+  await waitFor(() => expect(JSON.parse(screen.getByTestId('contact-rx').textContent!)).toMatchObject({ r_sph: -2.25 }));
+  const details = JSON.parse(screen.getByTestId('contact-details').textContent!);
+  expect(details).toMatchObject({ r_type: 'חודשית', r_model: 'Biofinity', l_model: 'Biofinity', r_supplier: 'CooperVision', r_quantity: 6 });
+  expect(details._scan_provenance).toBeUndefined();
 });

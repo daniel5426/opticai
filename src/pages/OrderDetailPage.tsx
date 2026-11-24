@@ -959,8 +959,16 @@ export function LegacyOrderDetailPage({
               if (isContactMode) {
                 if (od["contact-lens-exam"])
                   setContactLensExamData({ ...od["contact-lens-exam"] });
-                if (!prescriptionOnly && od["contact-lens-details"])
-                  setContactLensDetailsData({ ...od["contact-lens-details"] });
+                // A new contact lens order from the last one takes its lenses too, not only the prescription.
+                // Prices and the old order's scan record stay with the old order.
+                if (od["contact-lens-details"]) {
+                  const details = Object.fromEntries(
+                    Object.entries(od["contact-lens-details"] as Record<string, unknown>).filter(
+                      ([key]) => key !== "_scan_provenance" && !/price|cost|discount|total/.test(key),
+                    ),
+                  );
+                  setContactLensDetailsData(details);
+                }
                 if (od["keratometer-contact-lens"])
                   setKeratoCLData({ ...od["keratometer-contact-lens"] });
                 if (od["schirmer-test"])
