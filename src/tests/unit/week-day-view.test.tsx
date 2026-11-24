@@ -12,12 +12,13 @@ const client = {
   phone_mobile: "050-1234567",
 } as Client
 
-function renderCalendar(blockHeight: number, events: CalendarEvent[] = [], onEventClick = vi.fn()) {
+function renderCalendar(blockHeight: number, events: CalendarEvent[] = [], onEventClick = vi.fn(), note?: string) {
   const appointment = {
     id: 1,
     time: "10:30:00.000",
     client_id: 7,
     exam_name: "בדיקת ראייה",
+    note,
     top: 0,
     height: blockHeight,
     left: 0,
@@ -87,6 +88,25 @@ describe("WeekDayView appointment cards", () => {
     expect(within(card).queryByText("10:30 - 10:45")).not.toBeInTheDocument()
     expect(within(card).getByText("דנה כהן")).toBeInTheDocument()
     expect(within(card).queryByText("050-1234567")).not.toBeInTheDocument()
+  })
+})
+
+describe("WeekDayView appointment notes", () => {
+  test("shows the note under the other lines when the card has room for it", () => {
+    renderCalendar(96, [], vi.fn(), "להביא משקפיים ישנים")
+
+    const card = screen.getByTitle("10:30 - 10:45 • דנה כהן")
+    const note = within(card).getByText("להביא משקפיים ישנים")
+    expect(within(card).getByText("בדיקת ראייה")).toBeInTheDocument()
+    // 96px: 7 lines of 12px, 4 taken by time, name, phone and exam name.
+    expect(note.style.webkitLineClamp).toBe("3")
+  })
+
+  test("leaves the note out when the card has no room left", () => {
+    renderCalendar(48, [], vi.fn(), "להביא משקפיים ישנים")
+
+    const card = screen.getByTitle("10:30 - 10:45 • דנה כהן")
+    expect(within(card).queryByText("להביא משקפיים ישנים")).not.toBeInTheDocument()
   })
 })
 

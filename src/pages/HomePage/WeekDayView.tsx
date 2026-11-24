@@ -27,6 +27,9 @@ const STACKED_APPOINTMENT_CONTENT_MIN_HEIGHT = 36;
 const PHONE_MIN_HEIGHT = 44;
 const EXAM_NAME_MIN_HEIGHT = 54;
 const EXAM_NAME_BELOW_PHONE_MIN_HEIGHT = 62;
+// The card's vertical padding, and the height of each stacked line.
+const CARD_PADDING = 4;
+const LINE_HEIGHT = 12;
 
 interface AppointmentCardContentProps {
   height: number;
@@ -34,6 +37,8 @@ interface AppointmentCardContentProps {
   startTime: string;
   client?: Client;
   examName?: string;
+  /** The appointment's note, shown in whatever room the other lines leave. */
+  note?: string;
 }
 
 function getClientName(client?: Client) {
@@ -46,6 +51,7 @@ function AppointmentCardContent({
   startTime,
   client,
   examName,
+  note,
 }: AppointmentCardContentProps) {
   const clientName = getClientName(client);
   const secondaryDetail = clientName || examName;
@@ -58,6 +64,11 @@ function AppointmentCardContent({
       examName &&
       height >= (showPhone ? EXAM_NAME_BELOW_PHONE_MIN_HEIGHT : EXAM_NAME_MIN_HEIGHT),
   );
+
+  // Lines left under time, name, phone and exam name; the note takes them, clamped.
+  const usedLines = 1 + (secondaryDetail ? 1 : 0) + (showPhone ? 1 : 0) + (showExamName ? 1 : 0);
+  const noteText = note?.trim();
+  const noteLines = noteText ? Math.floor((height - CARD_PADDING) / LINE_HEIGHT) - usedLines : 0;
 
   if (!hasRoomForStackedContent) {
     return (
@@ -95,6 +106,15 @@ function AppointmentCardContent({
       {showExamName && (
         <div className="min-w-0 truncate text-white/80" dir="rtl">
           {examName}
+        </div>
+      )}
+      {noteLines > 0 && (
+        <div
+          className="min-w-0 overflow-hidden break-words whitespace-pre-line text-white/70 italic"
+          dir="rtl"
+          style={{ display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: noteLines }}
+        >
+          {noteText}
         </div>
       )}
     </div>
@@ -645,6 +665,7 @@ export function WeekDayView({
                               )}
                               client={client}
                               examName={block.exam_name}
+                              note={block.note}
                             />
                           </div>
 
@@ -699,6 +720,7 @@ export function WeekDayView({
                                 client.id === draggedData.appointment.client_id,
                             )}
                             examName={draggedData.appointment.exam_name}
+                            note={draggedData.appointment.note}
                           />
                         </div>
                       )}
