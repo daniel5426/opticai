@@ -20,6 +20,28 @@ export interface GoogleUserInfo {
   picture?: string
 }
 
+export interface ChromeLaunchCommand {
+  command: string
+  args: string[]
+  /** Windows: pass the arguments to cmd exactly as written. */
+  verbatim?: boolean
+}
+
+/**
+ * How to open a URL in Google Chrome on each platform.
+ * On Windows the URL goes through cmd, where an unquoted "&" ends the command: the Google sign-in
+ * URL would be cut after its first parameter (Google then reports "response_type" missing).
+ * Quoting it, and passing the arguments verbatim, keeps the whole URL.
+ */
+export function chromeLaunchCommands(url: string, platform: NodeJS.Platform): ChromeLaunchCommand[] {
+  if (platform === 'darwin') return [{ command: 'open', args: ['-a', 'Google Chrome', url] }]
+  if (platform === 'win32') {
+    // cmd /s strips the outer quotes and runs: start "" chrome "<url>".
+    return [{ command: 'cmd', args: ['/d', '/s', '/c', `"start "" chrome "${url.replace(/"/g, '%22')}""`], verbatim: true }]
+  }
+  return ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'].map((command) => ({ command, args: [url] }))
+}
+
 export class GoogleOAuthService {
   private oauth2Client: any
   private static pendingAuth: { resolve: Function; reject: Function } | null = null
@@ -198,16 +220,7 @@ export class GoogleOAuthService {
   }
 
   private async openUrlInChrome(url: string): Promise<void> {
-    const candidates = process.platform === 'darwin'
-      ? [{ command: 'open', args: ['-a', 'Google Chrome', url] }]
-      : process.platform === 'win32'
-        ? [{ command: 'cmd', args: ['/c', 'start', '', 'chrome', url] }]
-        : [
-            { command: 'google-chrome', args: [url] },
-            { command: 'google-chrome-stable', args: [url] },
-            { command: 'chromium', args: [url] },
-            { command: 'chromium-browser', args: [url] },
-          ]
+    const candidates = chromeLaunchCommands(url, process.platform)
 
     await new Promise<void>((resolve, reject) => {
       let index = 0
@@ -223,6 +236,8 @@ export class GoogleOAuthService {
           detached: true,
           stdio: 'ignore',
           windowsHide: true,
+          // The Windows arguments are already quoted for cmd (see chromeLaunchCommands).
+          windowsVerbatimArguments: Boolean(candidate.verbatim),
         })
 
         child.once('error', tryNext)
