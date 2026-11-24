@@ -67,7 +67,8 @@ function bottom(data: OrderData, includeBilling: boolean): FormBlock {
 }
 
 function regularForm(data: RegularOrderPrintModel, includeBilling: boolean): FormBlock[] {
-  const frameSize = [data.frame_width, data.frame_bridge, data.frame_length].filter(Boolean).join("-");
+  // Size is lens width and bridge; the temple length is left out of the form.
+  const frameSize = [data.frame_width, data.frame_bridge].filter(Boolean).join("-");
   return [
     { type: "order", number: data.order_number },
     clientBox(data),
@@ -76,9 +77,7 @@ function regularForm(data: RegularOrderPrintModel, includeBilling: boolean): For
       pairs: [
         ["תאריך", data.order_date], ["שם הבודק", data.optician_name],
         ["סוג", data.lens_tab_type], ["יועץ", data.advisor_name],
-        ["מעבדה", data.manufacturing_lab], ["מס' שקית", data.bag_number],
-        ["סטטוס", data.order_status], ["עדיפות", data.priority],
-        ["אספקה בסניף", data.delivery_clinic_name], ["הובטח לתאריך", data.promised_date],
+        ["מס' שקית", data.bag_number], ["אספקה בסניף", data.delivery_clinic_name],
       ],
     },
     {
@@ -91,7 +90,6 @@ function regularForm(data: RegularOrderPrintModel, includeBilling: boolean): For
         [data.l_sph, data.l_cyl, data.l_ax, data.l_pris, data.l_base, data.l_add, data.l_pd, data.l_pd_close, data.l_high],
       ],
     },
-    { type: "info", pairs: [["PD FAR משולב", data.comb_pd], ["PD NEAR משולב", data.comb_pd_close], ["רב מוקדי", data.multifocal_block]] },
     {
       type: "grid",
       title: "עדשות",
@@ -123,8 +121,8 @@ function contactForm(data: ContactOrderPrintModel, includeBilling: boolean): For
       type: "info",
       pairs: [
         ["תאריך", data.order_date], ["שם הבודק", data.optician_name],
-        ["יועץ", data.advisor_name], ["סטטוס", data.order_status],
-        ["אספקה בסניף", data.supply_clinic_name], ["מוסר עבודה", data.deliverer_name],
+        ["יועץ", data.advisor_name], ["אספקה בסניף", data.supply_clinic_name],
+        ["מוסר עבודה", data.deliverer_name],
         ["תאריך אישור", data.approval_date], ["תאריך מסירה", data.delivery_date],
       ],
     },
@@ -152,8 +150,7 @@ function contactForm(data: ContactOrderPrintModel, includeBilling: boolean): For
     {
       type: "info",
       pairs: [
-        ["תמיסת ניקוי", data.cleaning_solution], ["עדיפות", data.priority],
-        ["תמיסת חיטוי", data.disinfection_solution], ["הובטח לתאריך", data.guaranteed_date],
+        ["תמיסת ניקוי", data.cleaning_solution], ["תמיסת חיטוי", data.disinfection_solution],
         ["תמיסת שטיפה", data.rinsing_solution],
       ],
     },

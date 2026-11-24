@@ -42,14 +42,14 @@ test('without billing, neither the items nor the charges are exported', () => {
 });
 
 test('a table or box without a single value is left out of both print and Word', () => {
-  const data: any = { ...contact, r_lens_type: '', r_model: '', l_model: '', r_quantity: '0', l_quantity: '0', priority: 'רגילה' };
+  const data: any = { ...contact, r_lens_type: '', r_model: '', l_model: '', r_quantity: '0', l_quantity: '0', cleaning_solution: 'Opti-Free' };
   const form = buildOrderForm('contact', data);
   const titles = form.blocks.flatMap((block) => (block.type === 'grid' ? [block.title] : []));
   expect(titles).not.toContain('עדשות');
   expect(titles).toContain('מרשם');
   expect(renderOrderPdfHtml({ kind: 'contact', data })).not.toContain('<th colspan="6">עדשות</th>');
   expect(form.blocks.some((block) => block.type === 'info' && block.pairs.some(([label]) => label === 'תמיסת ניקוי'))).toBe(true);
-  const empty = buildOrderForm('contact', { ...data, priority: '', cleaning_solution: '' });
+  const empty = buildOrderForm('contact', { ...data, cleaning_solution: '' });
   expect(empty.blocks.some((block) => block.type === 'info' && block.pairs.some(([label]) => label === 'תמיסת ניקוי'))).toBe(false);
 });
 
@@ -59,4 +59,13 @@ test('eye tables read left to right, R first', () => {
   const eyeRow = xml.split('<w:tr>').find((row) => row.includes('>R<'))!;
   // Right-to-left tables list their cells from the right, so R, shown at the left, comes last.
   expect(eyeRow.lastIndexOf('>R<')).toBeGreaterThan(eyeRow.indexOf('8.9'));
+});
+
+test('the form leaves out status, priority, promised date, lab, temple length, multifocal and combined PD', () => {
+  const regular: any = { ...contact, order_status: 'בהזמנה', priority: 'דחוף', promised_date: '01/12/2026', manufacturing_lab: 'שמיר',
+    frame_width: '52', frame_bridge: '18', frame_length: '140', multifocal_block: 'PA: 1', comb_pd: '62', comb_pd_close: '58', r_sph: '-1.00' };
+  for (const xml of [orderFormDocumentXml(buildOrderForm('regular', regular)), renderOrderPdfHtml({ kind: 'regular', data: regular })]) {
+    for (const text of ['סטטוס<', 'עדיפות', 'הובטח', 'מעבדה', 'רב מוקדי', 'משולב', '140', 'PA: 1']) expect(xml).not.toContain(text);
+    expect(xml).toContain('52-18');
+  }
 });
