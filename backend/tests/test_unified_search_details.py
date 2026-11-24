@@ -24,7 +24,7 @@ def test_client_preview_is_paginated_and_clinic_scoped(monkeypatch):
         other = Clinic(company_id=company.id, name="Other", unique_id="other")
         db.add_all([clinic, other])
         db.flush()
-        client = Client(company_id=company.id, clinic_id=clinic.id, first_name="Dana", national_id="001234567", phone_mobile="0501234567", email="dana@example.test", date_of_birth=date(1990, 4, 23), address_street="Herzl", address_number="12", address_city="Haifa", health_fund="Maccabi", hidden_note="Do not return")
+        client = Client(company_id=company.id, clinic_id=clinic.id, first_name="Dana", last_name="Cohen", national_id="001234567", phone_mobile="0501234567", email="dana@example.test", date_of_birth=date(1990, 4, 23), address_street="Herzl", address_number="12", address_city="Haifa", health_fund="Maccabi", hidden_note="Do not return")
         sparse = Client(company_id=company.id, clinic_id=clinic.id, first_name="Dana")
         foreign = Client(company_id=company.id, clinic_id=other.id, first_name="Dana", email="private@example.test")
         db.add_all([client, sparse, foreign])
@@ -32,13 +32,13 @@ def test_client_preview_is_paginated_and_clinic_scoped(monkeypatch):
         merged = Client(company_id=company.id, clinic_id=clinic.id, first_name="Dana", merged_into_client_id=client.id)
         db.add(merged)
         db.commit()
-        monkeypatch.setattr(search_endpoint, "get_allowed_clinic_ids", lambda *_args: [clinic.id])
+        monkeypatch.setattr(search_endpoint, "get_record_clinic_ids", lambda *_args: [clinic.id])
         response = search_endpoint.unified_search(q="Dana", clinic_id=clinic.id, limit=1, offset=1, db=db, current_user=User())
         assert response["total"] == 2
         assert len(response["items"]) == 1
         item = response["items"][0]
         assert item["id"] == client.id
-        assert item["title"] == "Dana"
+        assert item["title"] == "Cohen Dana"
         assert item["subtitle"] == "001234567"
         assert item["description"] == "Haifa Herzl"
         assert item["client_details"]["email"] == "dana@example.test"
@@ -52,5 +52,5 @@ def test_client_preview_is_paginated_and_clinic_scoped(monkeypatch):
         assert first_page["items"][0]["id"] == sparse.id
         assert first_page["items"][0]["client_details"]["email"] is None
 
-        monkeypatch.setattr(search_endpoint, "get_allowed_clinic_ids", lambda *_args: [])
+        monkeypatch.setattr(search_endpoint, "get_record_clinic_ids", lambda *_args: [])
         assert search_endpoint.unified_search(q="Dana", clinic_id=clinic.id, limit=1, offset=0, db=db, current_user=User()) == {"items": [], "total": 0}

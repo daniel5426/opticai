@@ -95,7 +95,7 @@ describe("WeekDayView appointment notes", () => {
   test("shows the note under the other lines when the card has room for it", () => {
     renderCalendar(96, [], vi.fn(), "להביא משקפיים ישנים")
 
-    const card = screen.getByTitle("10:30 - 10:45 • דנה כהן")
+    const card = screen.getByTitle("10:30 - 10:45 • כהן דנה")
     const note = within(card).getByText("להביא משקפיים ישנים")
     expect(within(card).getByText("בדיקת ראייה")).toBeInTheDocument()
     // 96px less the card's and the note box's padding: 7 lines of 12px, 4 taken by time, name, phone and exam name.
@@ -106,7 +106,7 @@ describe("WeekDayView appointment notes", () => {
   test("leaves the note out when the card has no room left", () => {
     renderCalendar(48, [], vi.fn(), "להביא משקפיים ישנים")
 
-    const card = screen.getByTitle("10:30 - 10:45 • דנה כהן")
+    const card = screen.getByTitle("10:30 - 10:45 • כהן דנה")
     expect(within(card).queryByText("להביא משקפיים ישנים")).not.toBeInTheDocument()
   })
 })
