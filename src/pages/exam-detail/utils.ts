@@ -540,6 +540,29 @@ export const findCollision = (
   });
 };
 
+/** Whether a dragged card fits where it is held: "blocked" by a card there, or "row-full" with no gap wide enough. */
+export type ExamCardDropFit = "fits" | "blocked" | "row-full";
+
+export const examCardDropFit = (
+  item: GridLayoutItem,
+  lane: number,
+  requestedX: number,
+  /** Where the card would land, or null when it cannot be placed there. */
+  landingX: number | null,
+  items: GridLayoutItem[],
+  columns: number,
+): ExamCardDropFit => {
+  const bounded = Math.max(0, Math.min(Math.max(0, columns - item.w), requestedX));
+  // Landing up to half a card away reads as snapping beside its neighbor.
+  if (landingX !== null && Math.abs(landingX - bounded) <= item.w / 2) return "fits";
+  let end = 0;
+  for (const other of sortGridItems(items.filter((candidate) => candidate.y === lane && candidate.id !== item.id))) {
+    if (other.x - end >= item.w - 1e-9) return "blocked";
+    end = Math.max(end, other.x + other.w);
+  }
+  return columns - end >= item.w - 1e-9 ? "blocked" : "row-full";
+};
+
 export const canPlaceGridItem = (
   candidate: GridLayoutItem,
   items: GridLayoutItem[],
