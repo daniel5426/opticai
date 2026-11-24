@@ -51,6 +51,8 @@ export interface RegularOrderPrintModel {
   delivered_date: string;
   manufacturing_lab: string;
   r_sph: string;
+  /** SPH includes the addition (far SPH + ADD); its heading says so. */
+  sph_with_add?: boolean;
   r_cyl: string;
   r_ax: string;
   r_pris: string;
@@ -59,6 +61,7 @@ export interface RegularOrderPrintModel {
   r_diam: string;
   r_high: string;
   r_pd: string;
+  r_pd_close?: string;
   l_sph: string;
   l_cyl: string;
   l_ax: string;
@@ -68,7 +71,9 @@ export interface RegularOrderPrintModel {
   l_diam: string;
   l_high: string;
   l_pd: string;
+  l_pd_close?: string;
   comb_pd: string;
+  comb_pd_close?: string;
   multifocal_block: string;
   lens_tab_type: string;
   r_lens_model: string;
@@ -149,6 +154,10 @@ export interface ContactOrderPrintModel {
   l_cyl: string;
   l_ax: string;
   l_read_add: string;
+  r_va?: string;
+  l_va?: string;
+  r_j?: string;
+  l_j?: string;
   cleaning_solution: string;
   disinfection_solution: string;
   rinsing_solution: string;

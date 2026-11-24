@@ -1,14 +1,11 @@
-import { docxGenerator } from "@/lib/docx-generator";
+import { saveAs } from "file-saver";
+import { buildOrderForm } from "./order-form";
+import { orderFormDocx } from "./render-order-word";
 import type {
   ContactOrderPrintModel,
   OrderExportKind,
   RegularOrderPrintModel,
 } from "./types";
-
-const TEMPLATE_PATHS: Record<OrderExportKind, string> = {
-  regular: "/templates/regular-order.docx",
-  contact: "/templates/contact-order.docx",
-};
 
 function buildFileName(
   kind: OrderExportKind,
@@ -30,10 +27,6 @@ export async function renderOrderDocx({
   kind: OrderExportKind;
   data: RegularOrderPrintModel | ContactOrderPrintModel;
 }) {
-  await docxGenerator.generate(
-    data,
-    buildFileName(kind, data),
-    TEMPLATE_PATHS[kind],
-    { preserveTemplateDirection: true },
-  );
+  // The same paper-form layout as the printed order.
+  saveAs(orderFormDocx(buildOrderForm(kind, data)), buildFileName(kind, data));
 }

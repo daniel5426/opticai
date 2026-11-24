@@ -332,15 +332,10 @@ export function OrdersTable({
       if (printingPdfIds[exportKey]) return
 
       setPrintingPdfIds((prev) => ({ ...prev, [exportKey]: true }))
-      const result = await printOrderPdf({
+      await printOrderPdf({
         orderId: order.id,
         kind
       })
-      if (result.success) {
-        toast.success("PDF נפתח להדפסה")
-      } else {
-        throw new Error(result.error || "Print failed")
-      }
     } catch (error) {
       console.error("Error printing PDF:", error)
       toast.error("שגיאה בהדפסה")

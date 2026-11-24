@@ -1,33 +1,11 @@
-import i18n from "@/localization/i18n";
 import { exportHtmlToPdf, printHtml } from "@/lib/pdf-exporter";
 import type {
   ContactOrderPrintModel,
   OrderExportKind,
   RegularOrderPrintModel,
 } from "./types";
+import { buildOrderForm, type FormBlock, type FormPair, type FormValue, type OrderForm } from "./order-form";
 
-type FieldPair = [string, string | undefined | null];
-
-function getLogoUrl(): string {
-  if (typeof window === "undefined") return "";
-  return new URL("logo-name.png", window.location.href).toString();
-}
-
-async function getLogoDataUrl(): Promise<string> {
-  try {
-    const response = await fetch(getLogoUrl());
-    if (!response.ok) return getLogoUrl();
-    const blob = await response.blob();
-    return await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(blob);
-    });
-  } catch {
-    return getLogoUrl();
-  }
-}
 
 function htmlText(value?: string | number | null): string {
   return String(value ?? "")
@@ -37,12 +15,6 @@ function htmlText(value?: string | number | null): string {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;")
     .replace(/\n/g, "<br />");
-}
-
-function billingItemsTable(data: RegularOrderPrintModel | ContactOrderPrintModel): string {
-  const rows = data.line_items_rows?.filter(row => row.line_index);
-  if (!rows?.length) return "";
-  return `${sectionTitle(i18n.t("orderGroupBillingItems"))}<table dir="${i18n.dir()}" style="text-align:start"><thead><tr><th>${htmlText(i18n.t("orderGroupDescription"))}</th><th>${htmlText(i18n.t("orderGroupAmount"))}</th></tr></thead><tbody>${rows.map(row => `<tr><td>${htmlText(row.line_description)}</td><td dir="ltr">${htmlText(row.line_total)}</td></tr>`).join("")}</tbody></table>`;
 }
 
 function buildPdfFileName(
@@ -58,380 +30,151 @@ function buildPdfFileName(
   return `${parts.join("_")}.pdf`;
 }
 
+// Light and compact: hairlines between rows, muted labels, no boxes.
 const PDF_CSS = `
-  @page { size: A4; margin: 10mm 15.8mm; }
+  @page { size: A4; margin: 12mm 14mm; }
   * { box-sizing: border-box; }
   html, body {
     margin: 0;
     padding: 0;
     direction: rtl;
-    color: #18181b;
-    font-family: Assistant, Arial, sans-serif;
+    color: #111;
+    font-family: Arial, Assistant, sans-serif;
     font-size: 12px;
-    line-height: 1.4;
+    line-height: 1.3;
   }
   body {
     background: #fff;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  .header {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    align-items: center;
-    margin-bottom: 8px;
+  .head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+    padding-bottom: 6px;
+    margin-bottom: 10px;
+    border-bottom: 1.5px solid #111;
   }
-  .logo-wrap {
-    text-align: left;
-  }
-  .logo {
-    width: 128px;
-    height: 128px;
-    object-fit: contain;
-  }
-  h1 {
-    margin: 0 0 6px;
-    font-size: 26px;
-    line-height: 1.1;
-    font-weight: 700;
-    text-align: right;
-  }
-  .branch {
-    color: #71717a;
-    font-size: 12px;
-    font-weight: 700;
-    text-align: right;
-  }
-  .spacer { height: 4px; }
-  h2 {
-    margin: 7px 0 2px;
-    font-size: 14px;
-    line-height: 1.2;
-    text-align: right;
-    font-weight: 700;
-    break-after: avoid;
-  }
+  .head .title { font-size: 19px; font-weight: 700; white-space: nowrap; }
+  .head .meta { font-size: 10.5px; color: #666; text-align: end; }
+  .name { font-size: 17px; font-weight: 700; margin-bottom: 2px; }
   table {
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
-    border: 1px solid #e4e4e7;
     break-inside: avoid;
-    margin: 0;
   }
-  td, th {
-    border: 1px solid #e4e4e7;
-    padding: 5px 8px;
-    height: 29px;
+  .info { margin-bottom: 8px; }
+  .info td { padding: 2px 0; vertical-align: top; }
+  .k { color: #666; font-size: 11px; margin-inline-end: 5px; }
+  .section { margin-top: 14px; break-inside: avoid; }
+  h2 { font-size: 12.5px; font-weight: 700; margin: 0 0 3px; }
+  .grid th, .grid td {
+    padding: 4px 5px;
+    text-align: center;
     vertical-align: middle;
-    text-align: right;
-    font-weight: 400;
+    overflow-wrap: anywhere;
+    border-bottom: 1px solid #ddd;
   }
-	  th, .label {
-	    color: #52525b;
-	    font-weight: 700;
-	  }
-	  .value {
-	    color: #18181b;
-	    font-size: 12px;
-	  }
-	  .section-cell {
-	    color: #18181b;
-	    text-align: center;
-	    font-weight: 700;
-	  }
-  .center { text-align: center; }
-  .eye-table {
-    direction: rtl;
-  }
-  .eye-table tr:first-child > *,
-  .eye-table tr > :first-child {
-    background: #f4f4f5;
-  }
-  .field-cell {
-    height: 36px;
-    padding: 2px 8px 3px;
-    vertical-align: middle;
-  }
-  .field-label {
-    color: #52525b;
-    font-size: 10px;
-    line-height: 1.2;
-    font-weight: 700;
-    margin-bottom: 0;
-  }
-  .field-value {
-    color: #18181b;
-    font-size: 13px;
-    line-height: 1.25;
-    min-height: 14px;
-  }
-  .ltr {
-    direction: ltr;
-    unicode-bidi: isolate;
-  }
-  .notes td {
-    vertical-align: top;
-    height: 72px;
-    padding: 7px 9px;
-  }
-  .note-title {
-    font-size: 12px;
-    font-weight: 700;
-    margin-bottom: 6px;
-  }
-  .note-body {
-    white-space: pre-wrap;
-    font-size: 12px;
-  }
+  .grid th { background: #f3f3f3; color: #555; font-size: 10.5px; font-weight: 700; border-bottom: 0; }
+  .grid .eye { width: 28px; font-weight: 700; }
+  .grid[dir=ltr] td { direction: rtl; }
+  .section + .info { margin-top: 8px; }
+  .grid .start { text-align: start; }
+  .charges { margin-top: 10px; background: #f3f3f3; }
+  .charges td { padding: 6px 8px; font-weight: 700; }
+  .charges .k { font-weight: 400; }
+  .notes { white-space: pre-wrap; }
+  .ltr { direction: ltr; unicode-bidi: isolate; }
 `;
 
-function documentHtml(title: string, clinicInfo: string, body: string, logoUrl = getLogoUrl()) {
+// English, numbers and codes keep their own order inside the right-to-left form ("1.6 DEFENDER", "-4.75").
+const isLtrText = (value: string) => !/[֐-׿]/.test(value) && /[A-Za-z0-9]/.test(value);
+
+function valueHtml(value?: FormValue): string {
+  if (Array.isArray(value)) return value.map((item) => `<span class="ltr">${htmlText(item)}</span>`).join(" · ");
+  const text = htmlText(value);
+  return value && isLtrText(value) ? `<span class="ltr">${text}</span>` : text;
+}
+
+const pairHtml = ([label, value]: FormPair) => `<td><span class="k">${htmlText(label)}</span>${valueHtml(value)}</td>`;
+
+function pairRows(pairs: FormPair[], perRow: number) {
+  const rows: string[] = [];
+  for (let index = 0; index < pairs.length; index += perRow) {
+    const cells = pairs.slice(index, index + perRow).map(pairHtml);
+    while (cells.length < perRow) cells.push("<td></td>");
+    rows.push(`<tr>${cells.join("")}</tr>`);
+  }
+  return rows.join("");
+}
+
+function blockHtml(block: FormBlock): string {
+  if (block.type === "info") {
+    const name = block.name ? `<div class="name">${htmlText(block.name)}</div>` : "";
+    return `${name}${block.pairs.length ? `<table class="info">${pairRows(block.pairs, 3)}</table>` : ""}`;
+  }
+  if (block.type === "charges") return `<table class="charges">${pairRows(block.pairs, block.pairs.length)}</table>`;
+  if (block.type === "notes") {
+    return `<div class="section"><h2>הערות</h2>${block.notes
+      .map(([label, value]) => `<div class="notes"><span class="k">${htmlText(label)}</span>${htmlText(value as string)}</div>`)
+      .join("")}</div>`;
+  }
+  const eye = block.eyes ? '<th class="eye"></th>' : "";
+  const labels = block.labels
+    .map((label, index) => `<th${block.widths ? ` style="width:${block.widths[index]}%"` : ""}${block.widths && index === 0 ? ' class="start"' : ""}>${htmlText(label)}</th>`)
+    .join("");
+  const rows = block.rows
+    .map((values, index) => `<tr>${block.eyes ? `<td class="eye">${index ? "L" : "R"}</td>` : ""}${values
+      .map((value, column) => `<td${block.widths && column === 0 ? ' class="start"' : ""}>${valueHtml(value)}</td>`)
+      .join("")}</tr>`)
+    .join("");
+  return `<div class="section"><h2>${htmlText(block.title)}</h2><table class="grid"${block.eyes ? ' dir="ltr"' : ""}>
+    <tr>${eye}${labels}</tr>
+    ${rows}
+  </table></div>`;
+}
+
+function formHtml(form: OrderForm) {
   return `<!doctype html>
     <html dir="rtl" lang="he">
       <head>
         <meta charset="utf-8" />
-        <title>${htmlText(title)}</title>
+        <title>${htmlText(form.title)}</title>
         <style>${PDF_CSS}</style>
       </head>
       <body>
-        <header class="header">
-          <div>
-            <h1>${htmlText(title)}</h1>
-            <div class="branch">סניף: ${htmlText(clinicInfo)}</div>
-          </div>
-          <div class="logo-wrap"><img class="logo" src="${htmlText(logoUrl)}" /></div>
-        </header>
-        ${body}
+        <div class="head">
+          <span class="title">${htmlText(form.title)} ${htmlText(form.number)}</span>
+          <span class="meta">${htmlText(form.clinic)}${form.clinic ? " · " : ""}הודפס ${htmlText(form.printDate)}</span>
+        </div>
+        ${form.blocks.map(blockHtml).join("")}
       </body>
     </html>`;
 }
 
-function sectionTitle(title: string) {
-  return `<h2>${htmlText(title)}</h2>`;
+export function renderRegularOrderPdfHtml(data: RegularOrderPrintModel, includeBilling = true): string {
+  return formHtml(buildOrderForm("regular", data, includeBilling));
 }
 
-function chunk<T>(items: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let i = 0; i < items.length; i += size) {
-    chunks.push(items.slice(i, i + size));
-  }
-  return chunks;
-}
-
-function valueClass(value?: string | null) {
-  return /[\u200e+-]\d/.test(value || "") ? "value ltr" : "value";
-}
-
-function combinedFieldTable(items: FieldPair[], columns = 3) {
-  const rows = chunk(items, columns)
-    .map((rowItems) => {
-      const cells = rowItems.map(([label, value]) => `
-        <td class="field-cell">
-          <div class="field-label">${htmlText(label)}</div>
-          <div class="field-value ${valueClass(value)}">${htmlText(value)}</div>
-        </td>
-      `);
-      while (cells.length < columns) {
-        cells.push('<td class="field-cell"></td>');
-      }
-      return `<tr>${cells.join("")}</tr>`;
-    })
-    .join("");
-
-  return `<table class="field-table">${rows}</table>`;
-}
-
-function eyeTable(
-  rowLabelTitle: string,
-  labels: string[],
-  rightValues: string[],
-  leftValues: string[],
-) {
-  const headerCells = [...labels]
-    .map((label) => `<th class="label center">${htmlText(label)}</th>`)
-    .join("");
-  const valueCells = (values: string[]) =>
-    values
-      .map((value) => `<td class="${valueClass(value)} center">${htmlText(value)}</td>`)
-      .join("");
-
-  return `<table class="eye-table">
-    <tr><th class="section-cell">${htmlText(rowLabelTitle)}</th>${headerCells}</tr>
-    <tr><th class="label center">ימין</th>${valueCells(rightValues)}</tr>
-    <tr><th class="label center">שמאל</th>${valueCells(leftValues)}</tr>
-  </table>`;
-}
-
-function comparisonTable(headers: string[], rightValues: string[], leftValues: string[]) {
-  return eyeTable("עין", headers, rightValues, leftValues);
-}
-
-function notesRow(
-  rightTitle: string,
-  rightValue: string,
-  leftTitle: string,
-  leftValue: string,
-) {
-  return `<table class="notes">
-    <tr>
-      <td class="value">
-        <div class="note-title">${htmlText(rightTitle)}</div>
-        <div class="note-body">${htmlText(rightValue)}</div>
-      </td>
-      <td class="value">
-        <div class="note-title">${htmlText(leftTitle)}</div>
-        <div class="note-body">${htmlText(leftValue)}</div>
-      </td>
-    </tr>
-  </table>`;
-}
-
-export function renderRegularOrderPdfHtml(data: RegularOrderPrintModel, logoUrl?: string, includeBilling = true): string {
-  const body = [
-    '<div class="spacer"></div>',
-    combinedFieldTable([
-      ["מס' הזמנה", data.order_number],
-      ["מס' שקית", data.bag_number],
-      ["תאריך הזמנה", data.order_date],
-      ["תאריך אישור", data.approval_date],
-      ["סטטוס", data.order_status],
-      ["עדיפות", data.priority],
-      ["אספקה", data.delivery_clinic_name],
-      ["הובטח", data.promised_date],
-    ]),
-    sectionTitle("פרטי לקוח"),
-    combinedFieldTable([
-      ["שם לקוח", data.client_name],
-      ["ת.ז", data.client_id],
-      ["נייד", data.phone_mobile],
-      ["טלפון בית", data.phone_home],
-      ["טלפון עבודה", data.phone_work],
-      ["כתובת", data.client_address],
-    ], 3),
-    sectionTitle("צוות ותפעול"),
-    combinedFieldTable([
-      ["אופטומטריסט", data.optician_name],
-      ["יועץ", data.advisor_name],
-      ["נמסר על ידי", data.delivered_by],
-      ["תאריך מסירה", data.delivered_date],
-      ["מעבדה", data.manufacturing_lab],
-      ["סוג טאב", data.lens_tab_type],
-    ], 3),
-    sectionTitle("מרשם"),
-    eyeTable(
-      "עין",
-      ["גובה", "PD", "ADD", "BASE", "PRISM", "AX", "CYL", "SPH"],
-      [data.r_high, data.r_pd, data.r_add, data.r_base, data.r_pris, data.r_ax, data.r_cyl, data.r_sph],
-      [data.l_high, data.l_pd, data.l_add, data.l_base, data.l_pris, data.l_ax, data.l_cyl, data.l_sph],
-    ),
-    '<div class="spacer"></div>',
-    combinedFieldTable([["PD משולב", data.comb_pd], ["רב מוקדי", data.multifocal_block]], 2),
-    sectionTitle("פרטי עדשות"),
-    comparisonTable(
-      ["דגם", "ספק", "חומר", "ציפוי", "צבע", "קוטר"],
-      [data.r_lens_model, data.r_lens_supplier, data.r_lens_material, data.r_lens_coating, data.r_lens_color, data.r_lens_diameter],
-      [data.l_lens_model, data.l_lens_supplier, data.l_lens_material, data.l_lens_coating, data.l_lens_color, data.l_lens_diameter],
-    ),
-    sectionTitle("מסגרת"),
-    combinedFieldTable([
-      ["ספק", data.frame_supplier],
-      ["מותג", data.frame_brand],
-      ["דגם", data.frame_model],
-      ["צבע", data.frame_color],
-      ["רוחב", data.frame_width],
-      ["גשר", data.frame_bridge],
-      ["גובה", data.frame_height],
-      ["אורך זרוע", data.frame_length],
-      ["סופק על ידי", data.frame_supplied_by],
-    ], 3),
-    ...(includeBilling ? [billingItemsTable(data), sectionTitle("סיכום כספי"),
-    combinedFieldTable([
-      ['סה"כ', data.total_price],
-      ["שולם", data.amount_paid],
-      ["יתרה", data.balance_due],
-      ["סטטוס תשלום", data.payment_status],
-    ], 4)] : []),
-    notesRow("הערות קליניות", data.clinic_notes, "הערות לספק", data.supplier_notes),
-  ].join("");
-
-  return documentHtml("הזמנה רגילה", data.clinic_info || data.clinic_name, body, logoUrl);
-}
-
-export function renderContactOrderPdfHtml(data: ContactOrderPrintModel, logoUrl?: string, includeBilling = true): string {
-  const body = [
-    '<div class="spacer"></div>',
-    combinedFieldTable([
-      ["מס' הזמנה", data.order_number],
-      ["תאריך הזמנה", data.order_date],
-      ["סטטוס", data.order_status],
-      ["עדיפות", data.priority],
-      ["אספקה", data.supply_clinic_name],
-      ["הובטח", data.guaranteed_date],
-      ["אושר", data.approval_date],
-      ["נמסר", data.delivery_date],
-    ]),
-    sectionTitle("פרטי לקוח"),
-    combinedFieldTable([
-      ["שם לקוח", data.client_name],
-      ["ת.ז", data.client_id],
-      ["נייד", data.phone_mobile],
-      ["טלפון בית", data.phone_home],
-      ["טלפון עבודה", data.phone_work],
-      ["כתובת", data.client_address],
-    ], 3),
-    sectionTitle("צוות ותפעול"),
-    combinedFieldTable([
-      ["אופטומטריסט", data.optician_name],
-      ["יועץ", data.advisor_name],
-      ["מוסר עבודה", data.deliverer_name],
-    ], 3),
-    sectionTitle("פרטי עדשות"),
-    comparisonTable(
-      ["סוג", "דגם", "ספק", "חומר", "צבע", "כמות"],
-      [data.r_lens_type, data.r_model, data.r_supplier, data.r_material, data.r_color, data.r_quantity],
-      [data.l_lens_type, data.l_model, data.l_supplier, data.l_material, data.l_color, data.l_quantity],
-    ),
-    sectionTitle("מרשם עדשות מגע"),
-    eyeTable(
-      "עין",
-      ["BC", "OZ", "DIAM", "SPH", "CYL", "AX", "READ/ADD"],
-      [data.r_bc, data.r_oz, data.r_diam, data.r_sph, data.r_cyl, data.r_ax, data.r_read_add],
-      [data.l_bc, data.l_oz, data.l_diam, data.l_sph, data.l_cyl, data.l_ax, data.l_read_add],
-    ),
-    sectionTitle("תמיסות"),
-    combinedFieldTable([
-      ["ניקוי", data.cleaning_solution],
-      ["חיטוי", data.disinfection_solution],
-      ["שטיפה", data.rinsing_solution],
-    ], 3),
-    ...(includeBilling ? [billingItemsTable(data), sectionTitle("סיכום כספי"),
-    combinedFieldTable([
-      ['סה"כ', data.total_price],
-      ["שולם", data.amount_paid],
-      ["יתרה", data.balance_due],
-      ["סטטוס תשלום", data.payment_status],
-    ], 4)] : []),
-    notesRow("הערות קליניות", data.clinic_notes, "הערות לספק", data.supplier_notes),
-  ].join("");
-
-  return documentHtml("הזמנת עדשות מגע", data.clinic_info || data.clinic_name, body, logoUrl);
+export function renderContactOrderPdfHtml(data: ContactOrderPrintModel, includeBilling = true): string {
+  return formHtml(buildOrderForm("contact", data, includeBilling));
 }
 
 export function renderOrderPdfHtml({
   kind,
   data,
-  logoUrl,
   includeBilling = true,
 }: {
   kind: OrderExportKind;
   data: RegularOrderPrintModel | ContactOrderPrintModel;
-  logoUrl?: string;
   includeBilling?: boolean;
 }) {
   return kind === "contact"
-    ? renderContactOrderPdfHtml(data as ContactOrderPrintModel, logoUrl, includeBilling)
-    : renderRegularOrderPdfHtml(data as RegularOrderPrintModel, logoUrl, includeBilling);
+    ? renderContactOrderPdfHtml(data as ContactOrderPrintModel, includeBilling)
+    : renderRegularOrderPdfHtml(data as RegularOrderPrintModel, includeBilling);
 }
 
 export async function renderOrderPdf({
@@ -441,8 +184,7 @@ export async function renderOrderPdf({
   kind: OrderExportKind;
   data: RegularOrderPrintModel | ContactOrderPrintModel;
 }) {
-  const logoUrl = await getLogoDataUrl();
-  return exportHtmlToPdf(renderOrderPdfHtml({ kind, data, logoUrl }), buildPdfFileName(kind, data));
+  return exportHtmlToPdf(renderOrderPdfHtml({ kind, data }), buildPdfFileName(kind, data));
 }
 
 export async function printOrderPdf({
@@ -452,6 +194,5 @@ export async function printOrderPdf({
   kind: OrderExportKind;
   data: RegularOrderPrintModel | ContactOrderPrintModel;
 }) {
-  const logoUrl = await getLogoDataUrl();
-  return printHtml(renderOrderPdfHtml({ kind, data, logoUrl }), buildPdfFileName(kind, data));
+  return printHtml(renderOrderPdfHtml({ kind, data }));
 }

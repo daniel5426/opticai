@@ -1,18 +1,20 @@
 import React, { useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Edit, Eye, Glasses, Loader2, MoreVertical, Plus, Printer, Receipt, Save } from "lucide-react";
+import { Edit, Eye, FileText, Glasses, Loader2, MoreVertical, Plus, Printer, Receipt, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { OrderSheetSkeleton } from "@/components/orders/OrderSheetSkeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { Client } from "@/lib/db/schema-interface";
 import type { OrderKind } from "@/lib/order-groups";
 import { OrderMetaFields, type OrderMetaValues } from "@/components/orders/OrderMetaStrip";
 import { formatIsoDate } from "@/lib/iso-date";
+import { toast } from "sonner";
 import { cn } from "@/utils/tailwind";
 
 export interface OrderTabEntry {
@@ -204,8 +206,12 @@ export function OrderGroupTabs({
 interface OrderGroupToolbarProps {
   direction: "rtl" | "ltr";
   printDisabled: boolean;
+  /** Why printing must wait (unsaved changes): the button looks disabled and, when clicked, says so. */
+  printBlockedReason?: string;
   printing: boolean;
   onPrint: (all: boolean) => void;
+  /** Saves the current order as a Word document. */
+  onExportWord?: () => void;
   billingOpen: boolean;
   billingDisabled: boolean;
   onToggleBilling: () => void;
@@ -218,8 +224,10 @@ interface OrderGroupToolbarProps {
 export function OrderGroupToolbar({
   direction,
   printDisabled,
+  printBlockedReason,
   printing,
   onPrint,
+  onExportWord,
   billingOpen,
   billingDisabled,
   onToggleBilling,
@@ -233,6 +241,19 @@ export function OrderGroupToolbar({
 
   return (
     <div className="flex shrink-0 items-center gap-1.5 pb-1.5">
+      {printBlockedReason ? (
+        <Button
+          variant="outline"
+          size="icon"
+          aria-disabled="true"
+          aria-label={t("orderGroupPrint")}
+          title={printBlockedReason}
+          className="opacity-50"
+          onClick={() => toast.info(printBlockedReason)}
+        >
+          <Printer className="size-4" />
+        </Button>
+      ) : (
       <DropdownMenu dir={direction}>
         <DropdownMenuTrigger asChild>
           <Button
@@ -248,8 +269,18 @@ export function OrderGroupToolbar({
         <DropdownMenuContent align="end">
           <DropdownMenuItem onSelect={() => onPrint(false)}>{t("orderGroupPrintActive")}</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => onPrint(true)}>{t("orderGroupPrintAll")}</DropdownMenuItem>
+          {onExportWord && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={onExportWord}>
+                <FileText className="size-4" />
+                {t("orderGroupExportWord")}
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
+      )}
       <Button
         variant={billingOpen ? "secondary" : "outline"}
         size="icon"

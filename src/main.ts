@@ -1680,51 +1680,6 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle('print-html', async (_event, payload: { html: string; defaultFileName?: string }) => {
-    const printWindow = new BrowserWindow({
-      show: false,
-      webPreferences: {
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: true,
-      },
-    });
-
-    try {
-      await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(payload.html)}`);
-      await printWindow.webContents.executeJavaScript(
-        "document.fonts && document.fonts.ready ? document.fonts.ready.then(() => true) : true",
-      );
-
-      const pdfData = await printWindow.webContents.printToPDF({
-        pageSize: "A4",
-        printBackground: true,
-        preferCSSPageSize: true,
-      });
-
-      const tempDir = await fs.promises.mkdtemp(path.join(app.getPath("temp"), "opticai-print-"));
-      const filePath = path.join(tempDir, sanitizePdfFileName(payload.defaultFileName || "print-preview.pdf"));
-      await fs.promises.writeFile(filePath, pdfData);
-
-      const openError = await shell.openPath(filePath);
-      if (openError) {
-        return { success: false, error: openError };
-      }
-
-      return { success: true, filePath };
-    } catch (error) {
-      console.error("Error printing HTML:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    } finally {
-      if (!printWindow.isDestroyed()) {
-        printWindow.close();
-      }
-    }
-  });
-
   // Server Mode operations removed - using FastAPI backend instead
 
   // Removed AI IPC handlers; AI moved to backend

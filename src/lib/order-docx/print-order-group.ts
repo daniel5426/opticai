@@ -14,5 +14,5 @@ export async function printOrderGroup(entries: GroupEntry[]) {
   const styles=Array.from(documents[0].querySelectorAll('style')).map(style=>style.textContent).join('\n');
   const pages=documents.map(document=>`<section class="group-print-page">${document.body.innerHTML}</section>`).join('');
   const html=`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8"><style>${styles}\n.group-print-page{break-after:page}.group-print-page:last-child{break-after:auto}</style></head><body>${pages}</body></html>`;
-  return printHtml(html,'order-group.pdf');
+  return printHtml(html);
 }

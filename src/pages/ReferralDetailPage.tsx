@@ -530,12 +530,7 @@ export default function ReferralDetailPage() {
       }
 
       setIsPrintInFlight(true);
-      const result = await printReferralPdf({ referralId: referralIdToExport });
-      if (result.success) {
-        toast.success("PDF נפתח להדפסה");
-      } else {
-        throw new Error(result.error || "Print failed");
-      }
+      await printReferralPdf({ referralId: referralIdToExport });
     } catch (error) {
       console.error("Error printing referral PDF:", error);
       toast.error("שגיאה בהדפסה");

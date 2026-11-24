@@ -155,7 +155,11 @@
     "orderItemSourceContactDetails": "Lens details from an earlier order",
     "orderItemSourceNoFrame": "No frame details in this order",
     "orderItemSourceNoLenses": "No lens details in this order",
-    "orderItemSourceNoContactDetails": "No lens details in this order"
+    "orderItemSourceNoContactDetails": "No lens details in this order",
+    "orderGroupExportWord": "Export current order to Word",
+    "orderGroupExportWordDone": "The order was exported to Word",
+    "orderGroupExportWordError": "Could not export the order to Word.",
+    "orderGroupSaveBeforePrint": "Save the order to print it."
   },
   "he": {
     "orderPrescriptionFinalTitle": "מרשם סופי",
@@ -314,7 +318,11 @@
     "orderItemSourceContactDetails": "פרטי עדשות מהזמנה קודמת",
     "orderItemSourceNoFrame": "אין בהזמנה זו פרטי מסגרת",
     "orderItemSourceNoLenses": "אין בהזמנה זו פרטי עדשות",
-    "orderItemSourceNoContactDetails": "אין בהזמנה זו פרטי עדשות"
+    "orderItemSourceNoContactDetails": "אין בהזמנה זו פרטי עדשות",
+    "orderGroupExportWord": "ייצוא הזמנה נוכחית ל־Word",
+    "orderGroupExportWordDone": "ההזמנה יוצאה ל־Word",
+    "orderGroupExportWordError": "לא ניתן לייצא את ההזמנה ל־Word.",
+    "orderGroupSaveBeforePrint": "יש לשמור את ההזמנה כדי להדפיס אותה."
   },
   "fr": {
     "orderPrescriptionFinalTitle": "Prescription finale",
@@ -472,6 +480,10 @@
     "orderItemSourceContactDetails": "Détails des lentilles d'une commande précédente",
     "orderItemSourceNoFrame": "Aucune monture dans cette commande",
     "orderItemSourceNoLenses": "Aucun verre dans cette commande",
-    "orderItemSourceNoContactDetails": "Aucun détail de lentilles dans cette commande"
+    "orderItemSourceNoContactDetails": "Aucun détail de lentilles dans cette commande",
+    "orderGroupExportWord": "Exporter la commande actuelle vers Word",
+    "orderGroupExportWordDone": "La commande a été exportée vers Word",
+    "orderGroupExportWordError": "Impossible d’exporter la commande vers Word.",
+    "orderGroupSaveBeforePrint": "Enregistrez la commande pour l’imprimer."
   }
 }

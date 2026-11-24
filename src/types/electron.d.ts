@@ -173,10 +173,6 @@ export interface ElectronAPI {
     html: string;
     defaultFileName: string;
   }) => Promise<{ success: boolean; canceled?: boolean; filePath?: string; error?: string }>;
-  printHtml: (payload: {
-    html: string;
-    defaultFileName?: string;
-  }) => Promise<{ success: boolean; filePath?: string; error?: string }>;
   onUserLogoutBeforeClose: (callback: () => Promise<void> | void) => () => void;
   onAuthCallbackUrl: (callback: (url: string) => void) => () => void;
   onDownloadProgress: (callback: (progress: { percent: number; transferred: number; total: number; bytesPerSecond: number }) => void) => () => void;

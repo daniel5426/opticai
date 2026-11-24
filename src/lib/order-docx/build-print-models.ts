@@ -1,3 +1,4 @@
+import { sphAdditionFor } from "@/lib/addition-add-sources";
 import i18n from "@/localization/i18n";
 import { isDiscountLine } from "@/lib/discounts";
 import type { ContactLensOrderEntity, OrderLineItem } from "@/lib/db/schema-interface";
@@ -202,6 +203,8 @@ export function buildRegularOrderPrintModel(
     delivered_date: formatDate(details.delivered_at),
     manufacturing_lab: toDisplayString(details.manufacturing_lab),
     r_sph: formatOpticalNumber(finalPrescription.r_sph),
+    // SPH took the near or intermediate addition (far SPH + ADD), as the order card marks it.
+    sph_with_add: (["R", "L"] as const).some((eye) => sphAdditionFor(finalPrescription, eye)),
     r_cyl: formatOpticalNumber(finalPrescription.r_cyl),
     r_ax: formatAxis(finalPrescription.r_ax),
     r_pris: formatOpticalNumber(finalPrescription.r_pris),
@@ -210,6 +213,7 @@ export function buildRegularOrderPrintModel(
     r_diam: formatPlainNumber(finalPrescription.r_diam),
     r_high: formatPlainNumber(finalPrescription.r_high),
     r_pd: formatPlainNumber(finalPrescription.r_pd_far ?? finalPrescription.r_pd),
+    r_pd_close: formatPlainNumber(finalPrescription.r_pd_close),
     l_sph: formatOpticalNumber(finalPrescription.l_sph),
     l_cyl: formatOpticalNumber(finalPrescription.l_cyl),
     l_ax: formatAxis(finalPrescription.l_ax),
@@ -219,7 +223,9 @@ export function buildRegularOrderPrintModel(
     l_diam: formatPlainNumber(finalPrescription.l_diam),
     l_high: formatPlainNumber(finalPrescription.l_high),
     l_pd: formatPlainNumber(finalPrescription.l_pd_far ?? finalPrescription.l_pd),
+    l_pd_close: formatPlainNumber(finalPrescription.l_pd_close),
     comb_pd: formatPlainNumber(order.comb_pd || finalPrescription.comb_pd_far || finalPrescription.comb_pd),
+    comb_pd_close: formatPlainNumber(finalPrescription.comb_pd_close),
     multifocal_block: buildMultifocalBlock(finalPrescription),
     lens_tab_type: toDisplayString(activeLensFrameTab?.type),
     r_lens_model: getLensValue(lens.right_model, lens.model),
@@ -323,6 +329,10 @@ export function buildContactOrderPrintModel(
     l_cyl: formatOpticalNumber(contactExam.l_cyl),
     l_ax: formatAxis(contactExam.l_ax),
     l_read_add: formatOpticalNumber(contactExam.l_read_ad),
+    r_va: toDisplayString(contactExam.r_va),
+    l_va: toDisplayString(contactExam.l_va),
+    r_j: toDisplayString(contactExam.r_j),
+    l_j: toDisplayString(contactExam.l_j),
     cleaning_solution: toDisplayString(order.cleaning_solution),
     disinfection_solution: toDisplayString(order.disinfection_solution),
     rinsing_solution: toDisplayString(order.rinsing_solution),
