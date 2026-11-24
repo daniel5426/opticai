@@ -497,7 +497,8 @@ export function ClientDetailsTab({
           </div>
 
           <div className="bg-card rounded-lg examcard p-6 lg:order-2" dir={direction}>
-            <div className="flex items-center gap-3 mb-6" dir={direction}>
+            <div className="@container mb-6" dir={direction}>
+            <div className="flex flex-wrap items-center gap-3 @[22rem]:flex-nowrap">
               <div className="p-2 bg-muted rounded-lg">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
                   <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
@@ -505,10 +506,10 @@ export function ClientDetailsTab({
               </div>
               <h3 className="text-lg font-semibold whitespace-nowrap">פרטי התקשרות</h3>
               {/* Per-client opt-in for notifications; off unless set (or imported as on). */}
-              {/* Stays on the title row; the label wraps to two lines when the card is narrow. */}
-              <label className="text-muted-foreground ms-auto flex min-w-0 items-center gap-2 text-xs">
-                <span className="min-w-0 leading-tight">{t("clientSendNotifications")}</span>
-                <span className="text-foreground min-w-5 shrink-0 font-medium">
+              {/* Narrower cards drop the yes/no word, then break the label into two lines, then move it below the title. */}
+              <label className="text-muted-foreground ms-auto flex items-center gap-2 text-xs">
+                <span className="leading-tight">{t("clientSendNotifications")}</span>
+                <span className="text-foreground hidden min-w-5 shrink-0 font-medium @[24rem]:inline">
                   {t(formData.send_notifications ? "clientSendNotificationsOn" : "clientSendNotificationsOff")}
                 </span>
                 <Switch
@@ -519,6 +520,7 @@ export function ClientDetailsTab({
                   className="shrink-0"
                 />
               </label>
+            </div>
             </div>
             <div className="grid grid-cols-1 @[900px]:grid-cols-2 gap-4" dir={direction}>
               <div className="space-y-2">
