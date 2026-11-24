@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
 import { describe, expect, test, vi } from "vitest";
 import type { LoadedReferralExportContext } from "@/lib/referral-docx";
@@ -22,6 +23,25 @@ const referralTemplateKeys = [
   "l_pris",
   "l_sph",
   "l_va",
+  "old_comb_j",
+  "old_comb_va",
+  "old_l_add",
+  "old_l_ax",
+  "old_l_base",
+  "old_l_cyl",
+  "old_l_j",
+  "old_l_pris",
+  "old_l_sph",
+  "old_l_va",
+  "old_r_add",
+  "old_r_ax",
+  "old_r_base",
+  "old_r_cyl",
+  "old_r_j",
+  "old_r_pris",
+  "old_r_sph",
+  "old_r_va",
+  "old_title",
   "r_add",
   "r_ax",
   "r_base",
@@ -158,6 +178,27 @@ describe("referral-docx print model", () => {
     expect(model.has_referral_notes).toBe(false);
     expect(model.has_clinical_findings).toBe(false);
     expect(model.has_compact_prescription).toBe(false);
+    expect(model.has_old_prescription).toBe(false);
+    expect(renderReferralPdfHtml(model, "logo.png")).not.toContain("מרשם ישן");
+  });
+
+  test("the old prescription is exported before the current one", () => {
+    const context = createReferralContext();
+    context.referral.referral_data!["old-refraction"] = { r_sph: "-2", r_cyl: "-0.5", r_ax: "90", r_va: "6/6-1", l_sph: "Balance", r_ad: "1.5", r_glasses_type: "קרוב" };
+    const model = buildReferralPrintModel(context);
+    expect(model).toMatchObject({ has_old_prescription: true, has_old_comb: false, old_title: "מרשם ישן · קרוב", old_r_sph: `${LTR_MARK}-2.00${LTR_MARK}`, old_l_sph: "Balance", old_r_va: "6/6-1" });
+    const html = renderReferralPdfHtml(model, "logo.png");
+    expect(html.indexOf("מרשם ישן · קרוב")).toBeGreaterThan(0);
+    expect(html.indexOf("מרשם ישן · קרוב")).toBeLessThan(html.indexOf("מרשם / כרטיס בדיקה"));
+    expect(html).not.toContain("J משולב");
+
+    const zip = new PizZip(fs.readFileSync(path.resolve(process.cwd(), "public", "templates", "referral.docx")));
+    const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
+    doc.render(model);
+    const text = doc.getFullText();
+    expect(text).toContain("מרשם ישן · קרוב");
+    expect(text).toContain("6/6-1");
+    expect(text).not.toContain("J משולב");
   });
 
   test("renderReferralPdfHtml mirrors the referral template structure", () => {

@@ -67,6 +67,48 @@ function labelValue(label: string, value: string) {
   return value ? `${label}: ${value}` : "";
 }
 
+/** The referral's old prescription, printed as its card shows it. */
+function oldPrescriptionModel(old: Record<string, any>) {
+  const eye = (side: "r" | "l") => ({
+    sph: formatOpticalNumber(old[`${side}_sph`]),
+    cyl: formatOpticalNumber(old[`${side}_cyl`]),
+    ax: formatAxis(old[`${side}_ax`]),
+    pris: formatOpticalNumber(old[`${side}_pris`]),
+    base: toDisplayString(old[`${side}_base`]),
+    va: formatPlainNumber(old[`${side}_va`]),
+    add: formatOpticalNumber(old[`${side}_ad`]),
+    j: toDisplayString(old[`${side}_j`]),
+  });
+  const r = eye("r");
+  const l = eye("l");
+  const combVa = formatPlainNumber(old.comb_va);
+  const combJ = toDisplayString(old.comb_j);
+  const type = toDisplayString(old.r_glasses_type || old.l_glasses_type);
+  return {
+    has_old_prescription: [...Object.values(r), ...Object.values(l), combVa, combJ].some(Boolean),
+    old_title: type ? `מרשם ישן · ${type}` : "מרשם ישן",
+    old_r_sph: r.sph,
+    old_r_cyl: r.cyl,
+    old_r_ax: r.ax,
+    old_r_pris: r.pris,
+    old_r_base: r.base,
+    old_r_va: r.va,
+    old_r_add: r.add,
+    old_r_j: r.j,
+    old_l_sph: l.sph,
+    old_l_cyl: l.cyl,
+    old_l_ax: l.ax,
+    old_l_pris: l.pris,
+    old_l_base: l.base,
+    old_l_va: l.va,
+    old_l_add: l.add,
+    old_l_j: l.j,
+    has_old_comb: Boolean(combVa || combJ),
+    old_comb_va: combVa,
+    old_comb_j: combJ,
+  };
+}
+
 export function buildReferralPrintModel(
   context: LoadedReferralExportContext,
 ): ReferralPrintModel {
@@ -235,6 +277,7 @@ export function buildReferralPrintModel(
     l_pd: lPd,
     comb_va: combVa,
     comb_pd: combPd,
+    ...oldPrescriptionModel((referralData["old-refraction"] || {}) as Record<string, any>),
     has_signature: Boolean(signatureText),
     signature_text: signatureText,
     signer_name: examinerName,

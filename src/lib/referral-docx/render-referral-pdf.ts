@@ -244,6 +244,18 @@ export function renderReferralPdfHtml(data: ReferralPrintModel, logoUrl?: string
     textLine(data.client_contact, data.has_client_contact),
     data.has_referral_notes ? blockTable("הערות:", data.referral_notes) : "",
     data.has_clinical_findings ? blockTable("ממצאים קליניים:", data.clinical_findings_text) : "",
+    data.has_old_prescription ? sectionTitle(data.old_title) : "",
+    data.has_old_prescription
+      ? eyeTable(
+          "עין",
+          ["SPH", "CYL", "AX", "PRISM", "BASE", "VA", "ADD", "J"],
+          [data.old_r_sph, data.old_r_cyl, data.old_r_ax, data.old_r_pris, data.old_r_base, data.old_r_va, data.old_r_add, data.old_r_j],
+          [data.old_l_sph, data.old_l_cyl, data.old_l_ax, data.old_l_pris, data.old_l_base, data.old_l_va, data.old_l_add, data.old_l_j],
+        )
+      : "",
+    data.has_old_prescription && data.has_old_comb
+      ? kvTable([["VA משולב", data.old_comb_va], ["J משולב", data.old_comb_j]], 2)
+      : "",
     data.has_compact_prescription ? sectionTitle("מרשם / כרטיס בדיקה") : "",
     data.has_compact_prescription
       ? eyeTable(

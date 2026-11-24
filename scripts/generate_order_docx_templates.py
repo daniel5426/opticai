@@ -686,6 +686,20 @@ def build_referral_xml() -> str:
         empty_paragraph(60),
         paragraph(field("/has_clinical_findings"), spacing_after=0),
         
+        paragraph(field("#has_old_prescription"), spacing_after=0),
+        paragraph(field("old_title", size=20, bold=True, color="18181B"), align="center", spacing_before=120, spacing_after=40),
+        eye_table(
+            "עין",
+            ["SPH", "CYL", "AX", "PRISM", "BASE", "VA", "ADD", "J"],
+            [f"old_r_{key}" for key in ("sph", "cyl", "ax", "pris", "base", "va", "add", "j")],
+            [f"old_l_{key}" for key in ("sph", "cyl", "ax", "pris", "base", "va", "add", "j")],
+        ),
+        paragraph(field("#has_old_comb"), spacing_after=0),
+        legacy_kv_table([("VA משולב", "old_comb_va"), ("J משולב", "old_comb_j")], pairs_per_row=2),
+        paragraph(field("/has_old_comb"), spacing_after=0),
+        empty_paragraph(120),
+        paragraph(field("/has_old_prescription"), spacing_after=0),
+
         paragraph(field("#has_compact_prescription"), spacing_after=0),
         section_title("מרשם / כרטיס בדיקה"),
         eye_table(
