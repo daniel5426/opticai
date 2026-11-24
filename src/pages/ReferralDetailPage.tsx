@@ -10,6 +10,7 @@ import React, {
 } from "react";
 import { FileDown, FileText, Loader2, Save, Edit, Printer } from "lucide-react";
 import { useParams, useNavigate, useLocation } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/site-header";
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog";
@@ -67,6 +68,7 @@ import { exportReferralToDocx, exportReferralToPdf, printReferralPdf } from "@/l
 import { sortKeysDeep } from "./exam-detail/utils";
 
 export default function ReferralDetailPage() {
+  const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -714,19 +716,32 @@ export default function ReferralDetailPage() {
                 )}
                 {!isNewReferral && (
                   <>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={handlePrintPdf}
-                      disabled={isPrintInFlight}
-                      title="הדפסה"
-                    >
-                      {isPrintInFlight ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Printer className="h-4 w-4" />
-                      )}
-                    </Button>
+                    <DropdownMenu dir="rtl">
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          disabled={isPrintInFlight || isExportInFlight}
+                          title="הדפסה"
+                        >
+                          {isPrintInFlight || isExportInFlight ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Printer className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={handlePrintPdf}>
+                          <Printer className="ml-2 h-4 w-4" />
+                          הדפסה
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleExportDocx}>
+                          <FileText className="ml-2 h-4 w-4" />
+                          {t("referralExportWord")}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                     <DropdownMenu dir="rtl">
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -958,6 +973,13 @@ export default function ReferralDetailPage() {
                 >
                   <CompactPrescriptionTab
                     data={compactPrescriptionFormData}
+                    title={String((formData.referral_data as any)?.["compact-prescription-title"] || "")}
+                    onTitleChange={(title) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        referral_data: { ...(prev.referral_data || {}), "compact-prescription-title": title },
+                      }))
+                    }
                     onChange={(field, value) =>
                       handleCompactPrescriptionChange(
                         field as keyof CompactPrescriptionExam,

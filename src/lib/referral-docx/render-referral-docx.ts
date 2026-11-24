@@ -1,7 +1,6 @@
-import { docxGenerator } from "@/lib/docx-generator";
+import { saveAs } from "file-saver";
+import { buildReferralWord } from "./render-referral-word";
 import type { ReferralPrintModel } from "./types";
-
-const TEMPLATE_PATH = "/templates/referral.docx";
 
 function buildFileName(data: ReferralPrintModel) {
   const parts = ["הפניה", data.client_name, data.referral_number].filter(Boolean);
@@ -9,5 +8,10 @@ function buildFileName(data: ReferralPrintModel) {
 }
 
 export async function renderReferralDocx(data: ReferralPrintModel) {
-  await docxGenerator.generate(data, buildFileName(data), TEMPLATE_PATH);
+  const blob = buildReferralWord(data).generate({
+    type: "blob",
+    mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    compression: "DEFLATE",
+  });
+  saveAs(blob, buildFileName(data));
 }

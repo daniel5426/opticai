@@ -60,12 +60,14 @@ const PDF_CSS = `
     display: grid;
     grid-template-columns: 1fr 1fr;
     align-items: center;
-    margin-bottom: 18px;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #2256aa;
   }
   .logo-wrap { text-align: left; }
   .logo {
-    width: 128px;
-    height: 128px;
+    width: 84px;
+    height: 84px;
     object-fit: contain;
   }
   h1 {
@@ -74,6 +76,7 @@ const PDF_CSS = `
     line-height: 1.1;
     font-weight: 700;
     text-align: right;
+    color: #2256aa;
   }
   .header-line {
     color: #71717a;
@@ -93,6 +96,7 @@ const PDF_CSS = `
     line-height: 1.2;
     text-align: right;
     font-weight: 700;
+    color: #2256aa;
     break-after: avoid;
   }
   table {
@@ -111,6 +115,7 @@ const PDF_CSS = `
     text-align: right;
     font-weight: 400;
   }
+	  th { background: #f3f5f9; }
 	  th, .label {
 	    color: #52525b;
 	    font-weight: 700;
@@ -256,7 +261,7 @@ export function renderReferralPdfHtml(data: ReferralPrintModel, logoUrl?: string
     data.has_old_prescription && data.has_old_comb
       ? kvTable([["VA משולב", data.old_comb_va], ["J משולב", data.old_comb_j]], 2)
       : "",
-    data.has_compact_prescription ? sectionTitle("מרשם / כרטיס בדיקה") : "",
+    data.has_compact_prescription ? sectionTitle(data.compact_title) : "",
     data.has_compact_prescription
       ? eyeTable(
           "עין",

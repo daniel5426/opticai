@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import Docxtemplater from "docxtemplater";
+import { buildReferralWord } from "@/lib/referral-docx/render-referral-word";
 import PizZip from "pizzip";
 import { describe, expect, test, vi } from "vitest";
 import type { LoadedReferralExportContext } from "@/lib/referral-docx";
@@ -192,10 +192,13 @@ describe("referral-docx print model", () => {
     expect(html.indexOf("מרשם ישן · קרוב")).toBeLessThan(html.indexOf("מרשם / כרטיס בדיקה"));
     expect(html).not.toContain("J משולב");
 
-    const zip = new PizZip(fs.readFileSync(path.resolve(process.cwd(), "public", "templates", "referral.docx")));
-    const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
-    doc.render(model);
-    const text = doc.getFullText();
+    context.referral.referral_data!["compact-prescription-title"] = "מרשם מומלץ";
+    const renamed = buildReferralPrintModel(context);
+    expect(renderReferralPdfHtml(renamed, "logo.png")).toContain("מרשם מומלץ");
+    const text = buildReferralWord(renamed).file("word/document.xml")!.asText();
+    expect(new DOMParser().parseFromString(text, "application/xml").querySelector("parsererror")).toBeNull();
+    expect(text).toContain("מרשם מומלץ");
+    expect(text).toContain("-4.75");
     expect(text).toContain("מרשם ישן · קרוב");
     expect(text).toContain("6/6-1");
     expect(text).not.toContain("J משולב");

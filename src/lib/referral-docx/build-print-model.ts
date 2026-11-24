@@ -259,6 +259,7 @@ export function buildReferralPrintModel(
     r_iop: rIop,
     l_iop: lIop,
     has_compact_prescription: hasCompactPrescription,
+    compact_title: toDisplayString(referralData["compact-prescription-title"]).trim() || "מרשם / כרטיס בדיקה",
     r_sph: rSph,
     r_cyl: rCyl,
     r_ax: rAx,

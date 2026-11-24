@@ -56,6 +56,7 @@ export interface ReferralPrintModel {
   r_iop: string;
   l_iop: string;
   has_compact_prescription: boolean;
+  compact_title: string;
   r_sph: string;
   r_cyl: string;
   r_ax: string;
