@@ -259,12 +259,7 @@ export function ReferralTable({
       if (printingPdfIds[referral.id]) return
 
       setPrintingPdfIds((prev) => ({ ...prev, [referral.id!]: true }))
-      const result = await printReferralPdf({ referralId: referral.id })
-      if (result.success) {
-        toast.success("ההפניה נשלחה להדפסה")
-      } else if (!result.canceled) {
-        throw new Error(result.error || "Print failed")
-      }
+      await printReferralPdf({ referralId: referral.id })
     } catch (error) {
       console.error("Error printing referral PDF:", error)
       toast.error("שגיאה בהדפסה")

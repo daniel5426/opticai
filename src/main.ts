@@ -1680,50 +1680,6 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle('print-html', async (_event, payload: { html: string }) => {
-    const printWindow = new BrowserWindow({
-      show: false,
-      webPreferences: {
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: true,
-      },
-    });
-
-    try {
-      await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(payload.html)}`);
-      await printWindow.webContents.executeJavaScript(
-        "document.fonts && document.fonts.ready ? document.fonts.ready.then(() => true) : true",
-      );
-
-      const print = (silent: boolean) => new Promise<{ success: boolean; failureReason?: string }>((resolve) => {
-        printWindow.webContents.print(
-          { silent, printBackground: true, pageSize: "A4" },
-          (success, failureReason) => resolve({ success, failureReason }),
-        );
-      });
-      // Straight to the default printer; without one, or if it refuses the job, the system print dialog.
-      const printers = await printWindow.webContents.getPrintersAsync();
-      const hasDefault = printers.some((printer) => printer.isDefault);
-      let result = await print(hasDefault);
-      if (hasDefault && !result.success) result = await print(false);
-      if (result.success) return { success: true };
-      return /cancel/i.test(result.failureReason || "")
-        ? { success: false, canceled: true }
-        : { success: false, error: result.failureReason || "Print failed" };
-    } catch (error) {
-      console.error("Error printing HTML:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    } finally {
-      if (!printWindow.isDestroyed()) {
-        printWindow.close();
-      }
-    }
-  });
-
   // Server Mode operations removed - using FastAPI backend instead
 
   // Removed AI IPC handlers; AI moved to backend

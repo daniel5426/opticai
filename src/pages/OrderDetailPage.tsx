@@ -2115,15 +2115,10 @@ export function LegacyOrderDetailPage({
       }
 
       setIsPrintInFlight(true);
-      const result = await printOrderPdf({
+      await printOrderPdf({
         orderId: orderIdToExport,
         kind: isContactMode ? "contact" : "regular",
       });
-      if (result.success) {
-        toast.success("ההזמנה נשלחה להדפסה");
-      } else if (!result.canceled) {
-        throw new Error(result.error || "Print failed");
-      }
     } catch (error) {
       console.error("Error printing PDF:", error);
       toast.error("שגיאה בהדפסה");

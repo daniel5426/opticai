@@ -36,9 +36,6 @@ if (typeof window !== 'undefined' && !window.electronAPI) {
     exportHtmlToPdf: async () => {
       throw new Error('exportHtmlToPdf is only available in Electron');
     },
-    printHtml: async () => {
-      throw new Error('printHtml is only available in Electron');
-    },
     // We can add more mocks here as needed
   };
 }
