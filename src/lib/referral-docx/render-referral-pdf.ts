@@ -269,5 +269,5 @@ export async function renderReferralPdf(data: ReferralPrintModel) {
 
 export async function printReferralPdf(data: ReferralPrintModel) {
   const logoUrl = await getLogoDataUrl();
-  return printHtml(renderReferralPdfHtml(data, logoUrl), buildPdfFileName(data));
+  return printHtml(renderReferralPdfHtml(data, logoUrl));
 }

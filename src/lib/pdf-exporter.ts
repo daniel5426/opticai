@@ -8,7 +8,6 @@ export interface PdfExportResult {
 export interface PrintHtmlResult {
   success: boolean;
   canceled?: boolean;
-  filePath?: string;
   error?: string;
 }
 
@@ -24,12 +23,12 @@ export async function exportHtmlToPdf(
   return exporter({ html, defaultFileName });
 }
 
-/** Prints the page: as a PDF opened for printing, or with `direct`, straight to the printer. */
-export async function printHtml(html: string, defaultFileName?: string, options: { direct?: boolean } = {}): Promise<PrintHtmlResult> {
+/** Prints the page straight to the default printer, from the desktop app. */
+export async function printHtml(html: string): Promise<PrintHtmlResult> {
   const printer = window.electronAPI?.printHtml;
   if (!printer) {
     throw new Error("הדפסה זמינה רק באפליקציית הדסקטופ");
   }
 
-  return printer({ html, defaultFileName, ...options });
+  return printer({ html });
 }

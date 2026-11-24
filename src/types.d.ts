@@ -73,9 +73,7 @@ declare interface Window {
     }) => Promise<{ success: boolean; canceled?: boolean; filePath?: string; error?: string }>;
     printHtml?: (payload: {
       html: string;
-      defaultFileName?: string;
-      direct?: boolean;
-    }) => Promise<{ success: boolean; canceled?: boolean; filePath?: string; error?: string }>;
+    }) => Promise<{ success: boolean; canceled?: boolean; error?: string }>;
     softOpticScan?: () => Promise<any>;
     softOpticExport?: (payload: { candidate: any; sqlAnywhereBin?: string; includeDocuments?: boolean }) => Promise<any>;
     softOpticStartExport?: (payload: { clinicId?: number; candidate: any; sqlAnywhereBin?: string; includeDocuments?: boolean }) => Promise<any>;

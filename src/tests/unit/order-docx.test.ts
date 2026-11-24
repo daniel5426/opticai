@@ -381,7 +381,7 @@ describe("order-docx print models", () => {
   });
 
   test("renderRegularOrderPdfHtml follows the paper order form", () => {
-    const html = renderRegularOrderPdfHtml(buildRegularOrderPrintModel(createRegularContext()), "");
+    const html = renderRegularOrderPdfHtml(buildRegularOrderPrintModel(createRegularContext()));
 
     expect(html).toContain('html dir="rtl"');
     expect(html).toContain("הזמנת משקפיים");
@@ -411,13 +411,13 @@ describe("order-docx print models", () => {
     const model = buildRegularOrderPrintModel(context);
     expect(model.sph_with_add).toBe(true);
     expect(model.r_sph).not.toContain("ADD");
-    expect(renderRegularOrderPdfHtml(model, "")).toContain("<th>SPH +ADD</th>");
+    expect(renderRegularOrderPdfHtml(model)).toContain("<th>SPH +ADD</th>");
 
     // A hand edit of SPH drops the calculation, and with it the mark.
     prescription.r_sph = 3;
     const edited = buildRegularOrderPrintModel(context);
     expect(edited.sph_with_add).toBe(false);
-    expect(renderRegularOrderPdfHtml(edited, "")).toContain("<th>SPH</th>");
+    expect(renderRegularOrderPdfHtml(edited)).toContain("<th>SPH</th>");
   });
 
   test("buildRegularOrderPrintModel falls back to legacy generic lens fields", () => {
@@ -457,7 +457,7 @@ describe("order-docx print models", () => {
   });
 
   test("renderContactOrderPdfHtml follows the paper contact order form", () => {
-    const html = renderContactOrderPdfHtml(buildContactOrderPrintModel(createContactContext()), "");
+    const html = renderContactOrderPdfHtml(buildContactOrderPrintModel(createContactContext()));
 
     expect(html).toContain('html dir="rtl"');
     expect(html).toContain("הזמנת עדשות מגע");

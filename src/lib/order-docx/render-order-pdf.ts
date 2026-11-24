@@ -7,27 +7,6 @@ import type {
 import { buildOrderForm, type FormBlock, type FormPair, type FormValue, type OrderForm } from "./order-form";
 
 
-function getLogoUrl(): string {
-  if (typeof window === "undefined") return "";
-  return new URL("logo-name.png", window.location.href).toString();
-}
-
-export async function getLogoDataUrl(): Promise<string> {
-  try {
-    const response = await fetch(getLogoUrl());
-    if (!response.ok) return getLogoUrl();
-    const blob = await response.blob();
-    return await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(blob);
-    });
-  } catch {
-    return getLogoUrl();
-  }
-}
-
 function htmlText(value?: string | number | null): string {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -176,28 +155,26 @@ function formHtml(form: OrderForm) {
     </html>`;
 }
 
-export function renderRegularOrderPdfHtml(data: RegularOrderPrintModel, _logoUrl?: string, includeBilling = true): string {
+export function renderRegularOrderPdfHtml(data: RegularOrderPrintModel, includeBilling = true): string {
   return formHtml(buildOrderForm("regular", data, includeBilling));
 }
 
-export function renderContactOrderPdfHtml(data: ContactOrderPrintModel, _logoUrl?: string, includeBilling = true): string {
+export function renderContactOrderPdfHtml(data: ContactOrderPrintModel, includeBilling = true): string {
   return formHtml(buildOrderForm("contact", data, includeBilling));
 }
 
 export function renderOrderPdfHtml({
   kind,
   data,
-  logoUrl,
   includeBilling = true,
 }: {
   kind: OrderExportKind;
   data: RegularOrderPrintModel | ContactOrderPrintModel;
-  logoUrl?: string;
   includeBilling?: boolean;
 }) {
   return kind === "contact"
-    ? renderContactOrderPdfHtml(data as ContactOrderPrintModel, logoUrl, includeBilling)
-    : renderRegularOrderPdfHtml(data as RegularOrderPrintModel, logoUrl, includeBilling);
+    ? renderContactOrderPdfHtml(data as ContactOrderPrintModel, includeBilling)
+    : renderRegularOrderPdfHtml(data as RegularOrderPrintModel, includeBilling);
 }
 
 export async function renderOrderPdf({
@@ -207,8 +184,7 @@ export async function renderOrderPdf({
   kind: OrderExportKind;
   data: RegularOrderPrintModel | ContactOrderPrintModel;
 }) {
-  const logoUrl = await getLogoDataUrl();
-  return exportHtmlToPdf(renderOrderPdfHtml({ kind, data, logoUrl }), buildPdfFileName(kind, data));
+  return exportHtmlToPdf(renderOrderPdfHtml({ kind, data }), buildPdfFileName(kind, data));
 }
 
 export async function printOrderPdf({
@@ -218,6 +194,5 @@ export async function printOrderPdf({
   kind: OrderExportKind;
   data: RegularOrderPrintModel | ContactOrderPrintModel;
 }) {
-  const logoUrl = await getLogoDataUrl();
-  return printHtml(renderOrderPdfHtml({ kind, data, logoUrl }), buildPdfFileName(kind, data), { direct: true });
+  return printHtml(renderOrderPdfHtml({ kind, data }));
 }

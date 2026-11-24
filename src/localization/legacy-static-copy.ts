@@ -7420,9 +7420,13 @@ export const legacyStaticCopy = {
     "en": "PDF successfully created",
     "fr": "PDF créé avec succès"
   },
-  "PDF נפתח להדפסה": {
-    "en": "PDF opens for printing",
-    "fr": "Le PDF s'ouvre pour l'impression"
+  "ההפניה נשלחה להדפסה": {
+    "en": "The referral was sent to print",
+    "fr": "L’orientation a été envoyée à l’impression",
+  },
+  "ההזמנה נשלחה להדפסה": {
+    "en": "The order was sent to print",
+    "fr": "La commande a été envoyée à l’impression",
   },
   "PIN חדש לכניסה למרפאה": {
     "en": "New PIN to enter the clinic",

@@ -1680,7 +1680,7 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle('print-html', async (_event, payload: { html: string; defaultFileName?: string; direct?: boolean }) => {
+  ipcMain.handle('print-html', async (_event, payload: { html: string }) => {
     const printWindow = new BrowserWindow({
       show: false,
       webPreferences: {
@@ -1696,38 +1696,21 @@ function setupIpcHandlers() {
         "document.fonts && document.fonts.ready ? document.fonts.ready.then(() => true) : true",
       );
 
-      if (payload.direct) {
-        // Straight to the default printer; without one, the system print dialog lets the user pick.
-        const printers = await printWindow.webContents.getPrintersAsync();
-        const silent = printers.some((printer) => (printer as { isDefault?: boolean }).isDefault);
-        const result = await new Promise<{ success: boolean; failureReason?: string }>((resolve) => {
-          printWindow.webContents.print(
-            { silent, printBackground: true, pageSize: "A4" },
-            (success, failureReason) => resolve({ success, failureReason }),
-          );
-        });
-        if (result.success) return { success: true };
-        return result.failureReason === "cancelled"
-          ? { success: false, canceled: true }
-          : { success: false, error: result.failureReason || "Print failed" };
-      }
-
-      const pdfData = await printWindow.webContents.printToPDF({
-        pageSize: "A4",
-        printBackground: true,
-        preferCSSPageSize: true,
+      const print = (silent: boolean) => new Promise<{ success: boolean; failureReason?: string }>((resolve) => {
+        printWindow.webContents.print(
+          { silent, printBackground: true, pageSize: "A4" },
+          (success, failureReason) => resolve({ success, failureReason }),
+        );
       });
-
-      const tempDir = await fs.promises.mkdtemp(path.join(app.getPath("temp"), "opticai-print-"));
-      const filePath = path.join(tempDir, sanitizePdfFileName(payload.defaultFileName || "print-preview.pdf"));
-      await fs.promises.writeFile(filePath, pdfData);
-
-      const openError = await shell.openPath(filePath);
-      if (openError) {
-        return { success: false, error: openError };
-      }
-
-      return { success: true, filePath };
+      // Straight to the default printer; without one, or if it refuses the job, the system print dialog.
+      const printers = await printWindow.webContents.getPrintersAsync();
+      const hasDefault = printers.some((printer) => printer.isDefault);
+      let result = await print(hasDefault);
+      if (hasDefault && !result.success) result = await print(false);
+      if (result.success) return { success: true };
+      return /cancel/i.test(result.failureReason || "")
+        ? { success: false, canceled: true }
+        : { success: false, error: result.failureReason || "Print failed" };
     } catch (error) {
       console.error("Error printing HTML:", error);
       return {

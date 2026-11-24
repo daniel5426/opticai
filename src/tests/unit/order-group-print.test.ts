@@ -9,5 +9,4 @@ test('prints separate client pages with the shared financial summary once',async
  expect(html).toContain('Alice Client');expect(html).toContain('Bob Client');
  expect(html.match(/class="group-print-page"/g)).toHaveLength(2);
  expect(html.match(/<table class="charges">/g)).toHaveLength(1);
- expect(vi.mocked(printHtml).mock.calls[0][2]).toEqual({direct:true});
 });
