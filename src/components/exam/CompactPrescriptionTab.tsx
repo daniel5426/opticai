@@ -1,7 +1,8 @@
 import React, { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { CompactPrescriptionExam } from "@/lib/db/schema-interface"
-import { ChevronUp, ChevronDown } from "lucide-react"
+import { ChevronUp, ChevronDown, Pencil } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import { VASelect } from "./shared/VASelect"
 import { EXAM_FIELDS } from "./data/exam-field-definitions"
 import { BASE_VALUES_SIMPLE, PDCalculationUtils } from "./data/exam-constants"
@@ -18,14 +19,22 @@ interface CompactPrescriptionTabProps {
   onChange: (field: keyof CompactPrescriptionExam, value: string) => void;
   isEditing?: boolean;
   hideEyeLabels?: boolean;
+  /** A name of its own for this card, where it can be renamed (a referral). */
+  title?: string;
+  onTitleChange?: (title: string) => void;
 }
 
 export function CompactPrescriptionTab({
   data,
   onChange,
   isEditing = true,
-  hideEyeLabels = false
+  hideEyeLabels = false,
+  title,
+  onTitleChange,
 }: CompactPrescriptionTabProps) {
+  const { t, i18n } = useTranslation();
+  const [isRenaming, setIsRenaming] = useState(false);
+  const shownTitle = title?.trim() || "מרשם קומפקטי";
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
   const { fieldWarnings, handleAxisChange, handleAxisBlur } = useAxisWarning(
@@ -176,7 +185,37 @@ export function CompactPrescriptionTab({
       <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
         <div className="space-y-3">
           <div className="text-center">
-            <h3 className="font-medium text-muted-foreground">מרשם קומפקטי</h3>
+            {isRenaming && isEditing && onTitleChange ? (
+              <input
+                autoFocus
+                dir={i18n.dir()}
+                defaultValue={title || shownTitle}
+                maxLength={60}
+                aria-label={t("referralRenamePrescription")}
+                className="bg-field focus-visible:ring-ring h-6 w-56 rounded-md px-2 text-center text-base font-medium outline-none focus-visible:ring-2"
+                onFocus={(event) => event.currentTarget.select()}
+                onBlur={(event) => {
+                  // Left as the standard name, or emptied, the card keeps the standard name.
+                  const next = event.currentTarget.value.trim();
+                  onTitleChange(next === "מרשם קומפקטי" ? "" : next);
+                  setIsRenaming(false);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") event.currentTarget.blur();
+                  if (event.key === "Escape") setIsRenaming(false);
+                }}
+              />
+            ) : (
+              <h3 className="font-medium text-muted-foreground inline-flex items-center gap-1" dir={i18n.dir()}>
+                {shownTitle}
+                {isEditing && onTitleChange && (
+                  <button type="button" onClick={() => setIsRenaming(true)} title={t("referralRenamePrescription")} aria-label={t("referralRenamePrescription")}
+                    className="hover:bg-accent hover:text-foreground focus-visible:ring-ring inline-flex size-6 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:outline-none">
+                    <Pencil className="size-3" />
+                  </button>
+                )}
+              </h3>
+            )}
           </div>
 
           <div className={`exam-eye-grid grid ${hideEyeLabels ? 'grid-cols-[repeat(8,1fr)]' : 'grid-cols-[20px_repeat(8,1fr)]'} gap-2 items-center`}>

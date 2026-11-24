@@ -3,27 +3,6 @@ import type { ReferralPrintModel } from "./types";
 
 type FieldPair = [string, string | undefined | null];
 
-function getLogoUrl(): string {
-  if (typeof window === "undefined") return "";
-  return new URL("logo-name.png", window.location.href).toString();
-}
-
-async function getLogoDataUrl(): Promise<string> {
-  try {
-    const response = await fetch(getLogoUrl());
-    if (!response.ok) return getLogoUrl();
-    const blob = await response.blob();
-    return await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(blob);
-    });
-  } catch {
-    return getLogoUrl();
-  }
-}
-
 function htmlText(value?: string | number | null): string {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -39,235 +18,72 @@ function buildPdfFileName(data: ReferralPrintModel) {
   return `${parts.join("_")}.pdf`;
 }
 
+// The same letter as the Word export (render-referral-word.ts).
 const PDF_CSS = `
-  @page { size: A4; margin: 10mm 15.8mm; }
+  @page { size: A4; margin: 15mm 20mm; }
   * { box-sizing: border-box; }
-  html, body {
-    margin: 0;
-    padding: 0;
-    direction: rtl;
-    color: #18181b;
-    font-family: Assistant, Arial, sans-serif;
-    font-size: 12px;
-    line-height: 1.45;
-  }
-  body {
-    background: #fff;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  .header {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    align-items: center;
-    margin-bottom: 18px;
-  }
-  .logo-wrap { text-align: left; }
-  .logo {
-    width: 128px;
-    height: 128px;
-    object-fit: contain;
-  }
-  h1 {
-    margin: 0 0 8px;
-    font-size: 26px;
-    line-height: 1.1;
-    font-weight: 700;
-    text-align: right;
-  }
-  .header-line {
-    color: #71717a;
-    font-size: 12px;
-    font-weight: 700;
-    text-align: right;
-    margin-top: 2px;
-  }
-  .text-line {
-    margin: 0 0 10px;
-    font-size: 13px;
-    text-align: right;
-  }
-  h2 {
-    margin: 14px 0 6px;
-    font-size: 14px;
-    line-height: 1.2;
-    text-align: right;
-    font-weight: 700;
-    break-after: avoid;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    table-layout: fixed;
-    border: 1px solid #e4e4e7;
-    break-inside: avoid;
-    margin: 0;
-  }
-  td, th {
-    border: 1px solid #e4e4e7;
-    padding: 5px 8px;
-    height: 29px;
-    vertical-align: middle;
-    text-align: right;
-    font-weight: 400;
-  }
-	  th, .label {
-	    color: #52525b;
-	    font-weight: 700;
-	  }
-	  .value {
-	    color: #18181b;
-	    font-size: 12px;
-	  }
-	  .section-cell {
-	    color: #18181b;
-	    text-align: center;
-	    font-weight: 700;
-	  }
-  .center { text-align: center; }
-  .ltr {
-    direction: ltr;
-    unicode-bidi: isolate;
-  }
-  .block td {
-    vertical-align: top;
-    min-height: 76px;
-    padding: 8px 10px;
-  }
-  .block-title {
-    font-size: 13px;
-    font-weight: 700;
-    margin-bottom: 6px;
-  }
-  .block-body {
-    white-space: pre-wrap;
-    font-size: 12px;
-  }
-  .signature {
-    margin-top: 22px;
-    color: #52525b;
-    font-size: 12px;
-    white-space: pre-wrap;
-  }
+  html, body { margin: 0; padding: 0; direction: rtl; color: #1f2937; background: #fff; font: 10.5pt/1.4 Arial, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  header { border-bottom: 2px solid #2256aa; padding-bottom: 6px; margin-bottom: 14px; }
+  h1 { margin: 0; font-size: 20pt; color: #2256aa; }
+  .clinic { color: #6b7280; font-size: 9.5pt; margin-top: 2px; }
+  .recipient { font-size: 12pt; font-weight: 700; margin: 0 0 8px; }
+  h2 { margin: 16px 0 5px; font-size: 12pt; color: #2256aa; break-after: avoid; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; break-inside: avoid; }
+  td, th { border: 1px solid #d9dee7; padding: 5px 8px; vertical-align: middle; }
+  .text td { white-space: pre-wrap; }
+  .details td { background: #f8fafc; }
+  .eyes { direction: ltr; text-align: center; }
+  .eyes th { background: #f3f5f9; color: #6b7280; font-size: 9pt; }
+  .eyes th.eye { width: 32px; color: #1f2937; font-size: 10.5pt; }
+  .combined { color: #6b7280; font-size: 10pt; margin-top: 5px; }
+  .signature { margin-top: 32px; white-space: pre-wrap; }
 `;
 
-function valueClass(value?: string | null) {
-  return /[\u200e+-]\d/.test(value || "") ? "value ltr" : "value";
+function textTable(lines: string[], className: string) {
+  return `<table class="${className}">${lines.map((line) => `<tr><td>${htmlText(line)}</td></tr>`).join("")}</table>`;
 }
 
-function documentHtml(data: ReferralPrintModel, body: string, logoUrl = getLogoUrl()) {
-  const clinicLine = data.has_clinic_info
-    ? `<div class="header-line">סניף: ${htmlText(data.clinic_info)}</div>`
-    : "";
-
-  return `<!doctype html>
-    <html dir="rtl" lang="he">
-      <head>
-        <meta charset="utf-8" />
-        <title>מכתב הפניה</title>
-        <style>${PDF_CSS}</style>
-      </head>
-      <body>
-        <header class="header">
-          <div>
-            <h1>מכתב הפניה</h1>
-            ${clinicLine}
-          </div>
-          <div class="logo-wrap"><img class="logo" src="${htmlText(logoUrl)}" /></div>
-        </header>
-        ${body}
-      </body>
-    </html>`;
+function block(title: string, text: string) {
+  return `<h2>${htmlText(title)}</h2>${textTable([text], "text")}`;
 }
 
-function textLine(value: string, visible = true) {
-  return visible && value ? `<p class="text-line">${htmlText(value)}</p>` : "";
+/** An eye table as it reads on a prescription: left to right, R above L. */
+function eyeTable(title: string, labels: string[], right: string[], left: string[], combined: FieldPair[]) {
+  const row = (eye: string, values: string[]) => `<tr><th class="eye">${eye}</th>${values.map((value) => `<td>${htmlText(value)}</td>`).join("")}</tr>`;
+  const extra = combined.filter(([, value]) => value).map(([label, value]) => `${label}: ${value}`).join(" | ");
+  return `<h2>${htmlText(title)}</h2><table class="eyes"><tr><th class="eye"></th>${labels.map((label) => `<th>${label}</th>`).join("")}</tr>${row("R", right)}${row("L", left)}</table>${extra ? `<div class="combined">${htmlText(extra)}</div>` : ""}`;
 }
 
-function sectionTitle(title: string) {
-  return `<h2>${htmlText(title)}</h2>`;
-}
-
-function blockTable(title: string, value: string) {
-  return `<table class="block">
-    <tr>
-      <td class="value">
-        <div class="block-title">${htmlText(title)}</div>
-        <div class="block-body">${htmlText(value)}</div>
-      </td>
-    </tr>
-  </table>`;
-}
-
-function kvTable(pairs: FieldPair[], pairsPerRow = 2) {
-  const rows: string[] = [];
-  for (let i = 0; i < pairs.length; i += pairsPerRow) {
-    const rowPairs = pairs.slice(i, i + pairsPerRow);
-    const cells = rowPairs.map(([label, value]) => `
-      <th class="label">${htmlText(label)}</th>
-      <td class="${valueClass(value)}">${htmlText(value)}</td>
-    `);
-    while (cells.length < pairsPerRow) {
-      cells.push('<th class="label"></th><td class="value"></td>');
-    }
-    rows.push(`<tr>${cells.join("")}</tr>`);
-  }
-  return `<table>${rows.join("")}</table>`;
-}
-
-function eyeTable(
-  rowLabelTitle: string,
-  labels: string[],
-  rightValues: string[],
-  leftValues: string[],
-) {
-  const headerCells = labels
-    .map((label) => `<th class="label center">${htmlText(label)}</th>`)
-    .join("");
-  const valueCells = (values: string[]) =>
-    values
-      .map((value) => `<td class="${valueClass(value)} center">${htmlText(value)}</td>`)
-      .join("");
-
-  return `<table>
-    <tr><th class="section-cell">${htmlText(rowLabelTitle)}</th>${headerCells}</tr>
-    <tr><th class="label center">ימין</th>${valueCells(rightValues)}</tr>
-    <tr><th class="label center">שמאל</th>${valueCells(leftValues)}</tr>
-  </table>`;
-}
-
-export function renderReferralPdfHtml(data: ReferralPrintModel, logoUrl?: string): string {
+export function renderReferralPdfHtml(data: ReferralPrintModel): string {
+  const values = (prefix: string, fields: string[]) => fields.map((field) => String((data as unknown as Record<string, string>)[`${prefix}_${field}`] || ""));
+  const fields = ["sph", "cyl", "ax", "pris", "base", "va", "add"];
+  const labels = ["SPH", "CYL", "AX", "PRISM", "BASE", "VA", "ADD"];
+  const details = [
+    data.has_client_details ? data.client_details : "",
+    data.has_client_contact ? data.client_contact : "",
+    data.has_referral_details ? data.referral_details : "",
+  ].filter(Boolean);
   const body = [
-    textLine(data.referral_details, data.has_referral_details),
-    textLine(data.recipient_line, data.has_recipient),
-    textLine(data.client_details, data.has_client_details),
-    textLine(data.client_contact, data.has_client_contact),
-    data.has_referral_notes ? blockTable("הערות:", data.referral_notes) : "",
-    data.has_clinical_findings ? blockTable("ממצאים קליניים:", data.clinical_findings_text) : "",
-    data.has_compact_prescription ? sectionTitle("מרשם / כרטיס בדיקה") : "",
-    data.has_compact_prescription
-      ? eyeTable(
-          "עין",
-          ["SPH", "CYL", "AX", "PRISM", "BASE", "VA", "ADD", "PD"],
-          [data.r_sph, data.r_cyl, data.r_ax, data.r_pris, data.r_base, data.r_va, data.r_add, data.r_pd],
-          [data.l_sph, data.l_cyl, data.l_ax, data.l_pris, data.l_base, data.l_va, data.l_add, data.l_pd],
-        )
+    `<header><h1>מכתב הפניה</h1>${data.has_clinic_info ? `<div class="clinic">${htmlText(data.clinic_info)}</div>` : ""}</header>`,
+    data.has_recipient ? `<p class="recipient">${htmlText(data.recipient_line)}</p>` : "",
+    details.length ? textTable(details, "details") : "",
+    data.has_referral_notes ? block("הערות", data.referral_notes) : "",
+    data.has_clinical_findings ? block("ממצאים קליניים", data.clinical_findings_text) : "",
+    data.has_old_prescription
+      ? eyeTable(data.old_title, [...labels, "J"], values("old_r", [...fields, "j"]), values("old_l", [...fields, "j"]), [["VA משולב", data.old_comb_va], ["J משולב", data.old_comb_j]])
       : "",
     data.has_compact_prescription
-      ? kvTable([["VA משולב", data.comb_va], ["PD משולב", data.comb_pd]], 2)
+      ? eyeTable(data.compact_title, [...labels, "PD"], values("r", [...fields, "pd"]), values("l", [...fields, "pd"]), [["VA משולב", data.comb_va], ["PD משולב", data.comb_pd]])
       : "",
     data.has_signature ? `<div class="signature">${htmlText(data.signature_text)}</div>` : "",
   ].join("");
-
-  return documentHtml(data, body, logoUrl);
+  return `<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8" /><title>מכתב הפניה</title><style>${PDF_CSS}</style></head><body>${body}</body></html>`;
 }
 
 export async function renderReferralPdf(data: ReferralPrintModel) {
-  const logoUrl = await getLogoDataUrl();
-  return exportHtmlToPdf(renderReferralPdfHtml(data, logoUrl), buildPdfFileName(data));
+  return exportHtmlToPdf(renderReferralPdfHtml(data), buildPdfFileName(data));
 }
 
 export async function printReferralPdf(data: ReferralPrintModel) {
-  const logoUrl = await getLogoDataUrl();
-  return printHtml(renderReferralPdfHtml(data, logoUrl));
+  return printHtml(renderReferralPdfHtml(data));
 }

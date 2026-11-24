@@ -10,6 +10,7 @@ import React, {
 } from "react";
 import { FileDown, FileText, Loader2, Save, Edit, Printer } from "lucide-react";
 import { useParams, useNavigate, useLocation } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/site-header";
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog";
@@ -38,6 +39,8 @@ import {
 } from "@/lib/db/referral-db";
 import { getClientById } from "@/lib/db/clients-db";
 import { toast } from "sonner";
+import { ReferralOldPrescription } from "@/components/ReferralOldPrescription";
+import { latestOldPrescription, type OldPrescription } from "@/lib/old-refraction-source";
 import { CompactPrescriptionTab } from "@/components/exam/CompactPrescriptionTab";
 import {
   ExamToolbox,
@@ -66,6 +69,7 @@ import { sortKeysDeep } from "./exam-detail/utils";
 import { clientFullName } from "@/lib/client-name";
 
 export default function ReferralDetailPage() {
+  const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -120,13 +124,26 @@ export default function ReferralDetailPage() {
     compactPrescriptionFormDataRef.current = compactPrescriptionFormData;
   }, [compactPrescriptionFormData]);
 
+  const [oldPrescription, setOldPrescription] = useState<OldPrescription>({});
+  // What was loaded, saved or filled in by itself: only a change from it is unsaved work.
+  const [oldPrescriptionBase, setOldPrescriptionBase] = useState<OldPrescription>({});
+  const oldPrescriptionRef = useRef(oldPrescription);
+  useLayoutEffect(() => {
+    oldPrescriptionRef.current = oldPrescription;
+  }, [oldPrescription]);
+  const oldPrescriptionChanges =
+    JSON.stringify(sortKeysDeep(oldPrescription)) === JSON.stringify(sortKeysDeep(oldPrescriptionBase))
+      ? null
+      : oldPrescription;
+
   const getSerializedState = useCallback(
     () =>
       JSON.stringify({
         formData: sortKeysDeep(formData),
         compactPrescriptionFormData: sortKeysDeep(compactPrescriptionFormData),
+        oldPrescription: oldPrescriptionChanges && sortKeysDeep(oldPrescriptionChanges),
       }),
-    [formData, compactPrescriptionFormData],
+    [formData, compactPrescriptionFormData, oldPrescriptionChanges],
   );
 
   const {
@@ -262,6 +279,10 @@ export default function ReferralDetailPage() {
             setClient(clientData || null);
           }
 
+          const old = (referral as any).referral_data?.["old-refraction"] || {};
+          setOldPrescription(old);
+          setOldPrescriptionBase(old);
+
           const cp = (referral as any).referral_data?.["compact-prescription"];
           if (cp) {
             setCompactPrescription(cp);
@@ -302,6 +323,22 @@ export default function ReferralDetailPage() {
 
     loadReferralData();
   }, [referralId, isNewReferral, clientIdFromRoute, currentClient]);
+
+  // A new referral starts with the client's latest prescription, unless the card was filled meanwhile.
+  useEffect(() => {
+    if (!isNewReferral || !clientIdFromRoute) return;
+    let cancelled = false;
+    void latestOldPrescription(Number(clientIdFromRoute))
+      .then((latest) => {
+        if (cancelled || !latest || savedReferralId.current || Object.keys(oldPrescriptionRef.current).length) return;
+        setOldPrescription(latest);
+        setOldPrescriptionBase(latest);
+      })
+      .catch((error) => console.error("Error loading the latest prescription:", error));
+    return () => {
+      cancelled = true;
+    };
+  }, [isNewReferral, clientIdFromRoute]);
 
   useEffect(() => {
     if (!loading && !baselineInitializedRef.current) {
@@ -361,6 +398,7 @@ export default function ReferralDetailPage() {
     if (!isNewReferral && !checkDirty()) return;
     const currentForm = formDataRef.current;
     const currentPrescription = compactPrescriptionFormDataRef.current;
+    const currentOldPrescription = oldPrescriptionRef.current;
 
     try {
       setIsSaveInFlight(true);
@@ -381,6 +419,7 @@ export default function ReferralDetailPage() {
       const finalReferralData = {
         ...(currentForm.referral_data || {}),
         "compact-prescription": { ...currentPrescription },
+        "old-refraction": { ...currentOldPrescription },
       };
 
       const basePayload = {
@@ -410,7 +449,9 @@ export default function ReferralDetailPage() {
             compactPrescriptionFormData: sortKeysDeep(
               finalReferralData["compact-prescription"],
             ),
+            oldPrescription: null,
           });
+          setOldPrescriptionBase(currentOldPrescription);
           savedReferralId.current = created.id;
           flushSync(() => setFormData(created));
           if (clientIdFromRoute) await navigate({to:'/clients/$clientId/referrals/$referralId', params:{clientId:String(clientIdFromRoute), referralId:String(created.id)}, replace:true});
@@ -430,7 +471,9 @@ export default function ReferralDetailPage() {
             compactPrescriptionFormData: sortKeysDeep(
               finalReferralData["compact-prescription"],
             ),
+            oldPrescription: null,
           });
+          setOldPrescriptionBase(currentOldPrescription);
         } else {
           throw new Error('save_failed');
         }
@@ -669,19 +712,32 @@ export default function ReferralDetailPage() {
                 )}
                 {!isNewReferral && (
                   <>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={handlePrintPdf}
-                      disabled={isPrintInFlight}
-                      title="הדפסה"
-                    >
-                      {isPrintInFlight ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Printer className="h-4 w-4" />
-                      )}
-                    </Button>
+                    <DropdownMenu dir="rtl">
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          disabled={isPrintInFlight || isExportInFlight}
+                          title="הדפסה"
+                        >
+                          {isPrintInFlight || isExportInFlight ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Printer className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={handlePrintPdf}>
+                          <Printer className="ml-2 h-4 w-4" />
+                          הדפסה
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleExportDocx}>
+                          <FileText className="ml-2 h-4 w-4" />
+                          {t("referralExportWord")}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                     <DropdownMenu dir="rtl">
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -728,9 +784,11 @@ export default function ReferralDetailPage() {
               </div>
             </div>
 
-            <Card className="w-full p-4 pt-3 shadow-md">
+            <div className="@container">
+            <div className="grid grid-cols-1 items-stretch gap-6 @[56rem]:grid-cols-9">
+            <Card className="w-full p-4 pt-3 shadow-md @[56rem]:col-span-4">
               <div
-                className="grid w-full grid-cols-4 gap-x-3 gap-y-2"
+                className="grid w-full grid-cols-4 gap-x-3 gap-y-4 @[56rem]:grid-cols-2"
                 dir="rtl"
               >
                 <div className="col-span-1">
@@ -797,6 +855,18 @@ export default function ReferralDetailPage() {
                 </div>
               </div>
             </Card>
+              <div className="@[56rem]:col-span-5">
+                <ReferralOldPrescription
+                  clientId={Number(clientIdFromRoute || formData.client_id) || 0}
+                  data={oldPrescription}
+                  isEditing={isEditing && !isSaveInFlight}
+                  onChange={(changes) => setOldPrescription((previous) => ({ ...previous, ...changes }))}
+                  clipboardSourceType={clipboardSourceType}
+                  onCopied={setClipboardSourceType}
+                />
+              </div>
+            </div>
+            </div>
 
             <div className="relative grid grid-cols-1 items-stretch gap-6 lg:grid-cols-9">
               <div className="flex flex-col gap-6 lg:col-span-6">
@@ -899,6 +969,13 @@ export default function ReferralDetailPage() {
                 >
                   <CompactPrescriptionTab
                     data={compactPrescriptionFormData}
+                    title={String((formData.referral_data as any)?.["compact-prescription-title"] || "")}
+                    onTitleChange={(title) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        referral_data: { ...(prev.referral_data || {}), "compact-prescription-title": title },
+                      }))
+                    }
                     onChange={(field, value) =>
                       handleCompactPrescriptionChange(
                         field as keyof CompactPrescriptionExam,
