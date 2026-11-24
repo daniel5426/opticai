@@ -4,7 +4,7 @@ import type {
   OrderExportKind,
   RegularOrderPrintModel,
 } from "./types";
-import { buildOrderForm, type FormBlock, type FormValue, type OrderForm } from "./order-form";
+import { buildOrderForm, type FormBlock, type FormPair, type FormValue, type OrderForm } from "./order-form";
 
 
 function getLogoUrl(): string {
@@ -51,16 +51,15 @@ function buildPdfFileName(
   return `${parts.join("_")}.pdf`;
 }
 
-// The printed order follows the paper order form of the clinic's earlier software:
-// boxed label/value blocks, grey-headed eye tables, and notes beside the charges at the bottom.
+// Light and compact: hairlines between rows, muted labels, no boxes.
 const PDF_CSS = `
-  @page { size: A4; margin: 10mm 12mm; }
+  @page { size: A4; margin: 12mm 14mm; }
   * { box-sizing: border-box; }
   html, body {
     margin: 0;
     padding: 0;
     direction: rtl;
-    color: #000;
+    color: #111;
     font-family: Arial, Assistant, sans-serif;
     font-size: 12px;
     line-height: 1.3;
@@ -70,122 +69,93 @@ const PDF_CSS = `
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  .topline {
+  .head {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    gap: 12px;
-    margin-bottom: 6px;
-    font-weight: 700;
-    font-size: 13px;
+    gap: 16px;
+    padding-bottom: 6px;
+    margin-bottom: 10px;
+    border-bottom: 1.5px solid #111;
   }
-  .topline span { text-decoration: underline; }
-  .topline .clinic {
-    text-decoration: none;
-    font-weight: 400;
-    font-size: 10.5px;
-    color: #333;
-    text-align: center;
-    flex: 1;
-  }
+  .head .title { font-size: 19px; font-weight: 700; white-space: nowrap; }
+  .head .meta { font-size: 10.5px; color: #666; text-align: end; }
+  .name { font-size: 17px; font-weight: 700; margin-bottom: 2px; }
   table {
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
     break-inside: avoid;
-    margin: 0 0 6px;
   }
-  .box { border: 1px solid #000; border-collapse: separate; border-spacing: 0; }
-  .box td { padding: 3px 8px; vertical-align: top; }
-  .order-box td { padding: 6px 10px; vertical-align: middle; }
-  .order-no { font-size: 24px; font-weight: 700; border-left: 1px solid #000; }
-  .order-code { font-size: 18px; text-align: center; letter-spacing: 1px; }
-  .k { font-weight: 700; white-space: nowrap; width: 19%; }
-  .v { width: 31%; }
-  .name-row td { font-size: 18px; font-weight: 700; border-bottom: 1px solid #000; padding: 4px 8px 5px; }
-  .grid { border: 1px solid #000; }
+  .info { margin-bottom: 8px; }
+  .info td { padding: 2px 0; vertical-align: top; }
+  .k { color: #666; font-size: 11px; margin-inline-end: 5px; }
+  .section { margin-top: 14px; break-inside: avoid; }
+  h2 { font-size: 12.5px; font-weight: 700; margin: 0 0 3px; }
   .grid th, .grid td {
-    border: 1px solid #000;
-    padding: 3px 5px;
-    height: 23px;
+    padding: 4px 5px;
     text-align: center;
     vertical-align: middle;
     overflow-wrap: anywhere;
+    border-bottom: 1px solid #ddd;
   }
-  .grid th { background: #d9d9d9; font-weight: 700; }
-  .grid .title th { font-size: 12.5px; }
-  .grid .eye { width: 24px; font-weight: 700; background: #fff; }
+  .grid th { background: #f3f3f3; color: #555; font-size: 10.5px; font-weight: 700; border-bottom: 0; }
+  .grid .eye { width: 28px; font-weight: 700; }
+  .grid[dir=ltr] td { direction: rtl; }
+  .section + .info { margin-top: 8px; }
   .grid .start { text-align: start; }
-  .bottom td.col { width: 50%; padding: 0; vertical-align: top; border: 1px solid #000; }
-  .bottom .head { background: #d9d9d9; font-weight: 700; text-align: center; padding: 2px; border-bottom: 1px solid #000; }
-  .bottom .notes { padding: 4px 8px; min-height: 62px; white-space: pre-wrap; }
-  .bottom .note-title { font-weight: 700; }
-  .charges { margin: 0; }
-  .charges td { padding: 3px 10px; border-bottom: 1px solid #999; }
-  .charges td:first-child { font-weight: 700; width: 45%; }
+  .charges { margin-top: 10px; background: #f3f3f3; }
+  .charges td { padding: 6px 8px; font-weight: 700; }
+  .charges .k { font-weight: 400; }
+  .notes { white-space: pre-wrap; }
   .ltr { direction: ltr; unicode-bidi: isolate; }
 `;
 
 // English, numbers and codes keep their own order inside the right-to-left form ("1.6 DEFENDER", "-4.75").
 const isLtrText = (value: string) => !/[֐-׿]/.test(value) && /[A-Za-z0-9]/.test(value);
 
-function cell(value?: FormValue, className = "") {
-  const open = `<td${className ? ` class="${className}"` : ""}>`;
-  if (Array.isArray(value)) {
-    return `${open}${value.map((item) => `<span class="ltr">${htmlText(item)}</span>`).join("&emsp;")}</td>`;
-  }
+function valueHtml(value?: FormValue): string {
+  if (Array.isArray(value)) return value.map((item) => `<span class="ltr">${htmlText(item)}</span>`).join(" · ");
   const text = htmlText(value);
-  return `${open}${value && isLtrText(value) ? `<span class="ltr">${text}</span>` : text}</td>`;
+  return value && isLtrText(value) ? `<span class="ltr">${text}</span>` : text;
+}
+
+const pairHtml = ([label, value]: FormPair) => `<td><span class="k">${htmlText(label)}</span>${valueHtml(value)}</td>`;
+
+function pairRows(pairs: FormPair[], perRow: number) {
+  const rows: string[] = [];
+  for (let index = 0; index < pairs.length; index += perRow) {
+    const cells = pairs.slice(index, index + perRow).map(pairHtml);
+    while (cells.length < perRow) cells.push("<td></td>");
+    rows.push(`<tr>${cells.join("")}</tr>`);
+  }
+  return rows.join("");
 }
 
 function blockHtml(block: FormBlock): string {
-  if (block.type === "order") {
-    return `<table class="box order-box"><tr>
-      <td class="order-no">הזמנה : ${htmlText(block.number)}</td>
-      <td class="order-code ltr">*${htmlText(block.number)}*</td>
-    </tr></table>`;
-  }
   if (block.type === "info") {
-    const rows: string[] = [];
-    for (let index = 0; index < block.pairs.length; index += 2) {
-      const [first, second] = [block.pairs[index], block.pairs[index + 1]];
-      rows.push(`<tr>
-        <td class="k">${htmlText(first[0])}</td>${cell(first[1], "v")}
-        ${second ? `<td class="k">${htmlText(second[0])}</td>${cell(second[1], "v")}` : '<td class="k"></td><td class="v"></td>'}
-      </tr>`);
-    }
-    const nameRow = block.name !== undefined ? `<tr class="name-row"><td class="k">שם</td><td colspan="3">${htmlText(block.name)}</td></tr>` : "";
-    return `<table class="box">${nameRow}${rows.join("")}</table>`;
+    const name = block.name ? `<div class="name">${htmlText(block.name)}</div>` : "";
+    return `${name}${block.pairs.length ? `<table class="info">${pairRows(block.pairs, 3)}</table>` : ""}`;
   }
-  if (block.type === "grid") {
-    const eye = block.eyes ? '<th class="eye"></th>' : "";
-    const labels = block.labels
-      .map((label, index) => `<th${block.widths ? ` style="width:${block.widths[index]}%"` : ""}>${htmlText(label)}</th>`)
-      .join("");
-    const rows = block.rows
-      .map((values, index) => `<tr>${block.eyes ? `<td class="eye">${index ? "L" : "R"}</td>` : ""}${values
-        .map((value, column) => cell(value, !block.eyes && block.widths && column === 0 ? "start" : ""))
-        .join("")}</tr>`)
-      .join("");
-    return `<table class="grid"${block.eyes ? ' dir="ltr"' : ""}>
-      <tr class="title">${eye}<th colspan="${block.labels.length}">${htmlText(block.title)}</th></tr>
-      <tr>${eye}${labels}</tr>
-      ${rows}
-    </table>`;
+  if (block.type === "charges") return `<table class="charges">${pairRows(block.pairs, block.pairs.length)}</table>`;
+  if (block.type === "notes") {
+    return `<div class="section"><h2>הערות</h2>${block.notes
+      .map(([label, value]) => `<div class="notes"><span class="k">${htmlText(label)}</span>${htmlText(value as string)}</div>`)
+      .join("")}</div>`;
   }
-  const notes = block.notes
-    .filter(([, value]) => value)
-    .map(([title, value]) => `<div><span class="note-title">${htmlText(title)}:</span> ${htmlText(value as string)}</div>`)
+  const eye = block.eyes ? '<th class="eye"></th>' : "";
+  const labels = block.labels
+    .map((label, index) => `<th${block.widths ? ` style="width:${block.widths[index]}%"` : ""}${block.widths && index === 0 ? ' class="start"' : ""}>${htmlText(label)}</th>`)
     .join("");
-  const charges = block.charges
-    ? `<td class="col"><div class="head">חיובים</div><table class="charges">${block.charges
-        .map(([label, value]) => `<tr><td>${htmlText(label)}</td>${cell(value)}</tr>`)
-        .join("")}</table></td>`
-    : "";
-  return `<table class="bottom"><tr>
-    <td class="col"${block.charges ? "" : ' colspan="2"'}><div class="head">הערות</div><div class="notes">${notes}</div></td>
-    ${charges}
-  </tr></table>`;
+  const rows = block.rows
+    .map((values, index) => `<tr>${block.eyes ? `<td class="eye">${index ? "L" : "R"}</td>` : ""}${values
+      .map((value, column) => `<td${block.widths && column === 0 ? ' class="start"' : ""}>${valueHtml(value)}</td>`)
+      .join("")}</tr>`)
+    .join("");
+  return `<div class="section"><h2>${htmlText(block.title)}</h2><table class="grid"${block.eyes ? ' dir="ltr"' : ""}>
+    <tr>${eye}${labels}</tr>
+    ${rows}
+  </table></div>`;
 }
 
 function formHtml(form: OrderForm) {
@@ -197,10 +167,9 @@ function formHtml(form: OrderForm) {
         <style>${PDF_CSS}</style>
       </head>
       <body>
-        <div class="topline">
-          <span>${htmlText(form.title)}</span>
-          <span class="clinic">סניף: ${htmlText(form.clinic)}</span>
-          <span>תאריך הדפסה - ${htmlText(form.printDate)}</span>
+        <div class="head">
+          <span class="title">${htmlText(form.title)} ${htmlText(form.number)}</span>
+          <span class="meta">${htmlText(form.clinic)}${form.clinic ? " · " : ""}הודפס ${htmlText(form.printDate)}</span>
         </div>
         ${form.blocks.map(blockHtml).join("")}
       </body>

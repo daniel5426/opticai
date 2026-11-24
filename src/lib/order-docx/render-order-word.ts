@@ -1,13 +1,14 @@
 import PizZip from "pizzip";
-import type { FormBlock, FormValue, OrderForm } from "./order-form";
+import type { FormBlock, FormPair, FormValue, OrderForm } from "./order-form";
 
 // A4 with the print's margins, in twentieths of a point.
-const PAGE = { width: 11906, height: 16838, top: 567, side: 680 };
+const PAGE = { width: 11906, height: 16838, top: 680, side: 794 };
 const TEXT_WIDTH = PAGE.width - 2 * PAGE.side;
-const EYE_WIDTH = 380;
-const GREY = "D9D9D9";
-const LINE = '<w:LINE w:val="single" w:sz="6" w:space="0" w:color="000000"/>';
-const NO_LINE = '<w:LINE w:val="nil"/>';
+const EYE_WIDTH = 420;
+const GREY = "F3F3F3";
+const MUTED = "666666";
+const HAIRLINE = '<w:LINE w:val="single" w:sz="4" w:space="0" w:color="DDDDDD"/>';
+const RULE = '<w:LINE w:val="single" w:sz="12" w:space="0" w:color="111111"/>';
 
 type Align = "start" | "center" | "end";
 
@@ -18,14 +19,13 @@ const xmlText = (value: string) =>
 const hasHebrew = (text: string) => /[֐-׿‏]/.test(text);
 
 /** A run of text; sizes are in half-points, as Word counts them. */
-function run(text: string, { bold = false, size = 20, underline = false, color = "" } = {}) {
+function run(text: string, { bold = false, size = 18, color = "" } = {}) {
   if (!text) return "";
   const props = [
     '<w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>',
     bold ? "<w:b/><w:bCs/>" : "",
     color ? `<w:color w:val="${color}"/>` : "",
     `<w:sz w:val="${size}"/><w:szCs w:val="${size}"/>`,
-    underline ? '<w:u w:val="single"/>' : "",
     hasHebrew(text) ? "<w:rtl/>" : "",
   ].join("");
   return text
@@ -43,7 +43,7 @@ function paragraph(runs: string, align: Align = "start") {
 
 /** A value as text: several values (phones) side by side, each kept left-to-right. */
 function valueText(value: FormValue) {
-  if (Array.isArray(value)) return `‏${value.map((item) => `‎${item}‎`).join("‏    ‏")}`;
+  if (Array.isArray(value)) return `‏${value.map((item) => `‎${item}‎`).join("‏ · ‏")}`;
   const text = String(value ?? "");
   // English, numbers and codes keep their own order inside the right-to-left form ("1.6 DEFENDER", "-4.75").
   return !/[֐-׿]/.test(text) && /[A-Za-z0-9]/.test(text) ? `‎${text}‎` : text;
@@ -51,136 +51,98 @@ function valueText(value: FormValue) {
 
 interface CellOptions {
   width: number;
-  span?: number;
   shade?: boolean;
   align?: Align;
-  bottomLine?: boolean;
-  top?: boolean;
+  /** The line under the cell. */
+  line?: string;
 }
 
-function tableCell(content: string, { width, span, shade, bottomLine, top }: CellOptions) {
-  return `<w:tc><w:tcPr><w:tcW w:w="${Math.round(width)}" w:type="dxa"/>${span && span > 1 ? `<w:gridSpan w:val="${span}"/>` : ""}${
-    bottomLine ? `<w:tcBorders>${LINE.replace("LINE", "bottom")}</w:tcBorders>` : ""
-  }${shade ? `<w:shd w:val="clear" w:color="auto" w:fill="${GREY}"/>` : ""}<w:vAlign w:val="${top ? "top" : "center"}"/></w:tcPr>${content || paragraph("")}</w:tc>`;
+function tableCell(content: string, { width, shade, line }: CellOptions) {
+  return `<w:tc><w:tcPr><w:tcW w:w="${Math.round(width)}" w:type="dxa"/>${
+    line ? `<w:tcBorders>${line.replace("LINE", "bottom")}</w:tcBorders>` : ""
+  }${shade ? `<w:shd w:val="clear" w:color="auto" w:fill="${GREY}"/>` : ""}<w:vAlign w:val="center"/></w:tcPr>${content || paragraph("")}</w:tc>`;
 }
 
-const textCell = (text: string, options: CellOptions & { bold?: boolean; size?: number }) =>
-  tableCell(paragraph(run(text, { bold: options.bold, size: options.size }), options.align), options);
+const textCell = (text: string, options: CellOptions & { bold?: boolean; size?: number; color?: string }) =>
+  tableCell(paragraph(run(text, options), options.align), options);
 
-function tableRow(cells: string[], height = 0) {
-  return `<w:tr><w:trPr><w:cantSplit/>${height ? `<w:trHeight w:val="${height}" w:hRule="atLeast"/>` : ""}</w:trPr>${cells.join("")}</w:tr>`;
-}
+const tableRow = (cells: string[]) => `<w:tr><w:trPr><w:cantSplit/></w:trPr>${cells.join("")}</w:tr>`;
 
-type Lines = "box" | "grid" | "none" | "order";
-
-function table(widths: number[], rows: string[], lines: Lines, width = TEXT_WIDTH) {
-  const outer = lines === "none" ? NO_LINE : LINE;
-  const insideV = lines === "grid" || lines === "order" ? LINE : NO_LINE;
-  const insideH = lines === "grid" ? LINE : NO_LINE;
-  const borders = ["top", "left", "bottom", "right"].map((side) => outer.replace("LINE", side)).join("") +
-    insideH.replace("LINE", "insideH") + insideV.replace("LINE", "insideV");
-  return `<w:tbl><w:tblPr><w:bidiVisual/><w:tblW w:w="${Math.round(width)}" w:type="dxa"/><w:tblLayout w:type="fixed"/><w:tblBorders>${borders}</w:tblBorders><w:tblCellMar><w:top w:w="30" w:type="dxa"/><w:left w:w="100" w:type="dxa"/><w:bottom w:w="30" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${widths
+/** A table without borders of its own; its rows' lines come from their cells. */
+function table(widths: number[], rows: string[], side = 100, vertical = 50) {
+  return `<w:tbl><w:tblPr><w:bidiVisual/><w:tblW w:w="${TEXT_WIDTH}" w:type="dxa"/><w:tblLayout w:type="fixed"/><w:tblCellMar><w:top w:w="${vertical}" w:type="dxa"/><w:left w:w="${side}" w:type="dxa"/><w:bottom w:w="${vertical}" w:type="dxa"/><w:right w:w="${side}" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${widths
     .map((value) => `<w:gridCol w:w="${Math.round(value)}"/>`)
     .join("")}</w:tblGrid>${rows.join("")}</w:tbl>`;
 }
 
-// A small gap after each block, as the print leaves between its boxes.
-const GAP = '<w:p><w:pPr><w:bidi/><w:spacing w:before="0" w:after="0" w:line="120" w:lineRule="exact"/></w:pPr></w:p>';
+// Space between blocks; Word also needs a paragraph between two tables.
+const gap = (height: number) =>
+  `<w:p><w:pPr><w:bidi/><w:spacing w:before="0" w:after="0" w:line="${height}" w:lineRule="exact"/></w:pPr></w:p>`;
 
-function topLine(form: OrderForm) {
-  const widths = [TEXT_WIDTH * 0.3, TEXT_WIDTH * 0.4, TEXT_WIDTH * 0.3];
+function header(form: OrderForm) {
+  const widths = [TEXT_WIDTH * 0.45, TEXT_WIDTH * 0.55];
+  const meta = [form.clinic, `הודפס ${form.printDate}`].filter(Boolean).join(" · ");
   return table(widths, [tableRow([
-    tableCell(paragraph(run(form.title, { bold: true, size: 26, underline: true })), { width: widths[0] }),
-    tableCell(paragraph(run(`סניף: ${form.clinic}`, { size: 16, color: "333333" }), "center"), { width: widths[1] }),
-    tableCell(paragraph(run(`תאריך הדפסה - ${form.printDate}`, { bold: true, size: 22, underline: true }), "end"), { width: widths[2] }),
-  ])], "none");
+    textCell(`${form.title} ${form.number}`, { width: widths[0], bold: true, size: 29, line: RULE }),
+    textCell(meta, { width: widths[1], size: 16, color: MUTED, align: "end", line: RULE }),
+  ])], 0) + gap(160);
 }
+
+const pairRuns = ([label, value]: FormPair, bold = false) =>
+  run(`${label}  `, { size: 16, color: MUTED }) + run(valueText(value), { bold });
+
+const heading = (title: string) => gap(200) + paragraph(run(title, { bold: true, size: 19 })) + gap(50);
 
 function blockXml(block: FormBlock): string {
-  if (block.type === "order") {
-    const half = TEXT_WIDTH / 2;
-    return table([half, half], [tableRow([
-      textCell(`הזמנה : ${block.number}`, { width: half, bold: true, size: 36 }),
-      textCell(`*${block.number}*`, { width: half, size: 28, align: "center" }),
-    ], 620)], "order");
-  }
-
   if (block.type === "info") {
-    const label = TEXT_WIDTH * 0.19;
-    const value = TEXT_WIDTH * 0.31;
+    const width = TEXT_WIDTH / 3;
     const rows: string[] = [];
-    if (block.name !== undefined) {
-      rows.push(tableRow([
-        textCell("שם", { width: label, bold: true, size: 28, bottomLine: true }),
-        textCell(block.name, { width: value * 2 + label, span: 3, bold: true, size: 28, bottomLine: true }),
-      ], 420));
+    for (let index = 0; index < block.pairs.length; index += 3) {
+      rows.push(tableRow([0, 1, 2].map((offset) => {
+        const pair = block.pairs[index + offset];
+        return tableCell(paragraph(pair ? pairRuns(pair) : ""), { width });
+      })));
     }
-    for (let index = 0; index < block.pairs.length; index += 2) {
-      const cells = [block.pairs[index], block.pairs[index + 1]].flatMap((pair) => [
-        textCell(pair?.[0] ?? "", { width: label, bold: true }),
-        textCell(valueText(pair?.[1]), { width: value }),
-      ]);
-      rows.push(tableRow(cells, 300));
-    }
-    return table([label, value, label, value], rows, "box");
+    const name = block.name ? paragraph(run(block.name, { bold: true, size: 26 })) : gap(60);
+    return name + (rows.length ? table([width, width, width], rows, 0, 25) + gap(100) : "");
   }
 
-  if (block.type === "grid") {
-    const available = TEXT_WIDTH - (block.eyes ? EYE_WIDTH : 0);
-    const widths = block.labels.map((_, index) =>
-      block.widths ? (available * block.widths[index]) / 100 : available / block.labels.length);
-    const eye = (text = "") => (block.eyes ? [textCell(text, { width: EYE_WIDTH, bold: true, align: "center" })] : []);
-    const rows = [
-      [...eye(), textCell(block.title, { width: available, span: block.labels.length, shade: true, bold: true, align: "center" })],
-      [...eye(), ...block.labels.map((text, index) => textCell(text, { width: widths[index], shade: true, bold: true, align: "center" }))],
-      ...block.rows.map((values, rowIndex) => [
-        ...eye(rowIndex ? "L" : "R"),
-        ...values.map((value, index) => textCell(valueText(value), {
-          width: widths[index],
-          align: !block.eyes && block.widths && index === 0 ? "start" : "center",
-        })),
-      ]),
-    ];
-    const columns = [...(block.eyes ? [EYE_WIDTH] : []), ...widths];
-    // Eye tables read left to right, R/L first, as prescriptions are written. The table stays right-to-left
-    // like the rest of the document, so its columns are given in reverse: Word and LibreOffice both show them in order.
-    const ordered = <T,>(items: T[]) => (block.eyes ? [...items].reverse() : items);
-    return table(ordered(columns), rows.map((cells, index) => tableRow(ordered(cells), index < 2 ? 300 : 340)), "grid");
+  if (block.type === "charges") {
+    const width = TEXT_WIDTH / block.pairs.length;
+    return gap(150) + table(
+      block.pairs.map(() => width),
+      [tableRow(block.pairs.map((pair) => tableCell(paragraph(pairRuns(pair, true)), { width, shade: true })))],
+      100,
+      90,
+    ) + gap(20);
   }
 
-  const half = TEXT_WIDTH / 2;
-  const notes = block.notes
-    .filter(([, value]) => value)
-    .map(([title, value]) => paragraph(run(`${title}: `, { bold: true }) + run(valueText(value))))
-    .join("");
-  if (!block.charges) {
-    return table([half, half], [
-      tableRow([textCell("הערות", { width: TEXT_WIDTH, span: 2, shade: true, bold: true, align: "center" })]),
-      tableRow([tableCell(notes, { width: TEXT_WIDTH, span: 2, top: true })], 1100),
-    ], "grid");
-  }
-  const chargeWidths = [half * 0.45, half * 0.55 - 220];
-  const charges = table(
-    chargeWidths,
-    block.charges.map(([label, value]) => tableRow([
-      textCell(label, { width: chargeWidths[0], bold: true }),
-      textCell(valueText(value), { width: chargeWidths[1] }),
-    ], 300)),
-    "none",
-    half - 220,
-  ).replace(/<w:insideH w:val="nil"\/>/, LINE.replace("LINE", "insideH").replace("000000", "999999"));
-  return table([half, half], [
-    tableRow([
-      textCell("הערות", { width: half, shade: true, bold: true, align: "center" }),
-      textCell("חיובים", { width: half, shade: true, bold: true, align: "center" }),
+  if (block.type === "notes") return heading("הערות") + block.notes.map((pair) => paragraph(pairRuns(pair))).join("");
+
+  const available = TEXT_WIDTH - (block.eyes ? EYE_WIDTH : 0);
+  const widths = block.labels.map((_, index) =>
+    block.widths ? (available * block.widths[index]) / 100 : available / block.labels.length);
+  const align = (index: number): Align => (block.widths && index === 0 ? "start" : "center");
+  const rows = [
+    [
+      ...(block.eyes ? [textCell("", { width: EYE_WIDTH, shade: true })] : []),
+      ...block.labels.map((text, index) => textCell(text, { width: widths[index], shade: true, bold: true, size: 16, color: "555555", align: align(index) })),
+    ],
+    ...block.rows.map((values, rowIndex) => [
+      ...(block.eyes ? [textCell(rowIndex ? "L" : "R", { width: EYE_WIDTH, bold: true, align: "center", line: HAIRLINE })] : []),
+      ...values.map((value, index) => textCell(valueText(value), { width: widths[index], align: align(index), line: HAIRLINE })),
     ]),
-    tableRow([tableCell(notes, { width: half, top: true }), tableCell(`${charges}${paragraph("")}`, { width: half, top: true })], 1100),
-  ], "grid");
+  ];
+  // Eye tables read left to right, R/L first, as prescriptions are written. The table stays right-to-left
+  // like the rest of the document, so its columns are given in reverse: Word and LibreOffice both show them in order.
+  const ordered = <T,>(items: T[]) => (block.eyes ? [...items].reverse() : items);
+  return heading(block.title) +
+    table(ordered([...(block.eyes ? [EYE_WIDTH] : []), ...widths]), rows.map((cells) => tableRow(ordered(cells)))) + gap(20);
 }
 
-/** The body of the Word document: the same boxes and tables as the printed order. */
+/** The body of the Word document: the same layout as the printed order. */
 export function orderFormDocumentXml(form: OrderForm): string {
-  const body = [topLine(form), ...form.blocks.map(blockXml)].join(GAP);
+  const body = [header(form), ...form.blocks.map(blockXml)].join("");
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>${body}<w:sectPr><w:pgSz w:w="${PAGE.width}" w:h="${PAGE.height}"/><w:pgMar w:top="${PAGE.top}" w:right="${PAGE.side}" w:bottom="${PAGE.top}" w:left="${PAGE.side}" w:header="0" w:footer="0" w:gutter="0"/><w:bidi/></w:sectPr></w:body></w:document>`;
 }

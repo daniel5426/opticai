@@ -385,22 +385,22 @@ describe("order-docx print models", () => {
 
     expect(html).toContain('html dir="rtl"');
     expect(html).toContain("הזמנת משקפיים");
-    expect(html).toContain("תאריך הדפסה - ");
-    expect(html).toContain("סניף: ירושלים | יפו 12, ירושלים | 02-2222222 | clinic@example.com");
-    expect(html).toContain('<td class="order-no">הזמנה : ');
+    expect(html).toContain("הודפס ");
+    expect(html).toContain("ירושלים | יפו 12, ירושלים | 02-2222222 | clinic@example.com");
+    expect(html).toContain('<span class="title">הזמנת משקפיים ');
     expect(html).toContain("ת.ז");
     expect(html).toContain("123456789");
     expect(html).not.toContain("מספר לקוח");
     expect(html).toContain("רון כהן");
     expect(html).toContain("+1.25");
-    expect(html).toContain('<th colspan="9">מרשם</th>');
+    expect(html).toContain("<h2>מרשם</h2>");
     expect(html).toContain("<th>PD NEAR</th>");
     expect(html).toContain("<th>גובה</th>");
-    expect(html).toContain('<th colspan="6">עדשות</th>');
-    expect(html).toContain('<th colspan="7">מסגרת</th>');
+    expect(html).toContain("<h2>עדשות</h2>");
+    expect(html).toContain("<h2>מסגרת</h2>");
     expect(html).toContain('<td class="eye">R</td>');
-    expect(html).toContain('<div class="head">חיובים</div>');
-    expect(html).toContain('<div class="head">הערות</div>');
+    expect(html).toContain('<table class="charges">');
+    expect(html).toContain("<h2>הערות</h2>");
   });
 
   test("an SPH that took the addition is marked +ADD in the SPH heading", () => {
@@ -461,18 +461,18 @@ describe("order-docx print models", () => {
 
     expect(html).toContain('html dir="rtl"');
     expect(html).toContain("הזמנת עדשות מגע");
-    expect(html).toContain("סניף: ירושלים | יפו 12, ירושלים | 02-2222222 | clinic@example.com");
+    expect(html).toContain("ירושלים | יפו 12, ירושלים | 02-2222222 | clinic@example.com");
     expect(html).toContain("ת.ז");
     expect(html).toContain("123456789");
     expect(html).not.toContain("מספר לקוח");
     expect(html).toContain("R-Model");
     expect(html).toContain("-1.25");
-    expect(html).toContain('<th colspan="6">עדשות</th>');
-    expect(html).toContain('<th colspan="9">מרשם</th>');
+    expect(html).toContain("<h2>עדשות</h2>");
+    expect(html).toContain("<h2>מרשם</h2>");
     expect(html).toContain("<th>סוג</th>");
     expect(html).toContain("<th>VA</th>");
     expect(html).toContain("תמיסת ניקוי");
-    expect(html).toContain('<div class="head">חיובים</div>');
+    expect(html).toContain('<table class="charges">');
   });
 
   test("buildContactOrderPrintModel falls back to legacy top-level fields", () => {

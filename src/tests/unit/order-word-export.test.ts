@@ -16,15 +16,13 @@ test('the Word export carries the same paper-form layout as the print', () => {
   const xml = orderFormDocumentXml(form);
   expect(new DOMParser().parseFromString(xml, 'application/xml').querySelector('parsererror')).toBeNull();
   expect(xml).toContain('<w:bidiVisual/>');
-  expect(xml).toContain('הזמנה : 163251');
-  expect(xml).toContain('*163251*');
-  expect(xml).toContain('w:fill="D9D9D9"');
-  for (const text of ['עדשות', 'מרשם', 'VA', 'פריטי חיוב', 'חיובים', 'הערות', 'זוג לניסיון', 'נירית כהן']) expect(xml).toContain(text);
+  expect(xml).toContain('הזמנת עדשות מגע 163251');
+  for (const text of ['עדשות', 'מרשם', 'VA', 'פריטי חיוב', 'התקבל', 'הערות', 'זוג לניסיון', 'נירית כהן']) expect(xml).toContain(text);
   // English and numbers keep their order in the right-to-left form.
   expect(xml).toContain('‎1.6 DEFENDER‎');
   // The print shows the same blocks.
   const html = renderOrderPdfHtml({ kind: 'contact', data: contact });
-  for (const text of ['הזמנה : 163251', 'פריטי חיוב', 'חיובים']) expect(html).toContain(text);
+  for (const text of ['הזמנת עדשות מגע 163251', 'פריטי חיוב', 'התקבל']) expect(html).toContain(text);
 });
 
 test('the Word export is a complete .docx package', () => {
@@ -38,7 +36,7 @@ test('the Word export is a complete .docx package', () => {
 test('without billing, neither the items nor the charges are exported', () => {
   const xml = orderFormDocumentXml(buildOrderForm('contact', contact, false));
   expect(xml).not.toContain('פריטי חיוב');
-  expect(xml).not.toContain('חיובים');
+  expect(xml).not.toContain('התקבל');
 });
 
 test('a table or box without a single value is left out of both print and Word', () => {
@@ -47,7 +45,7 @@ test('a table or box without a single value is left out of both print and Word',
   const titles = form.blocks.flatMap((block) => (block.type === 'grid' ? [block.title] : []));
   expect(titles).not.toContain('עדשות');
   expect(titles).toContain('מרשם');
-  expect(renderOrderPdfHtml({ kind: 'contact', data })).not.toContain('<th colspan="6">עדשות</th>');
+  expect(renderOrderPdfHtml({ kind: 'contact', data })).not.toContain('<h2>עדשות</h2>');
   expect(form.blocks.some((block) => block.type === 'info' && block.pairs.some(([label]) => label === 'תמיסת ניקוי'))).toBe(true);
   const empty = buildOrderForm('contact', { ...data, cleaning_solution: '' });
   expect(empty.blocks.some((block) => block.type === 'info' && block.pairs.some(([label]) => label === 'תמיסת ניקוי'))).toBe(false);
@@ -75,4 +73,14 @@ test.each(['regular', 'contact'] as const)('the %s form leaves out who delivered
   for (const text of [orderFormDocumentXml(buildOrderForm(kind, data)), renderOrderPdfHtml({ kind, data })]) {
     for (const gone of ['נמסר', 'תאריך מסירה', 'מוסר', '02/12/2026']) expect(text).not.toContain(gone);
   }
+});
+
+test('empty fields and columns are left out, while a prescription keeps its columns', () => {
+  const form = buildOrderForm('contact', { ...contact, client_address: '', clinic_notes: '' });
+  const grid = (title: string) => form.blocks.find((block) => block.type === 'grid' && block.title === title) as any;
+  expect(grid('עדשות').labels).toEqual(['סוג', 'דגם']);
+  expect(grid('עדשות').rows[0]).toEqual(['רכות חודשיות', '1.6 DEFENDER']);
+  expect(grid('מרשם').labels).toHaveLength(9);
+  expect(JSON.stringify(form.blocks)).not.toContain('כתובת');
+  expect(form.blocks.some((block) => block.type === 'notes')).toBe(false);
 });
