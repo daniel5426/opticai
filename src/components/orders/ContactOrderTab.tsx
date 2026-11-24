@@ -375,6 +375,7 @@ export default function ContactOrderTab({
             contactLensDetailsData={contactLensDetailsData}
             onContactLensDetailsChange={guardedChange(setContactLensDetailsData)}
             isEditing={isEditing}
+            orderSource={(contactFormData.client_id || currentClient?.id) ? { clientId: Number(contactFormData.client_id || currentClient?.id), orderId: contactFormData.id } : undefined}
             inventoryCatalog={
               clinicId
                 ? {
