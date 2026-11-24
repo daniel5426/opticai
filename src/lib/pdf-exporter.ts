@@ -18,12 +18,38 @@ export async function exportHtmlToPdf(
 }
 
 const PRINT_FRAME_ID = "print-frame";
+const DIRECT_PRINT_KEY = "prysm.direct-print";
+
+export function supportsDirectPrinting(): boolean {
+  return typeof window.electronAPI?.printHtmlSilently === "function";
+}
+
+export function isDirectPrintingEnabled(): boolean {
+  try {
+    return localStorage.getItem(DIRECT_PRINT_KEY) !== "false";
+  } catch {
+    return false;
+  }
+}
+
+export function setDirectPrintingEnabled(enabled: boolean): void {
+  localStorage.setItem(DIRECT_PRINT_KEY, String(enabled));
+}
 
 /**
- * Opens the system's print dialog for a page, over the app's own window, in the desktop app and in a browser alike.
+ * Uses the default printer when direct printing is enabled and available. Otherwise opens the print dialog.
  * The page sits in a hidden frame. print() can return while the dialog is still open, so the frame stays until the next print.
  */
 export async function printHtml(html: string): Promise<void> {
+  const printDirectly = window.electronAPI?.printHtmlSilently;
+  if (printDirectly && isDirectPrintingEnabled()) {
+    try {
+      if (await printDirectly(html)) return;
+    } catch {
+      // The print dialog lets the user choose a printer if direct submission fails.
+    }
+  }
+
   document.getElementById(PRINT_FRAME_ID)?.remove();
   const frame = document.createElement("iframe");
   frame.id = PRINT_FRAME_ID;

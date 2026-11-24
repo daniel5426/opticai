@@ -169,6 +169,7 @@ export interface ElectronAPI {
   migrationExportStatus: (payload: { jobId: string }) => Promise<Record<string, any> | null>;
   migrationUploadBundle: (payload: { apiBaseUrl: string; jobId: string; zipPath: string; accessToken: string }) => Promise<any>;
   migrationUploadStatus: (payload: { jobId: string }) => Promise<Record<string, any> | null>;
+  printHtmlSilently?: (html: string) => Promise<boolean>;
   exportHtmlToPdf: (payload: {
     html: string;
     defaultFileName: string;

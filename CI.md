@@ -806,3 +806,11 @@ After the matching application release is live and the owner has reviewed the
 production preview, `--target production --apply PREVIEW_PLAN` applies the
 reviewed changes in one transaction. It verifies the database and clinic and
 rejects changes to the preview. Run the read-only preview again after applying.
+
+## Release v1.0.109
+
+Includes the merged client, calendar, exam, order, and referral updates, the
+desktop Google OAuth browser handoff, and direct desktop printing with dialog
+fallback. No new Alembic revisions. Windows and macOS candidates launch the
+packaged app and exercise printing through its preload with a synthetic printer.
+Candidate npm installs prefer cached packages and retain lockfile integrity checks.

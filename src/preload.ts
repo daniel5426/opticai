@@ -104,6 +104,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   migrationExportStatus: (payload: { jobId: string }) => ipcRenderer.invoke('migration-export-status', payload),
   migrationUploadBundle: (payload: { apiBaseUrl: string; jobId: string; zipPath: string; accessToken: string }) => ipcRenderer.invoke('migration-upload-bundle', payload),
   migrationUploadStatus: (payload: { jobId: string }) => ipcRenderer.invoke('migration-upload-status', payload),
+  printHtmlSilently: (html: string) => ipcRenderer.invoke('print-html-silently', html),
   exportHtmlToPdf: (payload: { html: string; defaultFileName: string }) => ipcRenderer.invoke('export-html-to-pdf', payload),
   onUserLogoutBeforeClose: (callback: () => Promise<void> | void) => {
     const handler = async () => {

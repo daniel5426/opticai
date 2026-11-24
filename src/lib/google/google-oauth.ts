@@ -2,7 +2,6 @@ import authCopy from '../../localization/auth-login.json';
 import { shell } from 'electron'
 import http from 'http'
 import { randomBytes, createHash } from 'crypto'
-import { spawn } from 'child_process'
 import { GOOGLE_CONFIG } from './google-config.js'
 
 export interface GoogleTokens {
@@ -38,7 +37,7 @@ export class GoogleOAuthService {
   }
 
   /**
-   * Handle the OAuth flow in Google Chrome.
+   * Handle the OAuth flow in the system browser.
    */
   async authenticate(locale = 'he'): Promise<{ tokens: GoogleTokens; userInfo: GoogleUserInfo }> {
     if (GoogleOAuthService.pendingAuth) throw new Error('authLogin.google.failed')
@@ -99,7 +98,7 @@ export class GoogleOAuthService {
       GoogleOAuthService.pendingAuth = pending
 
       callbackServer.waitForCode.then(finish).catch(fail)
-      this.openUrlInChrome(authUrl).catch(fail)
+      shell.openExternal(authUrl).catch(fail)
       timeoutId = setTimeout(() => {
         fail(new Error('authLogin.google.timeout'))
       }, 120 * 1000)
@@ -195,52 +194,6 @@ export class GoogleOAuthService {
         }
       }
     }
-  }
-
-  private async openUrlInChrome(url: string): Promise<void> {
-    const candidates = process.platform === 'darwin'
-      ? [{ command: 'open', args: ['-a', 'Google Chrome', url] }]
-      : process.platform === 'win32'
-        ? [{ command: 'cmd', args: ['/c', 'start', '', 'chrome', url] }]
-        : [
-            { command: 'google-chrome', args: [url] },
-            { command: 'google-chrome-stable', args: [url] },
-            { command: 'chromium', args: [url] },
-            { command: 'chromium-browser', args: [url] },
-          ]
-
-    await new Promise<void>((resolve, reject) => {
-      let index = 0
-      const tryNext = () => {
-        const candidate = candidates[index]
-        if (!candidate) {
-          reject(new Error('Google Chrome was not found'))
-          return
-        }
-
-        index += 1
-        const child = spawn(candidate.command, candidate.args, {
-          detached: true,
-          stdio: 'ignore',
-          windowsHide: true,
-        })
-
-        child.once('error', tryNext)
-        child.once('exit', (code) => {
-          if (code === 0 || process.platform === 'win32') {
-            resolve()
-          } else {
-            tryNext()
-          }
-        })
-        child.unref()
-      }
-
-      tryNext()
-    }).catch(async (error) => {
-      console.warn('[GoogleOAuth] Failed to open Chrome, falling back to default browser:', error)
-      await shell.openExternal(url)
-    })
   }
 
   /**

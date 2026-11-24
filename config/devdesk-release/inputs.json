@@ -1,16 +1,16 @@
 {
-  "desktopPackageHash": "55d811fc531909ab67a457d03cd3188c990fdb28dc3f8687b04bc15ff9dd39e0",
-  "desktopLockHash": "d5c1db9642166636b1a254bf19189795fb3147ef93d1f23c650b79b07881e22c",
+  "desktopPackageHash": "0f959307de961c6da6800a0bf9ff37a796e731653a7e51dcfcc9c22801682f36",
+  "desktopLockHash": "6860258c52eef31d04b7b55acb326d4795caefd10d2f0b877933c781d13ee718",
   "desktopGeneratorHash": "a32247b81b8bd381b15cb346e3d0195b5b849db64ddee160a7a7b568dbff4c88",
   "version": 1,
   "registry": "https://registry.npmjs.org",
-  "packageJsonHash": "947578e3742bd1edfd27d767f54107b82366dd3b383e47557a76c19fd380a627",
-  "publicPackageJsonHash": "947578e3742bd1edfd27d767f54107b82366dd3b383e47557a76c19fd380a627",
+  "packageJsonHash": "0591d47c405be20f9b4f28d5b05fd4a9a21e6655a922bc42e8d7dc680e10f812",
+  "publicPackageJsonHash": "0591d47c405be20f9b4f28d5b05fd4a9a21e6655a922bc42e8d7dc680e10f812",
   "versionsHash": "e376db82afb2832c92404a5fab7ff2a25332f522d8330570b4192ded2dfbb7a6",
   "versions": {
     "@agents24/chat-react": "0.5.49"
   },
-  "developmentLockHash": "6c99d18428b308e250f04423a97d25bc2ae201e740bf5960ea6094d8e5784d4d",
-  "publicLockHash": "a1c461acec05d899395c5cbf3f6b86d4dab8207b9fc490397bfedd96f8fd03e1",
+  "developmentLockHash": "8db57a2aeb3ff6b83cfd0c043cf5c183e4fa00d8e79cf3e4f64a66bef3841c27",
+  "publicLockHash": "0c75ac6be0caf295b6b22625da91a3ca2b6569f19257f8796601e2b532833e0a",
   "replacements": []
 }

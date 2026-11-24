@@ -1,0 +1,20 @@
+{
+  "he": {
+    "title": "הדפסה",
+    "direct": "הדפסה ישירה",
+    "description": "הזמנות והפניות יישלחו למדפסת ברירת המחדל במחשב זה. אם ההדפסה הישירה לא מצליחה, ייפתח חלון ההדפסה.",
+    "saveFailed": "לא ניתן לשמור את הגדרת ההדפסה במחשב זה."
+  },
+  "en": {
+    "title": "Printing",
+    "direct": "Print directly",
+    "description": "Send orders and referrals to this device’s default printer. If direct printing fails, the print dialog opens.",
+    "saveFailed": "Could not save the printing preference on this device."
+  },
+  "fr": {
+    "title": "Impression",
+    "direct": "Impression directe",
+    "description": "Envoyer les commandes et les lettres d’orientation à l’imprimante par défaut de cet appareil. Si l’impression directe échoue, la boîte de dialogue d’impression s’ouvre.",
+    "saveFailed": "Impossible d’enregistrer le réglage d’impression sur cet appareil."
+  }
+}

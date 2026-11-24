@@ -1,5 +1,6 @@
 import { GoogleCalendarIntegration } from "./GoogleCalendarIntegration";
 import { BarcodeScannerPreferences } from "./BarcodeScannerPreferences";
+import { PrintingPreferences } from "./PrintingPreferences";
 import React, { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -439,6 +440,7 @@ export function PersonalProfileTab({
         </CardContent>
       </Card>
 
+      <PrintingPreferences />
       <GoogleCalendarIntegration />
     </div>
   )

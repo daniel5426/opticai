@@ -28,6 +28,7 @@ if (process.env.NODE_ENV === 'production') {
 import { app, BrowserWindow, ipcMain, dialog, shell, Menu } from "electron";
 import { autoUpdater } from "electron-updater";
 import { GoogleOAuthService } from './lib/google/google-oauth';
+import { printOnDefaultPrinter } from './lib/desktop-printing';
 import { pruneSoftOpticExport } from "./lib/softoptic-prune";
 import { discoverOpticPlus, prepareOpticPlusInput, exportOpticPlus, type OpticPlusCandidate } from "./lib/opticplus-export";
 import registerListeners from "./helpers/ipc/listeners-register";
@@ -1628,6 +1629,17 @@ function setupIpcHandlers() {
 
   ipcMain.handle('migration-upload-status', async (_event, payload: { jobId: string }) => {
     return getSoftOpticUploadStatus(payload.jobId);
+  });
+
+  ipcMain.handle('print-html-silently', async (event, html: unknown) => {
+    if (event.sender !== mainWindow?.webContents || event.senderFrame !== event.sender.mainFrame || typeof html !== 'string') {
+      return false;
+    }
+    try {
+      return await printOnDefaultPrinter(event.sender, html);
+    } catch {
+      return false;
+    }
   });
 
   ipcMain.handle('export-html-to-pdf', async (_event, payload: { html: string; defaultFileName: string }) => {

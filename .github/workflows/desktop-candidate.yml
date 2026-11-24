@@ -61,7 +61,7 @@ jobs:
         run: node scripts/devdesk-release-inputs.mjs apply
 
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+        run: npm ci --no-audit --no-fund --prefer-offline
 
       - name: Generate production environment file
         run: |
@@ -84,7 +84,7 @@ jobs:
 
       - name: Launch packaged macOS and verify native runtime
         timeout-minutes: 2
-        run: node scripts/check-packaged-macos.mjs
+        run: node scripts/check-packaged-desktop.mjs
 
       - name: Verify updater and record candidate
         run: node scripts/record-desktop-candidate.mjs mac
@@ -122,7 +122,7 @@ jobs:
         run: node scripts/devdesk-release-inputs.mjs apply
 
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+        run: npm ci --no-audit --no-fund --prefer-offline
 
       - name: Restore or build verified native reader
         uses: ./.github/actions/optitech-reader
@@ -160,6 +160,10 @@ jobs:
           $license = Join-Path $unpacked.FullName "resources\optitech_reader\COPYING.LIB"
           $source = Join-Path $unpacked.FullName "resources\optitech_reader\SOURCE_AND_BUILD.md"
           if (-not (Test-Path $reader) -or -not (Test-Path $notice) -or -not (Test-Path $license) -or -not (Test-Path $source)) { throw "Native OptiTech reader resources are missing" }
+
+      - name: Launch packaged Windows and verify native runtime
+        timeout-minutes: 2
+        run: node scripts/check-packaged-desktop.mjs
 
       - name: Verify updater and record candidate
         run: node scripts/record-desktop-candidate.mjs win

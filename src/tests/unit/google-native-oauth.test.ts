@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { expect, it, vi } from 'vitest';
+import { shell } from 'electron';
 vi.mock('electron', () => ({ shell: { openExternal: vi.fn() } }));
 import { GoogleOAuthService } from '@/lib/google/google-oauth';
 
@@ -18,7 +19,7 @@ it('cannot bypass loopback validation by forwarding a code through the renderer'
   expect(await GoogleOAuthService.resolvePendingAuth('unvalidated-code')).toBe(false);
 });
 
-it('binds desktop authorization and exchange to the same PKCE verifier and state', async () => {
+it('opens the complete authorization URL in the system browser and exchanges the matching callback', async () => {
   const { createHash } = await import('node:crypto');
   const generated: any[] = [];
   const exchanged: any[] = [];
@@ -35,18 +36,23 @@ it('binds desktop authorization and exchange to the same PKCE verifier and state
   const service = Object.create(GoogleOAuthService.prototype) as any;
   service.createOAuthClient = (redirect: string) => new OAuth2('', '', redirect);
   service.getUserInfo = async () => ({ email: 'synthetic@example.com' });
-  service.openUrlInChrome = async (url: string) => {
+  const openExternal = vi.mocked(shell.openExternal).mockImplementation(async (url: string) => {
     const params = new URL(url).searchParams;
+    expect(params.get('access_type')).toBe('offline');
+    expect(params.get('scope')).toContain('https://www.googleapis.com/auth/calendar');
+    expect(params.get('prompt')).toBe('consent');
+    expect(params.get('code_challenge_method')).toBe('S256');
     const callback = params.get('redirect_uri')!;
     expect((await fetch(`${callback}?code=bad&state=wrong`)).status).toBe(400);
     await fetch(`${callback}?code=valid&state=${params.get('state')}`);
-  };
+  });
   try {
     expect((await service.authenticate('fr')).userInfo.email).toBe('synthetic@example.com');
+    expect(openExternal).toHaveBeenCalledTimes(1);
     expect(generated[0].state).toHaveLength(43);
     expect(generated[0].code_challenge_method).toBe('S256');
     expect(createHash('sha256').update(exchanged[0].codeVerifier).digest('base64url')).toBe(generated[0].code_challenge);
     expect(exchanged[0].code).toBe('valid');
     expect(exchanged[0].redirect_uri).toContain('http://127.0.0.1:');
-  } finally { GoogleOAuthService.cancelPendingAuth(); vi.unstubAllGlobals(); }
+  } finally { GoogleOAuthService.cancelPendingAuth(); openExternal.mockReset(); }
 });
