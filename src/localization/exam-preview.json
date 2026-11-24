@@ -9,6 +9,9 @@
     "resizeLeft": "Resize layout from left edge",
     "resizeRight": "Resize layout from right edge",
     "editorHelpLabel": "Layout editor help",
+    "dropFits": "Fits here",
+    "dropBlocked": "Doesn’t fit here",
+    "dropRowFull": "Not enough room in this row",
     "editorHelp": "Click a row to choose a component and add it there. Drag cards between cells and rows, and drag a card edge to resize it. Drag either outer layout edge to resize the centered layout.",
     "layouts": "Layouts",
     "newLayout": "New layout"
@@ -23,6 +26,9 @@
     "resizeLeft": "שינוי רוחב הפריסה מהקצה השמאלי",
     "resizeRight": "שינוי רוחב הפריסה מהקצה הימני",
     "editorHelpLabel": "עזרה בעורך הפריסה",
+    "dropFits": "נכנס כאן",
+    "dropBlocked": "לא נכנס כאן",
+    "dropRowFull": "אין מספיק מקום בשורה",
     "editorHelp": "לחץ על שורה כדי לבחור רכיב ולהוסיף אותו שם. גרור כרטיסים בין תאים ושורות, וגרור את אחד מקצוות הכרטיס כדי לשנות רוחב. גרור אחד מהקצוות החיצוניים של הפריסה כדי לשנות את רוחבה תוך שמירה על המרכוז.",
     "layouts": "פריסות בדיקה",
     "newLayout": "פריסה חדשה"
@@ -37,6 +43,9 @@
     "resizeLeft": "Redimensionner la disposition depuis le bord gauche",
     "resizeRight": "Redimensionner la disposition depuis le bord droit",
     "editorHelpLabel": "Aide de l’éditeur de disposition",
+    "dropFits": "Tient ici",
+    "dropBlocked": "Ne tient pas ici",
+    "dropRowFull": "Pas assez de place sur cette ligne",
     "editorHelp": "Cliquez sur une ligne pour choisir un composant et l’y ajouter. Faites glisser les cartes entre les cellules et les lignes, ou un bord de carte pour la redimensionner. Faites glisser un bord extérieur de la disposition pour modifier sa largeur tout en la gardant centrée.",
     "layouts": "Dispositions",
     "newLayout": "Nouvelle disposition"

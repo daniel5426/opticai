@@ -124,3 +124,26 @@ test('dragging across a neighbor keeps the row in its original order', async () 
     { id: 'second', x: 8, w: 8 },
   ]);
 });
+
+test('a dragged card shows a ghost that says whether it fits, and a click shows none', async () => {
+  await i18n.changeLanguage('he');
+  vi.stubGlobal('PointerEvent', MouseEvent);
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1900);
+  loadLayout();
+  renderEditor();
+  const card = (await screen.findByText('Card preview')).closest<HTMLElement>('[data-grid-card]')!;
+  const lane = card.closest<HTMLElement>('[data-exam-lane]')!;
+  vi.spyOn(lane, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, bottom: 200 } as DOMRect);
+  vi.spyOn(card, 'getBoundingClientRect').mockReturnValue({ left: 0, right: 416, top: 0, width: 416 } as DOMRect);
+  const ghost = () => document.querySelector<HTMLElement>('[data-drag-ghost]');
+
+  fireEvent.pointerDown(card, { button: 0, clientX: 100, clientY: 80 });
+  fireEvent.pointerMove(window, { clientX: 102, clientY: 80 });
+  expect(ghost()).toBeNull();
+  fireEvent.pointerMove(window, { clientX: 400, clientY: 80 });
+  expect(ghost()).toHaveTextContent('נכנס כאן');
+  expect(ghost()!.style.width).toBe('416px');
+  expect(ghost()!.querySelector('[data-grid-card], [data-resize-handle], button')).toBeNull();
+  fireEvent.pointerUp(window);
+  expect(ghost()).toBeNull();
+});

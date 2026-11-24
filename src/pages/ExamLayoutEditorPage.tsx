@@ -57,12 +57,15 @@ import {
   clampResizeLeft,
   computeCardGridCols,
   computeCardMinGridCols,
+  examCardDropFit,
+  type ExamCardDropFit,
   findNearestAvailableGridPlacement,
   normalizeGridItem,
   parseLayoutData,
   serializeGridLayoutData,
   sortGridItems,
 } from "@/pages/exam-detail/utils";
+import { ExamCardDragGhost } from "@/components/exam/ExamCardDragGhost";
 import { EXAM_LAYOUT_LANE_MIN_HEIGHT_PX } from "@/components/exam/ExamGridLayout";
 
 type InteractionState =
@@ -71,6 +74,10 @@ type InteractionState =
       id: string;
       originalItem: GridLayoutItem;
       offsetCols: number;
+      card: HTMLElement;
+      start: { x: number; y: number };
+      grab: { x: number; y: number };
+      moved: boolean;
     }
   | {
       type: "resize";
@@ -83,6 +90,8 @@ type InteractionState =
 
 const INTERACTIVE_CARD_SELECTOR =
   "button,a,[role='button'],[contenteditable='true'],[data-resize-handle]";
+// A press that barely moves is a click, not a drag.
+const DRAG_THRESHOLD_PX = 4;
 const EDGE_SCROLL_ZONE_PX = 96;
 const EDGE_SCROLL_STEP_PX = 18;
 
@@ -219,7 +228,13 @@ export default function ExamLayoutEditorPage() {
     x: number;
   } | null>(null);
   const [items, setItems] = useState<GridLayoutItem[]>([]);
-  const [invalidItemId, setInvalidItemId] = useState<string | null>(null);
+  const [drag, setDrag] = useState<{
+    id: string;
+    card: HTMLElement;
+    grab: { x: number; y: number };
+    lane: number;
+    fit: ExamCardDropFit;
+  } | null>(null);
   const [highlightedItemId, setHighlightedItemId] = useState<string | null>(
     null,
   );
@@ -497,13 +512,17 @@ export default function ExamLayoutEditorPage() {
           else maxX = Math.min(maxX, item.x - original.w);
         }
       }
-      if (minX > maxX) return;
       const requestedX = getColumnFromPointer(lane, clientX, interaction.offsetCols);
       const x = Math.max(minX, Math.min(maxX, requestedX));
       const candidate = { ...original, x, y: lane };
-      const collision = findCollision(candidate, itemsRef.current, original.id);
-      setInvalidItemId(collision ? original.id : null);
-      if (!collision) updateItem(original.id, () => candidate);
+      const canPlace = minX <= maxX && !findCollision(candidate, itemsRef.current, original.id);
+      const fit = examCardDropFit(original, lane, requestedX, canPlace ? x : null, itemsRef.current, getLaneColumnLimit(lane));
+      setDrag((current) =>
+        current?.lane === lane && current.fit === fit
+          ? current
+          : { id: original.id, card: interaction.card, grab: interaction.grab, lane, fit },
+      );
+      if (canPlace) updateItem(original.id, () => candidate);
     },
     [getColumnFromPointer, getLaneColumnLimit, getLaneFromPointer],
   );
@@ -532,7 +551,7 @@ export default function ExamLayoutEditorPage() {
     window.setTimeout(() => {
       suppressNextRowClickRef.current = false;
     }, 80);
-    setInvalidItemId(null);
+    setDrag(null);
     document.body.style.userSelect = "";
     document.body.style.cursor = "";
   }, [getLaneColumnLimit]);
@@ -612,6 +631,11 @@ export default function ExamLayoutEditorPage() {
 
       if (interaction.type === "drag") {
         dragPointerRef.current = { x: event.clientX, y: event.clientY };
+        if (!interaction.moved) {
+          const { start } = interaction;
+          if (Math.hypot(event.clientX - start.x, event.clientY - start.y) < DRAG_THRESHOLD_PX) return;
+          interaction.moved = true;
+        }
         startAutoScrollLoop();
         updateDragPosition(event.clientX, event.clientY);
         return;
@@ -657,6 +681,7 @@ export default function ExamLayoutEditorPage() {
 
     window.addEventListener("pointermove", handlePointerMove);
     window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
     return () => {
       if (autoScrollFrameRef.current !== null) {
         window.cancelAnimationFrame(autoScrollFrameRef.current);
@@ -664,6 +689,7 @@ export default function ExamLayoutEditorPage() {
       }
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
     };
   }, [
     finishInteraction,
@@ -686,16 +712,20 @@ export default function ExamLayoutEditorPage() {
     event.preventDefault();
     event.stopPropagation();
 
-    const offsetCols = examCardColumnOffset(item, event.clientX, cardEl.getBoundingClientRect());
+    const cardRect = cardEl.getBoundingClientRect();
+    const offsetCols = examCardColumnOffset(item, event.clientX, cardRect);
     interactionRef.current = {
       type: "drag",
       id: item.id,
       originalItem: { ...item },
       offsetCols,
+      card: cardEl,
+      start: { x: event.clientX, y: event.clientY },
+      grab: { x: event.clientX - cardRect.left, y: event.clientY - cardRect.top },
+      moved: false,
     };
     dragPointerRef.current = { x: event.clientX, y: event.clientY };
     scrollContainerRef.current = getScrollContainer(laneEl);
-    startAutoScrollLoop();
     document.body.style.userSelect = "none";
     document.body.style.cursor = "grabbing";
   };
@@ -952,6 +982,7 @@ export default function ExamLayoutEditorPage() {
                 className={cn(
                   "border-border group/row relative w-full border-b transition-colors last:border-b-0",
                   selectedType && "hover:bg-primary/5 cursor-crosshair",
+                  drag?.lane === lane && (drag.fit === "fits" ? "bg-primary/5" : "bg-destructive/5"),
                 )}
                 style={{
                   minHeight:
@@ -987,8 +1018,9 @@ export default function ExamLayoutEditorPage() {
                         "group/card relative min-w-0 cursor-grab transition-opacity active:cursor-grabbing",
                         highlightedItemId === item.id &&
                           "ring-primary ring-2 ring-offset-2",
-                        invalidItemId === item.id &&
-                          "ring-destructive opacity-60 ring-2",
+                        // The card itself marks where it will land.
+                        drag?.id === item.id &&
+                          "outline-primary/60 rounded-xl opacity-40 outline-2 outline-offset-2 outline-dashed",
                       )}
                       style={style}
                     >
@@ -1080,6 +1112,7 @@ export default function ExamLayoutEditorPage() {
         </div>
         </CenteredLayoutWidth>
       </div>
+      {drag && <ExamCardDragGhost card={drag.card} grab={drag.grab} pointer={dragPointerRef} fit={drag.fit} />}
     </>
   );
 }
