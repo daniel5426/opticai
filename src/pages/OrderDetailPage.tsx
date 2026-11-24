@@ -34,8 +34,10 @@ import {
 } from "@/lib/db/schema-interface";
 import {
   extractAdditionAddSourcesFromExamPageData,
+  isAdditionAddType,
   isSphAddType,
-  normalizeAdditionAddType,
+  prescriptionAddSource,
+  normalizeOrderGlassesType,
   sphWithAddition,
 } from "@/lib/addition-add-sources";
 type OrderLens = {
@@ -282,7 +284,7 @@ export function LegacyOrderDetailPage({
     addTypeFromSearch = null;
   }
   const isContactMode = workspace ? workspace.kind === "contact" : searchTypeParam === "contact";
-  const selectedAdditionAddType = normalizeAdditionAddType(addTypeFromSearch);
+  const selectedGlassesType = normalizeOrderGlassesType(addTypeFromSearch);
   const examId = propExamId || examIdFromSearch || undefined;
 
   const [loading, setLoading] = useState(true);
@@ -863,18 +865,18 @@ export function LegacyOrderDetailPage({
                 const fp = findExamComponentData(pageData, "final-prescription");
                 const additionSources =
                   extractAdditionAddSourcesFromExamPageData(pageData);
-                const selectedAdditionSource = selectedAdditionAddType
-                  ? additionSources[selectedAdditionAddType]
+                const selectedAdditionSource = selectedGlassesType && isAdditionAddType(selectedGlassesType)
+                  ? additionSources[selectedGlassesType]
                   : undefined;
 
-                if (fp || selectedAdditionSource) {
+                if (fp || selectedGlassesType) {
                   const nextFinalPrescription = {
                     ...(fp || {}),
                     ...(Object.keys(additionSources).length > 0
                       ? { addition_add_sources: additionSources }
                       : {}),
-                    ...(selectedAdditionAddType
-                      ? { add_type: selectedAdditionAddType }
+                    ...(selectedGlassesType
+                      ? { add_type: selectedGlassesType }
                       : {}),
                     ...(selectedAdditionSource?.r_ad !== undefined
                       ? { r_ad: selectedAdditionSource.r_ad }
@@ -885,8 +887,14 @@ export function LegacyOrderDetailPage({
                   } as FinalPrescriptionExam;
 
                   // Near and intermediate glasses: SPH is the far SPH plus the chosen addition.
-                  const sphPatch = isSphAddType(selectedAdditionAddType)
-                    ? sphWithAddition(nextFinalPrescription as Record<string, unknown>, selectedAdditionAddType, selectedAdditionSource, true)
+                  const sphPatch = isSphAddType(selectedGlassesType)
+                    ? sphWithAddition(
+                        nextFinalPrescription as Record<string, unknown>,
+                        selectedGlassesType,
+                        // Without one in the Addition card, the prescription's own ADD, as when the type is changed on the order.
+                        selectedAdditionSource ?? prescriptionAddSource(nextFinalPrescription as Record<string, unknown>),
+                        Boolean(selectedAdditionSource),
+                      )
                     : null;
                   if (sphPatch) {
                     Object.assign(nextFinalPrescription, sphPatch, {
@@ -1026,7 +1034,7 @@ export function LegacyOrderDetailPage({
     currentClinic?.id,
     isNewMode,
     isContactMode,
-    selectedAdditionAddType,
+    selectedGlassesType,
   ]);
 
   useEffect(() => {
