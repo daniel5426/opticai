@@ -179,7 +179,7 @@ describe("referral-docx print model", () => {
     expect(model.has_clinical_findings).toBe(false);
     expect(model.has_compact_prescription).toBe(false);
     expect(model.has_old_prescription).toBe(false);
-    expect(renderReferralPdfHtml(model, "logo.png")).not.toContain("מרשם ישן");
+    expect(renderReferralPdfHtml(model)).not.toContain("מרשם ישן");
   });
 
   test("the old prescription is exported before the current one", () => {
@@ -187,14 +187,14 @@ describe("referral-docx print model", () => {
     context.referral.referral_data!["old-refraction"] = { r_sph: "-2", r_cyl: "-0.5", r_ax: "90", r_va: "6/6-1", l_sph: "Balance", r_ad: "1.5", r_glasses_type: "קרוב" };
     const model = buildReferralPrintModel(context);
     expect(model).toMatchObject({ has_old_prescription: true, has_old_comb: false, old_title: "מרשם ישן · קרוב", old_r_sph: `${LTR_MARK}-2.00${LTR_MARK}`, old_l_sph: "Balance", old_r_va: "6/6-1" });
-    const html = renderReferralPdfHtml(model, "logo.png");
+    const html = renderReferralPdfHtml(model);
     expect(html.indexOf("מרשם ישן · קרוב")).toBeGreaterThan(0);
     expect(html.indexOf("מרשם ישן · קרוב")).toBeLessThan(html.indexOf("מרשם / כרטיס בדיקה"));
     expect(html).not.toContain("J משולב");
 
     context.referral.referral_data!["compact-prescription-title"] = "מרשם מומלץ";
     const renamed = buildReferralPrintModel(context);
-    expect(renderReferralPdfHtml(renamed, "logo.png")).toContain("מרשם מומלץ");
+    expect(renderReferralPdfHtml(renamed)).toContain("מרשם מומלץ");
     const text = buildReferralWord(renamed).file("word/document.xml")!.asText();
     expect(new DOMParser().parseFromString(text, "application/xml").querySelector("parsererror")).toBeNull();
     expect(text).toContain("מרשם מומלץ");
@@ -204,28 +204,26 @@ describe("referral-docx print model", () => {
     expect(text).not.toContain("J משולב");
   });
 
-  test("renderReferralPdfHtml mirrors the referral template structure", () => {
+  test("renderReferralPdfHtml mirrors the Word letter", () => {
     const model = buildReferralPrintModel(createReferralContext());
-    const html = renderReferralPdfHtml(model, "logo.png");
+    const html = renderReferralPdfHtml(model);
 
     expect(html).toContain('<html dir="rtl" lang="he">');
     expect(html).toContain("מכתב הפניה");
-    expect(html).not.toContain("אופטיקה הראל");
-    expect(html).toContain("סניף: ירושלים");
+    expect(html).toContain("ירושלים | ");
     expect(html).toContain("clinic@example.com");
     expect(html).toContain("מס&#39; הפניה: 44");
     expect(html).toContain("לכבוד: הרופא המטפל");
     expect(html).toContain("מטופל: הראל שלומי");
     expect(html).toContain("ת.ז: 123456789");
     expect(html).not.toContain("מספר לקוח");
-    expect(html).toContain("הערות:");
-    expect(html).toContain("ממצאים קליניים:");
+    expect(html).toContain("<h2>הערות</h2>");
+    expect(html).toContain("<h2>ממצאים קליניים</h2>");
     expect(html).toContain("מרשם / כרטיס בדיקה");
     expect(html).not.toContain("background: #f4f4f5");
     expect(html).not.toContain("background: #fafafa");
     expect(html).not.toContain("background: #18181b");
-    expect(html).toContain('<tr><th class="section-cell">עין</th>');
-    expect(html).toContain("VA משולב");
+    expect(html).toContain('<th class="eye">R</th>');
     expect(html).toContain("PD משולב");
     expect(html).toContain("בברכה");
   });
