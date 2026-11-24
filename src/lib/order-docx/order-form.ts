@@ -107,7 +107,7 @@ function regularForm(data: RegularOrderPrintModel, includeBilling: boolean): For
       defaults: [6],
       rows: [[data.frame_supplier, data.frame_brand, data.frame_model, data.frame_color, frameSize, data.frame_height, data.frame_supplied_by]],
     },
-    { type: "info", pairs: [['נמסר ע"י', data.delivered_by], ["תאריך מסירה", data.delivered_date], ["תאריך אישור", data.approval_date]] },
+    { type: "info", pairs: [["תאריך אישור", data.approval_date]] },
     ...(includeBilling ? itemsGrid(data) : []),
     bottom(data, includeBilling),
   ];
@@ -122,8 +122,7 @@ function contactForm(data: ContactOrderPrintModel, includeBilling: boolean): For
       pairs: [
         ["תאריך", data.order_date], ["שם הבודק", data.optician_name],
         ["יועץ", data.advisor_name], ["אספקה בסניף", data.supply_clinic_name],
-        ["מוסר עבודה", data.deliverer_name],
-        ["תאריך אישור", data.approval_date], ["תאריך מסירה", data.delivery_date],
+        ["תאריך אישור", data.approval_date],
       ],
     },
     {

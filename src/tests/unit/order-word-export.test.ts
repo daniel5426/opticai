@@ -69,3 +69,10 @@ test('the form leaves out status, priority, promised date, lab, temple length, m
     expect(xml).toContain('52-18');
   }
 });
+
+test.each(['regular', 'contact'] as const)('the %s form leaves out who delivered it and when', (kind) => {
+  const data: any = { ...contact, delivered_by: 'מוסר', delivered_date: '02/12/2026', deliverer_name: 'מוסר', delivery_date: '02/12/2026' };
+  for (const text of [orderFormDocumentXml(buildOrderForm(kind, data)), renderOrderPdfHtml({ kind, data })]) {
+    for (const gone of ['נמסר', 'תאריך מסירה', 'מוסר', '02/12/2026']) expect(text).not.toContain(gone);
+  }
+});
