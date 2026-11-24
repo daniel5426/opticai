@@ -781,7 +781,7 @@ i18n.use(initReactI18next).init({
         examRetinoscopyDilation: "רטינוסקופיה + הרחבה",
         chooseDate: "בחירת תאריך",
         examOrder: "הזמנה",
-        examRegularOrder: "רגילה",
+        examRegularOrder: "משקפיים",
         examContactLenses: "עדשות מגע",
         saveExam: "שמירת בדיקה",
         editExam: "עריכת בדיקה",

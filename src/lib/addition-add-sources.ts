@@ -20,11 +20,12 @@ export const ADDITION_ADD_TYPE_LABELS: Record<AdditionAddType, string> = {
 };
 
 // An order's glasses type: the addition types, plus types that take no addition.
-export const ORDER_GLASSES_TYPES = ["far", "read", "int", "mul", "bif", "my_slow"] as const;
+export const ORDER_GLASSES_TYPES = ["far", "read", "int", "mul", "bif", "office", "my_slow"] as const;
 export type OrderGlassesType = (typeof ORDER_GLASSES_TYPES)[number];
 export const ORDER_GLASSES_TYPE_LABELS: Record<OrderGlassesType, string> = {
   far: "רחוק",
   ...ADDITION_ADD_TYPE_LABELS,
+  office: "משרדיות",
   my_slow: "My Slow",
 };
 export const isAdditionAddType = (type: string): type is AdditionAddType =>
@@ -43,6 +44,12 @@ const toNumberValue = (value: unknown): number | undefined => {
   const parsed = typeof value === "number" ? value : parseFloat(String(value));
   return Number.isNaN(parsed) ? undefined : parsed;
 };
+
+/** A prescription's own ADD, as an addition source. */
+export const prescriptionAddSource = (prescription: Record<string, unknown>): AdditionAddSource => ({
+  r_ad: toNumberValue(prescription.r_ad),
+  l_ad: toNumberValue(prescription.l_ad),
+});
 
 export const normalizeAdditionAddType = (
   value: unknown,

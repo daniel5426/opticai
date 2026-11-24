@@ -19,17 +19,10 @@ import { getOrdersByClientId } from "@/lib/db/orders-db";
 import { OpticalExam, Client, ExamLayout } from "@/lib/db/schema-interface";
 import { getAllExamLayouts, getExamLayoutById } from "@/lib/db/exam-layouts-db";
 import { Button } from "@/components/ui/button";
-import { Edit, Save, Loader2, ShoppingCart } from "lucide-react";
+import { Edit, Save, Loader2 } from "lucide-react";
 import {
-  DropdownMenu,
   DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { useUser } from "@/contexts/UserContext";
@@ -110,12 +103,13 @@ import { ExamSyncManager } from "@/lib/exam-sync/ExamSyncManager";
 import { SubjectiveToFinalSyncRule } from "@/lib/exam-sync/rules/SubjectiveToFinalSyncRule";
 import { SyncContext } from "@/lib/exam-sync/types";
 import {
-  ADDITION_ADD_TYPE_LABELS,
   extractAdditionAddSourcesFromExamData,
   getAdditionAddTypeOptions,
   type AdditionAddSourceMap,
   type AdditionAddType,
+  type OrderGlassesType,
 } from "@/lib/addition-add-sources";
+import { ExamOrderMenu } from "@/components/exam/ExamOrderMenu";
 
 const buildFullDataLayoutDataFromExamData = (
   examData: Record<string, any>,
@@ -1891,13 +1885,13 @@ export default function ExamDetailPage({
   );
 
   const openRegularOrderFromCurrentExam = useCallback(
-    (addType?: AdditionAddType) => {
+    (addType: OrderGlassesType) => {
       if (!exam?.id) return;
 
       navigateToOrderFromCurrentExam({
         importSourceId: String(exam.id),
         importSourceType: "exam",
-        ...(addType ? { addType } : {}),
+        addType,
       });
     },
     [exam?.id, navigateToOrderFromCurrentExam],
@@ -1936,47 +1930,12 @@ export default function ExamDetailPage({
         <>
           <ImportedSourceDataDialog recordType="exam" recordId={exam?.id} />
           {exam?.id && (
-            <DropdownMenu dir={direction}>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-9 w-9"
-                  aria-label={t("examOrder")}
-                  title={t("examOrder")}
-                >
-                  <ShoppingCart size={18} />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {currentExamAddTypeOptions.length > 0 ? (
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger hideIcon>
-                      {t("examRegularOrder")}
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent>
-                      {currentExamAddTypeOptions.map((type) => (
-                        <DropdownMenuItem
-                          key={type}
-                          onClick={() => openRegularOrderFromCurrentExam(type)}
-                        >
-                          {ADDITION_ADD_TYPE_LABELS[type]}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                ) : (
-                  <DropdownMenuItem
-                    onClick={() => openRegularOrderFromCurrentExam()}
-                  >
-                    {t("examRegularOrder")}
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onClick={openContactLensOrderFromCurrentExam}>
-                  {t("examContactLenses")}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <ExamOrderMenu
+              additionTypes={currentExamAddTypeOptions}
+              onGlassesOrder={openRegularOrderFromCurrentExam}
+              onEmptyGlassesOrder={() => navigateToOrderFromCurrentExam({})}
+              onContactLensOrder={openContactLensOrderFromCurrentExam}
+            />
           )}
         </>
       )}
