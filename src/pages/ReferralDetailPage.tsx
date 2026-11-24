@@ -850,6 +850,8 @@ export default function ReferralDetailPage() {
                   data={oldPrescription}
                   isEditing={isEditing && !isSaveInFlight}
                   onChange={(changes) => setOldPrescription((previous) => ({ ...previous, ...changes }))}
+                  clipboardSourceType={clipboardSourceType}
+                  onCopied={setClipboardSourceType}
                 />
               </div>
             </div>
