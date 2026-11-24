@@ -23,6 +23,7 @@ export function SoftOpticDetailsTab({
 }: SoftOpticDetailsTabProps) {
   const { t } = useTranslation();
   const { locale, direction } = useAppLocale();
+  const fieldId = React.useId();
   const slot = SOFTOPTIC_DETAIL_SLOTS[cardId];
   if (!slot) return null;
 
@@ -32,18 +33,20 @@ export function SoftOpticDetailsTab({
   const fields = (slot.fields ?? []).filter((item) => isEditing || hasValue(data[item.field]));
   const showComb = eyeRows.some((row) => row.comb);
 
-  const input = (field: string) => (
+  const input = (field: string, id?: string, compact = false) => (
     <FastInput
       type="text"
+      id={id}
       name={field}
       value={String(data[field] ?? "")}
       onChange={(value) => onChange(field, value)}
       disabled={!isEditing}
-      className={`h-8 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+      className={`h-8 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100 ${compact ? "[field-sizing:content]" : ""}`}
     />
   );
 
   const fieldInput = (item: SoftopticDetailField) => {
+    const id = `${fieldId}-${item.field}`;
     const value = String(data[item.field] ?? "");
     const inputClass = `text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`;
     if (item.date) {
@@ -53,6 +56,7 @@ export function SoftOpticDetailsTab({
     if (item.multiline) {
       return (
         <FastTextarea
+          id={id}
           name={item.field}
           value={value}
           onChange={(next) => onChange(item.field, next)}
@@ -65,11 +69,12 @@ export function SoftOpticDetailsTab({
     if (item.options) {
       return (
         <select
+          id={id}
           name={item.field}
           value={value}
           onChange={(event) => onChange(item.field, event.target.value)}
           disabled={!isEditing}
-          className={`border-input h-8 w-full rounded-md border px-2 ${inputClass}`}
+          className={`border-input h-8 w-full rounded-md border px-2 ${inputClass} ${slot.compactFields ? "[field-sizing:content]" : ""}`}
         >
           <option value="" />
           {/* An imported value OpticSoft did not document is kept as is. */}
@@ -81,7 +86,7 @@ export function SoftOpticDetailsTab({
         </select>
       );
     }
-    return input(item.field);
+    return input(item.field, id, slot.compactFields);
   };
 
   if (slot.caption) {
@@ -96,30 +101,30 @@ export function SoftOpticDetailsTab({
     );
   }
 
-  const fieldColumns = slot.fieldColumns ?? 1;
   const fieldGrid = fields.length > 0 && (
     <div
-      className="grid items-center gap-2"
-      style={{ gridTemplateColumns: `repeat(${fieldColumns}, minmax(5rem, auto) minmax(0, 1fr))` }}
+      className={slot.compactFields
+        ? "flex flex-wrap items-end gap-2"
+        : "grid grid-cols-[minmax(5rem,auto)_minmax(0,1fr)] items-center gap-2"}
     >
       {fields.map((item) => (
-        <React.Fragment key={item.field}>
-          <span
+        <div key={item.field} className={slot.compactFields
+          ? `grid max-w-full gap-1 ${item.multiline ? "w-full min-w-0" : "min-w-16"}`
+          : "contents"}>
+          <label
+            htmlFor={`${fieldId}-${item.field}`}
             className="text-muted-foreground text-xs font-medium"
-            style={item.multiline ? { gridColumnStart: 1 } : undefined}
           >
             {t(`softoptic.details.labels.${item.label}`)}
-          </span>
-          <div style={item.multiline ? { gridColumn: `span ${fieldColumns * 2 - 1}` } : undefined}>
-            {fieldInput(item)}
-          </div>
-        </React.Fragment>
+          </label>
+          {fieldInput(item)}
+        </div>
       ))}
     </div>
   );
 
   return (
-    <Card className="examcard w-full pt-3 pb-4">
+    <Card className={`examcard pt-3 pb-4 ${slot.compactFields ? "w-fit max-w-full" : "w-full"}`}>
       <CardContent className="space-y-3 px-4" style={{ scrollbarWidth: "none" }}>
         <h3 className="text-muted-foreground text-center font-medium">
           {t(`softoptic.details.titles.${slot.title}`)}

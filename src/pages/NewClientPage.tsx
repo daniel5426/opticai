@@ -15,8 +15,8 @@ import { todayIsoDate } from "@/lib/iso-date"
 export default function NewClientPage() {
   const navigate = useNavigate()
   const { currentClinic } = useUser()
+  // No default gender: it stays empty ("בחר מגדר") until chosen.
   const [formData, setFormData] = useState<Client>({
-    gender: "זכר",
     blocked_checks: false,
     blocked_credit: false,
     send_notifications: false,

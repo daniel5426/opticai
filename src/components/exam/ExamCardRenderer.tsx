@@ -126,9 +126,9 @@ const componentsWithMiddleRow: CardItem["type"][] = [
   "final-subjective",
   "final-prescription",
   "compact-prescription",
+  "addition",
   "retinoscop",
-  "corneal-topography",
-  "anamnesis",
+  "retinoscop-dilation",
   "over-refraction",
   "old-contact-lenses",
   "new-contact-lenses",
@@ -137,8 +137,6 @@ const componentsWithMiddleRow: CardItem["type"][] = [
 ];
 const componentsDontHaveMiddleRow: CardItem["type"][] = [
   "objective",
-  "addition",
-  "retinoscop-dilation",
   "uncorrected-va",
   "keratometer",
   "keratometer-full",
@@ -518,7 +516,6 @@ interface RenderCardProps {
   isEditing: boolean;
   mode: "editor" | "detail";
   hideEyeLabels?: boolean;
-  matchHeight?: boolean;
   detailProps?: DetailProps;
   currentRowIndex?: number;
   currentCardIndex?: number;
@@ -668,10 +665,6 @@ export const getMaxWidth = (
       return typeof col === "number" ? col * 90 : col.fixedPx;
     }
   }
-};
-
-export const hasNoteCard = (cards: CardItem[]): boolean => {
-  return cards.some((card) => card.type === "notes");
 };
 
 // Update calculateCardWidth to support fixedPx widths and max width constraints
@@ -860,7 +853,6 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
     rowCards,
     mode,
     hideEyeLabels = false,
-    matchHeight = false,
     detailProps,
     currentRowIndex = 0,
     currentCardIndex = 0,
@@ -1365,7 +1357,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
       case "old-ref":
         return (
           <div
-            className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
+            className="relative h-full"
           >
             {toolbox}
             <OldRefTab
@@ -1455,7 +1447,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
 
         return (
           <div
-            className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
+            className="relative h-full"
           >
             {toolbox}
             <OldRefractionTab
@@ -1567,7 +1559,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
 
         return (
           <div
-            className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
+            className="relative h-full"
           >
             {toolbox}
             <OldRefractionExtensionTab
@@ -1611,7 +1603,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
       case "objective":
         return (
           <div
-            className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
+            className="relative h-full"
           >
             {toolbox}
             <ObjectiveTab
@@ -1630,7 +1622,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
       case "subjective":
         return (
           <div
-            className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
+            className="relative h-full"
           >
             {toolbox}
             <SubjectiveTab
@@ -1651,7 +1643,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
       case "final-subjective":
         return (
           <div
-            className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
+            className="relative h-full"
           >
             {toolbox}
             <FinalSubjectiveTab
@@ -1671,7 +1663,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
       case "final-prescription":
         return (
           <div
-            className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
+            className="relative h-full"
           >
             {toolbox}
             <FinalPrescriptionTab
@@ -1694,7 +1686,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
       case "compact-prescription":
         return (
           <div
-            className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
+            className="relative h-full"
           >
             {toolbox}
             <CompactPrescriptionTab
@@ -1719,7 +1711,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
       case "addition":
         return (
           <div
-            className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
+            className="relative h-full"
           >
             {toolbox}
             <AdditionTab
@@ -1738,7 +1730,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
       case "retinoscop":
         return (
           <div
-            className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
+            className="relative h-full"
           >
             {toolbox}
             <RetinoscopTab
@@ -1759,7 +1751,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
       case "retinoscop-dilation":
         return (
           <div
-            className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
+            className="relative h-full"
           >
             {toolbox}
             <RetinoscopDilationTab
@@ -1786,7 +1778,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
       case "uncorrected-va":
         return (
           <div
-            className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
+            className="relative h-full"
           >
             {toolbox}
             <UncorrectedVATab
@@ -1810,7 +1802,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
       case "keratometer":
         return (
           <div
-            className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
+            className="relative h-full"
           >
             {toolbox}
             <KeratometerTab
@@ -1831,7 +1823,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
       case "keratometer-full":
         return (
           <div
-            className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
+            className="relative h-full"
           >
             {toolbox}
             <KeratometerFullTab
@@ -1857,7 +1849,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
       case "corneal-topography":
         return (
           <div
-            className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
+            className="relative h-full"
           >
             {toolbox}
             <CornealTopographyTab
@@ -2018,7 +2010,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
         // No need to load individual component data here
         return (
           <div
-            className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
+            className="relative h-full"
           >
             {toolbox}
             <CoverTestTab
@@ -2044,7 +2036,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
 
       case "cover-test-v2":
         return (
-          <div className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}>
+          <div className="relative h-full">
             {toolbox}
             <CoverTestV2Tab
               coverTestData={
@@ -2139,7 +2131,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
       case "anamnesis":
         return (
           <div
-            className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
+            className="relative h-full"
           >
             {toolbox}
             <AnamnesisTab
@@ -2158,7 +2150,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
       case "schirmer-test":
         return (
           <div
-            className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
+            className="relative h-full"
           >
             {toolbox}
             <SchirmerTestTab
@@ -2201,7 +2193,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
 
         return (
           <div
-            className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
+            className="relative h-full"
           >
             <NotesCard
               title={
@@ -2239,6 +2231,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
               onChange={(value) => onNotesChange("note", value)}
               disabled={!detailProps?.isEditing}
               height="full"
+              className={`exam-notes-card h-auto ${hasSiblingWithMiddleRow ? "exam-notes-card-with-middle-row" : ""}`}
               placeholder={detailProps?.isEditing ? "הערות..." : ""}
             />
           </div>
@@ -2248,7 +2241,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
       case "contact-lens-diameters":
         return (
           <div
-            className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
+            className="relative h-full"
           >
             {toolbox}
             <ContactLensDiametersTab
@@ -2270,7 +2263,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
       case "contact-lens-details":
         return (
           <div
-            className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
+            className="relative h-full"
           >
             {toolbox}
             <ContactLensDetailsTab
@@ -2298,7 +2291,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
       case "keratometer-contact-lens":
         return (
           <div
-            className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
+            className="relative h-full"
           >
             {toolbox}
             <KeratometerContactLensTab
@@ -2325,7 +2318,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
       case "contact-lens-exam":
         return (
           <div
-            className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
+            className="relative h-full"
           >
             {toolbox}
             <ContactLensExamTab
@@ -2413,7 +2406,6 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
                 hasSiblingWithMiddleRow &&
                 componentsDontHaveMiddleRow.includes(item.type)
               }
-              hideEyeLabels={finalHideEyeLabels}
             />
           </div>
         );
@@ -2510,7 +2502,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
       case "new-contact-lenses":
         return (
           <div
-            className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
+            className="relative h-full"
           >
             {toolbox}
             <OldContactLensesTab
@@ -2538,7 +2530,7 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
       case "over-refraction":
         return (
           <div
-            className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
+            className="relative h-full"
           >
             {toolbox}
             <OverRefractionTab
@@ -2607,7 +2599,6 @@ const ExamCardRendererContent = React.memo<RenderCardProps>(
     if (prev.item.showEyeLabels !== next.item.showEyeLabels) return false;
     if (prev.hideEyeLabels !== next.hideEyeLabels) return false;
     if (prev.detailProps?.softopticView !== next.detailProps?.softopticView) return false;
-    if (prev.matchHeight !== next.matchHeight) return false;
     if (prev.clipboardSourceType !== next.clipboardSourceType) return false;
     if (prev.currentRowIndex !== next.currentRowIndex) return false;
     if (prev.currentCardIndex !== next.currentCardIndex) return false;

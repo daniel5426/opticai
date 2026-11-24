@@ -9,6 +9,7 @@ export type OutputClient = AgentClient & {
 // streaming, replay and authorization; output bodies are fetched only by visible rows.
 export function withTranscriptOutputs(client: AgentClient): OutputClient {
   const listeners = new Set<RuntimeEventHandler>();
+  const audioIds = new Set<string>();
   const observe = (receive: RuntimeEventHandler): RuntimeEventHandler => (event: RuntimeEvent) => {
     const result = receive(event);
     if (event.event.startsWith('workflow.output.') || event.event === 'run.snapshot' ||
@@ -19,9 +20,20 @@ export function withTranscriptOutputs(client: AgentClient): OutputClient {
     }
     return result;
   };
-  const selection = (ids?: readonly string[]) => ids?.length ? { requestedOutputs: ['transcript'] } : {};
+  const selection = (ids?: readonly string[]) => ids?.some(id => audioIds.has(id)) ? { requestedOutputs: ['transcript'] } : {};
   return {
     ...client,
+    attachments: { ...client.attachments, async uploadBatch(input) {
+      const results = await client.attachments.uploadBatch(input);
+      for (const attachment of results) {
+        if (attachment.kind === 'audio' || attachment.mime_type?.startsWith('audio/')) audioIds.add(attachment.id);
+      }
+      for (const id of audioIds) {
+        if (audioIds.size <= 256) break;
+        audioIds.delete(id);
+      }
+      return results;
+    } },
     chat: { ...client.chat, stream: (input, receive) => client.chat.stream({ ...input, ...selection(input.attachmentIds) }, observe(receive)) },
     runs: { ...client.runs, attach: (input, receive) => client.runs.attach(input, observe(receive)) },
     threads: { ...client.threads, messages: { ...client.threads.messages,

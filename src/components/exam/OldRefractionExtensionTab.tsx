@@ -250,7 +250,7 @@ export function OldRefractionExtensionTab({
             tabLabel={(oldRefractionExtensionData as { legacy_glasses_type?: string }).legacy_glasses_type || oldRefractionExtensionData.r_glasses_type}
           />
 
-          <div className="grid gap-2 items-center" style={{ gridTemplateColumns: getExamInputGridTemplate(columns, hideEyeLabels) }}>
+          <div className="exam-eye-grid grid gap-2 items-center" style={{ gridTemplateColumns: getExamInputGridTemplate(columns, hideEyeLabels) }}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
               <div key={key} className="h-4 flex items-center justify-center">

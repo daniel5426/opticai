@@ -1,7 +1,9 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import type { SoftopticTabKey, SoftopticTabView } from "@/lib/softoptic-exam-tabs";
-import { cn } from "@/utils/tailwind";
+import { Root, List, Trigger } from "@radix-ui/react-tabs";
+import { useAppLocale } from "@/localization/use-app-locale";
+import { examLayoutFolderTabStyle } from "./ExamLayoutTabs";
 
 interface Props {
   tabs: SoftopticTabView[];
@@ -9,37 +11,20 @@ interface Props {
   onTabChange: (tab: SoftopticTabKey) => void;
 }
 
-/** OpticSoft's exam tabs for an imported SoftOptic exam; only tabs with data are listed. */
 export function SoftopticExamTabs({ tabs, activeTab, onTabChange }: Props) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const { direction } = useAppLocale();
   return (
-    <nav
-      role="tablist"
-      aria-label={t("softoptic.examTabs.label")}
-      className="flex flex-wrap items-end gap-0.5"
-      dir={i18n.dir()}
-    >
-      {/* Shown in the layout-tabs row, with the same folder tabs that join the exam card. */}
-      {tabs.map(({ key }) => {
-        const isActive = key === activeTab;
-        return (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={isActive}
-            onClick={() => onTabChange(key)}
-            className={cn(
-              "inline-flex items-center rounded-t-lg px-[18px] pt-2 pb-[9px] text-[15px] whitespace-nowrap transition-colors",
-              isActive
-                ? "bg-[var(--appearance-exam-panel)] text-foreground relative z-[1] font-semibold shadow-sm after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-2 after:bg-[var(--appearance-exam-panel)] after:content-['']"
-                : "text-muted-foreground/70 hover:text-foreground font-medium",
-            )}
-          >
+    <Root value={activeTab ?? ""} onValueChange={key => onTabChange(key as SoftopticTabKey)} activationMode="manual" dir={direction}>
+      <List aria-label={t("softoptic.examTabs.label")} className="flex items-end gap-0.5">
+        {tabs.map(({ key }) => (
+          <Trigger key={key} value={key}
+            className="focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2"
+            style={examLayoutFolderTabStyle(activeTab === key)}>
             {t(`softoptic.examTabs.${key}`)}
-          </button>
-        );
-      })}
-    </nav>
+          </Trigger>
+        ))}
+      </List>
+    </Root>
   );
 }

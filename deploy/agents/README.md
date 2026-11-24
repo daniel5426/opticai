@@ -1,10 +1,17 @@
 # Hosted clinic agents
 
+Last Updated: 2026-11-23
+
 The API owns requested-work and summary subprocesses when both
 `AGENTS24_ENABLED=true` and `PRYSM_HOSTED_AGENT_WORKERS=1`. Keep the API at one
 replica and mount durable storage at `PRYSM_AGENT_DATA_DIR=/data/prysm-agent`.
 Workers and authenticated downloads must see the same report/upload files.
 Stopping the API terminates its workers; exited workers restart after five seconds.
+Set `PRYSM_REPORT_API_ORIGIN` on the hosted relay to the environment's private API origin.
+The relay uses the existing Artifact signing secret to read a completed snapshot page from
+the API with current staff authority. Deploy the API before enabling this relay setting.
+Qualification must cover a completed report page through the relay and a ready report row
+after a deliberately rejected completion callback.
 
 Each environment has a separate private relay service built from the repository
 root with `deploy/agents/Dockerfile`, Dockerfile builder, and start command

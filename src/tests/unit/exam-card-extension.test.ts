@@ -100,6 +100,9 @@ describe("exam card extension contract", () => {
     expect(computeCardMinGridCols("rg-balance")).toBe(8);
     expect(computeCardMinGridCols("retinoscop")).toBe(11);
     expect(componentHasMiddleRow("retinoscop")).toBe(true);
+    expect(componentHasMiddleRow("retinoscop-dilation")).toBe(true);
+    expect(componentHasMiddleRow("addition")).toBe(true);
+    expect(componentHasMiddleRow("anamnesis")).toBe(false);
     expect(componentHasMiddleRow("contact-lens-exam")).toBe(true);
     expect(componentHasMiddleRow("maddox-wing")).toBe(true);
     expect(componentHasMiddleRow("maddox-rod")).toBe(false);

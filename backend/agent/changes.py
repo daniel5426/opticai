@@ -92,7 +92,7 @@ def prepare(db, authority, kind, action, fields, record_id=None):
             raise HTTPException(422, 'agent.invalidFields')
         if action == 'create':
             from services.exam_measurement_mutations import template
-            layout = template(db, authority.clinic_id, positive(fields.get('layout_id')))
+            layout = template(db, exam, positive(fields.get('layout_id')))
             from hashlib import sha256
             expected = {'layout_digest': sha256(layout.layout_data.encode()).hexdigest()}
         else:
@@ -251,7 +251,7 @@ def commit(db, authority, change_id):
         result = project(row, 'tasks')
     elif kind == 'exam_measurements':
         from services.exam_measurement_mutations import save
-        result = save(db, authority.user, authority.clinic_id, fields['exam_id'], fields, proposal.expected, proposal.action)
+        result = save(db, authority.user, fields['exam_id'], fields, proposal.expected, proposal.action)
     else:
         row = mutate_record(db, authority.user, authority.clinic_id, kind, proposal.action, fields, record_id)
         result = project(row, kind)

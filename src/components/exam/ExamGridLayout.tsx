@@ -17,6 +17,7 @@ interface ExamGridLayoutProps {
   itemClassName?: string;
   separators?: boolean;
   compact?: boolean;
+  deferOffscreen?: boolean;
   renderItem: (
     item: GridLayoutItem,
     index: number,
@@ -32,6 +33,7 @@ export function ExamGridLayout({
   itemClassName,
   separators = false,
   compact = false,
+  deferOffscreen = false,
   renderItem,
 }: ExamGridLayoutProps) {
   const [heights, setHeights] = React.useState<Record<string, number>>({});
@@ -72,9 +74,16 @@ export function ExamGridLayout({
       <div className={cn("flex w-full min-w-0 flex-col gap-4", separators && "gap-0", className)} dir="ltr">
         {resolvedLanes.map(lane => {
           const laneItems = sortedItems.filter(item => item.y === lane);
+          const hasCards = laneItems.length > 0;
+          // Keep the card shadows inside the scroll and paint bounds without shifting the cards.
           return (
             <ExamLayoutLane key={lane} items={laneItems} columns={columns}
-              style={{ minHeight: laneItems.length ? undefined : EXAM_LAYOUT_LANE_MIN_HEIGHT_PX }}>
+              className={hasCards ? "-m-1.5 p-1.5" : undefined}
+              style={{
+                minHeight: hasCards ? undefined : EXAM_LAYOUT_LANE_MIN_HEIGHT_PX,
+                contentVisibility: hasCards && deferOffscreen ? "auto" : undefined,
+                containIntrinsicBlockSize: hasCards && deferOffscreen ? "auto 190px" : undefined,
+              }}>
               {(item, index, style) => (
                 <div className={cn("min-w-0", item.type === "notes" && "h-full self-stretch", separators && "border-border border px-5 py-3", itemClassName)} style={style}>
                   {renderItem(item, index, laneItems)}

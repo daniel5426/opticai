@@ -67,6 +67,7 @@ from migration.pipeline.steps import (
     migrate_referrals,
     migrate_regular_orders,
     enrich_from_contact_lens_chk,
+    migrate_contact_lens_order_entries,
 )
 from services.file_storage_service import FileStorageService
 from services.prescription_search_index import (
@@ -1091,7 +1092,11 @@ def run_softoptic_import(
             migrate_optical_exams(db, csv_root, account_to_client, branch_to_clinic, admin_user.id, trace_context)
             presc_code_to_order_id = migrate_contact_lens_orders(db, csv_root, account_to_client, branch_to_clinic, admin_user.id, trace_context)
             migrate_regular_orders(db, csv_root, account_to_client, branch_to_clinic, admin_user.id, trace_context)
-            enrich_from_contact_lens_chk(db, csv_root, account_to_client, presc_code_to_order_id, trace_context)
+            migrate_contact_lens_order_entries(db, trace_context)
+            enrich_from_contact_lens_chk(
+                db, csv_root, account_to_client, presc_code_to_order_id, trace_context, branch_to_clinic,
+            )
+            db.commit()
             tracked = _track_new_rows(
                 db,
                 before=before,

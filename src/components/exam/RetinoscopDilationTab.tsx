@@ -128,11 +128,11 @@ export function RetinoscopDilationTab({
     <Card className="w-full examcard pb-4 pt-3">
       <CardContent className="px-4 " style={{ scrollbarWidth: 'none' }} onKeyDownCapture={handleRetinoscopyTabStops}>
         <div className="space-y-3">
-          <div className="flex justify-center mb-1">
+          <div className="flex h-6 items-center justify-center">
             <Tabs
               value={method}
               onValueChange={(val) => onRetinoscopDilationChange("method", val)}
-              className="w-fit -translate-y-1"
+              className="w-fit"
               dir={direction}
             >
               <TabsList className="grid h-8 w-auto grid-cols-2">
@@ -154,7 +154,7 @@ export function RetinoscopDilationTab({
             </Tabs>
           </div>
 
-          <div className="grid gap-2 items-center" style={{ gridTemplateColumns: getExamInputGridTemplate(columns, hideEyeLabels) }}>
+          <div className="exam-eye-grid grid gap-2 items-center" style={{ gridTemplateColumns: getExamInputGridTemplate(columns, hideEyeLabels) }}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
               <div key={key} className={`h-4 flex items-center justify-center ${key === 'reflex' ? 'col-span-1' : ''}`}>

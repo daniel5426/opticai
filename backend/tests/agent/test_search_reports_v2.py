@@ -35,6 +35,9 @@ def test_prescriptions_group_rank_equivalence_and_sources(clinic):
     first = result['items'][0]['matches'][0]
     assert first['distance'] == 0 and first['eyes']['R']['values']['cyl'] == 1
     assert first['source']['path'].endswith(f'/exams/{parent.id}')
+    exact = prescriptions(db, [auth.clinic_id], {'mode': 'exact',
+        'right': {'sph': 0., 'cyl': -1., 'ax': 180}, 'left': {'sph': -2.}})
+    assert [result['client_id'] for result in exact['items']] == [patients[0].id]
 
 
 def test_prescriptions_never_pair_cards_or_treat_missing_as_zero(clinic):
@@ -71,6 +74,20 @@ def test_search_all_records_and_private_fields(clinic):
     assert result['items'][0]['source']['path'].endswith('?tab=medical')
     assert search.search(db, auth, {'text': 'private-needle'})['total'] == 0
     assert search.search(db, auth, {'text': 'Foreign'})['total'] == 0
+
+
+def test_translated_terms_are_opt_in_and_report_real_matched_text(clinic):
+    db, auth, patients, _ = clinic
+    db.add_all([
+        MedicalLog(client_id=patients[0].id, clinic_id=auth.clinic_id, log='Synthetic nouvelles lunettes', log_date=date(2026, 10, 1)),
+        MedicalLog(client_id=patients[1].id, clinic_id=auth.clinic_id, log='Synthetic new glasses', log_date=date(2026, 10, 1)),
+    ])
+    db.commit()
+    query = {'text': 'glasses synthetic', 'datasets': ['medical_logs']}
+    assert search.search(db, auth, query)['total'] == 1
+    items = search.search(db, auth, {**query, 'expand_terms': True})['items']
+    assert [item['values']['client_id'] for item in items] == [patients[1].id, patients[0].id]
+    assert 'lunettes' in items[1]['matched_fields']['log']
 
 
 @pytest.mark.parametrize('dataset', ['clients', 'billing', 'measurements'])
@@ -268,6 +285,8 @@ def test_report_http_contract_exports_expiry_and_scope(clinic):
         metadata = client.get(f'/api/v1/agent/jobs/{job.id}?metadata_only=true').json()
         assert 'result' not in metadata and metadata['download_path'].endswith('/download')
         assert metadata['title'] == job.definition['title']
+        assert metadata['report_version'] == 2 and metadata['report_format'] == 'xlsx'
+        assert metadata['report_definition'] == job.definition
         assert client.get(prefix + '/page?limit=1').json()['next_offset'] == 1
         assert client.get(prefix + '/page?offset=-1').status_code == 422
         assert client.get(prefix + '/export?format=csv').status_code == 200
@@ -336,6 +355,22 @@ def test_derived_metrics_zero_denominators_and_currency_charts(clinic):
     with pytest.raises(HTTPException):
         report_definitions.compile_definition(db, auth, report_definitions.resolve({**definition,
             'derived_metrics': [{'key': 'bad', 'label': 'Bad', 'operation': 'ratio', 'numerator': 'unsafe', 'denominator': 'sum_total'}]}))
+
+
+def test_catalog_chart_example_matches_report_output(clinic):
+    db, auth, _, _ = clinic
+    examples = report_definitions.catalog(db, auth)['output_columns']
+    aggregate = examples['aggregate_example']
+    chart = examples['chart_example']
+    definition = {'dataset': 'billing', 'group_by': [chart['x']],
+        'aggregates': [{'field': aggregate['field'], 'operation': aggregate['operation']}],
+        'presentation': {'charts': [chart]}}
+    queued = report_definitions.queue(db, auth, definition, 'catalog-chart')
+    job = db.get(AgentJob, queued['job_id']); materialize(db, auth, job)
+    assert job.status == 'completed'
+    output = aggregate['output']
+    assert chart['series'] == [output]
+    assert job.result['charts'][0]['rows'][0][output] == 400
 
 
 def test_presentation_uses_snapshot_columns_and_keeps_currencies_separate(clinic):

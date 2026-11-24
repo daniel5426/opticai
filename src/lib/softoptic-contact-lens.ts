@@ -1,17 +1,4 @@
-import type { ContactLensExam, ContactLensOrderEntity } from "@/lib/db/schema-interface"
-
-const CONTACT_LENS_SCREEN_BLOCKS = ["contact-lens-exam", "keratometer-contact-lens", "contact-lens-details"]
-
-/** The client's contact lens orders from the exam's day that carry OpticSoft's prescription screen. */
-export function sameDayContactLensOrders(orders: ContactLensOrderEntity[], examDate?: string | null) {
-  const day = examDate?.slice(0, 10)
-  if (!day) return []
-  return orders.filter(
-    (order) =>
-      order.order_date?.slice(0, 10) === day &&
-      CONTACT_LENS_SCREEN_BLOCKS.some((block) => order.order_data?.[block]),
-  )
-}
+import type { ContactLensExam } from "@/lib/db/schema-interface"
 
 const bareVa = /^\d+(?:\.\d+)?(?:[+-]{1,2}\d*)?$/
 

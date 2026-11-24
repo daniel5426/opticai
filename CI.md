@@ -4,6 +4,8 @@ Last Updated: 2026-11-05
 
 The current release contract is staging verification -> production promotion -> desktop publication. Preserve it. Owner `daniel5426` may use the existing direct-main workflow; contributors follow AGENTS.md.
 
+For v1.0.108, ship `0072_company_exam_layouts` and `0073_terminal_checkout` with the API's company-scoped layout lookup and clinic activation handling. The staging database is already on `0073_terminal_checkout`. Upgrade production through the existing pre-deploy Alembic command. The preflight identified three equivalent layout aliases, one exam reference update and zero appointment reference updates. The migration preserves layout aliases and recorded measurements. The terminal migration creates empty RLS-protected tables. Terminal checkout routes and workers remain disabled. The disposable PostgreSQL upgrade and clinic-layout, workspace, and release migration tests passed.
+
 `Backend CI` and `Web CI` own normal validation. `Verify Staging` (`staging-electron.yml`) must succeed for the exact release SHA before `production-promotion.yml`. Production promotion does not require a database backup confirmation. Run the retained workflow with its SHA/ref aligned. Desktop `release.yml` requires a `v<version>` tag matching both package files and successful promotion of that same SHA. Version/tag are explicit review inputs. Do not move an existing release tag.
 
 Railway project: `fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb`. Production promotion owns API `opticai`, migration worker `softoptic-migration-worker-Z2hA`, and web `prysm-web`; use the workflow's exact environment/target contract rather than local CLI linkage. Verify API `/health` and `/health/database` on `https://api.prysm.co.il`, web health and recent worker logs. Preserve workflow-managed database migration ordering. The production migration worker’s automatic GitHub deploy trigger is disabled; keep it disabled so only verified promotion deploys that worker after API migrations. Its GitHub source remains linked for build configuration. Staging retains automatic deployment. Staging verifies the exact main auto-deployments. Its bounded fifteen-minute deployment wait includes cold dependency installation and image export, and still rejects terminal failures or a different SHA. Unchanged-file skips require a successful deployed revision with identical watched files; a skipped repair commit cannot hide an older pending application build. Production uploads its exact-SHA checkout after applying the verified public dependency inputs. Do not upload the user's uncommitted directory.
@@ -775,3 +777,32 @@ intact. The PD and VA repair is a separate, dry-run-first operation.
 Staging verification waits on an active deployment of the release commit.
 When it needs to compare an earlier deployment, the parallel service checks
 serialize Git history fetches to avoid contention on the shallow checkout.
+
+## Soft Optic exam review
+
+The exam list and client history retain a separate entry for each Soft Optic
+record. Contact-lens orders can include checks when the source references
+identify the same prescription. Fittings use their own source data.
+
+Run Python modules with `PYTHONPATH=backend backend/.venv/bin/python -m`.
+`scripts.copy_softoptic_clinic_for_review --source-clinic 11 --target-email
+REVIEWER_EMAIL` previews a pseudonymized copy for the designated
+staging company. Add `--execute` to create that clinic. Run
+`scripts.qualify_softoptic_review_copy --clinic-id ID` to repair the verified
+review clinic. The copy reads production through a read-only transaction.
+
+`scripts.backfill_softoptic_contact_order_titles --clinic-id ID` previews
+titles for existing contact-lens exam entries from their exact linked order
+type. Add `--apply` for the designated staging review clinic.
+
+`scripts.repair_softoptic_exam_history --target production` previews the complete
+repair for clinic 11 in a read-only transaction. The same command with
+`--target staging` checks the designated review clinic. The preview reports new
+contact-lens exam entries and titles, recovered checks and their links, and
+changes to fitting and legacy check data. Conflicting historical measurements
+remain available for manual review. No Alembic migration is required.
+
+After the matching application release is live and the owner has reviewed the
+production preview, `--target production --apply PREVIEW_PLAN` applies the
+reviewed changes in one transaction. It verifies the database and clinic and
+rejects changes to the preview. Run the read-only preview again after applying.

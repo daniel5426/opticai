@@ -1,5 +1,12 @@
 {
   "en": {
+    "visit": {
+      "exam": "Eye exam",
+      "fitting": "Fitting and follow-up",
+      "contactCheck": "Contact lens check",
+      "contactOrder": "Contact lens order",
+      "showEmpty": "Show empty imported sections"
+    },
     "examTabs": {
       "objective": "Objective",
       "anamnesa": "Anamnesa",
@@ -108,6 +115,13 @@
     }
   },
   "he": {
+    "visit": {
+      "exam": "בדיקה",
+      "fitting": "התאמה וביקורת",
+      "contactCheck": "בדיקת עדשות מגע",
+      "contactOrder": "הזמנת עדשות מגע",
+      "showEmpty": "הצגת מקטעים ריקים מהייבוא"
+    },
     "examTabs": {
       "objective": "Objective",
       "anamnesa": "Anamnesa",
@@ -216,6 +230,13 @@
     }
   },
   "fr": {
+    "visit": {
+      "exam": "Examen de la vue",
+      "fitting": "Adaptation et suivi",
+      "contactCheck": "Contrôle des lentilles",
+      "contactOrder": "Commande de lentilles",
+      "showEmpty": "Afficher les sections importées vides"
+    },
     "examTabs": {
       "objective": "Objective",
       "anamnesa": "Anamnesa",

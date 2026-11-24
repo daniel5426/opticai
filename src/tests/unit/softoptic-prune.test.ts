@@ -55,6 +55,11 @@ describe("pruneSoftOpticExport", () => {
       ["e1x", "101"],
       ["e4x", "104"],
     ]);
+    writeCsv(outputDir, "optic_contact_fit.csv", [
+      ["code", "account_code"],
+      ["fit1", "101"],
+      ["fit4", "104"],
+    ]);
     writeCsv(outputDir, "optic_contact_presc.csv", [
       ["code", "account_code"],
       ["cp1", "101"],
@@ -148,6 +153,7 @@ describe("pruneSoftOpticExport", () => {
     expect(readRows(prunedDir, "account.csv").map(row => row.account_code)).toEqual(["101", "102"]);
     expect(readRows(prunedDir, "optic_eye_tests.csv").map(row => row.code)).toEqual(["e1", "e2"]);
     expect(readRows(prunedDir, "optic_exp_eyetests.csv").map(row => row.code)).toEqual(["e1x"]);
+    expect(readRows(prunedDir, "optic_contact_fit.csv").map(row => row.code)).toEqual(["fit1"]);
     expect(readRows(prunedDir, "optic_presc_prices.csv").map(row => row.presc_code)).toEqual(["cp1", "gp2", "rp2"]);
     expect(readRows(prunedDir, "account_files_blob.csv").map(row => row.code)).toEqual(["f1", "f2"]);
     expect(readRows(prunedDir, "optic_tv_lens_supplier.csv")).toHaveLength(2);

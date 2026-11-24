@@ -4,7 +4,6 @@ import {
   ExamCardRenderer,
   CardItem,
   DetailProps,
-  hasNoteCard,
 } from "@/components/exam/ExamCardRenderer";
 import { ExamFieldMapper, ExamComponentType } from "@/lib/exam-field-mappings";
 import { CardRow } from "@/pages/exam-detail/types";
@@ -236,6 +235,7 @@ export function ExamLayoutRenderer({
       <ExamGridLayout
         items={isImportedLayout ? layoutItems : visibleItems}
         compact={false}
+        deferOffscreen={!isImportedLayout}
         lanes={lanes.slice(0, visibleRowCount)}
         renderItem={(item, cardIndex, laneItems) => {
           const rowIndex = lanes.findIndex((lane) => lane === item.y);
@@ -243,12 +243,6 @@ export function ExamLayoutRenderer({
             <div
               data-exam-card="true"
               data-clinical-nav-card="true"
-              className={item.type === "notes" && !layoutItems.some(card => card.type.startsWith("opticplus-")) ? "h-full" : undefined}
-              style={{
-                contentVisibility: isImportedLayout ? "visible" : "auto",
-                containIntrinsicSize: "0 190px",
-                overflowClipMargin: "8px",
-              }}
             >
               <ExamCardRenderer
                 item={item}
@@ -257,7 +251,6 @@ export function ExamLayoutRenderer({
                 mode="detail"
                 detailProps={detailPropsWithLayoutRows}
                 hideEyeLabels={item.showEyeLabels === false}
-                matchHeight={hasNoteCard(laneItems) && laneItems.length > 1 && !layoutItems.some(card => card.type.startsWith("opticplus-"))}
                 currentRowIndex={rowIndex}
                 currentCardIndex={cardIndex}
                 clipboardSourceType={clipboardContentType}

@@ -1,6 +1,7 @@
 from services.company_record_ownership import validate_records
 from .common import *
 from collections import Counter
+from sqlalchemy import and_
 from pathlib import Path
 from services import order_group_service  # Register legacy import/group compatibility hooks.
 
@@ -629,12 +630,15 @@ def migrate_optical_exams(
     batch_exams: List[Tuple[OpticalExam, Dict[str, Any], Optional[int], Dict[str, Any], Optional[Dict[str, Any]], bool]] = []
     batch_instances: List[ExamLayoutInstance] = []
     def iter_exam_rows():
-        seen_codes: Set[str] = set()
+        seen_codes = set()
         for row in read_csv_streaming(csv_dir, "optic_eye_tests.csv"):
-            code = clean_legacy_text(row.get("code"))
-            if code:
-                seen_codes.add(code)
-            yield row, expanded_rows.get(code) if code else None, True
+            identity = eye_test_identity(row)
+            expanded = expanded_rows.get(identity)
+            if expanded and parse_date(row.get("test_date")) != parse_date(expanded.get("test_date")):
+                expanded = None
+            if expanded is not None:
+                seen_codes.add(identity)
+            yield row, expanded, True
 
         expanded_only_count = 0
         for code, expanded_row in expanded_rows.items():
@@ -813,10 +817,9 @@ def migrate_optical_exams(
         )
         db.add(exam)
         db.flush()
-        eye_test = find_contact_fit_eye_test(db, account_to_client[account_code], fit_date)
         db.add(ExamLayoutInstance(
             exam_id=exam.id, layout_id=None, is_active=True, order=0,
-            exam_data=build_contact_fit_exam_data(row, eye_test), layout_data=build_contact_fit_layout_data(),
+            exam_data=build_contact_fit_exam_data(row), layout_data=build_contact_fit_layout_data(),
         ))
         record_raw_source_link(
             db, trace_context, target_model="OpticalExam", target_id=exam.id, clinic_id=clinic_id,
@@ -1051,7 +1054,7 @@ def migrate_contact_lens_orders(
             "l_mm": parse_float(r.get("sirmer_left")),
             "l_but": parse_float(r.get("sirmer_left_but")),
         }
-        if any(v is not None for v in schirmer_block.values()):
+        if any(value not in (None, 0) for value in schirmer_block.values()):
             data["schirmer-test"] = schirmer_block
 
         diam_block = {
@@ -1476,8 +1479,12 @@ def enrich_from_contact_lens_chk(
     account_to_client: Dict[str, int],
     presc_code_to_order_id: Dict[str, int],
     trace_context: Optional[Dict[str, Any]] = None,
+    branch_to_clinic: Optional[Dict[str, int]] = None,
 ):
+    from services.softoptic_entries import order_entry_ids
+
     t0 = time.time()
+    entry_ids = order_entry_ids(db, trace_context["company_id"], set(branch_to_clinic.values())) if trace_context and branch_to_clinic else {}
     rows_iter = read_csv_streaming(csv_dir, "optic_contact_lens_chk.csv")
     existing_exam_refs = existing_job_source_refs(
         db,
@@ -1500,74 +1507,44 @@ def enrich_from_contact_lens_chk(
             identifier_fields=("contact_presc_code", "account_code", "last_action", "tested_eye"),
             row_number=row_number,
         )
-        account_code = str(r.get("account_code")) if r.get("account_code") else None
+        account_code = clean_legacy_text(r.get("account_code"))
         if not account_code or account_code not in account_to_client:
             continue
         client_id = account_to_client[account_code]
-        presc_code = str(r.get("contact_presc_code")) if r.get("contact_presc_code") else None
-        order = None
-        order_date = None
-        if presc_code and presc_code in presc_code_to_order_id:
-            order = db.get(ContactLensOrder, presc_code_to_order_id[presc_code])
-            if order:
-                order_date = order.order_date
-
-        date_guess = parse_date(r.get("last_action")) or order_date
+        if client_id is None:
+            continue
+        presc_code = clean_legacy_text(r.get("contact_presc_code"))
+        order_id = presc_code_to_order_id.get(presc_code) if presc_code else None
+        order = db.get(ContactLensOrder, order_id) if order_id else None
+        source_branch = clean_legacy_text(r.get("branch_code"))
+        clinic_id = branch_to_clinic.get(source_branch) if branch_to_clinic and source_branch else None
+        if order and (order.client_id != client_id or (clinic_id is not None and order.clinic_id != clinic_id)):
+            order = None
+        if clinic_id is None:
+            client = db.get(Client, client_id)
+            clinic_id = order.clinic_id if order else client.clinic_id if client else None
         eye = (r.get("tested_eye") or "").strip().upper()
 
-        exam = None
-        if client_id:
-            exams = db.execute(select(OpticalExam).where(OpticalExam.client_id == client_id)).scalars().all()
-            if exams:
-                if date_guess:
-                    best = None
-                    best_delta = None
-                    for e in exams:
-                        if e.exam_date is None:
-                            continue
-                        delta = abs((e.exam_date - date_guess).days)
-                        if best is None or delta < best_delta:
-                            best = e
-                            best_delta = delta
-                    exam = best
-                else:
-                    exam = exams[-1]
-
-        if exam and source_ref not in existing_exam_refs:
-            li = db.execute(select(ExamLayoutInstance).where(ExamLayoutInstance.exam_id == exam.id)).scalars().first()
-            if li:
-                data = dict(li.exam_data or {})
-                over = dict(data.get("over-refraction")) if data.get("over-refraction") else {}
-                if eye == "R":
-                    over.update({
-                        "r_sph": parse_float(r.get("or_sph")),
-                        "r_cyl": parse_float(r.get("or_cyl")),
-                        "r_ax": parse_int(r.get("or_ax")),
-                        "r_va": parse_float(r.get("chk_va")),
-                        "r_add": parse_float(r.get("chk_add")),
-                    })
-                elif eye == "L":
-                    over.update({
-                        "l_sph": parse_float(r.get("or_sph")),
-                        "l_cyl": parse_float(r.get("or_cyl")),
-                        "l_ax": parse_int(r.get("or_ax")),
-                        "l_va": parse_float(r.get("chk_va")),
-                        "l_add": parse_float(r.get("chk_add")),
-                    })
-                if parse_float(r.get("chk_va")) is not None:
-                    over["comb_va"] = parse_float(r.get("chk_va"))
-                if any(v is not None for v in over.values()):
-                    data["over-refraction"] = over
-                    li.exam_data = data
-                    db.add(li)
-                    updated_exams += 1
-                    record_raw_source_link(
-                        db, trace_context, target_model="OpticalExam", target_id=exam.id,
-                        clinic_id=exam.clinic_id, source_table="optic_contact_lens_chk.csv",
-                        source_row=r,
-                        identifier_fields=("contact_presc_code", "account_code", "last_action", "tested_eye"),
-                        row_number=row_number,
-                    )
+        if clinic_id is not None and source_ref not in existing_exam_refs:
+            entry_id = entry_ids.get(order.id) if order else None
+            if entry_id is None:
+                exam = OpticalExam(
+                    client_id=client_id, clinic_id=clinic_id, user_id=order.user_id if order else None,
+                    exam_date=parse_date(r.get("last_action")), test_name=CONTACT_CHECK_TEST_NAME, type="softoptic_contact_check",
+                )
+                db.add(exam)
+                db.flush()
+                entry_id = exam.id
+                db.add(ExamLayoutInstance(
+                    exam_id=entry_id, is_active=True, order=0, exam_data=build_softoptic_contact_check_data(r),
+                ))
+            record_raw_source_link(
+                db, trace_context, target_model="OpticalExam", target_id=entry_id, clinic_id=clinic_id,
+                source_table="optic_contact_lens_chk.csv", source_row=r,
+                identifier_fields=("contact_presc_code", "account_code", "last_action", "tested_eye"),
+                row_number=row_number, payload={"order_id": order.id} if order else None,
+            )
+            updated_exams += 1
 
         if order and source_ref not in existing_order_refs:
             data = dict(order.order_data or {})
@@ -1639,6 +1616,65 @@ def enrich_from_contact_lens_chk(
 
     db.commit()
     print(f"[cl_chk] enriched exams: {updated_exams}, orders: {updated_orders}, took {time.time()-t0:.2f}s", flush=True)
+
+
+def migrate_contact_lens_order_entries(
+    db: Session, trace_context: Dict[str, Any], *, clinic_id: Optional[int] = None,
+) -> int:
+    """Give each original prescription its own contact-lens entry."""
+    from services.softoptic_entries import ORDER, contact_order_title, create_postgres_order_entries, order_entry_ids
+
+    company_id = trace_context["company_id"]
+    if db.bind.dialect.name == "postgresql":
+        return create_postgres_order_entries(db, company_id, trace_context["migration_job_id"], clinic_id)
+    query = (
+        db.query(ContactLensOrder, MigrationSourceLink)
+        .join(MigrationSourceLink, and_(
+            MigrationSourceLink.target_id == ContactLensOrder.id,
+            MigrationSourceLink.company_id == ContactLensOrder.company_id,
+            MigrationSourceLink.clinic_id == ContactLensOrder.clinic_id,
+        )).filter(
+            MigrationSourceLink.migration_job_id == trace_context["migration_job_id"],
+            MigrationSourceLink.source_system == "softoptic",
+            MigrationSourceLink.source_table == ORDER,
+            MigrationSourceLink.target_model == "ContactLensOrder",
+            ContactLensOrder.company_id == company_id,
+            ContactLensOrder.deleted_at.is_(None),
+        )
+    )
+    if clinic_id is not None:
+        query = query.filter(ContactLensOrder.clinic_id == clinic_id)
+    order_links = query.order_by(ContactLensOrder.id).all()
+    existing = order_entry_ids(db, company_id, {order.clinic_id for order, _ in order_links})
+    created = 0
+    for start in range(0, len(order_links), 500):
+        additions = []
+        for order, link in order_links[start:start + 500]:
+            if order.id in existing:
+                continue
+            existing[order.id] = None
+            exam = OpticalExam(
+                company_id=order.company_id, clinic_id=order.clinic_id, client_id=order.client_id,
+                user_id=order.user_id, exam_date=order.order_date, type="softoptic_contact_order",
+                test_name=contact_order_title(order.type),
+            )
+            additions.append((exam, order, link))
+        validate_records(db, [exam for exam, _, _ in additions])
+        db.bulk_save_objects([exam for exam, _, _ in additions], return_defaults=True)
+        for exam, order, link in additions:
+            db.add(MigrationSourceLink(
+                company_id=link.company_id, clinic_id=link.clinic_id,
+                migration_job_id=link.migration_job_id, source_system=link.source_system,
+                source_table=ORDER, raw_row_ref=link.raw_row_ref,
+                source_primary_key_parts=link.source_primary_key_parts,
+                target_model="OpticalExam", target_id=exam.id, raw_payload=link.raw_payload,
+                raw_payload_sha256=link.raw_payload_sha256, raw_captured_at=link.raw_captured_at,
+                payload={"order_id": order.id},
+            ))
+        db.flush()
+        created += len(additions)
+    return created
+
 
 def referral_compact_prescription(r: Dict[str, Any]) -> Dict[str, Any]:
     """The referral page's prescription block, read from an OpticSoft glasses prescription row."""

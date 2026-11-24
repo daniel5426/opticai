@@ -68,3 +68,63 @@ def test_missing_completion_contract_is_rejected_before_enqueue(clinic):
     db,auth,_,_=clinic;enqueue=Mock()
     with pytest.raises(ArtifactInvocationError): queued_report(db,auth,{},enqueue)
     enqueue.assert_not_called()
+
+
+def test_ready_report_is_recoverable_after_missing_platform_invocation(clinic, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from EndPoints import agent as endpoints
+    from agent.report_completion import report_origin
+    from agent.report_definitions import queue
+    from agent.report_runs import materialize
+    from agent.report_storage import ReportPageRequest, signature
+
+    db, auth, patients, sessions = clinic
+    ctx = {**context(), 'run_id': str(uuid4()), 'thread_id': str(uuid4())}
+    definition = {'dataset': 'clients', 'title': 'Synthetic report', 'columns': ['id']}
+    pending = queued_report(db, auth, ctx, lambda db, auth: queue(db, auth, definition,
+        'recoverable', origin=report_origin(ctx)))
+    job_id = pending['external_job_ref']
+    row = db.get(AgentJob, job_id)
+    materialize(db, auth, row)
+    sdk = SimpleNamespace(embed=SimpleNamespace(complete_tool_invocation=Mock(
+        side_effect=Agents24SDKError('missing', kind='http', status=404))))
+    assert deliver_one(sessions, sdk=sdk)
+    db.refresh(row)
+    assert next(iter(row.platform_callbacks.values()))['http_status'] == 404
+    assert queue(db, auth, definition, 'recoverable', origin={**report_origin(ctx), 'run_id': str(uuid4())})['job_id'] == job_id
+    assert row.run_id == ctx['run_id'] and db.query(AgentJob).count() == 1
+
+    monkeypatch.setenv('AGENTS24_ARTIFACT_SIGNING_SECRET', 'synthetic-report-test')
+    monkeypatch.setattr(endpoints, 'SessionLocal', sessions)
+    app = FastAPI()
+    app.include_router(endpoints.router, prefix='/api/v1')
+    app.dependency_overrides[endpoints.authorized] = lambda: auth
+    app.dependency_overrides[endpoints.get_db] = lambda: db
+    def lookup(client, **params):
+        return client.get('/api/v1/agent/report-attachments', params={
+            'thread_id': ctx['thread_id'], 'run_id': ctx['run_id'], **params})
+
+    with TestClient(app) as client:
+        items = lookup(client).json()['items']
+        assert len(items) == 1 and items[0]['id'] == job_id and items[0]['status'] == 'completed'
+        assert 'result' not in items[0] and 'platform_callbacks' not in items[0]
+        assert lookup(client, thread_id=str(uuid4())).json() == {'items': []}
+        assert lookup(client, run_id=str(uuid4())).json() == {'items': []}
+        auth.patient_id = patients[0].id
+        assert lookup(client).json() == {'items': []}
+        auth.patient_id = None
+        assert client.get(f'/api/v1/agent/reports/{job_id}/export?format=xlsx').content.startswith(b'PK')
+        assert client.get(f'/api/v1/agent/reports/{job_id}/export?format=csv').status_code == 200
+
+        body = ReportPageRequest(job_id=job_id, offset=0, limit=1,
+            external_session_id=auth.context_id).model_dump_json().encode()
+        path = '/api/v1/agent/reports/internal-page'
+        timestamp = str(int(now().timestamp()))
+        headers = {'X-Prysm-Report-Timestamp': timestamp,
+            'X-Prysm-Report-Signature': signature('synthetic-report-test', timestamp, body)}
+        assert client.post(path, content=body).status_code == 404
+        assert client.post(path, content=body + b' ', headers=headers).status_code == 404
+        page = client.post(path, content=body, headers=headers)
+        assert page.status_code == 200, page.json()
+        assert page.json()['next_offset'] == 1

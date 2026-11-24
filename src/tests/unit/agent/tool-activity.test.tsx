@@ -3,164 +3,94 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import i18next from 'i18next';
 import { I18nextProvider } from 'react-i18next';
-import type { ChatToolPart } from '@agents24/react';
-import copy from '@/localization/agent.json';
-import { presentTool, toolPresentationRegistry } from '@/components/agent/tool-presentation';
+import type { ChatMessage, ChatPart, ChatToolPart } from '@agents24/react';
 import { ApprovalTimeline } from '@/components/agent/ApprovalTimeline';
+import copy from '@/localization/agent.json';
+
 vi.mock('@/contexts/PrysmAgentContext', () => ({ usePrysmAgent: () => null }));
-vi.mock('@/components/agent/LocalizedHitl', () => ({ LocalizedHitl: () => <div data-testid="native">Approval card</div> }));
-vi.mock('@agents24/chat-react/ui', async importOriginal => ({ ...await importOriginal<any>(), AgentResponseTimeline: ({ parts }: any) => <div data-testid="native">{parts[0].kind === 'text' ? parts[0].text : 'Approval card'}</div> }));
+vi.mock('@/components/agent/LocalizedHitl', () => ({ LocalizedHitl: () => <div>Approval card</div> }));
+vi.mock('thinking-orbs', () => ({ ThinkingOrb: () => null }));
+
 const i18n = i18next.createInstance();
-await i18n.init({ lng: 'en', fallbackLng: 'en', interpolation: { escapeValue: false }, resources: Object.fromEntries(Object.entries(copy).map(([locale, translation]) => [locale, { translation }])) });
-const tool = (name: string, output: unknown = {}, state = 'output-available', input: unknown = {}): ChatToolPart => ({ id: name, type: `tool-${name}`, kind: 'tool', toolName: name, state, input, output, presentation: {} } as ChatToolPart);
-const show = (part: ChatToolPart) => presentTool(part, i18n.t.bind(i18n), i18n.language);
-const receipt = { user_id: 1, at: '2026-10-18T10:00:00Z' };
-const outputs = {
-  clinic_context: { business_date: '2026-10-18', read_only: false }, search_patients: { matches: [{ secret: 'PRIVATE' }], has_more: false },
-  find_staff: { matches: [], has_more: false }, patient_history: { client: { id: 1 } }, list_records: { records: Array(50).fill({}), total: 143 },
-  exam_layout_catalog: { layouts: [] }, compare_exams: { prescription_comparisons: {}, sources: [] }, check_order: { status: 'review' },
-  find_appointments: { slots: [], bounded: false }, change_catalog: { clients: [], appointments: [] },
-  prepare_change: { change_id: 'secret-id', requires_approval: true, after: {} }, commit_change: { approval: receipt },
-  report_catalog: { datasets: {}, definition_schema: {} }, preview_report: { rows: Array(25).fill({}), total: 143 },
-  export_report: { job_id: 'secret-job', status: 'queued' }, job_status: { kind: 'report', status: 'completed', download_path: '/api/v1/agent/jobs/secret/download' },
-};
-afterEach(async () => { cleanup(); await i18n.changeLanguage('en'); });
-describe('safe tool presentation', () => {
-  it.each(Object.keys(toolPresentationRegistry))('presents every lifecycle of %s without leaking payloads', name => {
-    const output = outputs[name as keyof typeof outputs];
-    expect(show(tool(name, output)).label).not.toMatch(/agent\.|PRIVATE|secret|_/);
-    expect(show(tool(name, output, 'input-streaming', '{partial')).status).toBe('running');
-    expect(show(tool(name, output, 'input-available')).label).toContain('…');
-    expect(show(tool(name, output, 'output-error')).status).toBe('failed');
-    expect(show(tool(name, output, 'cancelled')).status).toBe('cancelled');
-    expect(show(tool(name, { status: 'error', message: 'PRIVATE' })).label).toBe('Step failed');
-    for (const malformed of [null, 'PRIVATE', [], 123, {}]) expect(show(tool(name, malformed)).label).toBe(name === 'commit_change' ? 'Save not confirmed' : 'Step finished');
-  });
-  it('accepts only exact registered identities from public SDK identity fields', () => {
-    expect(show({ ...tool('tool', outputs.search_patients), displayName: 'search_patients' }).label).toBe('Found 1 matching patient');
-    expect(show(tool('prefix_search_patients', outputs.search_patients)).label).toBe('Step finished');
-    expect(show(tool('unknown', {}, 'input-streaming')).label).toBe('Working…');
-  });
-  it('handles empty, limited, and paginated results honestly', () => {
-    expect(show(tool('search_patients', { matches: [], has_more: false })).label).toBe('Found 0 matching patients');
-    expect(show(tool('search_patients', { matches: Array(20).fill({}), has_more: true })).label).toContain('at least 20');
-    expect(show(tool('list_records', outputs.list_records)).label).toBe('Loaded 50 of 143 records');
-    expect(show(tool('list_records', { records: [], total: 0 })).label).toBe('Loaded 0 of 0 records');
-    expect(show(tool('list_records', { records: [{}], total: -1 })).label).toBe('Step finished');
-    expect(show(tool('preview_report', outputs.preview_report)).detail).toBe('25 of 143 records shown');
-    expect(show(tool('find_appointments', { slots: Array(10).fill({}), bounded: true })).label).toContain('at least 10');
-  });
-  it('never confuses drafts, saves, requests, and readiness', () => {
-    expect(show(tool('prepare_change', outputs.prepare_change)).label).toBe('Draft ready for review');
-    expect(show(tool('commit_change', { approval: { user_id: 1 } })).label).toBe('Save not confirmed');
-    expect(show(tool('commit_change', outputs.commit_change)).label).toBe('Approved changes saved');
-    expect(show(tool('export_report', { ...outputs.export_report, status: 'completed', download_path: 'anything' })).label).toBe('Report queued');
-    expect(show(tool('job_status', { status: 'queued' })).label).toBe('Job queued');
-    expect(show(tool('job_status', { kind: 'report', status: 'completed' })).label).toBe('Step finished');
-    expect(show(tool('job_status', outputs.job_status)).label).toBe('Report ready to download');
-    expect(show(tool('job_status', { status: 'failed' })).status).toBe('failed');
-    expect(show(tool('job_status', { status: 'cancelled' })).status).toBe('cancelled');
-  });
-  it('uses only allowlisted details and validates dates', () => {
-    expect(show(tool('list_records', outputs.list_records, 'input-available', { kind: 'orders', text: 'PRIVATE' })).detail).toBe('Orders');
-    expect(show(tool('list_records', {}, 'input-streaming', { kind: 'PRIVATE' })).detail).toBeUndefined();
-    expect(show(tool('find_appointments', {}, 'input-streaming', { start_date: '2026-02-30', end_date: '2026-03-01' })).detail).toBeUndefined();
-    expect(show(tool('find_appointments', {}, 'input-streaming', { start_date: '2026-10-18', end_date: '2026-10-20' })).detail).toContain('2026');
-    expect(show(tool('export_report', {}, 'input-streaming', { definition: { format: 'xlsx', title: 'PRIVATE' } })).detail).toBe('Excel');
-    expect(show(tool('unknown_PRIVATE', { text: 'PRIVATE' })).label).toBe('Step finished');
-  });
-  it.each(['he', 'en', 'fr'])('translates every tool and plural in %s', async locale => {
-    await i18n.changeLanguage(locale);
-    for (const [name, output] of Object.entries(outputs)) {
-      for (const state of ['input-streaming', 'output-available', 'output-error', 'cancelled']) expect(show(tool(name, output, state)).label).not.toMatch(/agent\./);
-    }
-    for (const n of [0, 1, 2, 7]) expect(i18n.t('agent.activity.steps', { count: n })).not.toMatch(/agent\./);
-  });
-});
-function mount(parts: any[], loading = true) {
-  return <I18nextProvider i18n={i18n}><ApprovalTimeline {...({ parts, isLoading: loading, message: { id: 'message', role: 'assistant', content: '', parts } } as any)} /></I18nextProvider>;
+await i18n.init({ lng: 'en', fallbackLng: 'en', resources: Object.fromEntries(Object.entries(copy).map(([locale, translation]) => [locale, { translation }])) });
+afterEach(cleanup);
+
+function tool(id: string, title?: string, groupTitle?: string): ChatToolPart {
+  return {
+    id, toolCallId: id, kind: 'tool', type: 'tool-clinic_context', toolName: 'clinic_context',
+    state: 'output-available', presentation: { title: 'Clinic context', generatedActivity: title ? { title, groupTitle } : undefined },
+    input: { scope: 'PRIVATE_TOOL_INPUT' }, output: { value: 'PRIVATE_TOOL_OUTPUT' },
+  };
 }
-describe('activity grouping', () => {
-  it('keeps expansion while a single tool grows into a streamed group', () => {
-    const first = tool('search_patients', {}, 'input-streaming');
-    const { rerender } = render(mount([first]));
-    expect(screen.getByRole('button')).toHaveAttribute('aria-expanded', 'false');
-    fireEvent.click(screen.getByRole('button'));
-    rerender(mount([tool('search_patients', outputs.search_patients), tool('list_records', {}, 'input-available')]));
-    expect(screen.getByRole('button')).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getAllByRole('listitem')).toHaveLength(2);
-    fireEvent.click(screen.getByRole('button'));
-    rerender(mount([tool('search_patients', outputs.search_patients), tool('list_records', outputs.list_records)], false));
-    expect(screen.getByRole('button')).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.getByRole('button')).toHaveTextContent('Loaded 50 of 143 records');
-    expect(screen.getByRole('button')).not.toHaveTextContent('2 steps');
-  });
-  it('preserves text and approval order and reports earlier failure/cancellation', () => {
-    render(mount([{ id: 'before', kind: 'text', text: 'Before' }, tool('list_records', {}, 'output-error'), tool('find_staff', {}, 'cancelled'), tool('search_patients', outputs.search_patients), { id: 'review', kind: 'hitl' }, { id: 'after', kind: 'text', text: 'After' }, tool('export_report', outputs.export_report)]));
-    expect(screen.getAllByRole('button')).toHaveLength(2);
-    expect(screen.getAllByRole('button')[0]).toHaveTextContent('Some steps failed or were cancelled');
-    expect(screen.getAllByTestId('native').map(node => node.textContent)).toEqual(['Before', 'Approval card', 'After']);
-    expect(screen.getByText('Before').compareDocumentPosition(screen.getAllByRole('button')[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getAllByRole('button')[0].compareDocumentPosition(screen.getByText('Approval card')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-  it('keeps the last meaningful result when a following output is unrecognized', () => {
-    render(mount([tool('search_patients', outputs.search_patients), tool('unknown', {})], false));
-    expect(screen.getByRole('button')).toHaveTextContent('Found 1 matching patient');
-  });
-  it('preserves expansion when model turns are added around a streamed tool group', () => {
-    const { rerender } = render(mount([tool('search_patients', {}, 'input-streaming')]));
-    fireEvent.click(screen.getByRole('button'));
-    rerender(mount([{id:'planning',kind:'model-turn',turnKind:'agent',status:'running'},tool('search_patients',outputs.search_patients),{id:'next',kind:'model-turn',turnKind:'agent',status:'running'}]));
-    expect(screen.getByRole('button')).toHaveAttribute('aria-expanded','true');
-  });
-  it('hides internal ask-user calls and keeps their input card visible', () => {
-    render(mount([tool('runtime__ask_user'), { id: 'input', kind: 'hitl', hitlKind: 'user_input' }]));
-    expect(screen.queryByRole('button')).toBeNull();
-    expect(screen.getByText('Approval card')).toBeVisible();
-  });
-  it.each(['he', 'en', 'fr'])('sets direction and keyboard disclosure semantics in %s', async locale => {
-    await i18n.changeLanguage(locale);
-    render(mount([tool('search_patients', outputs.search_patients)]));
-    const button = screen.getByRole('button');
-    expect(button).not.toHaveTextContent(i18n.t('agent.activity.steps', { count: 1 }));
-    expect(button.parentElement).toHaveAttribute('dir', locale === 'he' ? 'rtl' : 'ltr');
-    expect(button).toHaveAttribute('type', 'button');
-    expect(document.getElementById(button.getAttribute('aria-controls')!)).not.toBeVisible();
-    fireEvent.click(button);
-    expect(document.getElementById(button.getAttribute('aria-controls')!)).toBeVisible();
-  });
-});
 
+function mount(parts: ChatPart[], isLoading = false, activity?: ChatMessage['activity']) {
+  return <I18nextProvider i18n={i18n}><ApprovalTimeline parts={parts} isLoading={isLoading}
+    message={{ id: 'answer', role: 'assistant', content: '', createdAt: '2026-11-18T10:00:00Z', parts, activity }} /></I18nextProvider>;
+}
 
-describe('continuous run activity', () => {
-  it.each(['he', 'en', 'fr'])('shows initial thinking and tool-to-planning activity in %s', async locale => {
+describe('native tool activity in Prysm chat', () => {
+  it.each([
+    ['he', 'rtl', 'בודק את הגדרות המרפאה'],
+    ['en', 'ltr', 'Checking clinic settings'],
+    ['fr', 'ltr', 'Vérification des réglages de la clinique'],
+  ])('shows the generated title in %s with the correct direction', async (locale, direction, title) => {
     await i18n.changeLanguage(locale);
-    const view = render(mount([]));
-    expect(screen.getByRole('status')).toHaveTextContent(i18n.t('agent.timeline.reasoning'));
-    const part = tool('search_patients', {}, 'input-available');
-    view.rerender(mount([part]));
-    fireEvent.click(screen.getByRole('button'));
-    view.rerender(mount([tool('search_patients', outputs.search_patients),
-      { id:'next', kind:'model-turn', turnKind:'agent', status:'running' }]));
-    expect(screen.getByRole('button')).toHaveTextContent(i18n.t('agent.activity.planning'));
-    expect(screen.getByRole('button')).toHaveAttribute('aria-expanded', 'true');
+    render(mount([tool('call', title)]));
+    expect(screen.getByText(title).closest('[dir]')).toHaveAttribute('dir', direction);
+    expect(screen.queryByText('Clinic context')).toBeNull();
   });
-  it('shows capacity waiting without streaming or moving the approval', () => {
-    const props = { parts: [], isLoading: false, message: { id:'answer', role:'assistant', content:'', parts:[],
-      activity: { status:'waiting', capacityWait: { reason:'local_capacity' } } } } as any;
-    const view = render(<I18nextProvider i18n={i18n}><ApprovalTimeline {...props} /></I18nextProvider>);
-    expect(screen.getByRole('status')).toHaveTextContent(i18n.t('agent.activity.capacity'));
-    view.rerender(<I18nextProvider i18n={i18n}><ApprovalTimeline {...props}
-      message={{...props.message, activity:undefined, isFinal:true}} /></I18nextProvider>);
-    expect(screen.queryByRole('status')).toBeNull();
+
+  it('uses the native group title and recaps, keeping payloads out of expanded activity', async () => {
+    await i18n.changeLanguage('en');
+    const parts = [tool('one', 'Check clinic settings', 'Gathering clinic context'), {
+      ...tool('two', 'Check record types', 'Gathering clinic context'), state: 'input-available',
+    }] satisfies ChatToolPart[];
+    const view = render(mount(parts, true));
+    const disclosure = screen.getByRole('button', { name: /Gathering clinic context/ });
+    fireEvent.click(disclosure);
+    expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Check clinic settings')).toBeVisible();
+    expect(screen.getByText('Check record types')).toBeVisible();
+    expect(screen.queryByText(/PRIVATE_TOOL/)).toBeNull();
+
+    view.rerender(mount([parts[0], { ...parts[1], state: 'output-available' }, {
+      id: 'text', type: 'text', kind: 'text', text: 'The clinic context is ready.',
+      toolSessionRecap: { callIds: ['one', 'two'], label: 'Checked clinic settings and record types' },
+    }]));
+    expect(screen.getByText('Checked clinic settings and record types')).toBeVisible();
+    expect(screen.getByText('The clinic context is ready.')).toBeVisible();
   });
-  it('keeps external waits distinct from user approvals', () => {
-    const props = { parts: [], isLoading: false, message: { id:'answer', role:'assistant', content:'', parts:[],
-      activity: { status:'waiting' } } } as any;
-    const view = render(<I18nextProvider i18n={i18n}><ApprovalTimeline {...props} /></I18nextProvider>);
-    expect(screen.getByRole('status')).toHaveTextContent(i18n.t('agent.activity.waiting'));
-    view.rerender(mount([{id:'review', kind:'hitl', status:'pending'}], false));
-    expect(screen.getByText('Approval card')).toBeVisible();
-    expect(screen.queryByRole('status')).toBeNull();
+
+  it('discloses the deferred report with localized safe detail', async () => {
+    await i18n.changeLanguage('he');
+    const waiting: ChatToolPart = {
+      ...tool('report', 'הפקת דוח פגישות'), toolName: 'run_report',
+      state: 'input-available', output: undefined,
+    };
+    const { container } = render(mount([waiting], false, { status: 'waiting', waitingToolCallIds: ['report'] }));
+    const row = container.querySelector('[data-agents24-tool-part][data-state="waiting"]');
+    const disclosure = screen.getByRole('button', { name: /הפקת דוח פגישות/ });
+    expect(row).toContainElement(disclosure);
+    fireEvent.click(disclosure);
+    expect(screen.getByText(i18n.t('agent.timeline.activity.toolWaitingDetail'))).toBeVisible();
+    expect(screen.queryByText(/PRIVATE_TOOL/)).toBeNull();
+  });
+
+  it('renders older tool history using the SDK fallback title', () => {
+    render(mount([tool('old-call')]));
+    expect(screen.getByText('Clinic context')).toBeVisible();
+  });
+
+  it('keeps the tool before its approval and hides the internal ask-user invocation', () => {
+    render(mount([
+      tool('call', 'Check clinic settings'),
+      { ...tool('ask-user', 'Internal ask-user call'), toolName: 'runtime__ask_user' },
+      { id: 'review', type: 'hitl', kind: 'hitl', hitlKind: 'user_input', status: 'pending', interruptId: 'review', message: '', allowedActions: ['respond'], presentation: {}, questions: [] },
+      { id: 'text', type: 'text', kind: 'text', text: 'After the approval' },
+    ]));
+    const approval = screen.getByText('Approval card');
+    expect(screen.getByText('Check clinic settings').compareDocumentPosition(approval) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(approval.compareDocumentPosition(screen.getByText('After the approval')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByText('Internal ask-user call')).toBeNull();
   });
 });

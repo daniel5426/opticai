@@ -1,6 +1,15 @@
 schema: agents24.workflow/v1
 name: Prysm Clinic Agent
 description: Clinic search and reports with native document, screenshot and voice processing.
+tool_activity_labels:
+  enabled: true
+  completed_summary_enabled: true
+  instruction: >-
+    Use the language of the current user message, or the interface locale if
+    no language is clear. Write short, plain action titles for clinic staff.
+    Refer to record types and tasks only. Omit patient and staff names, birth
+    dates, identifiers, contact details, diagnoses, and other private data.
+    Describe completed work only when the tool result confirms it.
 inputs:
   text:
     type: string

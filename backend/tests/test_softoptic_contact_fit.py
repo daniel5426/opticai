@@ -1,3 +1,4 @@
+import datetime
 import csv
 
 from sqlalchemy import create_engine
@@ -28,8 +29,9 @@ def test_fit_row_maps_to_its_tabs():
 
     assert data["softoptic-details-fitting"] == {
         "wearing_duration": "4", "wearing_unit": "weeks", "hours_per_day": "10", "hours_today": "01:30",
-        "r_reflex": "6-  J7", "l_old_add": "1.25", "card_instance_id": "fitting",
+        "l_old_add": "1.25", "card_instance_id": "fitting",
     }
+    assert data["retinoscop"]["r_reflex"] == "6-  J7"
     # A zero stability axis is OpticSoft's empty value.
     assert data["softoptic-details-observation"] == {"r_stability_ax": "-10", "card_instance_id": "observation"}
     # "S" is preselected on every fit; it is not a suppression result.
@@ -47,7 +49,7 @@ def test_fit_rg_keeps_a_real_result():
     assert data["softoptic-rg"]["rg_status"] == "fusion"
 
 
-def test_fit_takes_subjective_and_bio_from_latest_eye_test_before_it(tmp_path):
+def test_fit_preserves_its_own_measurements_and_keeps_earlier_eye_tests_separate(tmp_path):
     _write(tmp_path / "optic_eye_tests.csv", ["code", "account_code"], [])
     _write(tmp_path / "optic_device_data.csv", ["code", "account_code"], [])
     _write(
@@ -80,11 +82,12 @@ def test_fit_takes_subjective_and_bio_from_latest_eye_test_before_it(tmp_path):
         fit = db.query(OpticalExam).filter_by(type="contact_fit").one()
         assert fit.test_name == "התאמת עדשות מגע"
         data = db.query(ExamLayoutInstance).filter_by(exam_id=fit.id).one().exam_data
-        assert data["final-subjective"]["r_sph"] == -3.0
-        assert data["schirmer-test"]["r_mm"] == 22
-        assert data["softoptic-details-bio"]["r_iop"] == "14"
-        assert data["softoptic-details-subjective"]["remark"] == "sees well"
-        assert data["softoptic-details-eye-test"]["eye_test_date"] == "2022-03-01"
+        assert data == {}
+        previous = db.query(OpticalExam).filter_by(exam_date=datetime.date(2022, 3, 1)).one()
+        previous_data = db.query(ExamLayoutInstance).filter_by(exam_id=previous.id).one().exam_data
+        assert previous_data["final-subjective"]["r_sph"] == -3.0
+        assert previous_data["schirmer-test"]["r_mm"] == 22
+
 
 
 def test_bc_keeps_softoptic_implied_point_and_codes():

@@ -1,10 +1,8 @@
 """Give imported SoftOptic contact fits the fields and tabs of OpticSoft's fit screen.
 
-Older imports named fits "Migrated Contact Fit", read BC without its point (86 for 8.6), kept their remarks in three English-titled note
-cards, and left out the wearing time, hours per day, reflex, old lens ADD and stability axes. They also
-had no Subjective or Bio.M data, which OpticSoft reads from the client's eye test. This rebuilds each
-fit from its stored source row and adds only the cards the fit does not have yet, so nothing edited
-since the import is overwritten. A note card is removed only while it still holds the imported remark.
+Rebuild missing fit cards from the archived fitting row. Move unchanged Reflex
+values to the standard card. Retain previously copied eye-test measurements for
+review. Remove a note card only while it still holds the imported remark.
 
 Dry run by default; pass --apply to write.
 
@@ -23,10 +21,10 @@ from migration.pipeline.common import (
     CONTACT_FIT_TEST_NAME,
     build_contact_fit_exam_data,
     clean_legacy_text,
-    find_contact_fit_eye_test,
     parse_float,
 )
 from models import ExamLayoutInstance, MigrationSourceLink, OpticalExam, SoftOpticMigrationJob
+from services.softoptic_visit_repairs import plan_fit_visit_repair
 
 # Older imports' names for a fit, including this script's first one.
 OLD_TEST_NAMES = {"Migrated Contact Fit", "בדיקת התאמה"}
@@ -98,8 +96,14 @@ def plan(db, job: SoftOpticMigrationJob) -> Tuple[List[tuple], Counter]:
         for exam, instance in rows:
             raw = raw_by_exam[exam.id] or {}
             current = dict(instance.exam_data or {})
-            rebuilt = build_contact_fit_exam_data(raw, find_contact_fit_eye_test(db, exam.client_id, exam.exam_date))
-            data = dict(current)
+            rebuilt = build_contact_fit_exam_data(raw)
+            repair = plan_fit_visit_repair(current, raw, updated=instance.updated_at is not None)
+            data = repair.data
+            counts["reflex fields moved"] += repair.moved_reflex_fields
+            counts["historic copies needing review"] += repair.copied_data_needs_review
+            # Reflex is handled by the source-checked move above.
+            rebuilt.pop("retinoscop", None)
+            rebuilt.pop("retinoscop-retinoscop-1", None)
             for key in _imported_note_keys(current, raw):
                 data.pop(key)
                 counts["notes moved"] += 1
@@ -108,13 +112,10 @@ def plan(db, job: SoftOpticMigrationJob) -> Tuple[List[tuple], Counter]:
                 data[key] = rebuilt[key]
             # Details cards an earlier run added get the fields added since.
             for key, block in rebuilt.items():
-                if key.startswith("softoptic-details-") and key not in added and isinstance(current.get(key), dict):
-                    missing = {field: value for field, value in block.items() if field not in current[key]}
-                    if missing:
-                        data[key] = {**current[key], **missing}
+                existing = data.get(key) or {}
+                if key.startswith("softoptic-details-") and key not in added and isinstance(existing, dict):
+                    data[key] = {**block, **existing}
             counts["bc fixed"] += _fix_old_lens_bc(data, rebuilt, raw)
-            if any(key.startswith("softoptic-details-eye-test") for key in added):
-                counts["eye test linked"] += 1
             counts["cards added"] += len(added)
             name = CONTACT_FIT_TEST_NAME if exam.test_name in OLD_TEST_NAMES else None
             if name:

@@ -22,8 +22,10 @@ import { Button } from "@/components/ui/button";
 import { Edit, Save, Loader2, ShoppingCart } from "lucide-react";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -74,6 +76,7 @@ import {
 import {
   EXAM_DATA_UI_KEY,
   ensureLayoutDataForRows,
+  getTabsForCard,
 } from "@/lib/exam-ui-metadata";
 
 // Import new hooks
@@ -92,13 +95,13 @@ import {
   ExamLoadingState,
   ExamNotFoundState,
 } from "@/components/exam/ExamLoadingState";
-import { ExamLayoutTabs } from "@/components/exam/ExamLayoutTabs";
+import { ExamLayoutTabs, examLayoutFolderTabStyle } from "@/components/exam/ExamLayoutTabs";
 import { OptitechExamTabs } from "@/components/exam/OptitechExamTabs";
 import { SoftopticExamTabs } from "@/components/exam/SoftopticExamTabs";
-import { buildSoftopticFitTabs, buildSoftopticTabs, defaultSoftopticTab, oldRefTabId, SOFTOPTIC_CONTACT_LENS_TAB, softopticGridSlotCardId, withContactLensTab, type SoftopticTabKey } from "@/lib/softoptic-exam-tabs";
-import { sameDayContactLensOrders } from "@/lib/softoptic-contact-lens";
+import { buildSoftopticFitTabs, buildSoftopticTabs, defaultSoftopticTab, isDefaultSoftopticSchirmer, oldRefTabId, softopticGridSlotCardId, type SoftopticTabKey } from "@/lib/softoptic-exam-tabs";
 import { SoftopticContactLensTab } from "@/components/exam/SoftopticContactLensTab";
 import { packSoftopticCards } from "@/lib/softoptic-exam-layout";
+import { SoftopticContactCheckList, type SoftopticContactEntry } from "@/components/exam/SoftopticContactCheckList";
 import { optitechExamKind } from "@/lib/optitech-exam-tabs";
 import { ExamLayoutRenderer } from "@/components/exam/ExamLayoutRenderer";
 
@@ -116,6 +119,7 @@ import {
 
 const buildFullDataLayoutDataFromExamData = (
   examData: Record<string, any>,
+  softoptic: boolean,
 ): string => {
   const cardDefs: { id: string; type: any; title?: string }[] = [];
   const added = new Set<string>();
@@ -138,6 +142,7 @@ const buildFullDataLayoutDataFromExamData = (
 
   Object.entries(examData).forEach(([key, value]) => {
     if (!isNonEmptyComponent(key, value)) return;
+    if (softoptic && isDefaultSoftopticSchirmer(key, value)) return;
 
     let type: string | null = null;
     let cardId: string | null = null;
@@ -190,6 +195,17 @@ const buildFullDataLayoutDataFromExamData = (
     : "[]";
 };
 
+function makeImportedExamView(data: Record<string, any>, instanceId: number, softoptic: boolean) {
+  const sources: Record<string, number> = {};
+  const bucket = Object.fromEntries(Object.entries(data).map(([key, value]) => {
+    if (!value || typeof value !== "object") return [key, value];
+    sources[key] = instanceId;
+    return [key, { ...value, layout_instance_id: VIRTUAL_FULL_DATA_TAB_ID, source_layout_instance_id: instanceId }];
+  }));
+  const layout = parseLayoutData(buildFullDataLayoutDataFromExamData(data, softoptic));
+  return { sources, bucket, layout };
+}
+
 export default function ExamDetailPage({
   mode = "view",
   clientId: propClientId,
@@ -235,8 +251,11 @@ export default function ExamDetailPage({
   // Set by the loader when only imported (layout-less) data exists, so the page opens on it.
   const openImportedDataOnLoadRef = useRef(false);
   // Imported (layout-less) exam data is shown in its source system's tabs.
-  const [hasImportedExamData, setHasImportedExamData] = useState(false);
+  const [softopticSourceId, setSoftopticSourceId] = useState<number | null>(null);
   const [softopticTab, setSoftopticTab] = useState<SoftopticTabKey | null>(null);
+  const [contactEntry, setContactEntry] = useState<SoftopticContactEntry | null>(null);
+  const [showEmptySoftopticSections, setShowEmptySoftopticSections] = useState(false);
+  const [importedLayoutWidth, setImportedLayoutWidth] = useState<{ layoutWidthPx?: number; sideInsetPx?: number }>({});
   // Bumped after every load, so post-load effects also run when a prefetched exam swaps in without a loading state.
   const [loadVersion, setLoadVersion] = useState(0);
   const [client, setClient] = useState<Client | null>(null);
@@ -278,7 +297,9 @@ export default function ExamDetailPage({
   const [isEditing, setIsEditing] = useState(isNewMode);
   const [activeTab, setActiveTab] = useState(config.sidebarTab);
   const layoutContentRef = useRef<HTMLDivElement>(null);
-  const examContentZoom = useExamContentZoom(layoutContentRef);
+  const activeLayoutTab = layoutTabs.find(tab => tab.id === activeInstanceId);
+  const usesTemplateLayout = activeLayoutTab?.layout_id != null;
+  const examContentZoom = useExamContentZoom(layoutContentRef, !usesTemplateLayout);
 
   useEffect(() => {
     const content = layoutContentRef.current;
@@ -431,10 +452,16 @@ export default function ExamDetailPage({
     return initialData;
   };
 
-  const initializeFormData = (instanceKey: number, layoutData?: string) => {
-    const initialData = createInitialFormDataBucket(instanceKey, layoutData);
+  const initializeFormData = (instanceKey: number, layoutData?: string, setCurrent = true) => {
+    let initialData = createInitialFormDataBucket(instanceKey, layoutData);
+    const source = softopticSourceId == null ? null : examFormDataByInstance[softopticSourceId];
+    if (source) {
+      const rows = parseLayoutData(layoutData).rows;
+      const seeded = seedLayoutFromImportedData(source, rows.flatMap(row => row.cards), instanceKey);
+      initialData = ensureLayoutDataForRows({ ...initialData, ...seeded }, rows, instanceKey).examData;
+    }
 
-    setExamFormData(initialData);
+    if (setCurrent) setExamFormData(initialData);
     setExamFormDataByInstance((prev) => ({
       ...prev,
       [instanceKey]: initialData,
@@ -600,53 +627,70 @@ export default function ExamDetailPage({
 
   // An imported SoftOptic exam's data view is split into OpticSoft's tabs. It only filters which of the
   // loaded cards are on screen; handlers, tab state and saving still work on all of them.
-  const isSoftopticView = hasImportedExamData && activeInstanceId === VIRTUAL_FULL_DATA_TAB_ID && !optitechExamKind(exam);
-  const { data: clientContactLensOrders } = useQuery({
-    queryKey: ["softoptic-exam-contact-lens-orders", exam?.client_id],
-    queryFn: async () => (await apiClient.getContactLensOrdersByClient(exam!.client_id!)).data || [],
-    enabled: Boolean(isSoftopticView && exam?.client_id),
+  const sourceData = softopticSourceId == null ? undefined : examFormDataByInstance[softopticSourceId];
+  const isSoftopticView = softopticSourceId != null && isVirtualFullDataTabId(activeInstanceId);
+  const isContactOrderEntry = exam?.type === "softoptic_contact_order";
+  const contactOrderPanelId = React.useId();
+  const orderId = contactEntry?.order_id;
+  const { data: linkedOrder, isFetching: isFetchingContactOrder } = useQuery({
+    queryKey: ["softoptic-linked-contact-order", orderId],
+    queryFn: async () => (await apiClient.getContactLensOrder(orderId!)).data,
+    enabled: Boolean(orderId),
   });
-  const examDayContactLensOrders = useMemo(
-    () => sameDayContactLensOrders(clientContactLensOrders || [], exam?.exam_date),
-    [clientContactLensOrders, exam?.exam_date],
-  );
+  const sourceViewData = isSoftopticView ? examFormData : sourceData;
+  const activeSourceRows = isSoftopticView ? cardRows : undefined;
   const softopticTabs = useMemo(() => {
-    if (!isSoftopticView) return null;
-    // A contact lens fit has OpticSoft's fit screen tabs instead of the eye test's.
+    if (!sourceViewData) return null;
+    const sourceRows = activeSourceRows
+      ?? parseLayoutData(buildFullDataLayoutDataFromExamData(sourceViewData, true)).rows;
     const buildTabs = exam?.type === "contact_fit" ? buildSoftopticFitTabs : buildSoftopticTabs;
-    const tabs = withContactLensTab(buildTabs(cardRows.flatMap((row) => row.cards), (card) =>
-      card.type === "old-refraction-extension"
-        ? computedOldRefractionExtensionTabs[card.id]
-        : card.type === "old-refraction"
-          ? computedOldRefractionTabs[card.id]
-          : undefined,
-    ), examDayContactLensOrders.length > 0);
+    const tabs = buildTabs(sourceRows.flatMap((row) => row.cards), (card) => {
+      if (card.type === "old-refraction-extension" || card.type === "old-refraction") {
+        return getTabsForCard(sourceViewData, card.type, card.id).map(tab => tab.id);
+      }
+    }, isEditing && showEmptySoftopticSections);
     return tabs.length ? tabs : null;
-  }, [isSoftopticView, exam?.type, cardRows, computedOldRefractionTabs, computedOldRefractionExtensionTabs, examDayContactLensOrders]);
-  const activeSoftopticTab = softopticTabs?.find((tab) => tab.key === softopticTab) ?? softopticTabs?.find((tab) => tab.key === defaultSoftopticTab(softopticTabs));
+  }, [sourceViewData, activeSourceRows, exam?.type, isEditing, showEmptySoftopticSections]);
+  const activeSoftopticTab = isSoftopticView && softopticTabs
+    ? softopticTabs.find(tab => tab.key === softopticTab) ?? softopticTabs.find(tab => tab.key === defaultSoftopticTab(softopticTabs))
+    : undefined;
+  const activateSoftopticSource = useCallback(() => {
+    if (softopticSourceId == null || !sourceData) return;
+    ++latestLoadIdRef.current;
+    const { sources, bucket, layout } = makeImportedExamView(sourceData, softopticSourceId, true);
+    fullDataSourcesRef.current[VIRTUAL_FULL_DATA_TAB_ID] = sources;
+    setActiveInstanceId(VIRTUAL_FULL_DATA_TAB_ID);
+    setLayoutTabs(tabs => tabs.map(tab => ({ ...tab, isActive: false })));
+    setCardRows(layout.rows);
+    setCustomWidths(layout.customWidths);
+    setGridItems(layout.items);
+    setExamFormData(bucket);
+  }, [softopticSourceId, sourceData]);
   const displayedLayout = useMemo(() => {
     if (!activeSoftopticTab) return { rows: cardRows, customWidths, items: gridItems };
     return parseLayoutData(serializeGridLayoutData(packSoftopticCards(activeSoftopticTab.cards)));
   }, [activeSoftopticTab, cardRows, customWidths, gridItems]);
   const activeLayoutWidth = useMemo(() =>
-    parseLayoutData(layoutTabs.find(tab => tab.id === activeInstanceId)?.layout_data),
-    [layoutTabs, activeInstanceId],
+    parseLayoutData(activeLayoutTab?.layout_data),
+    [activeLayoutTab?.layout_data],
   );
-  const { ref: layoutWidthRef, maxWidth: preferredLayoutWidth } = useLayoutWidth(activeLayoutWidth.layoutWidthPx, activeLayoutWidth.sideInsetPx, activeInstanceId);
+  const usesImportedWidth = isSoftopticView ||
+    (exam?.type === "softoptic_contact_check" && isVirtualFullDataTabId(activeInstanceId));
+  const effectiveWidth = usesImportedWidth ? importedLayoutWidth : activeLayoutWidth;
+  const { ref: layoutWidthRef, maxWidth: preferredLayoutWidth } = useLayoutWidth(
+    effectiveWidth.layoutWidthPx ?? ((usesImportedWidth || contactEntry) && !effectiveWidth.sideInsetPx ? 1280 : undefined),
+    effectiveWidth.sideInsetPx, activeInstanceId,
+  );
+  const layoutMaxWidth = preferredLayoutWidth ? `${preferredLayoutWidth}px` : usesTemplateLayout ? "var(--exam-layout-default-width)" : undefined;
 
   // Empty OpticSoft sections save into the imported instance, like the imported cards around them.
   useEffect(() => {
-    const placeholderTypes = softopticTabs?.flatMap((tab) => tab.placeholders ?? []) ?? [];
-    if (!placeholderTypes.length) return;
+    if (!isSoftopticView || softopticSourceId == null || !softopticTabs) return;
     const sources = (fullDataSourcesRef.current[VIRTUAL_FULL_DATA_TAB_ID] ||= {});
-    const counts = new Map<number | string, number>();
-    Object.values(sources).forEach((id) => id != null && counts.set(id, (counts.get(id) ?? 0) + 1));
-    const importedInstanceId = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
-    if (importedInstanceId == null) return;
-    placeholderTypes.forEach((type) => {
-      if (sources[type] == null) sources[type] = importedInstanceId;
-    });
-  }, [softopticTabs]);
+    for (const tab of softopticTabs) {
+      for (const type of tab.placeholders ?? []) sources[type] ??= softopticSourceId;
+    }
+  }, [isSoftopticView, softopticSourceId, softopticTabs]);
 
   // OpticSoft's Old Ref tabs (and its summary, which shows Old Ref 1) open that old refraction.
   const softopticOldRef = activeSoftopticTab?.oldRef ?? (activeSoftopticTab?.key === "summary" ? 1 : undefined);
@@ -951,6 +995,7 @@ export default function ExamDetailPage({
     fullDataSourcesRef,
     loadExamComponentData,
     initializeFormData,
+    onReturnToImported: softopticSourceId == null ? undefined : activateSoftopticSource,
     applyLayoutStructure,
     setIsAddingLayouts,
     tempLayoutIdCounterRef,
@@ -1155,8 +1200,11 @@ export default function ExamDetailPage({
     if (reconciledExamId.current && Number(examId) === reconciledExamId.current) return;
     let cancelled = false;
     baselineInitializedRef.current = false;
-    setHasImportedExamData(false);
+    setSoftopticSourceId(null);
     setSoftopticTab(null);
+    setContactEntry(null);
+    setShowEmptySoftopticSections(false);
+    setImportedLayoutWidth({});
     const loadData = async () => {
       if (!clientId) return;
       try {
@@ -1177,6 +1225,7 @@ export default function ExamDetailPage({
               available_layouts,
             } = pageData;
             setExam(examData || null);
+            setContactEntry(pageData.softoptic_contact_entry ?? null);
             if (Array.isArray(available_layouts)) {
               setAvailableLayouts(available_layouts as any);
             }
@@ -1186,6 +1235,17 @@ export default function ExamDetailPage({
             const noLayoutInstances = (instances || []).filter(
               (e: any) => e?.instance?.layout_id == null && !hasOpticPlusLayout(e),
             );
+            const hasData = (entry: any) =>
+              Boolean(entry?.exam_data) &&
+              Object.entries(entry.exam_data).some(([key, value]) => isNonEmptyComponent(key, value));
+            const preferredSource = noLayoutInstances.find(
+              entry => entry.instance.id === chosen_active_instance_id && hasData(entry),
+            ) ?? noLayoutInstances.find(hasData);
+            if (preferredSource?.instance.id && !optitechExamKind(examData) && examData?.type !== "softoptic_contact_check") {
+              const { layoutWidthPx, sideInsetPx } = parseLayoutData(preferredSource.instance.layout_data);
+              setSoftopticSourceId(preferredSource.instance.id);
+              setImportedLayoutWidth({ layoutWidthPx, sideInsetPx });
+            }
             const layoutInstances = regularInstances.map(
               (e: any) => e.instance,
             );
@@ -1281,9 +1341,7 @@ export default function ExamDetailPage({
                 // Layout tabs added to an imported exam start empty; show the imported values in them.
                 const hasComponents = (bucket: any) =>
                   Boolean(bucket) && Object.entries(bucket).some(([key, value]) => isNonEmptyComponent(key, value));
-                const importedData = noLayoutInstances
-                  .map((entry: any) => initialFormDataByInstance[entry?.instance?.id])
-                  .find(hasComponents);
+                const importedData = preferredSource && initialFormDataByInstance[preferredSource.instance.id];
                 if (importedData) {
                   regularInstances.forEach((instanceData: any) => {
                     const instanceId = instanceData.instance.id;
@@ -1300,14 +1358,10 @@ export default function ExamDetailPage({
                   });
                 }
                 setExamFormDataByInstance(initialFormDataByInstance);
-                const hasData = (entry: any) =>
-                  Boolean(entry?.exam_data) &&
-                  Object.entries(entry.exam_data).some(([key, value]) => isNonEmptyComponent(key, value));
                 // OptiTech exams show their source tabs instead of layout tabs, so they always open on the imported data.
                 openImportedDataOnLoadRef.current =
                   (Boolean(optitechExamKind(examData)) || !regularInstances.some(hasData)) &&
                   noLayoutInstances.some(hasData);
-                setHasImportedExamData(noLayoutInstances.some(hasData));
                 if (openImportedDataOnLoadRef.current) {
                   // Don't paint the default layout for a frame before the imported view replaces it.
                   setCardRows([]);
@@ -1330,9 +1384,9 @@ export default function ExamDetailPage({
               }
             } else {
               const source =
-                noLayoutInstances.find(
+                preferredSource ?? noLayoutInstances.find(
                   (e: any) => e?.instance?.id === chosen_active_instance_id,
-                ) || noLayoutInstances[0];
+                  ) ?? noLayoutInstances[0];
               if (
                 source?.instance?.id &&
                 source.exam_data &&
@@ -1341,35 +1395,18 @@ export default function ExamDetailPage({
                 const sourceInstanceId = source.instance.id;
                 const sourceLayoutDataStr = source.instance.layout_data || "[]";
                 const sourceParsedLayout = parseLayoutData(sourceLayoutDataStr);
+                setImportedLayoutWidth({
+                  layoutWidthPx: sourceParsedLayout.layoutWidthPx,
+                  sideInsetPx: sourceParsedLayout.sideInsetPx,
+                });
                 const normalized = ensureLayoutDataForRows(
                   source.exam_data,
                   sourceParsedLayout.rows,
                   sourceInstanceId,
                 );
-                const fullDataLayoutData = buildFullDataLayoutDataFromExamData(
-                  normalized.examData,
-                );
-                const parsedFullDataLayout =
-                  parseLayoutData(fullDataLayoutData);
-                const sources: Record<string, number> = {};
-                const fullDataBucket = Object.fromEntries(
-                  Object.entries(normalized.examData).map(([key, value]) => {
-                    if (value && typeof value === "object") {
-                      sources[key] = sourceInstanceId;
-                      return [
-                        key,
-                        {
-                          ...(value as Record<string, any>),
-                          layout_instance_id: VIRTUAL_FULL_DATA_TAB_ID,
-                          source_layout_instance_id: sourceInstanceId,
-                        },
-                      ];
-                    }
-                    return [key, value];
-                  }),
-                );
+                const { sources, bucket: fullDataBucket, layout: parsedFullDataLayout } =
+                  makeImportedExamView(normalized.examData, sourceInstanceId, !optitechExamKind(examData));
                 fullDataSourcesRef.current[VIRTUAL_FULL_DATA_TAB_ID] = sources;
-                setHasImportedExamData(true);
                 setLayoutTabs([]);
                 setActiveInstanceId(VIRTUAL_FULL_DATA_TAB_ID);
                 setCardRows(parsedFullDataLayout.rows);
@@ -1476,8 +1513,9 @@ export default function ExamDetailPage({
   useLayoutEffect(() => {
     if (loading || !openImportedDataOnLoadRef.current) return;
     openImportedDataOnLoadRef.current = false;
-    handleActivateFullDataTab();
-  }, [loading, loadVersion, handleActivateFullDataTab]);
+    if (softopticSourceId != null) activateSoftopticSource();
+    else handleActivateFullDataTab();
+  }, [loading, loadVersion, softopticSourceId, activateSoftopticSource, handleActivateFullDataTab]);
 
   useEffect(() => {
     if (!loading && !baselineInitializedRef.current) {
@@ -1876,7 +1914,9 @@ export default function ExamDetailPage({
   }, [exam?.id, navigateToOrderFromCurrentExam]);
 
   // Header actions
-  const headerActions = (
+  const headerActions = isContactOrderEntry
+    ? <ImportedSourceDataDialog recordType="exam" recordId={exam?.id} />
+    : (
     <>
       <Select
         dir={direction}
@@ -1991,11 +2031,13 @@ export default function ExamDetailPage({
 
   const isOptitechExam = Boolean(exam && !isNewMode && Number(clientId) > 0 && optitechExamKind(exam));
   // The OptiTech tabs start with "glasses"; when it is active it joins the card's corner.
-  const edgeLayoutTab = isOptitechExam
+  const edgeLayoutTab = isContactOrderEntry || (isOptitechExam
     ? optitechExamKind(exam) === "glasses"
-    : direction === "rtl"
-      ? layoutTabs.filter(isPersistableLayoutTab).at(-1)
-      : layoutTabs.find(isPersistableLayoutTab);
+    : softopticTabs
+      ? activeSoftopticTab?.key === softopticTabs[0]?.key
+      : activeInstanceId != null && activeInstanceId === (direction === "rtl"
+        ? layoutTabs.filter(isPersistableLayoutTab).at(-1)?.id
+        : layoutTabs.find(isPersistableLayoutTab)?.id));
 
   // Main render
   return (
@@ -2010,14 +2052,14 @@ export default function ExamDetailPage({
       <ClientSpaceLayout>
         <div
           ref={layoutWidthRef}
-          className="no-scrollbar flex h-full min-h-0 flex-1 flex-col overflow-hidden p-4 lg:p-5 [--exam-page-padding:1rem] lg:[--exam-page-padding:1.25rem]"
+          className={`no-scrollbar flex h-full min-h-0 flex-1 flex-col overflow-hidden px-(--exam-page-padding) py-4 lg:py-5 ${usesTemplateLayout ? "exam-layout-page" : "[--exam-page-padding:1rem] lg:[--exam-page-padding:1.25rem]"}`}
           dir={direction}
           style={{
             scrollbarWidth: "none",
             msOverflowStyle: "none",
             marginInline: "auto",
             width: "100%",
-            maxWidth: preferredLayoutWidth ? `calc(${preferredLayoutWidth}px + 2 * var(--exam-page-padding))` : undefined,
+            maxWidth: layoutMaxWidth ? `calc(${layoutMaxWidth} + 2 * var(--exam-page-padding))` : undefined,
           }}
         >
           {/* Layout Tabs */}
@@ -2047,34 +2089,60 @@ export default function ExamDetailPage({
               }
               onRemoveTab={id => {if (!isSaveInFlight) {setIsEditing(true); void handleRemoveLayoutTab(id)}}}
               actions={headerActions}
-              tabsSlot={
-                isOptitechExam ? (
-                  <OptitechExamTabs clientId={Number(clientId)} exam={exam!} />
-                ) : softopticTabs ? (
-                  <SoftopticExamTabs tabs={softopticTabs} activeTab={activeSoftopticTab?.key ?? null} onTabChange={setSoftopticTab} />
-                ) : undefined
-              }
-              addLayoutAction={!isNewMode && !isOptitechExam ? (
+              tabsSlot={isOptitechExam ? <OptitechExamTabs clientId={Number(clientId)} exam={exam!} /> : undefined}
+              importedTabs={isContactOrderEntry ? (
+                <div role="tablist" aria-label={t("softoptic.examTabs.label")}>
+                  <button type="button" role="tab" aria-selected="true" id={`${contactOrderPanelId}-tab`}
+                    aria-controls={contactOrderPanelId} style={examLayoutFolderTabStyle(true)}>
+                    {t("softoptic.examTabs.contactLens")}
+                  </button>
+                </div>
+              ) : softopticTabs ? (
+                <SoftopticExamTabs tabs={softopticTabs} activeTab={activeSoftopticTab?.key ?? null}
+                  onTabChange={tab => {
+                    if (isSaveInFlight) return;
+                    setSoftopticTab(tab);
+                    if (!isSoftopticView) activateSoftopticSource();
+                  }}
+                />
+              ) : undefined}
+              addLayoutAction={!isNewMode && !isOptitechExam && !isContactOrderEntry ? (
                 <LayoutSelectorDropdown
                   availableLayouts={availableLayouts}
                   onSelectLayout={id => {if (!isSaveInFlight) {setIsEditing(true); return handleSelectLayoutOption(id)}}}
                   onRequestLayouts={handleRequestLayouts}
                   isLoading={isAddingLayouts || isSaveInFlight}
+                  extraMenuItems={isEditing && isSoftopticView ? (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuCheckboxItem checked={showEmptySoftopticSections} onCheckedChange={setShowEmptySoftopticSections}>
+                        {t("softoptic.visit.showEmpty")}
+                      </DropdownMenuCheckboxItem>
+                    </>
+                  ) : undefined}
                   iconOnly
                 />
               ) : undefined}
             />
           </div>
 
-          <div data-exam-surface className={`bg-card min-h-0 flex-1 rounded-xl border-0 shadow-sm ${edgeLayoutTab ? "rounded-ss-none" : ""}`}>
+          <div data-exam-surface
+            {...(isContactOrderEntry ? { role: "tabpanel", id: contactOrderPanelId, "aria-labelledby": `${contactOrderPanelId}-tab` } : {})}
+            className={`bg-card min-h-0 flex-1 rounded-xl border-0 shadow-sm ${edgeLayoutTab ? "rounded-ss-none" : ""}`}>
             <div
               ref={layoutContentRef}
               className="no-scrollbar h-full overflow-y-auto overscroll-contain rounded-[inherit]"
               style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
             >
               <form ref={formRef} className="flex min-h-full flex-col" style={{ zoom: examContentZoom }} aria-busy={isSaveInFlight} onSubmit={event => {event.preventDefault(); void handleSave();}}><fieldset disabled={isSaveInFlight} className="contents">
-                {activeSoftopticTab?.key === SOFTOPTIC_CONTACT_LENS_TAB ? (
-                  <SoftopticContactLensTab orders={examDayContactLensOrders} />
+                {isContactOrderEntry ? (
+                  <>
+                    {linkedOrder && <SoftopticContactLensTab orders={[linkedOrder]} />}
+                    {contactEntry && <SoftopticContactCheckList checks={contactEntry.checks} />}
+                    {!linkedOrder && !isFetchingContactOrder && !contactEntry?.checks.length && (
+                      <p className="text-muted-foreground p-10 text-center text-sm">{t("softoptic.examTabs.empty")}</p>
+                    )}
+                  </>
                 ) : activeSoftopticTab && !activeSoftopticTab.cards.length ? (
                   <p className="text-muted-foreground p-10 text-center text-sm">{t("softoptic.examTabs.empty")}</p>
                 ) : (

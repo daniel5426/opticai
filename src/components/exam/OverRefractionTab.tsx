@@ -235,7 +235,7 @@ export function OverRefractionTab({
             <h3 className="font-medium text-muted-foreground">Over Refraction</h3>
           </div>
 
-          <div className={`grid ${gridClassName} gap-2 items-center`}>
+          <div className={`exam-eye-grid grid ${gridClassName} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, config }) => (
               <div key={key} className="h-4 flex items-center justify-center">
@@ -268,7 +268,7 @@ export function OverRefractionTab({
 
             {!hideEyeLabels && <div className="flex items-center justify-center h-8"></div>}
             {columns.map(({ key, config }) => (
-              <div key={`c-${key}`} className="h-8">
+              <div key={`c-${key}`} className="grid h-8 items-center">
                 {renderCombinedField(key, config)}
               </div>
             ))}

@@ -4,6 +4,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, expect, test, vi } from "vitest"
 import AllExamsPage from "@/pages/AllExamsPage"
+import { ExamsTable } from "@/components/exams-table"
 import i18n from "@/localization/i18n"
 
 const mocks = vi.hoisted(() => ({
@@ -67,4 +68,33 @@ test("the exam type options clear when the selected clinic's request fails", asy
   expect(await screen.findByText(i18n.t("columnFilters.noOptions"))).toBeInTheDocument()
   expect(screen.queryByRole("checkbox", { name: "First clinic's exam" })).toBeNull()
   expect(screen.queryByRole("checkbox", { name: "First clinic's layout" })).toBeNull()
+})
+
+test.each(["client", "all"])("finds a fitting by its displayed name in the %s exam list", async (list) => {
+  await i18n.changeLanguage("he")
+  const fittingName = "softoptic.visit.fitting"
+  const otherExams = Array.from({ length: 9 }, (_, i) => ({ id: i + 2, exam_date: "2026-11-11", test_name: `Exam ${i}` }))
+  const fitting = { id: 1, exam_date: "2009-08-17", test_name: fittingName }
+  mocks.getRecordClinics.mockResolvedValue({ data: [] })
+  mocks.getExamTestNames.mockResolvedValue({ data: [fittingName, ...otherExams.map((exam) => exam.test_name)] })
+  mocks.getPaginatedEnrichedExams.mockResolvedValue({ items: otherExams, hasMore: true, total: 10 })
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(<QueryClientProvider client={client}>
+    {list === "all" ? <AllExamsPage /> : <ExamsTable data={[fitting, ...otherExams]} clientId={1} loading={false} onExamDeleted={() => {}} onExamDeleteFailed={() => {}} />}
+  </QueryClientProvider>)
+
+  const examFilter = i18n.t("columnFilters.filterColumn", { column: i18n.t("examList.kind") })
+  const label = i18n.t(fittingName)
+  await userEvent.click(await screen.findByRole("button", { name: examFilter }))
+  await userEvent.type(await screen.findByPlaceholderText(i18n.t("columnFilters.searchOptions")), label)
+  await userEvent.click(screen.getByRole("checkbox", { name: label }))
+
+  if (list === "all") {
+    expect(mocks.navigate).toHaveBeenCalledWith(expect.objectContaining({
+      search: expect.objectContaining({ filters: JSON.stringify({ test_name: [fittingName] }) }),
+    }))
+  } else {
+    expect(screen.getByRole("cell", { name: label })).toBeInTheDocument()
+    expect(screen.queryByRole("cell", { name: "Exam 0" })).not.toBeInTheDocument()
+  }
 })

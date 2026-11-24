@@ -144,12 +144,12 @@ export function KeratometerContactLensTab({
     <Card className="w-full examcard pb-4 pt-3">
       <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
         <div className="space-y-3">
-          <div className="flex items-center justify-between mb-1">
+          <div className="relative flex h-6 items-center justify-between">
             <div className="flex-1">
               <Tabs
                 value={unit}
                 onValueChange={handleUnitChange}
-                className="w-fit -translate-y-1"
+                className="w-fit"
                 dir={direction}
               >
                 <TabsList className="grid h-8 w-auto grid-cols-2">
@@ -176,7 +176,7 @@ export function KeratometerContactLensTab({
             <div className="flex-1" /> {/* Spacer for symmetry */}
           </div>
 
-          <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(6,1fr)]' : 'grid-cols-[20px_repeat(6,1fr)]'} gap-2 items-center`}>
+          <div dir="ltr" className={`exam-eye-grid grid ${hideEyeLabels ? 'grid-cols-[repeat(6,1fr)]' : 'grid-cols-[20px_repeat(6,1fr)]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
               <div key={key} className="h-4 flex items-center justify-center">

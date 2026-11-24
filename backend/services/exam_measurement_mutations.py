@@ -1,23 +1,23 @@
 """Authorized measurement instances with template snapshots and search indexing."""
 from fastapi import HTTPException
 from hashlib import sha256
-from models import ExamLayout, ExamLayoutInstance, OpticalExam, Client
+from models import ExamLayoutInstance, OpticalExam, Client
 from security.scope import get_scoped_client, assert_record_scope, resolve_company_id
+from services.exam_layout_catalog import usable_layout
 from services.prism_axis_compatibility import normalize_prism_axis_exam_data
 from services.prescription_search_index import rebuild_exam_instance_index
 from services.ai_privacy import clean_nested
 from agent.config import now
 
 
-def template(db, clinic_id, layout_id):
-    row = db.query(ExamLayout).filter(ExamLayout.id == layout_id, ExamLayout.clinic_id == clinic_id,
-        ExamLayout.is_active.is_(True), ExamLayout.is_group.is_(False)).first()
-    if not row:
-        raise HTTPException(404, 'agent.recordNotFound')
-    return row
+def template(db, exam, layout_id):
+    try:
+        return usable_layout(db, exam.company_id, exam.clinic_id, layout_id)
+    except HTTPException as exc:
+        raise HTTPException(404, 'agent.recordNotFound') from exc
 
 
-def save(db, user, clinic_id, exam_id, fields, expected, action):
+def save(db, user, exam_id, fields, expected, action):
     if (user.role_level or 1) < 2:
         raise HTTPException(403, 'agent.editPermissionRequired')
     exam = db.query(OpticalExam).filter_by(id=exam_id, company_id=resolve_company_id(db, user)).filter(OpticalExam.deleted_at.is_(None)).with_for_update().first()
@@ -26,7 +26,7 @@ def save(db, user, clinic_id, exam_id, fields, expected, action):
     assert_record_scope(db, user, exam)
     get_scoped_client(db, user, exam.client_id)
     if action == 'create':
-        layout = template(db, clinic_id, fields['layout_id'])
+        layout = template(db, exam, fields['layout_id'])
         if sha256(layout.layout_data.encode()).hexdigest() != expected['layout_digest']:
             raise HTTPException(409, 'agent.staleChange')
         active = not db.query(ExamLayoutInstance.id).filter_by(exam_id=exam.id, is_active=True).first()

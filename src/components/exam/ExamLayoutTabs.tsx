@@ -22,9 +22,31 @@ interface ExamLayoutTabsProps {
   onRemoveTab: (tabId: number) => void;
   actions?: React.ReactNode;
   addLayoutAction?: React.ReactNode;
+  importedTabs?: React.ReactNode;
   /** Replaces the layout tabs (and the all-data toggle), e.g. with an imported exam's source tabs. */
   tabsSlot?: React.ReactNode;
 }
+
+export const examLayoutFolderTabStyle = (isActive: boolean): React.CSSProperties => ({
+  position: "relative",
+  display: "flex",
+  alignItems: "center",
+  gap: "7px",
+  padding: "8px 18px 9px",
+  fontSize: "15px",
+  fontWeight: isActive ? 600 : 500,
+  whiteSpace: "nowrap",
+  cursor: "pointer",
+  transition: "background 0.15s ease, color 0.15s ease",
+  borderRadius: "8px 8px 0 0",
+  border: "none",
+  // Keep the panel's shadow around the exposed edges of the selected tab.
+  boxShadow: isActive ? "var(--canvas-shadow-flat)" : undefined,
+  clipPath: isActive ? "inset(-8px -8px 0)" : undefined,
+  zIndex: isActive ? 1 : undefined,
+  background: isActive ? "var(--appearance-exam-panel)" : "transparent",
+  color: isActive ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground) / 0.72)",
+});
 
 export function ExamLayoutTabs({
   layoutTabs,
@@ -38,6 +60,7 @@ export function ExamLayoutTabs({
   onRemoveTab,
   actions,
   addLayoutAction,
+  importedTabs,
   tabsSlot,
 }: ExamLayoutTabsProps) {
   const { direction } = useAppLocale();
@@ -48,8 +71,6 @@ export function ExamLayoutTabs({
     React.useState<LayoutTab | null>(null);
   const handleFullDataClick = onFullDataClick ?? onRegenerateFullData;
   const canRemoveLayoutTabs = visibleTabs.length > 0;
-  const activeTabShadow =
-    "shadow-sm after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-2 after:bg-[var(--appearance-exam-panel)] after:content-['']";
 
   const requestDelete = (tab: LayoutTab) => {
     if (hasTabData(tab)) {
@@ -66,28 +87,6 @@ export function ExamLayoutTabs({
     setTabPendingDelete(null);
   };
 
-  /* ── connected-tab style helper ── */
-  const folderTab = (isActive: boolean): React.CSSProperties => ({
-    position: "relative",
-    display: "flex",
-    alignItems: "center",
-    gap: "7px",
-    padding: "8px 18px 9px",
-    fontSize: "15px",
-    fontWeight: isActive ? 600 : 500,
-    whiteSpace: "nowrap",
-    cursor: "pointer",
-    transition: "background 0.15s ease, color 0.15s ease",
-    borderRadius: "8px 8px 0 0",
-    border: "none",
-    marginBottom: isActive ? "-1px" : 0,
-    zIndex: isActive ? 1 : undefined,
-    background: isActive ? "var(--appearance-exam-panel)" : "transparent",
-    color: isActive
-      ? "hsl(var(--foreground))"
-      : "hsl(var(--muted-foreground) / 0.72)",
-  });
-
   return (
     <>
       <div data-exam-surface>
@@ -99,13 +98,14 @@ export function ExamLayoutTabs({
           }}
         >
           <div className="flex min-w-0 flex-1 items-end gap-1">
-            <div className="relative top-px -ms-3 -mt-3 -mb-2 min-w-0">
+            <div className="relative -ms-3 -mt-3 -mb-2 min-w-0">
             <div
-              dir="ltr"
+              dir={importedTabs ? direction : "ltr"}
               className="no-scrollbar overflow-x-auto"
               style={{ scrollbarWidth: "none" }}
             >
             <div dir={direction} className="me-auto flex shrink-0 items-end gap-2 ps-3 pe-3 pt-3 pb-2">
+              {importedTabs}
               {tabsSlot ? tabsSlot : visibleTabs.length > 0 ? (
                 <Tabs
                   dir="ltr"
@@ -129,8 +129,8 @@ export function ExamLayoutTabs({
                     <Tab
                       key={tab.id}
                       id={tab.id.toString()}
-                      className={`group ${tab.isActive ? activeTabShadow : ""}`}
-                      style={{ ...folderTab(tab.isActive), marginBottom: 0 }}
+                      className="group"
+                      style={examLayoutFolderTabStyle(activeInstanceId === tab.id)}
                     >
                       {tab.name}
                       {canRemoveLayoutTabs ? (
@@ -162,12 +162,11 @@ export function ExamLayoutTabs({
             {addLayoutAction ? <div className="shrink-0">{addLayoutAction}</div> : null}
           </div>
           <div className="ms-auto flex max-w-full shrink-0 flex-wrap items-end gap-x-2 gap-y-2" dir={direction}>
-            {!tabsSlot && <button
+            {!tabsSlot && !importedTabs && <button
               type="button"
               onClick={handleFullDataClick}
-              className={isFullDataActive ? activeTabShadow : undefined}
               style={{
-                ...folderTab(isFullDataActive),
+                ...examLayoutFolderTabStyle(isFullDataActive),
                 height: isFullDataActive ? 43 : 42,
                 padding: "0 18px",
                 paddingBottom: isFullDataActive ? 7 : 6,

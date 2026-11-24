@@ -6,7 +6,6 @@ import { CustomModal } from "@/components/ui/custom-modal";
 import { getExamPageData } from "@/lib/db/exams-db";
 import {
   ExamCardRenderer,
-  hasNoteCard,
   CardItem,
 } from "@/components/exam/ExamCardRenderer";
 import Tabs, { Tab } from "@uiw/react-tabs-draggable";
@@ -369,7 +368,6 @@ export function ExamPreviewModal({
                       setActiveCoverTestTabs,
                     }}
                     hideEyeLabels={item.showEyeLabels === false}
-                    matchHeight={hasNoteCard(laneItems) && laneItems.length > 1}
                     currentCardIndex={cardIndex}
                   />
                 )}

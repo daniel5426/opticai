@@ -87,7 +87,7 @@ export function SchirmerTestTab({
             <h3 className={`${butOnly ? "text-sm " : ""}font-medium text-muted-foreground`}>{butOnly ? t('opticplusCards.sections.tearFilm') : 'Schirmer Test'}</h3>
           </div>
 
-          <div className="grid gap-2 items-center" style={{gridTemplateColumns: `${hideEyeLabels ? '' : '20px '}repeat(${columns.length},minmax(0,1fr))`}}>
+          <div dir="ltr" className="exam-eye-grid grid gap-2 items-center" style={{gridTemplateColumns: `${hideEyeLabels ? '' : '20px '}repeat(${columns.length},minmax(0,1fr))`}}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
               <div key={key} className="h-4 flex items-center justify-center">

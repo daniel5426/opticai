@@ -22,6 +22,7 @@ from security.scope import (
     require_company_admin,
     resolve_company_id,
 )
+from services.exam_layout_catalog import usable_layout
 from services.trash_service import move_to_trash
 
 
@@ -47,6 +48,10 @@ def create_appointment(
         # and assigned user. Re-running those checks here adds remote DB round trips.
         payload = apply_clinic_user_scope(db, current_user, appointment.dict())
         payload.pop("google_calendar_event_id", None)  # Mapping is server-owned.
+        if payload.get("exam_layout_id"):
+            payload["exam_layout_id"] = usable_layout(
+                db, payload["company_id"], payload["clinic_id"], payload["exam_layout_id"],
+            ).id
         
         print(f"Creating appointment with final data: {payload}")
         db_appointment = Appointment(**payload)
@@ -299,6 +304,11 @@ def update_appointment(
         for key in ("client_id", "clinic_id", "user_id"):
             if key in update_fields:
                 update_fields[key] = scoped[key]
+    if update_fields.get("exam_layout_id") and update_fields["exam_layout_id"] != db_appointment.exam_layout_id:
+        update_fields["exam_layout_id"] = usable_layout(
+            db, db_appointment.company_id, update_fields.get("clinic_id", db_appointment.clinic_id),
+            update_fields["exam_layout_id"],
+        ).id
     from agent.config import enabled
     if enabled() and set(update_fields) & {'date', 'time', 'duration', 'user_id', 'clinic_id'}:
         from services.appointment_schedule import find_conflict, overlap_error

@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, within, waitFor, cleanup } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import i18next from 'i18next';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import copy from '@/localization/agent.json';
 
 vi.mock('@/lib/api-client', () => ({apiClient: {agentFetch: vi.fn()}}));
@@ -31,7 +32,13 @@ import { AgentChatPanel } from '@/components/agent/AgentChatPanel';
 const i18n = i18next.createInstance();
 await i18n.init({ lng: 'en', fallbackLng: 'en', interpolation: { escapeValue: false },
   resources: Object.fromEntries(Object.entries(copy).map(([locale, translation]) => [locale, { translation }])) });
-function mount(compact = false) { return render(<I18nextProvider i18n={i18n}><AgentChatPanel compact={compact} /></I18nextProvider>); }
+function mount(compact = false, strict = false) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const panel = <I18nextProvider i18n={i18n}><AgentChatPanel compact={compact} /></I18nextProvider>;
+  return render(strict ? <React.StrictMode>{panel}</React.StrictMode> : panel, {
+    wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>,
+  });
+}
 beforeEach(() => { mock.patientId = null; mock.epoch = 0; mock.submit.mockReset().mockResolvedValue(undefined);
   vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} unobserve() {} });
   URL.createObjectURL = vi.fn(() => 'blob:synthetic-preview'); URL.revokeObjectURL = vi.fn(); });
@@ -55,7 +62,7 @@ describe('default composer and contextual prompts', () => {
 
   it('prefills the composer under the development StrictMode lifecycle', async () => {
     await i18n.changeLanguage('en');
-    render(<React.StrictMode><I18nextProvider i18n={i18n}><AgentChatPanel /></I18nextProvider></React.StrictMode>);
+    mount(false, true);
     fireEvent.click(within(screen.getByLabelText(i18n.t('agent.suggestions'))).getAllByRole('button')[0]);
     await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue(i18n.t('agent.prompt.customReport.prompt', { details: i18n.t('agent.prompt.customReport.blank') })));
   });
@@ -75,6 +82,21 @@ describe('default composer and contextual prompts', () => {
     fireEvent.keyDown(textarea, { key: 'Enter', code: 'Enter' });
     await waitFor(() => expect(mock.submit).toHaveBeenCalledTimes(1));
     expect(mock.submit.mock.calls[0][0].files[0]).toMatchObject({ name: 'prescription.png', mediaType: 'image/png' });
+  });
+
+  it('keeps a failed attachment submission and its text in the composer', async () => {
+    await i18n.changeLanguage('en');
+    mock.submit.mockRejectedValueOnce(new Error('transport unavailable'));
+    const view = mount();
+    const file = new File(['synthetic prescription'], 'prescription.png', { type: 'image/png' });
+    fireEvent.change(view.container.querySelector('.a24-composer input[type=file]')!, { target: { files: [file] } });
+    await screen.findByTestId('agent-chat-composer-attachments');
+    const textarea = screen.getByRole('textbox');
+    fireEvent.change(textarea, { target: { value: 'Read this prescription' } });
+    fireEvent.keyDown(textarea, { key: 'Enter', code: 'Enter' });
+    expect(await screen.findByText(i18n.t('agent.attachmentSubmissionFailed'))).toBeVisible();
+    expect(textarea).toHaveValue('Read this prescription');
+    expect(screen.getByTestId('agent-chat-composer-attachments')).toBeVisible();
   });
 
   it('uses patient prompts in the sidebar and resets draft ownership for a new conversation', async () => {

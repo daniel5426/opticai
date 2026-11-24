@@ -23,7 +23,10 @@ function setup(page = { items: [], next_cursor: null, unproduced: [{ name: 'tran
   const stream = vi.fn((_input, callback) => { receive = callback; return new Promise(() => {}); });
   const attach = vi.fn((_input, callback) => { receive = callback; return new Promise(() => {}); });
   const submit = vi.fn().mockResolvedValue({});
-  const client = withTranscriptOutputs({ chat: { stream }, runs: { attach, outputs: { list, get } }, threads: { messages: { submit } } } as unknown as AgentClient);
+  const uploadBatch = vi.fn().mockResolvedValue([{ id: 'audio', mime_type: 'audio/webm' },
+    { id: 'pdf', mime_type: 'application/pdf' }, { id: 'photo', mime_type: 'image/png' }]);
+  const client = withTranscriptOutputs({ chat: { stream }, runs: { attach, outputs: { list, get } },
+    attachments: { uploadBatch }, threads: { messages: { submit } } } as unknown as AgentClient);
   workspace.client = client;
   return { client, list, get, stream, attach, submit, emit: (event: any) => receive(event) };
 }
@@ -33,14 +36,19 @@ function row(locale = 'en', data: any = message) {
   return <I18nextProvider i18n={i18n}><TranscriptMessage message={data} dir={locale === 'he' ? 'rtl' : 'ltr'} /></I18nextProvider>;
 }
 describe('public client transcript wiring', () => {
-  it('selects transcripts for initial and queued attachment submissions, leaving text default-off', () => {
+  it('selects transcripts for audio in initial and queued submissions and leaves PDFs and photos alone', async () => {
     const s = setup();
-    void s.client.chat.stream({ input: '', attachmentIds: ['audio'], idempotencyKey: 'one' }, vi.fn());
+    await s.client.attachments.uploadBatch({ uploads: [], idempotencyKey: 'upload' });
+    void s.client.chat.stream({ input: '', attachmentIds: ['photo', 'audio'], idempotencyKey: 'one' }, vi.fn());
     expect(s.stream.mock.calls[0][0].requestedOutputs).toEqual(['transcript']);
     void s.client.threads.messages.submit({ threadId: 'thread', input: '', attachmentIds: ['audio'], mode: 'queue', idempotencyKey: 'two' });
     expect(s.submit.mock.calls[0][0].requestedOutputs).toEqual(['transcript']);
     void s.client.chat.stream({ input: 'Text', idempotencyKey: 'three' }, vi.fn());
     expect(s.stream.mock.calls[1][0]).not.toHaveProperty('requestedOutputs');
+    void s.client.chat.stream({ input: 'Read', attachmentIds: ['pdf', 'photo'], idempotencyKey: 'four' }, vi.fn());
+    expect(s.stream.mock.calls[2][0]).not.toHaveProperty('requestedOutputs');
+    await s.client.threads.messages.submit({ threadId: 'thread', input: 'Read', attachmentIds: ['pdf'], mode: 'queue', idempotencyKey: 'five' });
+    expect(s.submit.mock.calls[1][0]).not.toHaveProperty('requestedOutputs');
   });
   it.each(['en', 'he', 'fr'])('replaces the audio filename immediately while the stream remains open in %s', async locale => {
     await i18n.changeLanguage(locale);

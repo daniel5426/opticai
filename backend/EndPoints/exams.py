@@ -10,7 +10,7 @@ from database import get_db
 from models import OpticalExam, User, Client, Clinic
 from schemas import OpticalExam as OpticalExamSchema, OpticalExamCreate, ExamWorkspaceSave, ExamWorkspaceSaved
 from auth import get_current_user
-from .exam_layouts import build_layout_tree
+from services.exam_layout_catalog import company_layout_scope, layout_tree
 from services.prism_axis_compatibility import normalize_prism_axis_exam_data
 from utils.column_filters import lookup_filter, ColumnFilter, build_column_filter_conditions
 from utils.table_search import build_all_terms_search_condition, search_blob, spaced_concat, split_search_terms
@@ -21,6 +21,7 @@ from security.scope import (
     get_scoped_client,
 )
 from services.trash_service import move_to_trash
+from services.softoptic_entries import CONTACT_CHECK_TYPE, CONTACT_ORDER_TYPE, contact_entry_data
 
 router = APIRouter(prefix="/exams", tags=["exams"])
 
@@ -36,7 +37,7 @@ def exam_list_query(db, current_user, clinic_id, search, test_name, type, order,
     ).outerjoin(User, OpticalExam.user_id == User.id).outerjoin(Client, OpticalExam.client_id == Client.id).outerjoin(Clinic, (Clinic.id == OpticalExam.clinic_id) & (Clinic.company_id == OpticalExam.company_id))
 
     allowed_clinic_ids = get_record_clinic_ids(db, current_user, clinic_id)
-    base_query = base_query.filter(clinical_exam_filter()).filter(record_filter(db, current_user, OpticalExam, clinic_id))
+    base_query = base_query.filter(clinical_exam_filter(include_softoptic_order_visits=True)).filter(record_filter(db, current_user, OpticalExam, clinic_id))
 
     # Apply filters
     if type:
@@ -95,7 +96,7 @@ def exam_list_query(db, current_user, clinic_id, search, test_name, type, order,
 
 
 # SoftOptic contact lens fits are imported as "contact_fit"; they are eye exams and list with them.
-EXAM_LIST_TYPES = {"exam": ("exam", "contact_fit")}
+EXAM_LIST_TYPES = {"exam": ("exam", "contact_fit", CONTACT_CHECK_TYPE, CONTACT_ORDER_TYPE)}
 
 
 def exam_type_filter(exam_type: str):
@@ -259,7 +260,10 @@ def get_exam_with_layouts(
     # Get all layouts in one query
     layouts = []
     if layout_ids:
-        layouts = db.query(ExamLayout).filter(ExamLayout.id.in_(layout_ids)).all()
+        layouts = db.query(ExamLayout).filter(
+            ExamLayout.id.in_(layout_ids),
+            or_(company_layout_scope(exam.company_id), ExamLayout.company_id.is_(None) & ExamLayout.clinic_id.is_(None)),
+        ).all()
     
     layout_map = {layout.id: layout for layout in layouts}
     
@@ -287,7 +291,9 @@ def get_exam_page_data(
     # One roundtrip: fetch instances joined with layouts
     pairs = (
         db.query(ExamLayoutInstance, ExamLayout)
-        .outerjoin(ExamLayout, ExamLayout.id == ExamLayoutInstance.layout_id)
+        .outerjoin(ExamLayout, (ExamLayout.id == ExamLayoutInstance.layout_id) & or_(
+            company_layout_scope(exam.company_id), ExamLayout.company_id.is_(None) & ExamLayout.clinic_id.is_(None),
+        ))
         .filter(ExamLayoutInstance.exam_id == exam_id)
         .all()
     )
@@ -322,15 +328,7 @@ def get_exam_page_data(
         active_instance = layout_instances_sorted[0]
     active_layout = layout_map.get(active_instance.layout_id) if active_instance else None
     active_exam_data = active_instance.exam_data if active_instance and getattr(active_instance, 'exam_data', None) else {}
-    # Gather available layouts (include clinic-specific and global where applicable)
-    available_layouts_q = db.query(ExamLayout)
-    available_layouts_q = available_layouts_q.filter(or_(ExamLayout.clinic_id == exam.clinic_id, ExamLayout.clinic_id == None))
-    available_layouts = (
-        available_layouts_q
-        .order_by(ExamLayout.sort_index.asc(), ExamLayout.id.asc())
-        .all()
-    )
-    available_layout_tree = build_layout_tree(available_layouts)
+    available_layout_tree = layout_tree(db, exam.company_id, exam.clinic_id, active_only=True)
 
     # Trim payload to only fields used by the page
     from services.exam_workspace import save_token
@@ -360,6 +358,7 @@ def get_exam_page_data(
         ],
         "chosen_active_instance_id": getattr(active_instance, 'id', None),
         "available_layouts": available_layout_tree,
+        **({"softoptic_contact_entry": entry} if (entry := contact_entry_data(db, exam)) else {}),
     }
     return result
 
@@ -437,7 +436,7 @@ def get_exams_by_client(
 ):
     """Get all exams for a specific client"""
     client_id = get_scoped_client(db, current_user, client_id).id
-    query = db.query(OpticalExam, Clinic.name).outerjoin(Clinic, (Clinic.id == OpticalExam.clinic_id) & (Clinic.company_id == OpticalExam.company_id)).filter(clinical_exam_filter(), OpticalExam.client_id == client_id, record_filter(db, current_user, OpticalExam, clinic_id))
+    query = db.query(OpticalExam, Clinic.name).outerjoin(Clinic, (Clinic.id == OpticalExam.clinic_id) & (Clinic.company_id == OpticalExam.company_id)).filter(clinical_exam_filter(include_softoptic_order_visits=True), OpticalExam.client_id == client_id, record_filter(db, current_user, OpticalExam, clinic_id))
     
     # Apply filters
     if type:

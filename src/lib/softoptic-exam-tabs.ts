@@ -6,6 +6,13 @@
 
 type CardDef = { id: string; type: string }
 
+export function isDefaultSoftopticSchirmer(key: string, value: Record<string, unknown>): boolean {
+  if (key !== "schirmer-test" && !key.startsWith("schirmer-test-")) return false
+  return [value.r_mm, value.l_mm, value.r_but, value.l_but].every(
+    field => field == null || field === 0 || field === "0" || field === "",
+  )
+}
+
 export const SOFTOPTIC_EXAM_TABS = [
   "objective",
   "anamnesa",
@@ -27,9 +34,7 @@ export const SOFTOPTIC_FIT_TABS = ["subjective", "bioM", "rxCl1", "rxCl2", "fitt
 export type SoftopticFitTab = (typeof SOFTOPTIC_FIT_TABS)[number]
 /** Cards no OpticSoft tab covers get their own trailing tab, so imported data is never hidden. */
 export const SOFTOPTIC_MORE_TAB = "more"
-/** The exam day's contact lens prescription, which older imports keep on the contact lens order. */
-export const SOFTOPTIC_CONTACT_LENS_TAB = "contactLens"
-export type SoftopticTabKey = SoftopticExamTab | SoftopticFitTab | typeof SOFTOPTIC_MORE_TAB | typeof SOFTOPTIC_CONTACT_LENS_TAB
+export type SoftopticTabKey = SoftopticExamTab | SoftopticFitTab | typeof SOFTOPTIC_MORE_TAB
 
 const OLD_REF_TABS: Partial<Record<SoftopticExamTab, number>> = { oldRef1: 1, oldRef2: 2, oldRef3: 3 }
 const OLD_REFRACTION_TYPES = ["old-refraction-extension", "old-refraction"]
@@ -104,11 +109,6 @@ export type SoftopticTabView<T extends CardDef = CardDef> = {
   placeholders?: string[]
 }
 
-/** Add the order's prescription without replacing the exam's own clinical cards. */
-export function withContactLensTab<T extends CardDef>(tabs: SoftopticTabView<T>[], hasOrders: boolean): SoftopticTabView<T>[] {
-  return hasOrders ? [...tabs, { key: SOFTOPTIC_CONTACT_LENS_TAB, cards: [] }] : tabs
-}
-
 // A tab's card list names a single details slot as "softoptic-details:<slot>".
 const detailsSpec = (slot: string) => `${DETAILS_TYPE}:${slot}`
 
@@ -124,7 +124,7 @@ const FIT_TAB_CARD_TYPES: Record<SoftopticFitTab, string[]> = {
   bioM: ["schirmer-test", "contact-lens-diameters", detailsSpec("bio"), detailsSpec("eye-test")],
   rxCl1: [...OLD_REFRACTION_TYPES, detailsSpec("old-ref-1"), ...OLD_REF_GRID_TYPES],
   rxCl2: [...OLD_REFRACTION_TYPES, detailsSpec("old-ref-2"), ...OLD_REF_GRID_TYPES],
-  fitting: [detailsSpec("fitting"), "old-contact-lenses", "objective", "keratometer", "over-refraction"],
+  fitting: [detailsSpec("fitting"), "old-contact-lenses", "objective", "retinoscop", "keratometer", "over-refraction"],
   observation: ["sensation-vision-stability", detailsSpec("observation")],
   bino: [...BINO_CARD_TYPES, detailsSpec("bino")],
 }
@@ -133,7 +133,7 @@ const FIT_TAB_CARD_TYPES: Record<SoftopticFitTab, string[]> = {
 const FIT_TAB_PLACEHOLDER_TYPES: Partial<Record<SoftopticFitTab, string[]>> = {
   subjective: ["schirmer-test", "final-subjective", "addition", "keratometer", "uncorrected-va"],
   bioM: ["schirmer-test", "contact-lens-diameters"],
-  fitting: ["old-contact-lenses", "objective", "keratometer", "over-refraction"],
+  fitting: ["old-contact-lenses", "objective", "retinoscop", "keratometer", "over-refraction"],
   observation: ["sensation-vision-stability"],
   bino: ["maddox-wing", "stereo-test", "maddox-rod", "fusion-range"],
 }
@@ -195,13 +195,13 @@ function buildTabs<T extends CardDef, K extends SoftopticTabKey>(
  * The OpticSoft tabs that have data for this exam, each with its cards in display order.
  * `oldRefTabs` returns an old-refraction card's internal tab ids.
  */
-export function buildSoftopticTabs<T extends CardDef>(cards: T[], oldRefTabs: (card: T) => string[] | undefined): SoftopticTabView<T>[] {
+export function buildSoftopticTabs<T extends CardDef>(cards: T[], oldRefTabs: (card: T) => string[] | undefined, includeEmpty = false): SoftopticTabView<T>[] {
   return buildTabs(cards, oldRefTabs, {
     tabs: SOFTOPTIC_EXAM_TABS,
     cardTypes: TAB_CARD_TYPES,
     detailSlots: TAB_DETAIL_SLOTS,
     oldRefTabs: OLD_REF_TABS,
-    placeholderTypes: TAB_PLACEHOLDER_TYPES,
+    placeholderTypes: includeEmpty ? TAB_PLACEHOLDER_TYPES : {},
   })
 }
 
@@ -209,14 +209,14 @@ export function buildSoftopticTabs<T extends CardDef>(cards: T[], oldRefTabs: (c
  * A contact lens fit on OpticSoft's fit screen: all seven tabs, each with its sections.
  * Rx+Cl 1 and 2 show the fit's first and second old refraction.
  */
-export function buildSoftopticFitTabs<T extends CardDef>(cards: T[], oldRefTabs: (card: T) => string[] | undefined): SoftopticTabView<T>[] {
+export function buildSoftopticFitTabs<T extends CardDef>(cards: T[], oldRefTabs: (card: T) => string[] | undefined, includeEmpty = false): SoftopticTabView<T>[] {
   return buildTabs(cards, oldRefTabs, {
     tabs: SOFTOPTIC_FIT_TABS,
     cardTypes: FIT_TAB_CARD_TYPES,
     detailSlots: {},
     oldRefTabs: FIT_OLD_REF_TABS,
-    placeholderTypes: FIT_TAB_PLACEHOLDER_TYPES,
-    showEmpty: true,
+    placeholderTypes: includeEmpty ? FIT_TAB_PLACEHOLDER_TYPES : {},
+    showEmpty: includeEmpty,
   })
 }
 

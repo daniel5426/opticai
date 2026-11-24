@@ -1,5 +1,6 @@
 import { useNavigate } from '@tanstack/react-router';
 import { supplyComposerContract, useAgentSubmission } from '@/services/agent-submission';
+import { AgentReportAttachments, useAgentReportAttachments } from '@/services/use-agent-report-attachments';
 import React from 'react';
 import { AgentChatComposer, type AgentChatComposerHandle } from '@agents24/chat-react/ui';
 import { Maximize2, ArrowUpRight, FileSpreadsheet, Search, ChartNoAxesCombined, HeartPulse, History, Wallet } from 'lucide-react';
@@ -23,10 +24,13 @@ export function AgentChatPanel({ compact = false }: { compact?: boolean }) {
   const { t } = useTranslation();
   const { direction } = useAppLocale();
   const [preparing, setPreparing] = React.useState(false);
+  const [attachmentErrorScope, setAttachmentErrorScope] = React.useState<string | null>(null);
   const composerRef = React.useRef<AgentChatComposerHandle>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const appliedPrompt = React.useRef<number | null>(null);
   const runtime = workspace?.runtime;
+  const reports = useAgentReportAttachments(workspace?.scope ?? null, runtime?.controller.activeThreadId ?? null,
+    runtime?.controller.activeRunId ?? null, runtime?.controller.messages ?? []);
   React.useEffect(() => {
     const request = workspace?.campaignPrompt;
     if (!request || !runtime?.bootstrap || runtime.isBootstrapping || appliedPrompt.current === request.key) return;
@@ -83,6 +87,7 @@ export function AgentChatPanel({ compact = false }: { compact?: boolean }) {
       <StickToBottom className={`agent-workspace__messages min-h-0 flex-1 overflow-hidden ${empty && !compact ? 'hidden' : ''}`} resize="smooth" initial="instant">
       <StickToBottom.Content className="agent-workspace__message-content mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 pb-6 pt-5">
         {controller.hasOlderTurns && <Button variant="ghost" size="sm" onClick={() => void controller.loadOlder()}>{t('agent.more')}</Button>}
+        <AgentReportAttachments.Provider value={reports}>
         {controller.messages.map(message => <TranscriptMessage key={message.id} message={message} dir={direction} Timeline={ApprovalTimeline}
           contentClassName={compact && message.role === 'user' ? 'bg-canvas' : undefined}
           userMessageShowMoreLabel={t('agent.timeline.message.more')} userMessageShowLessLabel={t('agent.timeline.message.less')}
@@ -93,6 +98,7 @@ export function AgentChatPanel({ compact = false }: { compact?: boolean }) {
           onHitlPaint={durationMs => { if (import.meta.env.DEV) performance.measure('agent.hitl.cardPaint', { start: performance.now() - durationMs, duration: durationMs }); }}
           onHitlAction={(part, answer, options) => { void runtime.onHitlAction(part, answer, options).catch(() => undefined); }}
           attachmentContentResolver={runtime.resolveAttachmentContent} />)}
+        </AgentReportAttachments.Provider>
       </StickToBottom.Content>
       </StickToBottom>
     {empty && compact && suggestionRows}
@@ -100,7 +106,9 @@ export function AgentChatPanel({ compact = false }: { compact?: boolean }) {
       {!runtime.bootstrap ? <div role="status" aria-live="polite" className="flex items-center gap-2 px-4 pb-2 text-sm text-muted-foreground">
         <span>{t(runtime.isBootstrapping ? 'agent.starting' : 'agent.startupUnavailable')}</span>
         {!runtime.isBootstrapping && <Button variant="ghost" size="sm" onClick={() => void runtime.retryBootstrap().catch(() => undefined)}>{t('agent.retryStartup')}</Button>}
-      </div> : runtime.errorMessage && <p role="alert" className="px-4 pb-2 text-xs text-destructive">{t('agent.operationFailed')}</p>}
+      </div> : (attachmentErrorScope === composerScope || runtime.errorMessage) && <p role="alert" className="px-4 pb-2 text-xs text-destructive">
+        {t(attachmentErrorScope === composerScope ? 'agent.attachmentSubmissionFailed' : 'agent.operationFailed')}
+      </p>}
       <AgentChatComposer key={composerScope} recordingEnabled={false}
         ref={composerRef} textareaRef={textareaRef} scopeKey={composerScope}
         inputContract={supplyComposerContract(runtime.inputContract)} disabled={disabled}
@@ -108,10 +116,18 @@ export function AgentChatPanel({ compact = false }: { compact?: boolean }) {
         placeholder={t('agent.placeholder')} contextWindow={runtime.contextWindow}
         onStop={() => void controller.cancelRun()} onSubmit={async message => {
           setPreparing(true);
+          setAttachmentErrorScope(null);
           try {
-            await submit({ text: message.text, files: [
-              ...message.files.map(file => ({ name: file.filename, mediaType: file.mediaType, data: file.source || new Uint8Array() })),
-            ] });
+            const attachments = message.files.filter(file => !file.source);
+            if (attachments.some(file => !file.id)) throw new Error('agent.attachmentSubmissionFailed');
+            const files = message.files.flatMap(file => file.source
+              ? [{ name: file.filename, mediaType: file.mediaType, data: file.source }] : []);
+            await submit({ text: message.text, files,
+              ...(attachments.length ? { attachments, attachmentIds: attachments.map(file => file.id!) } : {}),
+              ...(message.dictationSessionId ? { dictationSessionId: message.dictationSessionId } : {}) });
+          } catch (error) {
+            if (message.files.length) setAttachmentErrorScope(composerScope);
+            throw error;
           } finally { setPreparing(false); }
         }} />
     </div>

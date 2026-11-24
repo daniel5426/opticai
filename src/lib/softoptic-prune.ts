@@ -53,6 +53,7 @@ const LOOKUP_TABLES = new Set([
 const ACCOUNT_LINKED_TABLES = new Set([
   "optic_eye_tests.csv",
   "optic_exp_eyetests.csv",
+  "optic_contact_fit.csv",
   "optic_contact_presc.csv",
   "optic_glasses_presc.csv",
   "optic_contact_lens_chk.csv",

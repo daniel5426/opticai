@@ -184,7 +184,7 @@ export interface OpticalExam {
   exam_date?: string;
   test_name?: string;
   dominant_eye?: string | null;
-  type?: 'opticlens' | 'exam' | 'contact_fit';
+  type?: 'opticlens' | 'exam' | 'contact_fit' | 'softoptic_contact_check' | 'softoptic_contact_order';
 }
 
 export interface NotesExam {

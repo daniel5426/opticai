@@ -57,6 +57,14 @@ describe("VA test distance conversion", () => {
     expect(normalizeLegacyBareMeterVA("1.0+2")).toBe("1.0+2");
   });
 
+  test("preserves the meter line and letter modifier from legacy SoftOptic VA", () => {
+    expect(convertVA("4.5-", "meter")).toBe("6/4.5-1");
+    expect(convertVA("6/4.5-", "meter", 4)).toBe("4/3-1");
+    expect(convertVA("4.5-", "decimal")).toBe("1.3-1");
+    expect(convertVA("6+", "meter")).toBe("6/6+1");
+    expect(normalizeLegacyBareMeterVA("1.0-")).toBe("1.0-");
+  });
+
   test("falls back to 6m for invalid settings", () => {
     expect(normalizeVATestDistance(1)).toBe(6);
     expect(normalizeVATestDistance(7)).toBe(6);

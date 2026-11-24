@@ -70,7 +70,7 @@ export function MaddoxRodTab({
           <div className="text-center">
             <h3 className="text-muted-foreground font-medium">Maddox rod</h3>
           </div>
-          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2">
+          <div className="exam-eye-grid grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2">
             <div className="text-muted-foreground text-center text-xs font-medium">
               {t("maddoxHorizontal")}
             </div>

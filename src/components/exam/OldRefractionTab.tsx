@@ -262,7 +262,7 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
           />
 
           <div
-            className={`grid ${hideEyeLabels ? "grid-cols-[repeat(8,1fr)]" : "grid-cols-[20px_repeat(8,1fr)]"} items-center gap-2`}
+            className={`exam-eye-grid grid ${hideEyeLabels ? "grid-cols-[repeat(8,1fr)]" : "grid-cols-[20px_repeat(8,1fr)]"} items-center gap-2`}
           >
             {!hideEyeLabels && <div></div>}
             {mainColumns.map(({ key, label }) => (

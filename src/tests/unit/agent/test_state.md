@@ -1,6 +1,10 @@
 # Agent consumer tests
 
-Last Updated: 2026-11-05
+Last Updated: 2026-11-23
+
+## Agent-authored report and search presentation — 2026-11-23
+
+`npm test -- src/tests/unit/agent/message-reports.test.tsx src/tests/unit/agent/data-results.test.tsx src/tests/unit/agent/composer-suggestions.test.tsx src/tests/unit/agent/transcript.test.tsx src/tests/unit/agent/availability.test.tsx` — **51 passed**. Covers a recovered report without an assistant receipt, Save and Excel/CSV actions, selected visual order and search results, draft retention, and audio-only transcript selection for immediate and queued submissions. Local browser fixtures verified separate prior-period values and percentages without page overflow at 390 px in Hebrew, English, and French. `npm run build:web` passed with existing Vite import and chunk-size warnings. Live OCR, desktop browser transport, and production release qualification remain open.
 
 ## Shared relay consumer regression — 2026-10-22
 

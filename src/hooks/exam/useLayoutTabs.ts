@@ -56,6 +56,7 @@ interface UseLayoutTabsParams {
     setCurrent?: boolean,
   ) => void;
   applyLayoutStructure: (layoutData?: string) => void;
+  onReturnToImported?: () => void;
   setIsAddingLayouts: React.Dispatch<React.SetStateAction<boolean>>;
   tempLayoutIdCounterRef: React.MutableRefObject<number>;
   latestLoadIdRef: React.MutableRefObject<number>;
@@ -80,6 +81,7 @@ export function useLayoutTabs({
   fullDataSourcesRef,
   loadExamComponentData,
   initializeFormData,
+  onReturnToImported,
   setIsAddingLayouts,
   tempLayoutIdCounterRef,
   latestLoadIdRef,
@@ -377,16 +379,8 @@ export function useLayoutTabs({
         setLayoutTabs(updatedTabs);
         setActiveInstanceId(selectedTab.id);
 
-        startTransition(() => {
-          applyParsedLayout(selectedTab.id, selectedTab.layout_data);
-
-          const existingBucket = examFormDataByInstance[selectedTab.id];
-          if (existingBucket && Object.keys(existingBucket).length > 0) {
-            setExamFormData(existingBucket);
-          } else {
-            setExamFormData({});
-          }
-        });
+        applyParsedLayout(selectedTab.id, selectedTab.layout_data);
+        setExamFormData(examFormDataByInstance[selectedTab.id] || {});
 
 
       } catch (error) {
@@ -568,7 +562,7 @@ export function useLayoutTabs({
   const handleRemoveLayoutTab = useCallback(
     async (tabId: number) => {
       const removableTabs = layoutTabs.filter(isPersistableLayoutTab);
-      if (removableTabs.length <= 1) {
+      if (removableTabs.length <= 1 && !onReturnToImported) {
         toast.error("לא ניתן להסיר את הלשונית האחרונה");
         return;
       }
@@ -607,6 +601,8 @@ export function useLayoutTabs({
         setExamFormData(nextActiveFormData);
 
         applyParsedLayout(newActiveTab.id, newActiveTab.layout_data);
+      } else if (isActive) {
+        onReturnToImported?.();
       }
 
       // Update the tabs state immediately
@@ -635,6 +631,7 @@ export function useLayoutTabs({
       setExamFormDataByInstance,
       fullDataSourcesRef,
       applyParsedLayout,
+      onReturnToImported,
     ],
   );
 

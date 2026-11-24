@@ -1,5 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { buildSoftopticTabs, defaultSoftopticTab, oldRefTabId } from "@/lib/softoptic-exam-tabs";
+import { buildSoftopticTabs, defaultSoftopticTab, isDefaultSoftopticSchirmer, oldRefTabId } from "@/lib/softoptic-exam-tabs";
+
+test("recognizes only empty or zero-filled imported Schirmer cards", () => {
+  expect(isDefaultSoftopticSchirmer("schirmer-test-schirmer-test-1", { r_mm: 0, l_mm: "0" })).toBe(true);
+  expect(isDefaultSoftopticSchirmer("schirmer-test", { r_mm: 0, l_mm: 4 })).toBe(false);
+  expect(isDefaultSoftopticSchirmer("keratometer", { r_mm: 0 })).toBe(false);
+});
 
 // The cards the "בדיקה לדוגמא" SoftOptic exam (optic_exp_eyetests code 42936) imports into.
 const cards = [
@@ -41,7 +47,7 @@ describe("SoftOptic exam tabs", () => {
   test("places each card where OpticSoft shows it, sharing cards across tabs", () => {
     const tabs = buildSoftopticTabs(cards, oldRefTabs);
     expect(typesOf(tabs, "objective")).toEqual([
-      "keratometer-full", "keratometer", "retinoscop", "retinoscop-dilation", "objective", "corneal-topography", "uncorrected-va",
+      "keratometer-full", "keratometer", "retinoscop", "objective", "uncorrected-va",
     ]);
     expect(typesOf(tabs, "anamnesa")).toEqual(["uncorrected-va", "anamnesis"]);
     expect(typesOf(tabs, "oldRef1")).toEqual(["old-refraction-extension", "softoptic-cover-test", "softoptic-maddox-grid"]);
@@ -56,11 +62,11 @@ describe("SoftOptic exam tabs", () => {
   });
 
   test("completes Objective with OpticSoft's empty sections, keyed by type so their edits are stored", () => {
-    const objective = buildSoftopticTabs(cards, oldRefTabs).find((tab) => tab.key === "objective")!;
+    const objective = buildSoftopticTabs(cards, oldRefTabs, true).find((tab) => tab.key === "objective")!;
     expect(objective.placeholders).toEqual(["retinoscop-dilation", "corneal-topography"]);
     expect(objective.cards.find((card) => card.type === "corneal-topography")).toEqual({ id: "corneal-topography", type: "corneal-topography" });
     // Imported data replaces the placeholder.
-    const withMap = buildSoftopticTabs([...cards, { id: "corneal-topography-1", type: "corneal-topography" }], oldRefTabs);
+    const withMap = buildSoftopticTabs([...cards, { id: "corneal-topography-1", type: "corneal-topography" }], oldRefTabs, true);
     expect(withMap.find((tab) => tab.key === "objective")!.placeholders).toEqual(["retinoscop-dilation"]);
     // Placeholders alone never make a tab appear.
     expect(buildSoftopticTabs([{ id: "anamnesis", type: "anamnesis" }], () => undefined).map((tab) => tab.key)).toEqual(["anamnesa"]);

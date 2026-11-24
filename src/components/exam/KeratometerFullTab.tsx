@@ -141,7 +141,7 @@ export function KeratometerFullTab({
             <h3 className="font-medium text-muted-foreground">Keratometer Full</h3>
           </div>
 
-          <div className={`grid ${hideEyeLabels ? 'grid-cols-[2fr_2fr_1fr_2fr_2fr_1fr_2fr_2fr_1fr]' : 'grid-cols-[20px_2fr_2fr_1fr_2fr_2fr_1fr_2fr_2fr_1fr]'} gap-2 items-center`}>
+          <div className={`exam-eye-grid grid ${hideEyeLabels ? 'grid-cols-[2fr_2fr_1fr_2fr_2fr_1fr_2fr_2fr_1fr]' : 'grid-cols-[20px_2fr_2fr_1fr_2fr_2fr_1fr_2fr_2fr_1fr]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ label }, idx) => (
               <React.Fragment key={label}>

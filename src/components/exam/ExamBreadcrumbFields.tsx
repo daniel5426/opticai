@@ -18,7 +18,9 @@ export function ExamBreadcrumbFields({ detailProps }: { detailProps: DetailProps
   const densityRef = useRef(density);
   const fieldsRef = useRef<HTMLDivElement>(null);
   const measurementRef = useRef<HTMLDivElement>(null);
-  const nameWidth = `${Math.min(24, Math.max(10, (formData.test_name || t("examName")).length + 2))}ch`;
+  const examName = importedExamName(t, formData.test_name);
+  const isContactOrder = formData.type === "softoptic_contact_order";
+  const nameWidth = `${Math.min(isContactOrder ? 42 : 24, Math.max(10, (examName || t("examName")).length + (isContactOrder ? 5 : 2)))}ch`;
   const hideDate = density !== "full";
   const hideName = density === "menu";
 
@@ -79,7 +81,8 @@ export function ExamBreadcrumbFields({ detailProps }: { detailProps: DetailProps
       name="test_name"
       aria-label={t("examName")}
       placeholder={t("examName")}
-      value={importedExamName(t, formData.test_name)}
+      value={examName}
+      title={examName}
       onChange={isEditing ? (value) => handleSelectChange(value, "test_name") : undefined}
       readOnly={!isEditing}
       disabled={!isEditing}

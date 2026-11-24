@@ -99,7 +99,13 @@ def compile_definition(db, authority, definition):
 
 
 def catalog(db, authority):
-    return {'datasets': data_catalog(db, authority), 'definition_schema': ReportDefinitionV2.model_json_schema(),
+    return {'output_columns': {
+                'aggregate': '<operation>_<field>',
+                'aggregate_example': {'operation': 'sum', 'field': 'outstanding', 'output': 'sum_outstanding'},
+                'chart_example': {'kind': 'bar', 'x': 'currency', 'series': ['sum_outstanding']},
+                'chart_rules': 'Use an output column for x and numeric output columns or derived metric keys for series.',
+            },
+        'datasets': data_catalog(db, authority), 'definition_schema': ReportDefinitionV2.model_json_schema(),
         'presets': ['custom', 'business_health'], 'notes': [
             'Relationship filters use EXISTS semantics and preserve the root grain.',
             'Client balance rows are per currency; count distinct patient IDs.',
@@ -107,7 +113,7 @@ def catalog(db, authority):
             'Profitability is unavailable without historical costs and expenses.']}
 
 
-def queue(db, authority, raw, request_key):
+def queue(db, authority, raw, request_key, *, origin=None):
     from .reports import queue_export
     definition = resolve(raw)
     if definition.preset == 'custom':
@@ -128,13 +134,13 @@ def queue(db, authority, raw, request_key):
     from sqlalchemy.exc import IntegrityError
     row = AgentJob(unique_key=key, company_id=authority.company_id or authority.user.company_id,
         clinic_id=authority.clinic_id, user_id=authority.user.id, context_id=authority.context_id,
-        kind='report', definition=payload, locale='en', expires_at=now() + timedelta(days=7))
+        kind='report', definition=payload, locale='en', expires_at=now() + timedelta(days=7), **(origin or {}))
     db.add(row)
     try:
         db.commit()
     except IntegrityError:
         db.rollback()
-        return queue(db, authority, raw, request_key)
+        return queue(db, authority, raw, request_key, origin=origin)
     return {'type': 'report_run', 'job_id': row.id, 'status': row.status}
 
 
@@ -142,7 +148,7 @@ def saved_query(db, authority):
     return db.query(SavedReport).filter_by(user_id=authority.user.id, clinic_id=authority.clinic_id, patient_scope=authority.patient_id or 0)
 
 
-def saved(db, authority, action, report_id=None, title=None, definition=None, revision=None, request_key=None):
+def saved(db, authority, action, report_id=None, title=None, definition=None, revision=None, request_key=None, *, origin=None):
     if authority.read_only:
         raise HTTPException(403, 'agent.readOnly')
     if action == 'list':
@@ -154,7 +160,7 @@ def saved(db, authority, action, report_id=None, title=None, definition=None, re
     if action == 'run':
         if not request_key:
             raise HTTPException(422, 'agent.missingFields')
-        return queue(db, authority, row.definition, request_key)
+        return queue(db, authority, row.definition, request_key, origin=origin)
     if action == 'save':
         if not title or not title.strip() or not definition:
             raise HTTPException(422, 'agent.missingFields')

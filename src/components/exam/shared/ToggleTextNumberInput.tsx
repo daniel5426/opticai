@@ -213,7 +213,7 @@ export function ToggleTextNumberInput({
   return (
     <div
       className={cn(
-        "relative h-8 w-full overflow-visible rounded-md transition-[width] duration-200 ease-out",
+        "relative flex h-8 w-full flex-col justify-center overflow-visible rounded-md transition-[width] duration-200 ease-out",
         className,
       )}
       ref={rootRef}

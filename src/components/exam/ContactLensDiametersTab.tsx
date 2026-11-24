@@ -43,7 +43,7 @@ export function ContactLensDiametersTab({
             <h3 className="text-muted-foreground font-medium">{t("contactLensDiameters.title")}</h3>
           </div>
 
-          <div className="grid grid-cols-[minmax(4.25rem,1fr)_auto] items-center gap-2">
+          <div dir="ltr" className="grid grid-cols-[minmax(4.25rem,1fr)_auto] items-center gap-2">
             {fields.map((field) => (
               <React.Fragment key={field.key}>
                 <FastInput

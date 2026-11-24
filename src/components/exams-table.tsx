@@ -156,14 +156,16 @@ export function ExamsTable({
 
   const columnFilterDefinitions = React.useMemo<ColumnFilterDefinition<ExamWithNames>[]>(() => {
     const names = testNameOptions === undefined ? [...layoutNames(activeLayouts), ...uniqueTestNames] : uniqueTestNames
-    const testNames = [...new Set(names)].sort((a, b) => a.localeCompare(b, locale))
+    const testNames = [...new Set(names)]
+      .map((name) => ({ value: name, label: importedExamName(t, name) }))
+      .sort((a, b) => a.label.localeCompare(b.label, locale))
     return [
       { key: "exam_date", label: t("examList.date"), kind: "date", getValue: (exam) => exam.exam_date },
       {
         key: "test_name",
         label: t("examList.kind"),
         kind: "options",
-        options: testNames.map((name) => ({ value: name, label: name })),
+        options: testNames,
         getValue: (exam) => exam.test_name,
       },
       ...(clientId === 0

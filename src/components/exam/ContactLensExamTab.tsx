@@ -121,7 +121,7 @@ export function ContactLensExamTab({
           </div>
 
           <div
-            className={`grid ${hideEyeLabels ? "grid-cols-[repeat(9,1fr)]" : "grid-cols-[20px_repeat(9,1fr)]"} items-center gap-2`}
+            className={`exam-eye-grid grid ${hideEyeLabels ? "grid-cols-[repeat(9,1fr)]" : "grid-cols-[20px_repeat(9,1fr)]"} items-center gap-2`}
           >
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
@@ -255,7 +255,7 @@ export function ContactLensExamTab({
 
             {!hideEyeLabels && <div className="h-8" />}
             {columns.map(({ key }) => (
-              <div key={`combined-${key}`} className="h-8">
+              <div key={`combined-${key}`} className="grid h-8 items-center">
                 {key === "va" ? (
                   <VASelect
                     value={getFieldValue("C", key)}

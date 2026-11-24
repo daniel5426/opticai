@@ -1,5 +1,6 @@
 """Prysm product endpoints; Agents24 BFF owns conversation operations."""
 from datetime import datetime, timedelta
+from uuid import UUID
 from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Query
 from fastapi.responses import FileResponse
@@ -138,6 +139,46 @@ def report_page(job_id: str, offset: int = Query(0, ge=0), limit: int = Query(25
     return {**(row.result or {}), **page(row, offset, limit)}
 
 
+@router.get('/report-attachments')
+def report_attachments(thread_id: UUID, run_id: list[UUID] = Query(min_length=1, max_length=50),
+                       auth=Depends(authorized), db: Session = Depends(get_db)):
+    from agent.job_listing import report_attachments as list_attachments
+    return {'items': list_attachments(db, auth, str(thread_id), [str(value) for value in run_id])}
+
+
+async def authorized_report_relay(request: Request):
+    from agent.report_storage import authorized_payload
+    body = bytearray()
+    async for chunk in request.stream():
+        if len(body) + len(chunk) > 4096:
+            raise HTTPException(404, 'agent.recordNotFound')
+        body.extend(chunk)
+    return authorized_payload(bytes(body), request.headers.get('x-prysm-report-timestamp', ''),
+        request.headers.get('x-prysm-report-signature', ''))
+
+
+@router.post('/reports/internal-page', include_in_schema=False)
+async def internal_report_page(payload=Depends(authorized_report_relay)):
+    from starlette.concurrency import run_in_threadpool
+    from agent.authority import resolve_artifact
+    from agent.models import AgentContext
+    from agent.report_storage import read_page
+
+    def load():
+        with SessionLocal() as db:
+            auth = resolve_artifact(db, payload.model_dump(exclude_none=True))
+            row = owned_job(db, auth, str(payload.job_id))
+            binding = db.get(AgentContext, row.context_id) if row.context_id else None
+            if not binding or binding.patient_scope != (auth.patient_id or 0) or binding.company_id != auth.user.company_id:
+                raise HTTPException(404, 'agent.recordNotFound')
+            require_live_report(row)
+            if row.status != 'completed':
+                raise HTTPException(409, 'agent.reportStorageUnavailable')
+            return read_page(db, row, payload.offset, payload.limit)
+
+    return await run_in_threadpool(load)
+
+
 @router.get('/reports/{job_id}/export')
 def report_export(job_id: str, format: str = Query('xlsx', pattern='^(xlsx|csv)$'),
                   auth=Depends(authorized), db: Session = Depends(get_db)):
@@ -154,16 +195,22 @@ def report_export(job_id: str, format: str = Query('xlsx', pattern='^(xlsx|csv)$
 @router.get('/jobs/{job_id}')
 def job(job_id: str, auth=Depends(authorized), db: Session = Depends(get_db), metadata_only: bool = False):
     row = owned_job(db, auth, job_id)
-    if row.kind == 'report' and row.definition.get('version') == 2:
-        require_live_report(row)
     if metadata_only:
         expiry = row.expires_at
         if expiry and expiry.tzinfo is None:
             expiry = expiry.replace(tzinfo=now().tzinfo)
         expired = bool(expiry and expiry <= now() or row.definition.get('retention_cleaned'))
-        return {'id': row.id, 'kind': row.kind, 'title': row.definition.get('title'), 'status': row.status,
+        metadata = {'id': row.id, 'kind': row.kind, 'title': row.definition.get('title'), 'status': row.status,
             'expired': expired, 'download_path': f'/api/v1/agent/jobs/{row.id}/download'
                 if row.status == 'completed' and row.file_name and not expired else None}
+        if row.kind == 'report':
+            metadata['report_format'] = row.definition.get('format', 'xlsx')
+            metadata['report_version'] = row.definition.get('version', 1)
+            if metadata['report_version'] == 2 and row.status == 'completed' and not expired:
+                metadata['report_definition'] = row.definition
+        return metadata
+    if row.kind == 'report' and row.definition.get('version') == 2:
+        require_live_report(row)
     return {'id': row.id, 'kind': row.kind, 'status': row.status, 'result': row.result}
 
 
