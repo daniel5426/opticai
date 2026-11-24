@@ -11,6 +11,7 @@ import { useAppLocale } from "@/localization/use-app-locale"
 import { cn } from "@/utils/tailwind"
 import { apiClient } from "@/lib/api-client"
 import { formatIsoDate } from "@/lib/iso-date"
+import { clientFullName } from "@/lib/client-name";
 
 const AVATAR_TONES: Record<string, string> = {
   זכר: "bg-sky-500/10 text-sky-700 dark:text-sky-300",
@@ -99,7 +100,7 @@ export function ClientCardsGrid({
               </div>
             ))
           : clients.map((client) => {
-              const name = [client.first_name, client.last_name].filter(Boolean).join(" ").trim()
+              const name = clientFullName(client)
               const selected = Boolean(client.id && selectedMergeClientIds.includes(client.id))
               const phone = client.phone_mobile?.trim()
               const nationalId = client.national_id?.trim()

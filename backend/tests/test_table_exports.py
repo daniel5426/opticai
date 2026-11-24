@@ -93,7 +93,7 @@ def test_record_rows_and_dates_match_sources(context, table):
     req = request(table, clinic_id=clinic.id, start_date='2026-11-02', end_date='2026-11-02')
     assert exports.count(db, user, req) == 1
     rows = list(exports.export_rows(db, user, req))
-    assert len(rows) == 1 and rows[0]['client'] == 'Élodie כהן'
+    assert len(rows) == 1 and rows[0]['client'] == 'כהן Élodie'
     assert exports.count(db, user, request(table, clinic_id=clinic.id, start_date='2026-11-03', end_date='2026-11-03')) == 0
 
 
@@ -109,7 +109,7 @@ def test_order_groups_keep_shared_balance_once_and_legacy_rows(context):
     rows = list(exports.export_rows(db, user, req))
     assert len(rows) == 2
     assert sum(row['balance'] for row in rows) == 100
-    assert rows[0]['payer'] == 'Élodie כהן'
+    assert rows[0]['payer'] == 'כהן Élodie'
 
 
 def test_inventory_supplier_product_visibility_and_cost_permissions(context):

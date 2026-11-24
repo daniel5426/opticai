@@ -64,9 +64,9 @@ describe("WeekDayView appointment cards", () => {
   test("uses separate time and client rows when the card has enough height", () => {
     renderCalendar(48)
 
-    const card = screen.getByTitle("10:30 - 10:45 • דנה כהן")
+    const card = screen.getByTitle("10:30 - 10:45 • כהן דנה")
     expect(within(card).getByText("10:30 - 10:45")).toBeInTheDocument()
-    expect(within(card).getByText("דנה כהן")).toBeInTheDocument()
+    expect(within(card).getByText("כהן דנה")).toBeInTheDocument()
     expect(within(card).getByText("050-1234567")).toBeInTheDocument()
     expect(within(card).queryByText("בדיקת ראייה")).not.toBeInTheDocument()
   })
@@ -74,7 +74,7 @@ describe("WeekDayView appointment cards", () => {
   test("shows the exam name below the phone only on taller cards", () => {
     renderCalendar(72)
 
-    const card = screen.getByTitle("10:30 - 10:45 • דנה כהן")
+    const card = screen.getByTitle("10:30 - 10:45 • כהן דנה")
     expect(within(card).getByText("050-1234567")).toBeInTheDocument()
     expect(within(card).getByText("בדיקת ראייה")).toBeInTheDocument()
   })
@@ -82,10 +82,10 @@ describe("WeekDayView appointment cards", () => {
   test("keeps the client name visible with only the start time in compact cards", () => {
     renderCalendar(24)
 
-    const card = screen.getByTitle("10:30 - 10:45 • דנה כהן")
+    const card = screen.getByTitle("10:30 - 10:45 • כהן דנה")
     expect(within(card).getByText("10:30")).toBeInTheDocument()
     expect(within(card).queryByText("10:30 - 10:45")).not.toBeInTheDocument()
-    expect(within(card).getByText("דנה כהן")).toBeInTheDocument()
+    expect(within(card).getByText("כהן דנה")).toBeInTheDocument()
     expect(within(card).queryByText("050-1234567")).not.toBeInTheDocument()
   })
 })

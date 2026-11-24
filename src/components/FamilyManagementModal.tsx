@@ -13,6 +13,7 @@ import { toast } from "sonner"
 import { SearchIcon, Loader2 } from "lucide-react"
 import { useUser } from "@/contexts/UserContext"
 import { Skeleton } from "@/components/ui/skeleton"
+import { clientFullName } from "@/lib/client-name";
 
 interface FamilyManagementModalProps {
   isOpen: boolean
@@ -335,7 +336,7 @@ export function FamilyManagementModal({ isOpen, onClose, family, onFamilyChange 
                           onCheckedChange={(checked) => handleClientSelection(client.id!, checked as boolean)}
                         />
                         <div>
-                          <p className="font-medium">{client.first_name} {client.last_name}</p>
+                          <p className="font-medium">{clientFullName(client)}</p>
                           <p className="text-sm text-muted-foreground">{client.national_id}</p>
                         </div>
                       </div>

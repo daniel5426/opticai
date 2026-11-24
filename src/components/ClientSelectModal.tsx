@@ -10,6 +10,7 @@ import { Client } from "@/lib/db/schema-interface"
 import { CustomModal } from "@/components/ui/custom-modal"
 import { useUser } from "@/contexts/UserContext"
 import { Skeleton } from "@/components/ui/skeleton"
+import { clientFullName } from "@/lib/client-name";
 
 interface ClientSelectModalProps {
   preferredClient?: Client | null
@@ -154,7 +155,7 @@ export function ClientSelectModal({ preferredClient, triggerText, onClientSelect
           <TableFiltersBar searchValue={searchQuery} onSearchChange={setSearchQuery} filters={[clinicSelect]} compact />
           {preferredClient && (
             <button type="button" className="mb-2 w-full rounded-md border border-primary/40 bg-primary/5 p-3 text-start" onClick={() => handleClientSelect(preferredClient.id!)}>
-              <span className="font-medium">{preferredClient.first_name} {preferredClient.last_name}</span>
+              <span className="font-medium">{clientFullName(preferredClient)}</span>
               <span className="ms-2 text-xs text-muted-foreground">{t("orderGroupCurrentClient")}</span>
             </button>
           )}
@@ -192,7 +193,7 @@ export function ClientSelectModal({ preferredClient, triggerText, onClientSelect
                   tabIndex={0}
                 >
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{client.first_name} {client.last_name}</span>
+                    <span className="font-medium">{clientFullName(client)}</span>
                     {client.national_id && (
                       <span className="text-sm text-gray-500">{t("orderGroupNationalId")}: <span dir="ltr">{client.national_id}</span></span>
                     )}

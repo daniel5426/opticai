@@ -58,7 +58,7 @@ def order_list_candidates(db, user, client_id, clinic_id, q, kind, status, filte
     if filter_statuses:
         statuses = filter_statuses if statuses is None else statuses & filter_statuses
     name_filter = lambda key: build_column_filter_conditions(
-        filters, {key: ColumnFilter(spaced_concat(Client.first_name, Client.last_name))})
+        filters, {key: ColumnFilter(spaced_concat(Client.last_name, Client.first_name))})
     client_names, payer_names = name_filter("clients"), name_filter("payer")
     named_clients = db.query(Client.id).filter(*client_names) if client_names else None
     named_payers = db.query(Client.id).filter(*payer_names) if payer_names else None

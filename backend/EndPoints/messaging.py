@@ -450,7 +450,7 @@ def consent_clients(search: str = Query(min_length=2, max_length=100), clinic_id
         Client.merged_into_client_id.is_(None), client_clinic_condition(ids), or_(
         Client.first_name.ilike(pattern, escape='\\'), Client.last_name.ilike(pattern, escape='\\'),
         Client.email.ilike(pattern, escape='\\'), Client.phone_mobile.ilike(pattern, escape='\\'))).limit(20).all()
-    return [{'id': c.id, 'name': ' '.join(v for v in (c.first_name, c.last_name) if v),
+    return [{'id': c.id, 'name': ' '.join(v for v in (c.last_name, c.first_name) if v),
         'channels': {channel: {'destination': normalize(channel, raw),
             'granted': bool((row := db.get(MessagingConsent, (user.company_id, channel, normalize(channel, raw) or ''))) and row.granted)}
             for channel, raw in [('email', c.email), ('sms', c.phone_mobile)]}} for c in clients]

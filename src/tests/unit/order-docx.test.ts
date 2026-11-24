@@ -391,7 +391,7 @@ describe("order-docx print models", () => {
     expect(html).toContain("ת.ז");
     expect(html).toContain("123456789");
     expect(html).not.toContain("מספר לקוח");
-    expect(html).toContain("רון כהן");
+    expect(html).toContain("כהן רון");
     expect(html).toContain("+1.25");
     expect(html).toContain("<h2>מרשם</h2>");
     expect(html).toContain("<th>PD NEAR</th>");

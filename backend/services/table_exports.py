@@ -262,7 +262,7 @@ def export_rows(db, user, request):
             if not page:
                 break
             for group in order_list_items(db, page):
-                clients = {c['id']: ' '.join(c.get(k) or '' for k in ['first_name', 'last_name']).strip() for c in group['clients']}
+                clients = {c['id']: ' '.join(c.get(k) or '' for k in ['last_name', 'first_name']).strip() for c in group['clients']}
                 entries = group['entries']
                 kinds = [label(request.locale, {'glasses': 'regular', 'contact-lens': 'contact'}.get(entry['order'].get('type'), entry['order'].get('type') or entry['kind'])) for entry in entries]
                 statuses = [order_status(entry) for entry in entries]
@@ -282,7 +282,7 @@ def export_rows(db, user, request):
             item = {c.name: getattr(record, c.name) for c in record.__table__.columns}
             if request.table == 'exams':
                 item['test_name'] = label(request.locale, item.get('test_name'))
-                item.update(examiner=row[2] or row[1], client=' '.join(v or '' for v in [row[3], row[4]]).strip(), clinic=row[5] or record.clinic)
+                item.update(examiner=row[2] or row[1], client=' '.join(v or '' for v in [row[4], row[3]]).strip(), clinic=row[5] or record.clinic)
             else:
                 item['client'] = row[1]
                 if request.table == 'appointments':

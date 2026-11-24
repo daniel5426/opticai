@@ -137,10 +137,10 @@ test('rejects non-positive amounts without a write and restricts payment control
 test('restores client and payer links and the red delete action independently of the order row', async () => {
   await i18n.changeLanguage('en');
   wrap(<OrderGroupList />);
-  const clientLinks = await screen.findAllByRole('link', { name: 'Test Client' });
+  const clientLinks = await screen.findAllByRole('link', { name: 'Client Test' });
   expect(clientLinks).toHaveLength(2);
   expect(clientLinks[0]).toHaveAttribute('href', '/clients/1?tab=orders');
-  expect(screen.getByRole('link', { name: 'Other Client' })).toHaveAttribute('href', '/clients/2?tab=orders');
+  expect(screen.getByRole('link', { name: 'Client Other' })).toHaveAttribute('href', '/clients/2?tab=orders');
   await userEvent.click(clientLinks[0]);
   expect(mocks.navigate).not.toHaveBeenCalled();
   const remove = screen.getByRole('button', { name: i18n.t('orderGroupDelete') });
@@ -178,7 +178,7 @@ test('links an ungrouped contact order only when a payment is submitted', async 
   expect(vi.mocked(groupRequest).mock.calls.filter(([, options]) => options?.method === 'POST').map(([path]) => path)).toEqual(['/resolve/contact/8', '/10/payments?revision=2']);
 });
 
-const oldOrder = { id: 8, client_id: 1, clinic_id: 1, clientName: 'Test Client', order_date: '2026-10-01', __contact: true, type: 'Contact', billing_id: 50, billing_total_after_discount: 100, billing_prepayment_amount: 30, billing_currency: 'EUR' };
+const oldOrder = { id: 8, client_id: 1, clinic_id: 1, clientName: 'Client Test', order_date: '2026-10-01', __contact: true, type: 'Contact', billing_id: 50, billing_total_after_discount: 100, billing_prepayment_amount: 30, billing_currency: 'EUR' };
 
 describe.each(['he', 'en', 'fr'] as const)('one Orders UI in %s', locale => {
   test.each([true, false])('keeps the same table while detecting group support: %s', async available => {
@@ -194,7 +194,7 @@ describe.each(['he', 'en', 'fr'] as const)('one Orders UI in %s', locale => {
     expect(apiClient.getOrdersPaginated).not.toHaveBeenCalled();
     expect(groupRequest).not.toHaveBeenCalled();
     await act(async () => finish({ data: { available } }));
-    expect((await screen.findAllByRole('link', { name: 'Test Client' }))[0]).toBeInTheDocument();
+    expect((await screen.findAllByRole('link', { name: 'Client Test' }))[0]).toBeInTheDocument();
     expect(screen.getByRole('table')).toBe(table);
     expect(screen.getAllByRole('columnheader').map(header => header.textContent)).toEqual(headers);
     if (available) expect(apiClient.getOrdersPaginated).not.toHaveBeenCalled();
@@ -213,7 +213,7 @@ test('uses the same client Orders tab on an older backend with separate regular 
   vi.mocked(apiClient.getContactLensOrdersByClient).mockResolvedValue({data:[oldOrder]} as any);
   vi.mocked(apiClient.getClient).mockResolvedValue({data:group.clients[0]});
   wrap(<ClientOrdersTab />);
-  expect(await screen.findAllByRole('link', {name:'Test Client'})).toHaveLength(4);
+  expect(await screen.findAllByRole('link', {name:'Client Test'})).toHaveLength(4);
   expect(apiClient.getOrdersByClient).toHaveBeenCalledWith(1);
   expect(apiClient.getContactLensOrdersByClient).toHaveBeenCalledWith(1);
   expect(groupRequest).not.toHaveBeenCalled();
@@ -250,7 +250,7 @@ test('shows legacy rows and enables next-page navigation before the background c
     ? new Promise(resolve=>{finishCount=resolve;})
     : {data:{items:[oldOrder],total:null,has_more:true}});
   wrap(<AllOrdersPage />);
-  expect((await screen.findAllByRole('link',{name:'Test Client'}))[0]).toBeInTheDocument();
+  expect((await screen.findAllByRole('link',{name:'Client Test'}))[0]).toBeInTheDocument();
   expect(screen.getByRole('button',{name:i18n.t('orderGroupNext')})).toBeEnabled();
   expect(screen.getByText(i18n.t('orderGroupPagePending',{page:1}))).toBeInTheDocument();
   await waitFor(()=>expect(finishCount).toBeTypeOf('function'));

@@ -6,6 +6,7 @@ import { UserSelect } from "@/components/ui/user-select";
 import { useAppLocale } from "@/localization/use-app-locale";
 import { cn } from "@/utils/tailwind";
 import { OrderField, OrderSegmented } from "./layout/OrderSheet";
+import { clientFullName } from "@/lib/client-name";
 
 export interface OrderMetaValues {
   type?: string;
@@ -35,7 +36,7 @@ export function OrderMetaStrip({
   className,
 }: OrderMetaStripProps) {
   const { direction } = useAppLocale();
-  const fullName = `${client?.first_name || ""} ${client?.last_name || ""}`.trim();
+  const fullName = clientFullName(client);
 
   return (
     <div

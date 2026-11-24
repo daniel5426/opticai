@@ -11,6 +11,7 @@ import { AgentLink } from './AgentLinks';
 import { ReportChart, type ReportChartData } from './ReportChart';
 import { parseAgentDataResult, type AgentDataResult as Result } from '@/lib/agent-result-data';
 import type { ReportView, ReportViewSelection, SearchLayout } from './report-message-results';
+import { clientFullName } from "@/lib/client-name";
 
 type Row = Record<string, unknown>;
 type Source = { path?: string };
@@ -218,7 +219,7 @@ export function AgentDataResults(props: { output: unknown }) {
 
 function sourceTitle(item: Row, fallback: string) {
   const values = object(item.values);
-  return [values.first_name, values.last_name].filter(Boolean).join(' ') || String(item.client_full_name || values.test_name ||
+  return clientFullName(values as { first_name?: string; last_name?: string }) || String(item.client_full_name || values.test_name ||
     values.file_name || values.name || values.product || values.title || item.title || fallback);
 }
 

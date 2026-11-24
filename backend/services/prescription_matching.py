@@ -178,7 +178,7 @@ def search(db, clinic_ids, raw, patient_id=None):
     page = ordered[request.offset:request.offset + request.limit]
     names = {row.id: row for row in db.query(Client).filter(Client.id.in_(page))}
     return {'type': 'prescription_search', 'rule_version': 1, 'query': request.model_dump(mode='json'), 'total': len(ordered),
-        'items': [{'client_id': client, 'client_full_name': ' '.join(part for part in (names[client].first_name, names[client].last_name) if part),
+        'items': [{'client_id': client, 'client_full_name': ' '.join(part for part in (names[client].last_name, names[client].first_name) if part),
             'matches': patients[client], 'source': {'kind': 'clients', 'id': client, 'client_id': client, 'path': f'/clients/{client}'}} for client in page],
         'next_offset': request.offset + request.limit if len(ordered) > request.offset + request.limit else None,
         'unindexed_rows': unready, 'index_ready': unready == 0}
@@ -241,7 +241,7 @@ def legacy_search(db, clinic_ids, request):
     page = verified[max(0, request.offset):max(0, request.offset) + min(max(1, request.limit), 100)]
     patients = {patient.id: patient for patient in db.query(Client).filter(Client.id.in_([row.client_id for row in page]))}
     return {'items': [{'client_id': row.client_id,
-        'client_full_name': ' '.join(value for value in [patients[row.client_id].first_name, patients[row.client_id].last_name] if value),
+        'client_full_name': ' '.join(value for value in [patients[row.client_id].last_name, patients[row.client_id].first_name] if value),
         'national_id': patients[row.client_id].national_id, 'phone_mobile': patients[row.client_id].phone_mobile,
         'source_type': row.source_type, 'source_id': row.source_id, 'source_date': row.source_date,
         'card_type': row.card_type, 'matched_eyes': list(eyes)} for row in page], 'total': len(verified)}

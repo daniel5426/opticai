@@ -21,7 +21,7 @@ const details = {
   date_of_birth: "1990-04-23", health_fund: "מכבי",
   address_street: "Herzl", address_number: "12", address_city: "Haifa", postal_code: "0123456",
 };
-const hit = { type: "client", id: 7, title: "Dana Cohen", subtitle: "001234567", description: "Haifa Herzl", client_details: details };
+const hit = { type: "client", id: 7, title: "Cohen Dana", subtitle: "001234567", description: "Haifa Herzl", client_details: details };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -33,7 +33,7 @@ async function searchClients() {
   const onClose = vi.fn();
   const view = render(<GlobalSearch inModal onClose={onClose} />);
   fireEvent.change(screen.getByRole("textbox"), { target: { value: "Dana" } });
-  const result = await screen.findByRole("button", { name: /Dana Cohen/ });
+  const result = await screen.findByRole("button", { name: /Cohen Dana/ });
   return { ...view, result, onClose };
 }
 
@@ -82,7 +82,7 @@ describe("client previews in general search", () => {
     render(<GlobalSearch inModal />);
     await waitFor(() => expect(screen.getByRole("textbox")).toHaveFocus());
     fireEvent.click(screen.getByRole("button", { name: "Recently viewed clients" }));
-    const result = await screen.findByRole("button", { name: /Dana Cohen/ });
+    const result = await screen.findByRole("button", { name: /Cohen Dana/ });
     expect(within(result).getByText(details.email)).toBeVisible();
     expect(search).not.toHaveBeenCalled();
   });
@@ -98,7 +98,7 @@ describe("client previews in general search", () => {
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "David" } });
     await screen.findByRole("button", { name: /David Levy/ });
     resolveFirst!({ data: { items: [hit], total: 1 } });
-    await waitFor(() => expect(screen.queryByRole("button", { name: /Dana Cohen/ })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("button", { name: /Cohen Dana/ })).not.toBeInTheDocument());
     expect(screen.getByRole("button", { name: /David Levy/ })).toBeVisible();
   });
 });

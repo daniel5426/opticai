@@ -70,7 +70,7 @@ def exam_list_query(db, current_user, clinic_id, search, test_name, type, order,
     base_query = base_query.filter(*build_column_filter_conditions(filters, {
         "exam_date": ColumnFilter(OpticalExam.exam_date, "date"),
         "test_name": ColumnFilter(OpticalExam.test_name, "options"),
-        "client": ColumnFilter(spaced_concat(Client.first_name, Client.last_name)),
+        "client": ColumnFilter(spaced_concat(Client.last_name, Client.first_name)),
         "clinic": lookup_filter(OpticalExam.clinic_id, func.coalesce(Clinic.name, OpticalExam.clinic)),
         "examiner": lookup_filter(OpticalExam.user_id, func.coalesce(User.full_name, User.username)),
     }))
@@ -80,7 +80,7 @@ def exam_list_query(db, current_user, clinic_id, search, test_name, type, order,
     order_columns = {
         "exam_date": OpticalExam.exam_date,
         "test_name": OpticalExam.test_name,
-        "client": spaced_concat(Client.first_name, Client.last_name),
+        "client": spaced_concat(Client.last_name, Client.first_name),
         "clinic": Clinic.name,
         "examiner": func.coalesce(User.full_name, User.username),
     }
@@ -152,7 +152,7 @@ def get_enriched_exams(
             "type": exam.type,
             "username": username or "",
             "full_name": full_name or "",
-            "clientName": f"{client_first_name or ''} {client_last_name or ''}".strip()
+            "clientName": f"{client_last_name or ''} {client_first_name or ''}".strip()
         })
 
     return { "items": items, "total": total, "has_more": len(rows) > limit }

@@ -72,6 +72,7 @@ import { flattenActiveExamLayouts } from "@/components/appointments/exam-layouts
 import { NewClientAppointmentModal } from "@/components/appointments/new-client-appointment-modal";
 import { CustomModal } from "@/components/ui/custom-modal";
 import { useTranslation } from "react-i18next";
+import { clientFullName } from "@/lib/client-name";
 
 interface AppointmentsTableProps {
   data: Appointment[];
@@ -1084,7 +1085,7 @@ export function AppointmentsTable({
           editingAppointment
             ? "עריכת תור"
             : selectedClient
-              ? `תור חדש - ${selectedClient.first_name} ${selectedClient.last_name}`
+              ? `תור חדש - ${clientFullName(selectedClient)}`
               : "תור חדש"
         }
         className="w-md"
@@ -1094,7 +1095,7 @@ export function AppointmentsTable({
             <div className="rounded-md bg-gray-50 p-3 dark:bg-gray-800">
               <div className="text-sm font-medium">פרטי לקוח:</div>
               <div className="text-muted-foreground text-sm">
-                {selectedClient.first_name} {selectedClient.last_name} •{" "}
+                {clientFullName(selectedClient)} •{" "}
                 {selectedClient.phone_mobile}
               </div>
             </div>

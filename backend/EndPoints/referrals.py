@@ -24,7 +24,7 @@ def referral_list_query(db, current_user, clinic_id, search, urgency_level, refe
     base = (
         db.query(
             Referral,
-            spaced_concat(Client.first_name, Client.last_name).label('client_full_name'),
+            spaced_concat(Client.last_name, Client.first_name).label('client_full_name'),
             func.coalesce(User.full_name, User.username).label('examiner_name')
         )
         .outerjoin(Client, Client.id == Referral.client_id)
@@ -51,7 +51,7 @@ def referral_list_query(db, current_user, clinic_id, search, urgency_level, refe
         "clinic": lookup_filter(Referral.clinic_id),
         "date": ColumnFilter(Referral.date, "date"),
         "type": ColumnFilter(Referral.type, "lookup"),
-        "client": ColumnFilter(spaced_concat(Client.first_name, Client.last_name)),
+        "client": ColumnFilter(spaced_concat(Client.last_name, Client.first_name)),
         "urgency": ColumnFilter(func.lower(Referral.urgency_level), "options"),
         "recipient": ColumnFilter(Referral.recipient),
     }))
@@ -59,7 +59,7 @@ def referral_list_query(db, current_user, clinic_id, search, urgency_level, refe
         "date": Referral.date,
         "id": Referral.id,
         "type": Referral.type,
-        "client": spaced_concat(Client.first_name, Client.last_name),
+        "client": spaced_concat(Client.last_name, Client.first_name),
         "urgency": Referral.urgency_level,
         "recipient": Referral.recipient,
     }

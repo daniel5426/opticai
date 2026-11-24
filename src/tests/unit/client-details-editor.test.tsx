@@ -225,7 +225,7 @@ describe("ClientDetailsTab select display", () => {
     )
 
     await userEvent.click(screen.getByRole("combobox", { name: "משפחה" }))
-    expect(await screen.findByText("דנה כהן")).toBeInTheDocument()
+    expect(await screen.findByText("כהן דנה")).toBeInTheDocument()
     expect(getPaginatedFamiliesMock).toHaveBeenCalledWith(
       undefined,
       expect.objectContaining({ limit: 25, includeTotal: false })

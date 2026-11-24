@@ -9,12 +9,13 @@ import {
 } from "@/lib/order-docx/formatters";
 import type { CompactPrescriptionExam } from "@/lib/db/schema-interface";
 import type { LoadedReferralExportContext, ReferralPrintModel } from "./types";
+import { clientFullName } from "@/lib/client-name";
 
 function getClientName(context: LoadedReferralExportContext) {
   const client = context.client;
   const fromReferral = context.referral.client_full_name || "";
   return (
-    [client?.first_name, client?.last_name].filter(Boolean).join(" ").trim() ||
+    clientFullName(client) ||
     fromReferral
   );
 }

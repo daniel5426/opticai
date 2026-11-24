@@ -38,6 +38,7 @@ import {
   EXAM_FIELDS,
   FieldConfig,
 } from "@/components/exam/data/exam-field-definitions";
+import { clientFullName } from "@/lib/client-name";
 
 interface SearchResult {
   id: string;
@@ -608,7 +609,7 @@ export function GlobalSearch({ onClose, inModal = false }: GlobalSearchProps) {
                                 : "truncate text-sm font-medium"
                             }
                           >
-                            {`${visit.client?.first_name || ""} ${visit.client?.last_name || ""}`.trim() ||
+                            {clientFullName(visit.client) ||
                               t("recentClientFallback", { id: visit.client_id })}
                           </div>
                           {inModal && visit.client ? (

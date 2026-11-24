@@ -2,6 +2,7 @@ import React from 'react'
 import { Button } from '@/components/ui/button'
 import { CustomModal } from '@/components/ui/custom-modal'
 import { Client } from '@/lib/db/schema-interface'
+import { clientFullName } from "@/lib/client-name";
 
 interface ClientWarningModalProps {
   isOpen: boolean
@@ -51,7 +52,7 @@ export function ClientWarningModal({
           {clients.map((client) => (
             <div key={client.id} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800 rounded border text-sm">
               <div className="text-right">
-                <div className="font-medium">{client.first_name} {client.last_name}</div>
+                <div className="font-medium">{clientFullName(client)}</div>
                 <div className="text-muted-foreground text-xs">
                   {client.phone_mobile && <div>טלפון: {client.phone_mobile}</div>}
                   {client.email && <div>אימייל: {client.email}</div>}

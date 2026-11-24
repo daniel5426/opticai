@@ -90,7 +90,7 @@ def unified_search(
     clients_q = db.query(
         literal("client").label("type"),
         Client.id.label("id"),
-        func.concat(func.coalesce(Client.first_name, ""), literal(" "), func.coalesce(Client.last_name, "")).label("title"),
+        func.trim(func.concat(func.coalesce(Client.last_name, ""), literal(" "), func.coalesce(Client.first_name, ""))).label("title"),
         Client.national_id.label("subtitle"),
         func.concat(func.coalesce(Client.address_city, ""), literal(" "), func.coalesce(Client.address_street, "")).label("description"),
         client_score.label("score"),

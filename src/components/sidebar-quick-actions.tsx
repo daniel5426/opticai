@@ -49,6 +49,7 @@ import {
   RecentClientVisit,
   User,
 } from "@/lib/db/schema-interface";
+import { clientFullName } from "@/lib/client-name";
 
 export type SidebarQuickAction =
   | "appointment"
@@ -589,7 +590,7 @@ export function SidebarQuickActions({
                 <DropdownMenuItem disabled>{t("noRecentClients")}</DropdownMenuItem>
               ) : (
                 recentClients.map((visit) => {
-                  const name = `${visit.client?.first_name || ""} ${visit.client?.last_name || ""}`.trim();
+                  const name = clientFullName(visit.client);
                   return (
                     <DropdownMenuItem
                       key={visit.id}
@@ -823,7 +824,7 @@ export function SidebarQuickActions({
         }}
         title={
           selectedAppointmentClient
-            ? `תור חדש - ${selectedAppointmentClient.first_name} ${selectedAppointmentClient.last_name}`
+            ? `תור חדש - ${clientFullName(selectedAppointmentClient)}`
             : "תור חדש"
         }
         className="w-md"
@@ -833,8 +834,7 @@ export function SidebarQuickActions({
             <div className="rounded-md bg-gray-50 p-3 dark:bg-gray-800">
               <div className="text-sm font-medium">פרטי לקוח:</div>
               <div className="text-muted-foreground text-sm">
-                {selectedAppointmentClient.first_name}{" "}
-                {selectedAppointmentClient.last_name} •{" "}
+                {clientFullName(selectedAppointmentClient)} •{" "}
                 {selectedAppointmentClient.phone_mobile}
               </div>
             </div>
