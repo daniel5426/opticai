@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
+import { once } from 'node:events';
+import { setTimeout as delay } from 'node:timers/promises';
 import { _electron } from 'playwright';
 import fs from 'node:fs';
 const expectedVersion = JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
 const windows = process.platform === 'win32';
 const executablePath = windows ? 'release/win-unpacked/Prysm.exe' : 'release/mac-arm64/Prysm.app/Contents/MacOS/Prysm';
 const app = await _electron.launch({ executablePath, timeout: 60000 });
+let exitCode = 0;
 try {
   const window = await app.firstWindow({ timeout: 30000 });
   console.log('Packaged main window opened');
@@ -65,8 +68,15 @@ try {
   console.log('Packaged app sent a synthetic job to the default printer and reported rejection or missing printer for fallback.');
 } catch (error) {
   console.error(error);
-  throw error;
+  exitCode = 1;
 } finally {
-  // This fresh CI profile has no user session; bypass interactive quit/logout guards.
-  app.process().kill('SIGKILL');
+  // Exit Electron itself so the Windows renderer and inspector can close cleanly.
+  const child = app.process();
+  if (child.exitCode === null && child.signalCode === null) {
+    const exited = once(child, 'exit');
+    void app.evaluate(({ app }) => app.exit(0)).catch(() => {});
+    await Promise.race([exited, delay(5000)]);
+    if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+  }
 }
+process.exit(exitCode);
